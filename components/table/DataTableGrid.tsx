@@ -18,7 +18,7 @@ import {
   type TableRow,
 } from "@/services/tableService"
 import { waitsForLiveCells, type KeyInput } from "@/lib/tables/gridKeyKinds"
-import type { ColumnDrag, GridKeyHost } from "@/components/table/gridMoves"
+import type { ColumnDrag, GridKeyHost, Held } from "@/components/table/gridMoves"
 import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
 import { useKeptRows, useViewWindow } from "@/components/table/viewWindow"
 import { placeOfRow, rowMoved, type Places } from "@/lib/tables/viewPlaces"
@@ -146,10 +146,8 @@ export const SummaryPart = lazyView(() => import("@/components/table/SummaryBar"
 /** The bar over the rows while some are selected (RowSelectionBar.tsx): a chunk of its own, off the table's first screen. */
 export const SelectionPart = lazyView(() => import("@/components/table/RowSelectionBar"))
 // A column's add, save, duplicate and delete: their own chunk, on first use.
-// One that can't load (a deploy since, or no network) says so, and resolves
-// unsaved (false): a type change stops changing, a new column's form stays.
-// After a deploy, when the server says the old build's chunk is gone, the page
-// reloads once for the new build instead (lib/chunkRecovery's one probe).
+// One that can't load says so and resolves unsaved (false), keeping the form;
+// when a deploy took the old chunk, the page reloads once (lib/chunkRecovery).
 const withColumns = <T,>(run: (m: typeof import("@/components/table/columnOps")) => T | PromiseLike<T>) =>
   import("@/components/table/columnOps").then(run, async (e: unknown) => {
     if (!(await reloadForNewBuild(e))) toast({ tone: "error", title: "Couldn't change the column: try again" })
@@ -242,11 +240,10 @@ const NO_FILLS = new Map<string, AIFill>()
 
 /**
  * A table's grid on the v3 sheet (content.md T06–T10, T14, T19): no outer
- * box, a 36 px sticky header, hairline rows and no column rules, a row-number
- * gutter that turns into a checkbox and an expand icon on hover, the primary
- * column frozen with a shadow that fades in once the grid scrolls sideways,
- * one brand ring that glides to the focused cell, a summary bar and a bulk bar
- * for the rows selected.
+ * box, a 36 px sticky header, hairline rows, a row-number gutter that turns
+ * into a checkbox and expand icon on hover, the primary column frozen with a
+ * shadow once the grid scrolls sideways, one brand ring gliding to the focused
+ * cell, a summary bar and a bulk bar.
  *
  * Only the rows in view (and a screenful either side) are in the page: a
  * thousand rows of nine editable cells was 35,000 elements and 7,000 inputs.
@@ -364,7 +361,7 @@ export function DataTableGrid({
   }
 
   // A column's changes, from the columns' own chunk (columnOps).
-  const cols: Columns = { tableId, fields, onChange, confirm, offerUndo, openMenu: (id) => setMenu({ field: id, page: "main" }) }
+  const cols: Columns = { tableId, fields, onChange, confirm, offerUndo, openMenu: (id) => setMenu({ field: id, page: "main" }), write }
 
   // ---- layout -------------------------------------------------------------
   const touch = React.useMemo(touchScreen, [])
@@ -431,11 +428,10 @@ export function DataTableGrid({
   // a phone the frozen first column gives up what the gutter takes past 44
   // (PHONE_LEAD).
   const frozenWidth = sortedFields.length === 0 ? "0px" : compact ? `min(${widthOf(sortedFields[0])}px, calc(${PHONE_LEAD}px - var(--grid-gutter)))` : `${widthOf(sortedFields[0])}px`
-  // The gutter, the fields, and a last column at the end (Add column for an
-  // editor, nothing for a reader) that takes whatever room is left: with
-  // every column a fixed width, a fixed-layout table shares spare room out
-  // across all of them, so a new table's one column started a third of the
-  // way across, behind a stretched row-number gutter.
+  // The gutter, the fields and a last column (Add column for an editor) that
+  // takes the room left: with every column fixed, a fixed-layout table spread
+  // spare room across all, and a new table's one column started a third of the
+  // way across.
   const colCount = sortedFields.length + 2
   const tableWidth = `calc(var(--grid-gutter) + ${frozenWidth} + ${sortedFields.slice(1).reduce((w, f) => w + widthOf(f), 0) + ADD_COL}px)`
   // Up to three leading columns stay put sideways (G2b), each past the
@@ -587,16 +583,13 @@ export function DataTableGrid({
 
   // ---- cells at rest, and the one in use ------------------------------------
   // Every cell is drawn at rest, as plain markup (gridCells' restCell), but
-  // the one in use, which is drawn live (Cell): a row entering the window
-  // renders as one component, not one a cell. A cell comes to life as the
-  // mouse comes onto it or a finger presses it, so the press, the caret and
-  // the click land on its live controls; by its click, when the mouse found it
-  // at rest (the focus in a live cell, or the keys on this one) or the click
-  // came without a press (a key on a button, a test's click), made again on
-  // the live control at the same place, with the caret a press left; and
-  // before a key that would type in it. The arrows move between cells at rest.
-  // A cell stays live until another comes to life. GridBody holds it: held
-  // here, each hover rendered every column header.
+  // the one in use, drawn live (Cell): a row entering the window is one
+  // component. A cell comes to life as the mouse comes onto it or a finger
+  // presses it; by its click when the mouse found it at rest or the click had
+  // no press (made again on the live control, with a press's caret); and
+  // before a key that types in it. Arrows move between cells at rest. It stays
+  // live until another comes to life; GridBody holds it (held here, each hover
+  // rendered every column header).
   const liveRef = React.useRef<(cell: LiveCell) => void>(null)
   // The cell under the mouse: brought to life once the chunk is in, if it came first.
   const hovered = React.useRef<Element | null>(null)
@@ -609,12 +602,10 @@ export function DataTableGrid({
     flushSync(() => liveRef.current?.({ row, field }))
     return true
   }, [])
-  // The mouse never takes the focus from the cell holding it. Brought to life,
-  // that cell, or the one in use as another comes to life, is drawn anew and
-  // the focus goes with its old box: while the mouse rested on the cell
-  // clicked before (drawn anew under it), a word typed in the cell the keys
-  // had reached lost every key after the first. Its click still opens a cell
-  // the mouse left at rest (onRestClick).
+  // The mouse never takes the focus from the cell holding it: drawn anew, that
+  // cell's focus went with its old box, and a word typed where the keys had
+  // reached lost every key after the first. Its click still opens a cell the
+  // mouse left at rest (onRestClick).
   const bringToLifeUnderMouse = React.useCallback(
     (td: Element | null) => {
       const focused = document.activeElement?.closest("tbody td[data-field]")
@@ -624,15 +615,20 @@ export function DataTableGrid({
     [bringToLife],
   )
   React.useEffect(() => {
-    void warmLiveCells().then(() => bringToLifeUnderMouse(hovered.current))
+    // Not once the grid has gone: a chunk can land after (a test's whole page, torn down).
+    let gone = false
+    void warmLiveCells().then(() => {
+      if (!gone) bringToLifeUnderMouse(hovered.current)
+    })
+    return () => {
+      gone = true
+    }
   }, [bringToLifeUnderMouse])
-  // A mouse's press is aimed at what was under it when it went down, and so is
-  // a pen's at a computer, while a cell brought to life then is drawn after:
-  // so a cell comes to life as such a pointer comes onto it, and its press
-  // never brings one to life, which would send its click nowhere (a cell still
-  // at rest opens by its click, onRestClick). A tap's press and click are
-  // aimed afresh after the finger lifts, so only a finger's press brings a
-  // cell to life, as it goes down.
+  // A mouse's or pen's press is aimed at what was under it as it went down, and
+  // a cell brought to life then is drawn after, so its click would go nowhere:
+  // such a pointer brings a cell to life as it comes onto it (one still at rest
+  // opens by its click, onRestClick). A tap is aimed afresh as the finger
+  // lifts, so a finger's press brings its cell to life as it goes down.
   const onPointerOver = React.useCallback(
     (e: React.PointerEvent) => {
       // The pointer reached the grid: the range's piece starts coming.
@@ -654,6 +650,22 @@ export function DataTableGrid({
     },
     [bringToLife, rangePointerDown],
   )
+  // Before they land, a key that moves, one typed at a cell at rest (with its
+  // cell, V-474) and a click on one are held (no page key sees them), and
+  // every key after a typed one or a click waits too: gridMoves' playHeld
+  // plays them in order. A failed load says so, unless only clicks waited.
+  const heldKeys = React.useRef<Held[]>([])
+  const playHeld = useStableCallback((ok: boolean) => {
+    const held = heldKeys.current.splice(0)
+    if (ok && live) return live.playHeld(held, tableRef.current, keyHost(), couldNot)
+    if (held.some((k) => !("click" in k))) couldNot(held.some((k) => !("click" in k) && k.cell) ? "type in the cell" : "move between cells")
+  })
+  const hold = useStableCallback((e: React.UIEvent, k: Held) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (heldKeys.current.push({ ...k, from: document.activeElement }) === 1) void warmLiveCells().then(playHeld)
+  })
+
   // A click is the live cells' (gridMoves' cellClick): one on a cell at rest
   // before they land is made again once they do.
   const onRestClick = React.useCallback(
@@ -662,11 +674,9 @@ export function DataTableGrid({
       if (rangeClick(e)) return
       if (live) return live.cellClick(e, bringToLife)
       if (!(e.target as HTMLElement).closest("[data-rest]")) return
-      e.preventDefault()
-      e.stopPropagation()
-      void warmLiveCells().then(() => live?.cellClick(e, bringToLife))
+      hold(e, { click: e })
     },
-    [bringToLife, rangeClick],
+    [bringToLife, rangeClick, hold],
   )
   // A double-click's second press puts the caret back where its first put it (gridMoves' cellMouseDown).
   const onMouseDown = React.useCallback(
@@ -768,21 +778,6 @@ export function DataTableGrid({
       },
     }),
   )
-  // Before they land, a key that moves is held, and the keys held go once
-  // they do, in order, from the cell the focus is on then: none once the focus
-  // has left the grid. A load that fails drops them, and says so.
-  const heldKeys = React.useRef<KeyInput[]>([])
-  const playHeld = useStableCallback((ok: boolean) => {
-    const keys = heldKeys.current.splice(0)
-    const m = live
-    if (!ok || !m) return couldNot("move between cells")
-    for (const k of keys) {
-      const target = document.activeElement
-      if (!target || !tableRef.current?.contains(target)) return
-      m.gridKeyDown({ ...k, target, composing: false, preventDefault() {}, stopPropagation() {} }, keyHost())
-    }
-  })
-
   const onGridKeyUp = React.useCallback((e: React.KeyboardEvent<HTMLTableElement>) => live?.gridKeyUp(e), [])
 
   const onGridKey = React.useCallback(
@@ -798,13 +793,18 @@ export function DataTableGrid({
       // A key that would type in a text box at rest: the cell comes to life,
       // and the key goes on to its live box, everything selected for it to
       // replace (as a move between cells leaves a box).
-      if (target.hasAttribute("data-rest") && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && typesIn(e) && (e.key === "Process" || !composing)) {
-        const id = target.dataset.cell
-        const td = target.closest("tbody td[data-field]")
-        // Before the live cells' chunk is in, the key is held back (the box can't take it yet).
+      // Before them, a shut cell's (a finger's tap selects one so) is its box's.
+      const rest = !live && target.hasAttribute("data-cell-box") ? (target.querySelector<HTMLElement>("[data-rest]") ?? target) : target
+      if (rest.hasAttribute("data-rest") && (rest instanceof HTMLInputElement || rest instanceof HTMLTextAreaElement) && typesIn(e) && (e.key === "Process" || !composing)) {
+        const id = rest.dataset.cell
+        const td = rest.closest("tbody td[data-field]")
+        // Until the chunk is in, the key is held with its cell (an input
+        // method's key, a cut or a Space before any text only warms it).
         if (!bringToLife(td)) {
           e.preventDefault()
-          void warmLiveCells()
+          const typing = heldKeys.current.some((h) => !("click" in h) && h.cell)
+          if (id && e.key !== "Process" && !e.ctrlKey && !e.metaKey && (e.key !== " " || typing)) hold(e, { ...k, cell: id })
+          else void warmLiveCells()
           return
         }
         const box = td?.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-cell="${id}"]`)
@@ -813,12 +813,10 @@ export function DataTableGrid({
         return
       }
       if (live) return live.gridKeyDown(key, keyHost())
-      if (composing || !waitsForLiveCells(k, target)) return
-      e.preventDefault()
-      e.stopPropagation()
-      if (heldKeys.current.push(k) === 1) void warmLiveCells().then(playHeld)
+      if (composing || !(waitsForLiveCells(k, target) || heldKeys.current.some((h) => "click" in h || h.cell))) return
+      hold(e, k)
     },
-    [bringToLife, rangeKey, keyHost, playHeld],
+    [bringToLife, rangeKey, keyHost, hold],
   )
 
   const ctx = React.useMemo<CellContext>(
@@ -1233,12 +1231,10 @@ function PlaceholderRow({ height, colCount }: { height: number; colCount: number
 }
 
 /**
- * One row of the grid: one render as it enters the window. GridBody keeps
- * its element while sameRow holds (the row's id and values, not the object),
- * so asking for the table again after an edit, or a scroll, renders only the
- * rows whose values changed or that came into the window. A row in
- * React.memo with a comparator was two components a row (the memo, then the
- * row), and rows entering a scroll were half of what it rendered.
+ * One row of the grid: one render as it enters the window. GridBody keeps its
+ * element while sameRow holds (id and values, not the object), so a refetch or
+ * a scroll renders only rows that changed or came into view. React.memo with a
+ * comparator made two components a row, half of a scroll's renders.
  */
 interface GridRowProps {
 row: TableRow
@@ -1348,11 +1344,9 @@ function GridRow({
             </span>
           ) : null}
           {onOpen ? (
-            // On a touch screen it is a 24 px tap, 8 px clear of the first
-            // cell, beside the checkbox's 24 px and sharing no pixel with it
-            // (table.css widens the gutter for the two): a browser gives a tap
-            // near a small button to the button, and this one took taps meant
-            // for the cell (TAB-BUG-15).
+            // On touch: a 24 px tap, 8 px clear of the first cell and beside the
+            // checkbox's 24 px (table.css widens the gutter): a browser gives a
+            // tap near a small button to it, and this took the cell's (TAB-BUG-15).
             <button
               type="button"
               aria-label={openRowLabel(num + 1, row)}

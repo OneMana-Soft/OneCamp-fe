@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { loadPopover, Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popoverOnDemand"
 import { AlertTriangle, ChevronDown, Loader2, Plus, Square } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
 import { alignsRight, fieldProblem, formulaOf, parseFieldConfig, type AIFill, type FieldType, type TableField } from "@/services/tableService"
@@ -55,9 +55,14 @@ const MenuPart = lazyView(() => import("@/components/table/columnMenu/ColumnMenu
 const AddPart = lazyView(() => import("@/components/table/columnMenu/AddColumnBody"))
 const warmMenu = () => void MenuPart.prefetch()
 const warmAdd = () => void AddPart.prefetch()
+/** Both menus' chunks, asked for by the table page once it is idle (V-475). */
+export const warmColumnMenus = () => {
+  warmMenu()
+  warmAdd()
+}
 
 /** Both menus' chunks, loaded: what a test that opens a menu waits for first. */
-export const loadColumnMenus = () => Promise.all([MenuPart.warm(), AddPart.warm()])
+export const loadColumnMenus = () => Promise.all([MenuPart.warm(), AddPart.warm(), loadPopover()])
 
 /** What a menu shows while its chunk is on its way: a moment, the first time. */
 function MenuLoading() {

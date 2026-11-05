@@ -92,6 +92,10 @@ async function barIsClear(page: Page, tile: Locator, tools: Locator, touch: bool
     const apart = q.x >= bar.x + bar.width || q.x + q.width <= bar.x || q.y >= bar.y + bar.height || q.y + q.height <= bar.y
     expect(apart, `the pin (${Math.round(q.x)},${Math.round(q.y)}) stays off the bar (${Math.round(bar.x)}..${Math.round(bar.x + bar.width)})`).toBe(true)
   }
+  // The bar is one row at every size: at 390 its fifth button once dropped alone under the first (V-216).
+  const tops: number[] = []
+  for (const b of await tools.getByRole("button").all()) tops.push(Math.round((await b.boundingBox())!.y))
+  expect(Math.max(...tops) - Math.min(...tops), `the drawing bar's buttons sit on one row (tops ${tops.join(", ")})`).toBeLessThanOrEqual(1)
   for (const b of await tools.getByRole("button").all()) {
     const name = await b.getAttribute("aria-label")
     const r = (await b.boundingBox())!

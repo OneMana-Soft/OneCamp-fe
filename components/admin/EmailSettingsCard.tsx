@@ -31,7 +31,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { sanitizeImportedDocument } from "@/lib/sanitizeHtml"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { cn } from "@/lib/utils/helpers/cn"
 import axiosInstance from "@/lib/axiosInstance"
 import { workspaceLogoURL } from "@/services/workspaceLogo"
@@ -215,7 +215,7 @@ const EmailSettingsCard = () => {
     } catch (error) {
       toast({
         title: "Couldn't upload the logo",
-        description: apiErrorMessage(error, "Try again in a moment."),
+        description: saidHere(error, "Try again in a moment."),
         variant: "destructive"
       })
     } finally {

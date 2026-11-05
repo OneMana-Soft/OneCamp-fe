@@ -55,6 +55,8 @@ const AIAgentsSection = dynamic(() => import("@/components/admin/ai/AIAgentsSect
 const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
 const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
 const GuestAccessCard = dynamic(() => import("@/components/admin/GuestAccessCard"), { loading: AdminCardSkeleton })
+// miro-44 L: the labels a board or a doc carries, whose rules hold back guest links and exports.
+const SensitivityLabelsCard = dynamic(() => import("@/components/admin/SensitivityLabelsCard"), { loading: AdminCardSkeleton })
 const ReadReceiptsPolicyCard = dynamic(() => import("@/components/admin/ReadReceiptsPolicyCard"), { loading: AdminCardSkeleton })
 const DefaultChannelsCard = dynamic(() => import("@/components/admin/DefaultChannelsCard"), { loading: AdminCardSkeleton })
 const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvisioningCard"), { loading: AdminCardSkeleton })
@@ -69,6 +71,8 @@ const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/Trans
 const WorkflowsCard = dynamic(() => import("@/components/admin/WorkflowsCard"), { loading: AdminCardSkeleton })
 const AdminAuditLog = dynamic(() => import("@/components/admin/AdminAuditLog"), { loading: AdminCardSkeleton })
 const RetentionCard = dynamic(() => import("@/components/admin/RetentionCard"), { loading: AdminCardSkeleton })
+// Its own client and toasts come from the page, so the lazy card reaches no shared core (LEAD-RULES, 30 Oct 00:13).
+const LegalHoldsCard = dynamic(() => import("@/components/admin/LegalHoldsCard"), { loading: AdminCardSkeleton })
 const PushNotificationsCard = dynamic(() => import("@/components/admin/PushNotificationsCard"), { loading: AdminCardSkeleton })
 const SystemCheckCard = dynamic(() => import("@/components/admin/SystemCheckCard"), { loading: AdminCardSkeleton })
 const UpdatesCard = dynamic(() => import("@/components/admin/UpdatesCard"), { loading: AdminCardSkeleton })
@@ -266,9 +270,10 @@ const AdminPage = () => {
                 </div>
               </TabsContent>
               <TabsContent value="security" className="mt-0">
-                {/* Who may get in from outside, then how members are provisioned. */}
+                {/* Who may get in from outside, what a label keeps in, then how members are provisioned. */}
                 <div className={ADMIN_SECTION_STACK}>
                   <GuestAccessCard />
+                  <SensitivityLabelsCard http={axiosInstance} />
                   <ScimProvisioningCard />
                 </div>
               </TabsContent>
@@ -278,6 +283,7 @@ const AdminPage = () => {
                 <div className={ADMIN_SECTION_STACK}>
                   <AdminAuditLog />
                   <RetentionCard />
+                  <LegalHoldsCard http={axiosInstance} />
                 </div>
               </TabsContent>
               {/* Its own tab rather than a card under Settings: this is a diagnostic, not a

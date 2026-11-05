@@ -39,6 +39,8 @@ export const AREA_RULES = [
   ...rule("ai", /^components\/ai\//, /^app\/app\/ai\//, /^lib\/ai\//, /^services\/(ai[A-Za-z]*|agent[A-Za-z]*|scheduleService|memoryService|answerRecovery|nudgeService|pendingAction[A-Za-z]*|governanceDrillService|runProvenance)\./),
   // Admin and settings.
   ...rule("admin", /^components\/(admin|marketplace|connectors)\//, /^app\/(app\/admin|admin-setup)\//, /^app\/app\/settings\//, /^services\/(apiTokenService|appService|marketplaceService|mcpService|scimTokenService|slackImportService|slackBridgeService|importService|invitationService|connectorService|dataSourceService|workflowService|twoFactorService|aiModelService|systemCheckService|updatesService|dataSubjectService|auditCategories)\./),
+  // Sensitivity labels (miro-44 L): the chip, its picker and their calls, used by boards, docs and the admin card.
+  ...rule("labels", /^components\/labels\//, /^lib\/labels\//),
   // Search.
   ...rule("search", /^components\/(search|searchDropdown)\//, /^app\/app\/search\//, /^hooks\/useSearch/, /^services\/searchService\./, /^lib\/search\//),
   // Inbox, activity and later.

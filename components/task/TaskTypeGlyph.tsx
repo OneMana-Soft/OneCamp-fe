@@ -46,11 +46,16 @@ export const TYPE_ICONS = {
 
 export type TypeIcon = keyof typeof TYPE_ICONS
 
-/** A type's glyph, named for screen readers ("Bug"). A name it doesn't know draws the plain task's. */
-export default function TaskTypeGlyph({ type, className }: { type: Pick<TaskWorkType, "icon" | "name">; className?: string }) {
-  const Icon = TYPE_ICONS[type.icon as TypeIcon] ?? SquareCheck
+/**
+ * A type's glyph, named for screen readers ("Bug"). A name it doesn't know draws the plain task's.
+ * `decorative` where the type's name is written beside it, so it isn't said twice.
+ */
+export default function TaskTypeGlyph({ type, className, decorative = false }: { type: Pick<TaskWorkType, "icon" | "name">; className?: string; decorative?: boolean }) {
+  const known = Object.prototype.hasOwnProperty.call(TYPE_ICONS, type.icon)
+  const Icon = known ? TYPE_ICONS[type.icon as TypeIcon] : SquareCheck
+  const a11y = decorative ? { "aria-hidden": true as const } : { role: "img", "aria-label": type.name, title: type.name }
   return (
-    <span role="img" aria-label={type.name} title={type.name} className={cn("inline-flex size-3.5 shrink-0", className)}>
+    <span {...a11y} data-type-glyph={known ? type.icon : "task"} className={cn("inline-flex size-3.5 shrink-0", className)}>
       <Icon aria-hidden className="size-full" strokeWidth={2.1} />
     </span>
   )

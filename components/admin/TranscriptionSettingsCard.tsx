@@ -39,6 +39,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { CheckCircle2, HardDrive, Loader2, XCircle } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid";
+import { saidHere } from "@/lib/http/saidHere";
 import {
     getTranscriptionConfig,
     updateTranscriptionConfig,
@@ -299,7 +301,7 @@ export default function TranscriptionSettingsCard() {
         } catch (e) {
             toast({
                 title: "Couldn't save the speech-to-text settings",
-                description: apiErrorMessage(e, "Try again in a moment."),
+                description: saidHere(e, "Try again in a moment."),
                 variant: "destructive",
             })
             return false
@@ -326,6 +328,7 @@ export default function TranscriptionSettingsCard() {
         } catch (e) {
             const msg = apiErrorMessage(e, "Try again in a moment.")
             setTestResult({ ok: false, provider: sttProvider, message: msg })
+            saysWriteFailure(e)
             toast({ title: "Couldn't run the test", description: msg, variant: "destructive" })
         } finally {
             setTesting(false)

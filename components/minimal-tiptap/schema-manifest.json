@@ -465,6 +465,16 @@
       "content": null,
       "inline": false,
       "atom": true
+    },
+    "whiteboardEmbed": {
+      "attrs": [
+        "blockId",
+        "boardId"
+      ],
+      "group": "block",
+      "content": null,
+      "inline": false,
+      "atom": true
     }
   },
   "marks": {

@@ -21,7 +21,7 @@
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { Ellipsis, Lock, Pause, Play, Plus, Presentation, Timer, Users, Vote, X } from "@/lib/icons"
+import { Ellipsis, EyeOff, Lock, Pause, Play, Plus, Presentation, Timer, Users, Vote, X } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { celebrate } from "@/lib/celebrateSoon"
@@ -66,6 +66,7 @@ import {
   type Votable,
 } from "@/lib/board/facilitation"
 import { sceneToLocal } from "@/lib/board/viewport"
+import { PRIVATE_KEY, privateRoundOf, type PrivateRound } from "@/lib/board/privateNotes"
 
 interface Props {
   provider: HocuspocusProvider
@@ -108,6 +109,7 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   const { isMobile, isTablet } = useMedia()
 
   const [timer, setTimer] = React.useState<BoardTimer | null>(null)
+  const [privateRound, setPrivateRound] = React.useState<PrivateRound | null>(null)
   const { voting, votes, myVotes, votesLeft, vote, startVoting, endVoting, clearVoting } = useBoardVoting(provider, user, editable)
   const [now, setNow] = React.useState(() => Date.now())
 
@@ -115,6 +117,7 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   React.useEffect(() => {
     const sync = () => {
       setTimer(timerIn(yFac))
+      setPrivateRound(privateRoundOf(yFac.get(PRIVATE_KEY)))
     }
     sync()
     yFac.observe(sync)
@@ -141,6 +144,12 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
 
   const setShared = (key: string, value: unknown | null) =>
     yDoc.transact(() => (value === null ? yFac.delete(key) : yFac.set(key, value)))
+
+  // Private mode (miro-25): any editor starts a round and any editor ends it. Until it ends, each person's new and
+  // edited notes stay in their own tab (lib/board/privateNotes); the end reveals them on every screen.
+  const startPrivate = () =>
+    setShared(PRIVATE_KEY, { id: `${Date.now().toString(36)}-${user.id}`, byId: user.id, byName: user.name, startedAt: Date.now() } satisfies PrivateRound)
+  const endPrivate = () => setShared(PRIVATE_KEY, null)
 
   const startTimer = (minutes: number) => {
     setNow(Date.now())
@@ -225,7 +234,7 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   // ---- Render ------------------------------------------------------------
   const timeUp = !!timer && left === 0 && timer.pausedLeftMs === undefined
   const lastTen = !!timer && !timeUp && left <= 10_000
-  const idle = !timer && !voting && !presenting && presenters.length === 0
+  const idle = !timer && !voting && !presenting && presenters.length === 0 && !privateRound
   const top3 = new Set(results.slice(0, 3).filter((r) => r.count > 0).map((r) => r.id))
 
   // Revealing the results: one spark burst from the winning note's badge,
@@ -248,7 +257,7 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   // Below 1024 px, once anything is on, each segment says only its state and every action is in one
   // menu, a sheet on a phone. In one row with their actions (End voting, the timer's four, Present)
   // the bar ran to ~440 px at 390 and scrolled, cutting "Present" at "Pre" (design review, 29 Oct).
-  // Idle, the three ways to start fit, and stay in the bar.
+  // Idle, the ways to start stay in the bar.
   const compact = !idle && (isMobile || isTablet)
   // Short of room, the compact bar's names give way first, then its segments' words, in one order
   // (lib/board/facilitation's giveWaySteps), measured before paint and only as far as the row needs:
@@ -259,9 +268,13 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   }
   const barRef = React.useRef<HTMLDivElement>(null)
   const [room, setRoom] = React.useState<HTMLDivElement | null>(null)
-  const barWords = [compact, held, holding, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable]
-  const given = useGiveWay(barRef, room, compact ? giveWaySteps(compactBar).length : 0, barWords.join("|"))
-  const forms = barForms(compactBar, given)
+  // An idle phone's row of ways to start, short of room (Bring everyone here beside Private), gives way the same
+  // way: Private, then Bring, draw their icons alone, and keep their names.
+  const startSteps = editable && !compact && isMobile ? [!privateRound && "private", !!bring && "bring"].filter(Boolean) : []
+  const barWords = [compact, held, holding, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable, privateRound?.byName, startSteps.join()]
+  const given = useGiveWay(barRef, room, compact ? giveWaySteps(compactBar).length : startSteps.length, barWords.join("|"))
+  const forms = barForms(compactBar, compact ? given : 0)
+  const startIcon = (step: string) => !compact && startSteps.slice(0, given).includes(step)
 
   if (idle && !editable) return null
   const segments: React.ReactNode[] = []
@@ -455,8 +468,25 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
     )
   }
 
+  if (privateRound) {
+    const by = privateRound.byId === user.id ? "you" : privateRound.byName
+    segments.push(
+      <Segment key="private" fit={compact}>
+        <EyeOff className="size-4 shrink-0" aria-hidden />
+        {compact ? (
+          <span className="shrink-0">
+            Private<span className="sr-only">{` mode, started by ${by}`}</span>
+          </span>
+        ) : (
+          <NamedState before="Private mode · started by" name={by} />
+        )}
+        {!compact && editable && <SegmentButton onClick={endPrivate}>End</SegmentButton>}
+      </Segment>,
+    )
+  }
+
   // Starting things (editors): in the bar, or in its menu while it is compact.
-  if (editable && !compact && (!timer || !voting || !presenting)) {
+  if (editable && !compact && (!timer || !voting || !presenting || !privateRound)) {
     segments.push(
       <Segment key="start" quiet>
         {!timer && <Choice icon={<Timer className="size-3.5" />} label="Timer" options={timerChoices} />}
@@ -467,21 +497,27 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
             Present
           </SegmentButton>
         )}
+        {!privateRound && (
+          <SegmentButton onClick={startPrivate} aria-label={isMobile ? "Start private mode" : undefined}>
+            <EyeOff className="size-3.5" aria-hidden />
+            {startIcon("private") ? null : isMobile ? "Private" : "Private mode"}
+          </SegmentButton>
+        )}
         {/* A word on a phone, so the row stays whole at 390; its name says it all. */}
         {bring && (
           <SegmentButton onClick={bring} aria-label={isMobile ? "Bring everyone here" : undefined}>
             <Users className="size-3.5" aria-hidden />
-            {isMobile ? "Bring" : "Bring everyone here"}
+            {startIcon("bring") ? null : isMobile ? "Bring" : "Bring everyone here"}
           </SegmentButton>
         )}
       </Segment>,
     )
   }
 
-  // Compact, every action, in the bar's order: presenting, voting, the timer.
+  // Compact, every action, in the bar's order: presenting, voting, the timer, private mode.
   if (compact) {
-    const groups: React.ReactNode[][] = [[], [], []]
-    const [presentingRows, votingRows, timerRows] = groups
+    const groups: React.ReactNode[][] = [[], [], [], []]
+    const [presentingRows, votingRows, timerRows, privateRows] = groups
     if (presenting) {
       presentingRows.push(
         <DropdownMenuItem key="hold" onSelect={() => setHolding((h) => !h)}>
@@ -563,6 +599,13 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
       )
     }
     if (editable && !timer) timerRows.push(<ChoiceStep key="timer" icon={<Timer />} label="Timer" options={timerChoices} />)
+    if (editable)
+      privateRows.push(
+        <DropdownMenuItem key="private" onSelect={privateRound ? endPrivate : startPrivate}>
+          <EyeOff />
+          {privateRound ? "End private mode" : "Private mode"}
+        </DropdownMenuItem>,
+      )
     const shown = groups.filter((g) => g.length > 0)
     if (shown.length > 0) {
       segments.push(

@@ -20,6 +20,7 @@ import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Sparkles, Copy, Check, Megaphone } from "@/lib/icons"
 import { draftReleaseNotes, type ReleaseNotesResult } from "@/services/aiModelService"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 const ReleaseNotesDialog: React.FC<{
   open: boolean
@@ -46,6 +47,7 @@ const ReleaseNotesDialog: React.FC<{
       setResult(res)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to draft release notes"
+      saysWriteFailure(e)
       toast({ title: "Couldn't draft", description: msg, variant: "destructive" })
     } finally {
       setLoading(false)

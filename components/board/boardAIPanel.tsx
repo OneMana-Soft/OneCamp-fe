@@ -511,49 +511,26 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
     handleGenerate(augmented)
   }, [plan, prompt, handleGenerate])
 
-  // Cluster & synthesize the notes already on the board. Reads the text from
-  // canvas elements, asks the server to group them into themes, then inserts
-  // the returned summary mind map via the same render path as a generation
-  // (non-destructive: the original notes are untouched).
+  // Cluster & synthesize the notes already on the board: their words go to the server as they may leave this tab
+  // (lib/board/sceneOut, on demand), and the summary mind map it returns goes in by a generation's path.
   const handleCluster = React.useCallback(() => {
     if (!api || clustering || isStreaming || isSubmitting) return
-
-    // Collect text from the live scene: standalone text and container-bound
-    // text (sticky notes) are both "text" elements in Excalidraw. Use each
-    // element's id so a theme can reference exactly what we sent.
-    const items: { id: string; text: string }[] = []
-    const seen = new Set<string>()
-    for (const el of api.getSceneElements()) {
-      const e = el as unknown as { id: string; type: string; text?: string; isDeleted?: boolean }
-      if (e.isDeleted || e.type !== "text") continue
-      const text = (e.text || "").trim()
-      if (!text || seen.has(e.id)) continue
-      seen.add(e.id)
-      items.push({ id: e.id, text })
-      if (items.length >= 120) break
-    }
-    if (items.length < 3) {
-      setError("Add a few notes or text to the board first, then cluster them.")
-      return
-    }
-
     setError(null)
     setSynthesis(null)
     setClustering(true)
-    makeRequest<{ board_uuid: string; items: { id: string; text: string }[] }, BoardClusterResult>({
-      apiEndpoint: BoardsPost.ClusterBoardContent,
-      payload: { board_uuid: boardId, items },
-    })
-      .then((res) => {
-        if (!res) {
-          setError("Couldn't cluster the board. Try again in a moment.")
-          return
-        }
-        setSynthesis(res)
-        if (res.graph && Array.isArray(res.graph.nodes) && res.graph.nodes.length > 0) {
-          void renderGraph(res.graph)
-        }
-        toast({ title: "Clustered the board", description: `${res.clusters?.length || 0} themes.` })
+    import("@/lib/board/sceneOut")
+      .then((m) => m.outwardTexts(api, 120))
+      .then((items) => {
+        if (items.length < 3) return setError("Add a few notes or text to the board first, then cluster them.")
+        return makeRequest<{ board_uuid: string; items: { id: string; text: string }[] }, BoardClusterResult>({
+          apiEndpoint: BoardsPost.ClusterBoardContent,
+          payload: { board_uuid: boardId, items },
+        }).then((res) => {
+          if (!res) return setError("Couldn't cluster the board. Try again in a moment.")
+          setSynthesis(res)
+          if (res.graph && Array.isArray(res.graph.nodes) && res.graph.nodes.length > 0) void renderGraph(res.graph)
+          toast({ title: "Clustered the board", description: `${res.clusters?.length || 0} themes.` })
+        })
       })
       .catch(() => setError("Clustering failed. Please try again in a moment."))
       .finally(() => setClustering(false))

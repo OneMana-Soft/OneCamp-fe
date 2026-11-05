@@ -17,7 +17,7 @@ import type { DocLock } from "@/types/docAccess"
 import { ChromeSheet } from "./chrome/Sheet"
 import { ChoiceCards, InlineError } from "./chrome/parts"
 import { setFacts, usePageFacts } from "./chrome/pageFacts"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { useDoc } from "./chrome/useDoc"
 
 
@@ -59,7 +59,7 @@ export default function LockDialog({ docId, onClose }: { docId: string; onClose(
       toast({ title: said })
       onClose()
     } catch (e) {
-      setError(apiErrorMessage(e, "The lock didn't change. Try again."))
+      setError(saidHere(e, "The lock didn't change. Try again."))
     } finally {
       setBusy(false)
     }

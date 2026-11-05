@@ -64,4 +64,17 @@ describe("a phone's sort sheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }))
     await waitFor(() => expect(dispatched.at(-1)?.payload.sort).toEqual([{ id: "task_due_date", desc: true }]))
   })
+
+  it("opens the project's insights with the filters the list reads by, and closes (B9-b1)", () => {
+    stored = { sort: [], filters: [{ id: "task_priority", value: ["high"] }] }
+    const close = vi.fn()
+    render(<ProjectTaskFilterDrawer drawerOpenState setOpenState={close} projectId="p" />)
+    const link = screen.getByRole("link", { name: "Insights" })
+    const href = new URL(link.getAttribute("href")!, "http://x")
+    expect(href.searchParams.get("projects")).toBe("p")
+    expect(JSON.parse(href.searchParams.get("filters")!)).toEqual([{ id: "task_priority", value: ["high"] }])
+    link.addEventListener("click", (e) => e.preventDefault()) // jsdom doesn't navigate
+    fireEvent.click(link)
+    expect(close).toHaveBeenCalled()
+  })
 })

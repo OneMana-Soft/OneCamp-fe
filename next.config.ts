@@ -1,6 +1,7 @@
 import { PERMISSIONS_POLICY } from "./lib/security/permissionsPolicy";
 import type { NextConfig } from "next";
 import { CALL_PAGES, cspFromEnv, reportingEndpointsFromEnv } from "./lib/security/csp";
+import { EMBEDDABLE_PAGES, NOT_EMBEDDABLE, embeddableHeaders } from "./lib/security/framing";
 import { imageRemotePatterns, mediaOriginWarning } from "./lib/security/mediaOrigin";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -21,8 +22,9 @@ const isProd = process.env.NODE_ENV === "production";
  * what would have broken without breaking it. Switch the key to
  * "Content-Security-Policy" once the reports are clean.
  *
- * X-Frame-Options is also set by middleware on auth routes; this
- * default catches every other path (e.g. static assets).
+ * X-Frame-Options goes on every path but the few pages another site may
+ * frame, a share link's embed (lib/security/framing.ts), whose headers are
+ * these less X-Frame-Options, with frame-ancestors * enforced.
  */
 // Report-only for now. See the note above before enforcing.
 const CSP_HEADER = "Content-Security-Policy-Report-Only";
@@ -129,9 +131,14 @@ const nextConfig: NextConfig = {
         const immutable = [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }];
         return [
             {
-                source: "/:path*",
+                // Every path but the embeddable pages (lib/security/framing.ts):
+                // lib/security/framing.test.ts puts every route through these rules.
+                source: NOT_EMBEDDABLE,
                 headers: securityHeaders,
             },
+            // A share link's embed, which another site may frame: no
+            // X-Frame-Options, and frame-ancestors * enforced.
+            ...EMBEDDABLE_PAGES.map((source) => ({ source, headers: embeddableHeaders(securityHeaders, cspFromEnv({ framable: true })) })),
             // The pages a call can be on may compile WebAssembly, for the call
             // effects (lib/calls/processors); every other page may not. A later
             // rule's header replaces an earlier one's of the same name.

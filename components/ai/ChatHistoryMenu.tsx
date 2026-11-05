@@ -32,6 +32,7 @@ import { clockTime } from "@/lib/utils/date/clock"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 export interface ResumedConversation {
     sessionId: string
@@ -101,7 +102,8 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume, currentId }) => {
         try {
             await deleteChatSession(id)
             setSessions((prev) => (prev || []).filter((s) => s.id !== id))
-        } catch {
+        } catch (error) {
+            saysWriteFailure(error)
             toast({ title: "Could not delete that conversation", variant: "destructive" })
         } finally {
             setBusyId(null)

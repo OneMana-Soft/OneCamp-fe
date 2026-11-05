@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, Database, AlertTriangle, Lock, Play, Check } from "@/lib/icons"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import {
   DataSource,
   DataSourceInput,
@@ -190,7 +190,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
       setTestResult(res)
     } catch (e) {
       // It had no catch: a test that threw left nothing on screen.
-      setTestResult({ ok: false, message: `Couldn't connect. ${apiErrorMessage(e, "Check the address and the password, then test again.")}` })
+      setTestResult({ ok: false, message: `Couldn't connect. ${saidHere(e, "Check the address and the password, then test again.")}` })
     } finally {
       setTesting(false)
     }
@@ -217,7 +217,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
       toast({ title: editing ? `${name.trim()} saved` : `${name.trim()} added` })
       onSaved()
     } catch (e: unknown) {
-      setError(`Couldn't save the data source. ${apiErrorMessage(e, "Try again in a moment.")}`)
+      setError(`Couldn't save the data source. ${saidHere(e, "Try again in a moment.")}`)
     } finally {
       setSaving(false)
     }

@@ -152,6 +152,7 @@ export function BoardTitleCluster({
   onRename,
   saveState,
   menu,
+  label,
 }: {
   backHref: string
   title: string
@@ -160,6 +161,8 @@ export function BoardTitleCluster({
   saveState: SaveState
   /** The "More" menu: the trigger is passed this cluster's button. */
   menu: (trigger: React.ReactElement) => React.ReactNode
+  /** Its label's chip (miro-44 L). */
+  label?: React.ReactNode
 }) {
   return (
     <ChromeCluster label="Board" className="min-w-0 pr-1">
@@ -177,6 +180,7 @@ export function BoardTitleCluster({
           View only
         </span>
       ) : null}
+      {label}
       <SaveDot state={saveState} live thing="board" className="mr-0.5" />
       {menu(
         <ClusterButton label="More">

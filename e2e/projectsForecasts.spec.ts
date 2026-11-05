@@ -183,6 +183,115 @@ async function overruns(page: Page) {
   )
 }
 
+/** Where a forecast sits on one line: its row, and the line in the row (CSS selectors, read in the page). */
+interface ForecastLine {
+  row: string
+  line: string
+}
+/** The overview's phone row: its counts' line. */
+const OVERVIEW_LINE: ForecastLine = { row: "[data-project-row]", line: ":has(> [data-row-counts])" }
+/** A goal's project row: its lands line (CR-205's FIX 1). */
+const GOAL_LINE: ForecastLine = { row: "li:has([data-goal-lands-line])", line: "[data-goal-lands-line]" }
+
+/**
+ * V-280: what a crowded row shows of its forecast and its name. On a one-line forecast each part is whole or gone:
+ * "Lands", then the date, give whole, only when there's no room for them, and the title still says the date; "held
+ * up" never gives, and what's shown reads together, with no hole and nothing running under what follows it on the
+ * line. The line starts where its neighbours' do (a bar that gave takes its gap with it). On a laptop's overview a
+ * name keeps at least its first two words; the milestone beside it gives first.
+ */
+async function crowded(page: Page, name: string, at: ForecastLine = OVERVIEW_LINE) {
+  return page
+    .locator(at.row)
+    .filter({ hasText: name })
+    .evaluate(
+      (row, [name, lineAt]) => {
+      const out: string[] = []
+      const when = row.querySelector("[data-forecast-when]")
+      const line = row.querySelector(lineAt)
+      if (when && line) {
+        const lineBox = line.getBoundingClientRect()
+        const shown = (el: Element) => {
+          const r = el.getBoundingClientRect()
+          return r.width > 0.5 && r.top < lineBox.bottom - 0.5 && r.bottom > lineBox.top + 0.5
+        }
+        // Whole or gone: a shown part is never cut inside itself (an ellipsis) nor clipped by a box it sits in.
+        const parts = [...when.querySelectorAll("span")].filter((el) => !el.children.length && shown(el))
+        for (const el of parts) {
+          if (el.scrollWidth > el.clientWidth + 0.5) out.push(`"${el.textContent}" is cut (${el.scrollWidth}/${el.clientWidth})`)
+          const r = el.getBoundingClientRect()
+          for (let a = el.parentElement; a && a !== row.parentElement; a = a.parentElement) {
+            if (getComputedStyle(a).overflowX === "visible") continue
+            const b = a.getBoundingClientRect()
+            if (r.left < b.left - 0.5 || r.right > b.right + 0.5) {
+              out.push(`"${el.textContent}" is clipped (${Math.round(r.left)}-${Math.round(r.right)} in ${Math.round(b.left)}-${Math.round(b.right)})`)
+              break
+            }
+          }
+        }
+        // No hole: the shown parts sit at the forecast's own gap, so "held up" follows its date.
+        const gap = parseFloat(getComputedStyle(when).columnGap) || 0
+        const byLeft = parts.map((el) => ({ el, r: el.getBoundingClientRect() })).sort((x, y) => x.r.left - y.r.left)
+        for (let i = 1; i < byLeft.length; i++) {
+          const hole = byLeft[i].r.left - byLeft[i - 1].r.right
+          if (hole > gap + 1) out.push(`${Math.round(hole)} px between "${byLeft[i - 1].el.textContent}" and "${byLeft[i].el.textContent}"`)
+        }
+        // A part gives only when there's no room for it: the first part gone, in the order they're kept (CSS order),
+        // would not fit in the room left on its line. The parts after it go with it ("Lands" means nothing without
+        // its date).
+        const words = when.querySelector("[data-forecast-words]")
+        if (words) {
+          const kids = [...words.children]
+          const room = words.getBoundingClientRect().width - kids.filter(shown).reduce((sum, el) => sum + el.getBoundingClientRect().width, 0)
+          const gone = kids.filter((el) => !shown(el)).sort((a, b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order))[0]
+          if (gone && gone.getBoundingClientRect().width < room - 0.5)
+            out.push(`"${gone.textContent}" gave with ${Math.round(room)} px of room for its ${Math.round(gone.getBoundingClientRect().width)}`)
+        }
+        const date = [...when.querySelectorAll("span")].find((el) => !el.children.length && /~/.test(el.textContent ?? ""))
+        const day = (date?.textContent ?? "").replace(/[\s·]+$/, "")
+        if (!date) out.push("the forecast has no date")
+        else if (!shown(date) && !(when.querySelector("[title]")?.getAttribute("title") ?? "").includes(day))
+          out.push(`the date gave, and no title says "${day}"`)
+        if (when.getAttribute("data-forecast-when") === "held") {
+          const held = [...when.querySelectorAll("span")].find((el) => !el.children.length && /held up$/.test(el.textContent ?? ""))
+          if (!held || !shown(held)) out.push(`"held up" isn't shown`)
+        }
+        // Nothing on the line runs under the part after it (", after the goal's date" on a goal's line).
+        const onLine = [...line.querySelectorAll("span")]
+          .filter((el) => !el.children.length && shown(el))
+          .map((el) => ({ el, r: el.getBoundingClientRect() }))
+          .sort((x, y) => x.r.left - y.r.left)
+        for (let i = 1; i < onLine.length; i++)
+          if (onLine[i].r.left < onLine[i - 1].r.right - 0.5)
+            out.push(`"${onLine[i - 1].el.textContent}" runs ${Math.round(onLine[i - 1].r.right - onLine[i].r.left)} px under "${onLine[i].el.textContent}"`)
+        // And what follows the forecast on the line follows its last shown part at the forecast's gap: room its words
+        // left over never sits between them.
+        const last = onLine.map((x) => when.contains(x.el)).lastIndexOf(true)
+        const after = onLine[last + 1]
+        if (last >= 0 && after && after.r.left - onLine[last].r.right > gap + 1)
+          out.push(`${Math.round(after.r.left - onLine[last].r.right)} px between "${onLine[last].el.textContent}" and "${after.el.textContent}"`)
+        const start = lineBox.left + (parseFloat(getComputedStyle(line).paddingLeft) || 0)
+        const first = [...line.children].find(shown)
+        if (first && first.getBoundingClientRect().left > start + 0.5)
+          out.push(`the line starts ${Math.round(first.getBoundingClientRect().left - start)} px in`)
+      } else {
+        const el = row.querySelector(`[title="${CSS.escape(name)}"]`) as HTMLElement | null
+        if (!el) return [`no name titled ${name}`]
+        const two = document.createElement("span")
+        two.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${getComputedStyle(el).font}`
+        two.textContent = name.split(/\s+/).slice(0, 2).join(" ")
+        document.body.append(two)
+        const need = two.getBoundingClientRect().width
+        two.remove()
+        const has = el.getBoundingClientRect().width
+        if (has < need - 0.5) out.push(`"${name}" shows ${Math.round(has)} px of the ${Math.round(need)} its first two words need`)
+      }
+      return out
+      },
+      [name, at.line] as const,
+    )
+}
+
 for (const theme of SHOT_THEMES) {
   for (const [where, use] of [
     ["on a phone", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme }],
@@ -307,10 +416,97 @@ for (const theme of SHOT_THEMES) {
           // The laptop's cells: none moved when the lines came.
           expect(await boxes(page, CELLS)).toEqual(before)
         }
+        // V-280: the longest rows show their forecast's parts whole or not at all ("held up" always), and their name's
+        // first two words.
+        // Both rows are read before one expect, so a failure names every row's faults, not only the first's.
+        const longest = [PROJECTS[1], PROJECTS[8]]
+        const faults: Record<string, string[]> = {}
+        for (const p of longest) faults[p.project_name] = await crowded(page, p.project_name)
+        expect(faults).toEqual(Object.fromEntries(longest.map((p) => [p.project_name, []])))
+        // The longest rows in view, so the shot shows them on a phone too.
+        await row(PROJECTS[1].project_name).scrollIntoViewIfNeeded()
         await reviewShot(page, "forecasts-overview-longest", theme)
         await row(PROJECTS[8].project_name).scrollIntoViewIfNeeded()
         await expect(row(PROJECTS[8].project_name).locator("[data-forecast-when]")).toHaveAttribute("data-forecast-when", "held")
         await reviewShot(page, "forecasts-overview-held-below", theme)
+      })
+
+      // CR-205's FIX 1 (V-280): a goal's lands line is one line too. On the laptop window that leaves a project's name
+      // column at its 14rem floor (a half-screen window), a held-up project that lands late shows its forecast's parts
+      // whole or not at all, and nothing runs under ", after the goal's date".
+      test("a goal's crowded lands line gives its forecast's words whole, and nothing runs under what follows it", async ({ page }, testInfo) => {
+        test.skip(where === "on a phone", "the name column's 14rem floor is a laptop window's")
+        await open(page, testInfo, theme, "/app/goals/g-1", { asked: [] }, GOAL_READ)
+        const late = page.locator(GOAL_LINE.row).filter({ hasText: PROJECTS[1].project_name })
+        await expect(late.locator("[data-lands-after-goal]")).toHaveText(", after the goal's date", { timeout: 60_000 })
+        await expect(late.locator("[data-forecast-when]")).toHaveAttribute("data-forecast-when", "held")
+        // The name column (the row's first box) just above its floor. A window narrower by n px narrows it by n px at
+        // most, so each step closes on the floor from above, whatever the page's max width and the sidebar do.
+        const FLOOR = 224
+        const column = () => late.evaluate((li) => (li.firstElementChild as HTMLElement).getBoundingClientRect().width)
+        for (let i = 0; i < 6; i++) {
+          const w = await column()
+          if (w - FLOOR <= 6) break
+          await page.setViewportSize({ width: Math.round((page.viewportSize()?.width ?? 1280) - (w - FLOOR - 3)), height: 900 })
+          await page.waitForTimeout(200)
+        }
+        const w = await column()
+        expect(w, `the name column is at its floor (window ${page.viewportSize()?.width} px)`).toBeGreaterThanOrEqual(FLOOR - 0.5)
+        expect(w).toBeLessThanOrEqual(FLOOR + 6)
+        expect(await crowded(page, PROJECTS[1].project_name, GOAL_LINE)).toEqual([])
+        await reviewShot(page, "forecasts-goal-crowded", theme)
+      })
+
+      // CR-202 (V-280): a name that is one long word, on a narrow laptop window: its first words can't fit, so its head
+      // ends in an ellipsis inside its cell, and nothing in the cell paints past it. V-437 gives the columns after the
+      // name way whole as the table narrows (the tasks below 62rem, the forecast below 52rem, the target below 44rem), so
+      // a name's cell is narrowest just before each of them goes, and never under 12rem. The table is its own container
+      // and moves 1:1 with the window, whatever the sidebar's width: each window below sets it 2 px past a break.
+      test("a one-word name longer than its cell ends in an ellipsis inside its cell, on a narrow window", async ({ page }, testInfo) => {
+        test.skip(where === "on a phone", "the table's name cell is a laptop's")
+        const long = { ...PROJECTS[0], project_name: "Interoperabilityconsolidationworkstream" }
+        await open(page, testInfo, theme, "/app/project", { asked: [] }, { "/project/overview": { msg: "ok", data: { projects: [long, ...PROJECTS.slice(1)] } } })
+        const name = page.locator(`[data-project-row] [title="${long.project_name}"]`)
+        await expect(name).toBeVisible({ timeout: 60_000 })
+        const table = page.locator("[data-projects-list]")
+        const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+        const tableWidth = () => table.evaluate((el) => el.getBoundingClientRect().width)
+        for (const brk of [62, 52, 44]) {
+          const want = brk * rem + 2
+          await page.setViewportSize({ width: Math.round(page.viewportSize()!.width + want - (await tableWidth())), height: 900 })
+          await expect.poll(tableWidth, { message: `the table is ${want} px wide, just past ${brk}rem` }).toBeGreaterThan(want - 1)
+          expect(await tableWidth()).toBeLessThan(want + 1)
+          const fit = await name.evaluate((el) => {
+            let cell = el as HTMLElement
+            while (cell.parentElement && !cell.parentElement.matches("[data-project-row]")) cell = cell.parentElement
+            const c = cell.getBoundingClientRect()
+            const head = el.firstElementChild as HTMLElement
+            const r = el.getBoundingClientRect()
+            // What paints past the cell: a box ending after it that no box inside the cell clips first.
+            const past = [...cell.querySelectorAll("*")].flatMap((n) => {
+              const b = n.getBoundingClientRect()
+              if (b.width < 0.5 || b.right <= c.right + 0.5) return []
+              for (let a = n.parentElement; a && a !== cell.parentElement; a = a.parentElement)
+                if (getComputedStyle(a).overflowX !== "visible" && a.getBoundingClientRect().right <= c.right + 0.5) return []
+              return [`${n.tagName.toLowerCase()} "${(n.textContent ?? "").slice(0, 24)}" ends at ${Math.round(b.right)}`]
+            })
+            return {
+              cell: c.width,
+              word: head.scrollWidth,
+              inCell: r.left >= c.left - 0.5 && r.right <= c.right + 0.5,
+              ellipsis: getComputedStyle(head).textOverflow === "ellipsis" && head.scrollWidth > head.clientWidth + 0.5,
+              past,
+              cellEnd: Math.round(c.right),
+            }
+          })
+          const at = `just past ${brk}rem (the name's cell ${Math.round(fit.cell)} px)`
+          expect(fit.cell, `${at}: the name keeps its 12rem`).toBeGreaterThanOrEqual(12 * rem - 0.5)
+          expect(fit.word, `${at}: the one word is wider than its cell`).toBeGreaterThan(fit.cell)
+          expect(fit.inCell, `${at}: the name's box stays in its cell`).toBe(true)
+          expect(fit.ellipsis, `${at}: the name's head is cut with an ellipsis`).toBe(true)
+          expect(fit.past, `${at}: nothing paints past the cell (it ends at ${fit.cellEnd})`).toEqual([])
+        }
+        await reviewShot(page, "forecasts-overview-long-name", theme)
       })
 
       // DB-40's FIX 3: a goal's rows hold their lines' room from the first paint, so nothing moves when they land.

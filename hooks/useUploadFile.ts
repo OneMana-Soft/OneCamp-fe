@@ -13,6 +13,7 @@ import {
 import {UploadFileInterfaceRes} from "@/types/file";
 import {useToast} from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/utils/apiError";
+import { saysWriteFailure } from "@/lib/http/writeSaid";
 import {useState} from "react";
 import {
     addTaskInfoPreviewFiles,
@@ -275,6 +276,7 @@ export const useUploadFile = () => {
                     const cancelled = axios.isCancel(error)
                     put(k.failed && !cancelled ? k.failed : k.remove, { key: uniqueNum })
                     if (!cancelled) {
+                        saysWriteFailure(error)
                         toast({
                             title: `Couldn't upload ${file.name}`,
                             description: apiErrorMessage(error, "Try again in a moment."),
@@ -305,6 +307,7 @@ export const useUploadFile = () => {
 
             const uploadPromise = postUpload(file, { src_key: "public" })
                 .catch((error) => {
+                    saysWriteFailure(error)
                     toast({
                         title: `Couldn't upload ${file.name}`,
                         description: apiErrorMessage(error, "Try again in a moment."),

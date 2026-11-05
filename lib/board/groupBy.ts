@@ -1,12 +1,16 @@
 /**
- * A board grouped by who has each task, as Linear's board can be: one column
- * per person on the project, after a "No assignee" column. Pure, so it is
- * tested without rendering.
+ * A board grouped by something other than status, as Linear's board can be:
+ * by who has each task (a "No assignee" column, then people by name) here,
+ * and by its type in lib/board/groupByType, which only the kanban loads, so
+ * the timeline and Workload views that group by person never load the types.
+ * One function lays the columns out for both. Pure, so it is tested without
+ * rendering.
  */
 import { displayNameOf } from "@/lib/personName"
 import type { StatusOption } from "@/lib/taskStatus"
+import type { TaskWorkType } from "@/types/task"
 
-export type BoardGrouping = "status" | "assignee"
+export type BoardGrouping = "status" | "assignee" | "type"
 
 /** The column a task with nobody on it sits in. */
 export const NO_ASSIGNEE = "none"
@@ -19,10 +23,48 @@ interface Member {
 
 const nameOf = (m: Member) => displayNameOf(m) || "Someone"
 
+/** A board's column: on a board of types, it carries its type (its glyph, and what a drop sets). */
+export type BoardOption = StatusOption & { workType?: TaskWorkType }
+
+/** A column: its key, its name, and on a board of types its type. */
+export type Column = Pick<BoardOption, "value" | "label" | "workType">
+
+/**
+ * The columns of a board by a key of each task: every known column, then any
+ * a task brings that isn't known (someone who left, an archived type), so no
+ * task drops out of sight. `order` sorts them; `hideEmpty` leaves out columns
+ * with nothing (Asana's "hide empty groups").
+ */
+export function groupColumns<T>(
+  byStatus: Record<string, T[]>,
+  columnOf: (t: T) => Column,
+  known: Column[],
+  hideEmpty: boolean,
+  order?: (a: Column, b: Column) => number,
+): { columns: Record<string, T[]>; options: BoardOption[] } {
+  const all = new Map<string, Column>(known.map((c) => [c.value, c]))
+  const columns: Record<string, T[]> = {}
+  for (const tasks of Object.values(byStatus)) {
+    for (const t of tasks) {
+      const c = columnOf(t)
+      if (!all.has(c.value)) all.set(c.value, c)
+      ;(columns[c.value] ??= []).push(t)
+    }
+  }
+  const shown = [...all.values()].filter((c) => !hideEmpty || (columns[c.value]?.length ?? 0) > 0)
+  if (order) shown.sort(order)
+  return {
+    columns: Object.fromEntries(shown.map((c) => [c.value, columns[c.value] ?? []])),
+    options: shown.map((c) => ({ ...c, category: "todo", custom: false, color: "" })),
+  }
+}
+
 /** Anything with an assignee: a board's task, or a timeline's. */
 interface Assigned {
   task_assignee?: Member | null
 }
+
+const NOBODY: Column = { value: NO_ASSIGNEE, label: "No assignee" }
 
 export function groupByAssignee<T extends Assigned>(
   byStatus: Record<string, T[]>,
@@ -30,26 +72,14 @@ export function groupByAssignee<T extends Assigned>(
   /** Leave out people with nothing (Asana's "hide empty groups"). */
   hideEmpty = false,
 ): { columns: Record<string, T[]>; options: StatusOption[] } {
-  const people = new Map<string, Member>()
-  for (const m of members) if (m?.user_uuid) people.set(m.user_uuid, m)
-  const columns: Record<string, T[]> = { [NO_ASSIGNEE]: [] }
-  for (const tasks of Object.values(byStatus)) {
-    for (const t of tasks) {
-      const who = t.task_assignee?.user_uuid
-      const key = who || NO_ASSIGNEE
-      // Someone who has tasks but has left the project still gets a column:
-      // their work has not gone anywhere.
-      if (who && !people.has(who)) people.set(who, t.task_assignee!)
-      ;(columns[key] ??= []).push(t)
-    }
-  }
-  const ordered = [...people.values()]
-    .filter((m) => !hideEmpty || (columns[m.user_uuid]?.length ?? 0) > 0)
-    .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
-  const showNone = !hideEmpty || columns[NO_ASSIGNEE].length > 0
-  const option = (value: string, label: string): StatusOption => ({ value, label, category: "todo", custom: false, color: "" })
-  return {
-    columns: Object.fromEntries([...(showNone ? [[NO_ASSIGNEE, columns[NO_ASSIGNEE]]] : []), ...ordered.map((m) => [m.user_uuid, columns[m.user_uuid] ?? []])]),
-    options: [...(showNone ? [option(NO_ASSIGNEE, "No assignee")] : []), ...ordered.map((m) => option(m.user_uuid, nameOf(m)))],
-  }
+  const person = (m: Member): Column => ({ value: m.user_uuid, label: nameOf(m) })
+  return groupColumns(
+    byStatus,
+    // Someone who has tasks but has left the project still gets a column:
+    // their work has not gone anywhere.
+    (t) => (t.task_assignee?.user_uuid ? person(t.task_assignee) : NOBODY),
+    [NOBODY, ...members.filter((m) => m?.user_uuid).map(person)],
+    hideEmpty,
+    (a, b) => (a === NOBODY ? -1 : b === NOBODY ? 1 : a.label.localeCompare(b.label)),
+  )
 }

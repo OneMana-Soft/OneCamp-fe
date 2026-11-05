@@ -8,6 +8,7 @@
  */
 
 import { drawnBox } from "./scene"
+import { veiledBy } from "./privateNotes"
 
 export interface CopyableElement {
   id: string
@@ -28,9 +29,12 @@ export interface CopyableElement {
   [key: string]: unknown
 }
 
-/** What a template keeps of a board: what a person sees, without pictures (their files stay with the board). Pure. */
+/**
+ * What a template keeps of a board: what a person sees, without pictures (their files stay with the board), and
+ * without a note held in private mode, anyone's (miro-25: it isn't the board's until its round ends). Pure.
+ */
 export function templateElements<T extends CopyableElement>(elements: readonly T[]): T[] {
-  const kept = elements.filter((e) => !e.isDeleted && e.type !== "image")
+  const kept = elements.filter((e) => !e.isDeleted && e.type !== "image" && !veiledBy(e))
   const ids = new Set(kept.map((e) => e.id))
   return kept.map((e) => {
     const c: T = { ...e }

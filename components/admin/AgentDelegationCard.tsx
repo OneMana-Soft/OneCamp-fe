@@ -28,6 +28,7 @@ import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useToast } from "@/hooks/use-toast"
 import { ShieldAlert } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { setAIAgentDelegation } from "@/services/aiModelService"
 import { useAIConfig } from "@/components/admin/ai/useAIConfig"
 
@@ -86,7 +87,7 @@ function AgentDelegationCard() {
     } catch (e) {
       toast({
         title: "Couldn't save the collaboration policy",
-        description: apiErrorMessage(e, "Try again in a moment."),
+        description: saidHere(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {

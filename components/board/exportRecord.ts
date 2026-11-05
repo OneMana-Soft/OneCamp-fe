@@ -5,6 +5,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import axiosInstance from "@/lib/axiosInstance"
 import { toast } from "@/hooks/use-toast"
 import { BoardExportRoutes } from "@/services/endpoints/boards.exports"
+import { tellRefusal } from "@/lib/export/exportTell"
 
 /** What a board is exported as, in the server's words. */
 export type BoardExportFormat = "pdf" | "picture" | "csv" | "file"
@@ -12,10 +13,21 @@ export type BoardExportFormat = "pdf" | "picture" | "csv" | "file"
 /** What a failed export says, wherever it ran. */
 export const EXPORT_FAILED = { title: "The board couldn't be exported", description: "Try again. A large board's pictures can take a moment to read." }
 
-/** Tells the admin log of an export the browser made (miro-44): best effort, since the file is made all the same. */
-export function recordBoardExport(boardId: string, format: BoardExportFormat): void {
+/** What a refused export's toast is titled; its words say why (./exportTell's tellRefusal). */
+export const EXPORT_REFUSED_TITLE = "The board wasn't exported"
+
+/**
+ * Tells the admin log of an export the browser is about to make (miro-44), before the file is made: an export the
+ * log can't record isn't made (V-363), as a doc's isn't (lib/export/exportDoc). A refusal throws its words: the
+ * server's for too many exports in a few minutes (429), or that the export couldn't be recorded.
+ */
+export async function recordBoardExport(boardId: string, format: BoardExportFormat): Promise<void> {
   if (!boardId) return
-  axiosInstance.post(BoardExportRoutes.RecordBoardExport, { board_uuid: boardId, format }, { suppressErrorToast: true }).catch(() => {})
+  try {
+    await axiosInstance.post(BoardExportRoutes.RecordBoardExport, { board_uuid: boardId, format }, { suppressErrorToast: true })
+  } catch (err) {
+    throw new Error(tellRefusal(err))
+  }
 }
 
 /** The class on each of the image dialog's buttons, in its order: PNG, SVG, then the clipboard's copy (pinned in exportRecord.test). */
@@ -69,8 +81,27 @@ export function useBoardExportTrail(api: ExcalidrawImperativeAPI | null, boardId
     // The image dialog exports the board as it was when the dialog opened, and Excalidraw refuses an empty one,
     // so a press there saves nothing to tell.
     let drawn = false
+    // A PNG or SVG press is held until the log has the picture's tell, then pressed again for Excalidraw to make
+    // it (V-363). That second press is ours, and passes.
+    let passing: Element | null = null
     const onPress = (e: MouseEvent) => {
-      if (drawn && makesPicture(e.target)) recordBoardExport(board.current, "picture")
+      if (!drawn || !makesPicture(e.target)) return
+      const button = (e.target as Element).closest<HTMLElement>(`.${PICTURE_BUTTON}`)!
+      if (passing === button) {
+        passing = null
+        return
+      }
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      recordBoardExport(board.current, "picture").then(
+        () => {
+          if (!button.isConnected) return
+          passing = button
+          button.click()
+          passing = null
+        },
+        (err: Error) => toast({ variant: "destructive", title: EXPORT_REFUSED_TITLE, description: err.message }),
+      )
     }
     // Excalidraw portals its dialogs to the body, so the presses are heard on the document, and only while this
     // board's image dialog is open.

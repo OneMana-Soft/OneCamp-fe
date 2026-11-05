@@ -51,6 +51,7 @@ import {
 import { clockTime } from "@/lib/utils/date/clock"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { Disclosure } from "@/components/ui/disclosure"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return ""
@@ -292,6 +293,7 @@ const RoutinesPanel: React.FC<{
       await setAgentRoutineEnabled(agentId, r.id, !r.enabled)
       await onChanged()
     } catch (e) {
+      saysWriteFailure(e)
       toast({
         title: "Error",
         description: e instanceof Error ? e.message : "Failed to update routine",
@@ -326,6 +328,7 @@ const RoutinesPanel: React.FC<{
       await onChanged()
       toast({ title: "Routine cancelled" })
     } catch (e) {
+      saysWriteFailure(e)
       toast({
         title: "Error",
         description: e instanceof Error ? e.message : "Failed to cancel routine",

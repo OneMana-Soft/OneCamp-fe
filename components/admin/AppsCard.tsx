@@ -39,6 +39,7 @@ import AppAccessSheet from "@/components/admin/AppAccessSheet"
 import { CommandChip } from "@/components/admin/appParts"
 import type { AppView, AppCommandInput, CreateAppRequest } from "@/types/app"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
@@ -105,20 +106,13 @@ export default function AppsCard() {
         }
     }, [toast, mutate])
 
-    // A failure says why here and rejects: the switch springs back.
+    // A failure rejects, so the switch springs back and its row says why, once
+    // ("Not saved. <why>": InstantSwitch). It also raised a toast of its own
+    // here, beside the shared one (V-397).
     const handleToggle = useCallback(async (app: AppView, enabled: boolean) => {
-        try {
-            await setAppEnabled(app.id, enabled)
-        } catch (e) {
-            toast({
-                title: enabled ? `Couldn't turn on ${app.name}` : `Couldn't turn off ${app.name}`,
-                description: apiErrorMessage(e, "Try again in a moment."),
-                variant: "destructive",
-            })
-            throw e
-        }
+        await setAppEnabled(app.id, enabled)
         void mutate()
-    }, [mutate, toast])
+    }, [mutate])
 
     const handleDelete = useCallback(async () => {
         if (!confirmDelete) return
@@ -130,7 +124,7 @@ export default function AppsCard() {
             mutate()
             globalMutate("admin-marketplace")
         } catch (e) {
-            toast({ title: `Couldn't remove ${confirmDelete.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: `Couldn't remove ${confirmDelete.name}`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusy(false)
         }
@@ -149,7 +143,7 @@ export default function AppsCard() {
                     await disconnectApp(app.id)
                     mutate()
                 } catch (e) {
-                    toast({ title: `Couldn't disconnect ${app.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                    toast({ title: `Couldn't disconnect ${app.name}`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
                 }
             },
         })
@@ -422,7 +416,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
             }
             onSaved()
         } catch (e) {
-            toast({ title: "Couldn't save the app", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't save the app", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusy(false)
         }
@@ -611,7 +605,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                                     const r = await testApp(app.id)
                                     setTestResult(r)
                                 } catch (e) {
-                                    setTestResult({ success: false, message: `The test didn't reach the app. ${apiErrorMessage(e, "Check its command address and try again.")}` })
+                                    setTestResult({ success: false, message: `The test didn't reach the app. ${saidHere(e, "Check its command address and try again.")}` })
                                 } finally {
                                     setTesting(false)
                                 }

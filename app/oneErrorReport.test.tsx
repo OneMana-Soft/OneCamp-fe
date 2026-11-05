@@ -4,6 +4,7 @@ import { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from "
 import { SWRConfig } from "swr"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { sourceFiles } from "@/lib/testing/sourceFiles"
+import { chainOf, walk } from "../scripts/fluidity/reach.mjs"
 
 /**
  * One report per failure (owner's policy, 12 Oct 2026):
@@ -106,9 +107,12 @@ describe("one report per failure", () => {
     expect(toasts).toEqual([])
   })
 
-  it("toasts a failed write at once: the person's own change must not vanish without a word", async () => {
+  // A write's toast waits one turn of the event loop, for a row that says it
+  // in place (lib/http/writeFailure, V-397); nothing here says it.
+  it("toasts a failed write that nothing on screen says: the person's own change must not vanish without a word", async () => {
     answers["/save"] = { status: 409, data: { msg: "Someone renamed this first (d)" } }
     await axiosInstance.post("/save", {}).catch(() => undefined)
+    await act(() => new Promise<void>((r) => setTimeout(r, 0)))
     expect(toasts.map((t) => t.description)).toEqual(["Someone renamed this first (d)"])
   })
 
@@ -211,5 +215,30 @@ describe("every error state says it is there", () => {
     const hook = read("hooks/useFetch.ts")
     expect(hook).toMatch(/suppressErrorToast: true/)
     expect(hook.match(/failure\.run\(/g)?.length).toBe(3)
+  })
+})
+
+// --- Writes (V-397): a row that says a failed write in place keeps its toast
+// quiet (useSaveStatus claims the failure while it is on screen), so every
+// row that saves through it must draw what it says. A row that dropped its
+// status would leave a failed change unsaid.
+describe("every row that says a failed write draws it", () => {
+  it("passes useSaveStatus' status to what draws it: SavedTick, a row's status prop, or the hook's own caller", () => {
+    const callers = sources.filter((f) => !/\.test\.tsx?$/.test(f) && f !== "components/ui/saveStatus.tsx" && /\buseSaveStatus\(\)/.test(read(f)))
+    expect(callers.length).toBeGreaterThan(15)
+    const silent = callers.filter((f) => !/SavedTick|\bstatus=\{[\w.]+\}|return \{[^}]*\bstatus\b/.test(read(f)))
+    expect(silent).toEqual([])
+  })
+})
+
+// A row's save status claims a failed write without the toast: every lazy card
+// that saves a row (LegalHoldsCard, AppsCard, the AI switches) reaches
+// components/ui/saveStatus, and the claim must not pull hooks/use-toast into
+// its chunk. Only the request interceptor's side of the arbiter toasts.
+describe("a row's save status reaches no toast", () => {
+  it("claims through lib/http/writeSaid, never hooks/use-toast", () => {
+    const { files } = walk(["components/ui/saveStatus.tsx"]) as { files: Map<string, string | null> }
+    expect(files.has("hooks/use-toast.ts") ? chainOf(files, "hooks/use-toast.ts") : "").toBe("")
+    expect(files.has("lib/http/writeSaid.ts")).toBe(true)
   })
 })

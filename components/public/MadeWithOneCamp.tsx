@@ -6,7 +6,8 @@
 // The site comes from NEXT_PUBLIC_PRODUCT_SITE (.env.production), never a
 // literal here: without it the credit is plain text and links nowhere.
 
-export type PublicSurface = "booking" | "booked" | "form" | "invitation" | "guest-channel" | "guest-project" | "guest-doc" | "guest-board" | "guest-table" | "guest-meeting" | "published-page" | "not-found"
+import type { PublicSurface } from "@/components/public/publicSurface"
+export type { PublicSurface }
 
 const site = () => (process.env.NEXT_PUBLIC_PRODUCT_SITE || "").replace(/\/$/, "")
 

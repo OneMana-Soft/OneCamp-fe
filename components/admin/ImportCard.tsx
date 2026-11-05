@@ -51,6 +51,7 @@ import { SettingsSection } from "@/components/ui/settingsSection"
 import { segmentedWell } from "@/components/ui/segmentedControl"
 import { StatusWord } from "@/components/ui/statusWord"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
@@ -354,6 +355,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
       setPickedDiscoverId("")
       await openPlanOf(job_id)
     } catch (err: unknown) {
+      saysWriteFailure(err)
       setCreateProblem(importProblemOf(err, "Couldn't start the import. Try again in a moment.").message)
     } finally {
       setCreating(false)
@@ -374,6 +376,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
           toast({ title: "Cancelling the import", description: "It stops once the parts in progress finish." })
           refetchJobs()
         } catch (err: unknown) {
+          saysWriteFailure(err)
           toast({ title: "Couldn't cancel the import", description: importProblemOf(err).message, variant: "destructive" })
         }
       },
@@ -391,6 +394,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
           toast({ title: "Discarded" })
           refetchJobs()
         } catch (err: unknown) {
+          saysWriteFailure(err)
           toast({ title: "Couldn't discard it", description: importProblemOf(err).message, variant: "destructive" })
         }
       },
@@ -448,6 +452,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
           toast({ title: `${name} disconnected` })
           refetchConn()
         } catch (err: unknown) {
+          saysWriteFailure(err)
           toast({ title: `Couldn't disconnect ${name}`, description: importProblemOf(err).message, variant: "destructive" })
         }
       },

@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Megaphone, Copy, Check, ArrowUpRight } from "@/lib/icons"
 import { draftSocialPosts, type SocialPostView } from "@/services/aiModelService"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 const PLATFORMS: { key: string; label: string }[] = [
   { key: "x_tweet", label: "X post" },
@@ -99,6 +100,7 @@ const SocialComposeDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) 
       setPosts(await draftSocialPosts(topic.trim(), selected))
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to draft posts"
+      saysWriteFailure(e)
       toast({ title: "Couldn't draft", description: msg, variant: "destructive" })
     } finally {
       setLoading(false)

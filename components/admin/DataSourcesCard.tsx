@@ -26,6 +26,7 @@ import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 // The add and edit dialog loads when it opens.
 const DataSourceEditDialog = dynamic(() => import("./DataSourceEditDialog").then((m) => m.DataSourceEditDialog), { ssr: false })
@@ -61,6 +62,7 @@ const DataSourcesCard = () => {
       })
     } catch (e) {
       // It had no catch: a test that threw left nothing on screen.
+      saysWriteFailure(e)
       toast({
         title: `Couldn't connect to ${s.name}`,
         description: apiErrorMessage(e, "Check its address and password, then test again."),

@@ -53,6 +53,14 @@ describe("a board card's key", () => {
     expect(container.querySelector("[data-card-labels]")).toBeNull()
   })
 
+  // linear-03 (DESIGN-BUILD-107, V-459): a project without keys still has types,
+  // so a typed task's card shows its glyph on the top line all the same.
+  it("carries a typed task's glyph in a project without keys", async () => {
+    const { container } = render(<Item task={task({ task_work_type: { id: "b", builtin: "bug", name: "Bug", icon: "bug" } })} value="t-1" />)
+    expect(container.querySelector("[data-card-key]")).toBeTruthy()
+    expect(await screen.findByRole("img", { name: "Bug" }, { timeout: 5000 })).toBeTruthy()
+  })
+
   it("isn't drawn for a task that has neither a key nor a lock", () => {
     const { container } = render(<Item task={task()} value="t-1" />)
     expect(container.querySelector("[data-card-key]")).toBeNull()

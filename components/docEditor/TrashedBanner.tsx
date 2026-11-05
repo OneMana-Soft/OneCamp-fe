@@ -25,7 +25,7 @@ import type { TrashedDocPage } from "@/types/docChrome"
 import { DOC_EDITOR_CLASS } from "./useDocEditor"
 import { snapshotHtml } from "./snapshotHtml"
 import { DocIcon } from "./DocIcon"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { navigate } from "./chrome/pageFacts"
 import "./chrome/look.css"
 import CoverArt from "./chrome/CoverArt"
@@ -53,7 +53,7 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
       docRestored(docId)
       onRestored()
     } catch (e) {
-      toast({ title: "Couldn't restore the doc", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't restore the doc", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(null)
     }
@@ -65,7 +65,7 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
       toast({ title: "Deleted for good", description: pagesLeftInTrash(res.kept) })
       navigate("/app/doc")
     } catch (e) {
-      toast({ title: "It's still in the trash", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "It's still in the trash", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(null)
     }

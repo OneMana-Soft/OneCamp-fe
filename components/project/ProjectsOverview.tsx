@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { KeepWords } from "@/components/ui/keepWords"
 import { Bar } from "@/components/ui/progress"
 import { WorkSearch, WorkSegmented, WorkTabs, type WorkTab } from "@/components/task/WorkTabs"
 import { lazyView } from "@/lib/lazy/lazyView"
@@ -216,7 +217,28 @@ function AttentionDot({ p }: { p: ProjectOverview }) {
  * (linear-20) has a column of its own, so its longest words (held up, in another year) stay in it, wrapping to a
  * second line inside the 52 px row, and the end's words never move when it lands.
  */
-const COLUMNS = "grid grid-cols-[20px_minmax(0,1fr)_128px_176px_72px_136px_132px] items-center gap-x-3 px-6"
+const COLUMNS = cn(
+  "grid items-center gap-x-3 px-6",
+  "grid-cols-[20px_minmax(0,1fr)_128px_176px_72px_136px_132px]",
+  "@max-[62rem]:grid-cols-[20px_minmax(0,1fr)_128px_176px_72px_136px]",
+  "@max-[52rem]:grid-cols-[20px_minmax(0,1fr)_128px_176px_72px]",
+  "@max-[44rem]:grid-cols-[20px_minmax(0,1fr)_128px_176px]",
+  "@max-[38rem]:grid-cols-[20px_minmax(0,1fr)_96px]",
+)
+
+/**
+ * V-437: the columns after the name give way whole as the table narrows, the least needed first, so a name keeps at
+ * least 12rem. The table is its own container: a laptop window with the sidebar open leaves it ~400-1000 px. The
+ * tasks' counts go below 62rem, the forecast below 52rem, the target below 44rem, and the health below 38rem, where
+ * the progress narrows to its bar and percentage. A column's cell takes its class in the head and in every row; the
+ * sort keeps every column in the display menu.
+ */
+const GIVES = {
+  tasks: "@max-[62rem]:hidden",
+  forecast: "@max-[52rem]:hidden",
+  target: "@max-[44rem]:hidden",
+  health: "@max-[38rem]:hidden",
+} as const
 
 type GrowProps = ReturnType<ReturnType<typeof useGrow>["bar"]>
 
@@ -236,19 +258,20 @@ function Row({ p, grow, now, next, forecasts }: { p: ProjectOverview; grow: Grow
     >
       <ProjectTile id={p.project_uuid} size={20} />
       <span className="min-w-0">
-        <span className="flex min-w-0 items-center gap-1.5">
+        {/* overflow-hidden: on a narrow window the marks after a name that fills its cell are cut at the cell, never
+            painted over the next column (CR-202). */}
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
           <PlanStatusMark p={p} />
-          <span className="truncate text-sm font-[510] text-foreground" title={p.project_name}>
-            {p.project_name}
-          </span>
+          {/* Its first two words stay whole: the next milestone beside it gives first (V-280). */}
+          <KeepWords text={p.project_name} className="text-sm font-[510] text-foreground" />
           <AttentionDot p={p} />
           <PlanPriorityMark p={p} />
           {next && <NextMilestone m={next} now={now} className="ml-1.5" />}
         </span>
         <SubLine p={p} />
       </span>
-      <HealthWord health={p.health} />
-      <span className="flex items-center gap-2.5">
+      <HealthWord health={p.health} className={GIVES.health} />
+      <span className="flex min-w-0 items-center gap-2.5">
         {total > 0 ? (
           <>
             <Bar value={pct} size={6} label={`${p.project_name}: ${pct}% of tasks done`} grow={grow} />
@@ -258,14 +281,14 @@ function Row({ p, grow, now, next, forecasts }: { p: ProjectOverview; grow: Grow
           <span className="text-xs text-ink-4">–</span>
         )}
       </span>
-      <span className="text-xs">
+      <span className={cn("text-xs", GIVES.target)}>
         <Ends p={p} now={now} />
       </span>
       {/* When its open work lands (linear-20): empty until the read comes, in room of its own. */}
-      <span data-forecast-cell="" className="min-w-0 text-xs text-ink-2">
+      <span data-forecast-cell="" className={cn("min-w-0 text-xs text-ink-2", GIVES.forecast)}>
         <LazyForecastWhenOf forecasts={forecasts} projectId={p.project_uuid} className="flex-wrap whitespace-normal" />
       </span>
-      <span className="truncate text-xs">
+      <span className={cn("truncate text-xs", GIVES.tasks)}>
         <Counts p={p} />
       </span>
     </Link>
@@ -319,13 +342,20 @@ function MobileRow({ p, now, next, forecasts }: { p: ProjectOverview; now: Date;
                 line that is never shown, so nothing runs past the row. */}
             <span className="mt-1.5 flex h-4 flex-wrap items-center gap-x-2 overflow-hidden text-xs text-ink-2">
               <span className="flex min-w-0 max-w-full items-center gap-2">
-                {any && <Bar value={pct} label={`${pct}% done`} className="!w-14 shrink-[999]" />}
+                {any && (
+                  // The bar gives first, and its gap goes with it (V-280): the gap is the spacer inside, which the
+                  // -mr-2 trades for the line's own, so a line whose bar gave starts where its neighbours' do.
+                  <span className="-mr-2 flex min-w-0 shrink-[999] items-center">
+                    <Bar value={pct} label={`${pct}% done`} className="!w-14 min-w-0" />
+                    <span aria-hidden className="w-2 shrink-0" />
+                  </span>
+                )}
                 <span data-row-counts="" className="shrink-0 whitespace-nowrap">
                   {any ? `${pct}% · ` : ""}
                   <Counts p={p} />
                 </span>
                 <Ends p={p} now={now} before={<span aria-hidden className="text-ink-4">·</span>} />
-                <LazyForecastWhenOf forecasts={forecasts} projectId={p.project_uuid} before={<span aria-hidden className="text-ink-4">·</span>} />
+                <LazyForecastWhenOf forecasts={forecasts} projectId={p.project_uuid} before={<span aria-hidden className="text-ink-4">·</span>} fit />
               </span>
               {next && <NextMilestone m={next} className="ml-auto min-w-0 grow basis-16 justify-end" />}
             </span>
@@ -338,29 +368,29 @@ function MobileRow({ p, now, next, forecasts }: { p: ProjectOverview; now: Date;
 
 /** The quiet column header (W39): 32 px, 12/510 ink-3, sticky, a hairline under it; a sortable one shows its chevron on hover. */
 function Header({ sort, onSort }: { sort: Sort; onSort: (s: Sort) => void }) {
-  const head = (label: string, s?: Sort) =>
+  const head = (label: string, s?: Sort, gives?: string) =>
     s ? (
       <button
         type="button"
         onClick={() => onSort(s)}
         aria-pressed={sort === s}
-        className={cn("group/h inline-flex items-center gap-1 justify-self-start rounded-sm hover:text-foreground focus-visible:text-foreground", sort === s && "text-ink-2")}
+        className={cn("group/h inline-flex items-center gap-1 justify-self-start rounded-sm hover:text-foreground focus-visible:text-foreground", sort === s && "text-ink-2", gives)}
       >
         {label}
         <ChevronDown aria-hidden="true" className={cn("size-3 transition-opacity", sort === s ? "opacity-100" : "opacity-0 group-hover/h:opacity-100")} />
       </button>
     ) : (
-      <span>{label}</span>
+      <span className={gives}>{label}</span>
     )
   return (
     <div role="row" data-projects-head="" className={cn(COLUMNS, "sticky top-0 z-10 h-8 border-b border-line bg-sheet text-xs font-[510] text-ink-3")}>
       <span />
       {head("Project", "name")}
-      {head("Health", "attention")}
+      {head("Health", "attention", GIVES.health)}
       {head("Progress", "progress")}
-      {head("Target", "target")}
-      {head("Forecast")}
-      {head("Tasks", "updated")}
+      {head("Target", "target", GIVES.target)}
+      {head("Forecast", undefined, GIVES.forecast)}
+      {head("Tasks", "updated", GIVES.tasks)}
     </div>
   )
 }
@@ -756,7 +786,7 @@ export function ProjectsOverview() {
   } else {
     let index = 0
     body = (
-      <div ref={listRef} role="table" aria-label="Projects" data-projects-list="">
+      <div ref={listRef} role="table" aria-label="Projects" data-projects-list="" className="@container">
         <Header sort={sort} onSort={setSort} />
         {groups.map((g) => (
           <div key={g.key} role="rowgroup">

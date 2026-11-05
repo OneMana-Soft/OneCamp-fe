@@ -61,7 +61,10 @@ export function landsAfter(f: ProjectForecast | undefined, day: string | undefin
 }
 
 /** The chip's words: "Lands ~18 Nov". */
-export const landsWords = (day: string, now?: Date) => `Lands ~${formatDay(day, now)}`
+export const landsWords = (day: string, now?: Date) => `Lands ${landsDay(day, now)}`
+
+/** The forecast's day alone, "~25 Nov": what a crowded line keeps when "Lands" gives (ForecastFace). */
+export const landsDay = (day: string, now?: Date) => `~${formatDay(day, now)}`
 
 /** The pace's range, optimistic to pessimistic: "15 Nov – 29 Nov"; null when the pace gives none. */
 export function rangeWords(f: ProjectForecast, now?: Date): string | null {

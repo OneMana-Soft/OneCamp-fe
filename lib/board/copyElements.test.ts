@@ -32,6 +32,16 @@ describe("a template from a board", () => {
     expect(t[0].boundElements).toEqual([])
     expect(t[1].startBinding).toBeNull()
   })
+
+  it("leaves out a note held in private mode, anyone's, with its words: it isn't the board's until its round ends (miro-25)", () => {
+    const held = { privateBy: "u-ann", privateName: "Ann Lee", kind: "note", colour: "yellow" }
+    const t = templateElements([
+      el("mine", "rectangle", 0, 0, { boundElements: [{ id: "mine-t", type: "text" }], customData: held }),
+      el("mine-t", "text", 0, 0, { containerId: "mine", customData: held }),
+      el("open", "rectangle", 200, 0, { customData: { kind: "note", colour: "teal" } }),
+    ])
+    expect(t.map((e) => e.id)).toEqual(["open"])
+  })
 })
 
 describe("a copy of a board's elements", () => {

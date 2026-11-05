@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { nextCell, swallowsAtEdge } from "./gridKeys"
-import { movesBetweenCells, type CellKind, type KeyInput } from "./gridKeyKinds"
+import { movesBetweenCells, waitsForLiveCells, type CellKind, type KeyInput } from "./gridKeyKinds"
 
 const size = { rows: 5, cols: 4 }
 const mid = { row: 2, col: 1 }
@@ -85,5 +85,14 @@ describe("the keys the grid holds until its keys land", () => {
         const takes = nextCell(e, mid, size, { kind, atStart: true, atEnd: true }) !== null || swallowsAtEdge(e, kind) || (key === " " && !!mods.shiftKey)
         expect([kind, key, mods, movesBetweenCells(e, kind)]).toEqual([kind, key, mods, takes])
       }
+  })
+
+  // A tap selects a cell shut, its box holding the focus: the keys that open it or go on from it wait for the cells' code
+  // (gridMoves' gridKeyDown takes them there), and a key outside every cell goes by (V-474, CR-217).
+  it("holds on a cell selected but shut Enter, F2, Tab and Shift+Tab", () => {
+    document.body.innerHTML = '<table><tbody><tr><td data-field="item" data-kind="text"><div data-cell-box="" tabindex="-1"><input data-cell="1:1" readonly></div></td></tr></tbody></table>'
+    const shut = document.querySelector("[data-cell-box]")!
+    for (const e of [{ key: "Enter" }, { key: "F2" }, { key: "Tab" }, { key: "Tab", shiftKey: true }]) expect([e, waitsForLiveCells(e, shut)]).toEqual([e, true])
+    expect(waitsForLiveCells({ key: "Tab" }, document.body)).toBe(false)
   })
 })

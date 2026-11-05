@@ -6,6 +6,8 @@
 import axiosInstance, { OWN_ERRORS } from '@/lib/axiosInstance'
 import { randomUUID } from '@/lib/utils/randomUUID'
 import { exportRefused, type ContentIOCapabilities, type ExportFormat } from './contentIOCapabilities'
+import { tellRefusal } from './exportTell'
+import { labelRefusal } from '@/lib/labels/labelRules'
 
 // What someone may export and import is its own small module: a doc's More
 // menu reads it on every doc, and the rest of this one is for the dialogs.
@@ -66,11 +68,16 @@ export async function recordExport(docUUID: string, format: ExportFormat): Promi
     await axiosInstance.post(CONTENT_IO_ROUTES.recordExport, { doc_uuid: docUUID, format }, OWN_ERRORS)
   } catch (err) {
     const status = (err as { response?: { status?: number } })?.response?.status
+    // A sensitivity label on this doc that holds exports back (miro-44 L): the server's words name the label. The
+    // policy for members still allows other docs' exports, so their items stay.
+    const label = labelRefusal(err)
+    if (label) throw new ExportRefused(label)
     if (status === 403) {
       exportRefused()
       throw new ExportRefused('Your workspace’s admins have turned exports off for members.')
     }
-    throw new ExportRefused('The export could not be recorded, so no file was made. Check your connection and try again.')
+    // Too many exports in a few minutes (429), or another refusal that says why, in the server's words (V-363).
+    throw new ExportRefused(tellRefusal(err))
   }
 }
 

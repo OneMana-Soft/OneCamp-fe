@@ -369,4 +369,41 @@ test.describe("on a computer", () => {
     await expect(page.getByPlaceholder("Add a comment… (use @ to mention)")).toBeVisible()
     await expect(page.locator("[data-vaul-drawer]")).toHaveCount(0)
   })
+
+  // "?" on the canvas is Excalidraw's Help, the list the board's More menu opens as "Keyboard shortcuts". The app's
+  // own list (components/shortcuts/ShortcutsDialog) opens on "?" too, so both opened, and since V-491 put Excalidraw's
+  // dialogs on the app's modal layer the app's was drawn over the Help. One list per "?": the Help on the canvas, the
+  // app's off it.
+  test("? opens one list: Excalidraw's Help on the canvas, the app's Keyboard shortcuts off it", async ({ page }) => {
+    test.setTimeout(90_000)
+    const canvas = await open(page, "light")
+    const help = page.locator(".excalidraw-modal-container .HelpDialog")
+    const appList = page.getByRole("dialog", { name: "Keyboard shortcuts" })
+
+    await page.mouse.click(canvas.x + 700, canvas.y + 300)
+    await page.keyboard.press("?")
+    await expect(help).toBeVisible()
+    await expect(appList, "the app's list opened over the board's Help").toHaveCount(0)
+    await page.keyboard.press("Escape")
+    await expect(help).toHaveCount(0)
+
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await page.keyboard.press("?")
+    await expect(appList).toBeVisible()
+    await expect(help).toHaveCount(0)
+  })
+
+  // The board takes "?" for its Help only off a field: a "?" typed into a text on the board is a character, kept, and
+  // opens neither list.
+  test("a ? typed into a text on the board stays in it and opens neither list", async ({ page }) => {
+    test.setTimeout(90_000)
+    const canvas = await open(page, "light")
+    await page.mouse.dblclick(canvas.x + 700, canvas.y + 300)
+    const editor = page.locator("textarea.excalidraw-wysiwyg")
+    await expect(editor).toBeVisible({ timeout: 5_000 })
+    await page.keyboard.type("Why?", { delay: 10 })
+    await expect(editor, "the ? typed into the text was lost").toHaveValue("Why?")
+    await expect(page.locator(".excalidraw-modal-container .HelpDialog")).toHaveCount(0)
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0)
+  })
 })

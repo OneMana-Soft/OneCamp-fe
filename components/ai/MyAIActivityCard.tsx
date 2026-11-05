@@ -31,6 +31,7 @@ import { AIActivityRow } from "@/components/admin/AIActivityCard"
 import { StepRow, AuditRowLine } from "@/components/admin/GovernanceDrillCard"
 import type { AIActivityItem } from "@/services/aiActivityService"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { downloadMyAIRecord } from "@/services/aiActivityService"
 import {
   getMyDrillStatus,
@@ -195,7 +196,7 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
          the proof rather than after a reload. */
       await mutate()
     } catch (e) {
-      setError(apiErrorMessage(e, "The drill could not run."))
+      setError(saidHere(e, "The drill could not run."))
     } finally {
       setRunning(false)
     }

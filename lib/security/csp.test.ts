@@ -89,6 +89,12 @@ describe("buildCsp", () => {
         expect(policy).toContain("frame-ancestors 'self'")
     })
 
+    it("leaves frame-ancestors out of an embeddable page's policy, and only that", () => {
+        const framable = buildCsp({ ...configured, framable: true })
+        expect(framable).not.toContain("frame-ancestors")
+        expect(framable).toBe(buildCsp(configured).replace("; frame-ancestors 'self'", ""))
+    })
+
     it("does not fall back to a blanket https:, which would allow any host", () => {
         const policy = buildCsp(configured)
         expect(policy).not.toMatch(/(^|[ ;])https:([ ;]|$)/)

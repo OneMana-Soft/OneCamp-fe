@@ -11,7 +11,7 @@ import { exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
 import { cn } from "@/lib/utils/helpers/cn"
 import { docCoverOf } from "@/lib/docLook"
 import { setDocLook } from "@/services/docChromeService"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import "./chrome/band.css"
 import "./chrome/cover.css"
 
@@ -40,7 +40,7 @@ export function CoverPicker({ docId, current, onDone }: { docId: string; current
       await setDocLook({ doc_uuid: docId, cover, cover_offset: 50 })
       onDone()
     } catch (e) {
-      toast({ title: "The cover didn't change", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The cover didn't change", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
   const uploadOne = async (f: File) => {
@@ -58,7 +58,7 @@ export function CoverPicker({ docId, current, onDone }: { docId: string; current
       if (!res?.object_uuid) throw new Error("no file")
       await pick(`${docId}/${res.object_uuid}`)
     } catch (e) {
-      toast({ title: "The image didn't upload", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The image didn't upload", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -140,14 +140,14 @@ export function DocCover({ docId, cover, offset = 50, padded }: { docId: string;
       await setDocLook({ doc_uuid: docId, cover_offset: Math.round(at) })
     } catch (e) {
       setAt(offset)
-      toast({ title: "The cover didn't move", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The cover didn't move", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
   const remove = async () => {
     try {
       await setDocLook({ doc_uuid: docId, cover: "" })
     } catch (e) {
-      toast({ title: "The cover is still there", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The cover is still there", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
   const drag = (e: React.PointerEvent<HTMLDivElement>) => {

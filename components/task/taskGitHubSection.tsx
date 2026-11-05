@@ -9,6 +9,7 @@ import type { TaskInfoInterface } from "@/types/task"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { analyzeCodeIssue, type CodeAnalysisResult } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
+import { saysWriteFailure } from "@/lib/http/writeSaid";
 
 /** "onemana/app#42" from a GitHub address, or "#42" when it names no repository. Pure. */
 function refOf(url: string, n: number | undefined, kind: "pull" | "issues"): string {
@@ -271,6 +272,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
       setResult(res)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Analysis failed"
+      saysWriteFailure(e)
       toast({ title: "Couldn't analyse", description: msg, variant: "destructive" })
     } finally {
       setLoading(false)

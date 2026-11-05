@@ -29,7 +29,7 @@ vi.mock("@/components/admin/AppAccessSheet", () => ({
 }))
 
 import AppsCard from "@/components/admin/AppsCard"
-import { disconnectApp, listApps, listMarketplace, updateApp } from "@/services/appService"
+import { disconnectApp, listApps, listMarketplace, setAppEnabled, updateApp } from "@/services/appService"
 import { AtAddress, moveAddress } from "@/lib/testing/nextAddress"
 
 // Admin › Apps, at an address as the app router holds it and the browser shows it.
@@ -69,6 +69,21 @@ describe("apps", () => {
     expect(screen.queryByText(/No apps installed yet/)).toBeNull()
     expect(screen.queryByText(/No apps match/)).toBeNull()
     expect(screen.getAllByRole("button", { name: "Try again" }).length).toBe(2)
+  })
+
+  // V-397: a failed switch was said three times: the row's "Not saved", the
+  // card's own toast and the shared one. The row says it, once.
+  it("says a failed switch once, on the app's row, with no toast of its own", async () => {
+    vi.mocked(listApps).mockResolvedValue([giphy] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    vi.mocked(setAppEnabled).mockRejectedValue(Object.assign(new Error("Request failed with status code 409"), {
+      response: { status: 409, data: { msg: "An admin turned Giphy off first" } },
+    }))
+    render(<AppsCard />, { wrapper: fresh })
+    fireEvent.click(await screen.findByRole("switch", { name: "Use Giphy" }))
+    expect(await screen.findByText(/^Not saved\. An admin turned Giphy off first/)).toBeTruthy()
+    expect(setAppEnabled).toHaveBeenCalledWith("a1", false)
+    expect(toastSpy).not.toHaveBeenCalled()
   })
 
   it("names the row's controls for the app, and edits with a pencil, not a refresh icon", async () => {

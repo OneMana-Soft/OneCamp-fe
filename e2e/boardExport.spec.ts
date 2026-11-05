@@ -6,6 +6,7 @@ import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, frame, note } from "../scripts/fluidity/fakeBoard.mjs"
 import { displayNameOf } from "../lib/personName"
 import { expectTouchSize } from "./touchTarget"
+import { expectToastOnTop, toast } from "./toasts"
 import { fakeCallServer, type FakePerson } from "./fakeCallServer"
 
 // A board's exports and its file in (whiteboard W-2, miro-36): More ›
@@ -15,7 +16,8 @@ import { fakeCallServer, type FakePerson } from "./fakeCallServer"
 // with its action in reach. Every export the browser makes is told to the
 // admin audit log (miro-44): the dialog's, a picture's PNG and SVG from
 // Excalidraw's image dialog, and Ctrl or Cmd+S's board file, on the board's
-// page and on a call's stage alike.
+// page and on a call's stage alike. It is told before the file is made, and
+// one the log refuses (too many in a few minutes) isn't made (V-363).
 
 const BOARD = "b0a4d000-0000-4000-8000-0000000000f5"
 const NAME = boardDocName(BOARD)
@@ -304,6 +306,73 @@ test.describe("a board's exports", () => {
     expect((await download).suggestedFilename()).toMatch(/\.png$/)
     await expect.poll(() => told, { timeout: 10_000 }).toEqual(tells("csv", "picture"))
     await context.close()
+  })
+
+  test("makes no export the admin log refused, and says why on top of the dialog or sheet: the dialog's CSV and a picture's PNG on a computer, a picture's PNG on a phone", async ({ browser }) => {
+    test.setTimeout(120_000)
+    // Past the member's budget of tells (V-363), the server answers 429 in its own words.
+    const TOO_MANY = "You've exported a lot in the last few minutes. Wait a few minutes and try again."
+    for (const device of ["computer", "phone"] as const) {
+      const { context, page } = await open(browser, device)
+      const told = toldExports(page)
+      let refusing = true
+      await page.route("**/board/recordExport", (route) =>
+        refusing
+          ? route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "600" }, body: JSON.stringify({ msg: TOO_MANY, status: "rate_limited" }) })
+          : route.fallback(),
+      )
+      const saved: string[] = []
+      page.on("download", (d) => saved.push(d.suggestedFilename()))
+      // The log refused: the toast says why, on top, the tells are `formats` and no file came beyond `files`.
+      const refusedHere = async (formats: string[], files: string[] = []) => {
+        const words = toast(page, TOO_MANY)
+        await expect(words).toBeVisible({ timeout: 10_000 })
+        // Said over the dialog or the sheet it was asked from, never under it (V-491: Excalidraw's dialog layer).
+        await expectToastOnTop(words)
+        await expect.poll(() => told, { timeout: 10_000 }).toEqual(tells(...formats))
+        // The file is made only once the log has the tell: nothing came.
+        await page.waitForTimeout(500)
+        expect(saved).toEqual(files)
+        refusing = false
+      }
+      if (device === "computer") {
+        const dialog = await exportAs(page, /Notes as CSV/)
+        await dialog.getByRole("button", { name: "Export" }).click()
+        await refusedHere(["csv"])
+        // The dialog stays, and once the log takes tells again the same Export makes the file.
+        const download = page.waitForEvent("download")
+        await dialog.getByRole("button", { name: "Export" }).click()
+        expect((await download).suggestedFilename()).toMatch(/\.csv$/)
+        expect(told).toEqual(tells("csv", "csv"))
+        await page.keyboard.press("Escape")
+        await expect(dialog).toBeHidden()
+        // A picture: Excalidraw's own image dialog, whose PNG the log refuses, once the CSV's toast has gone.
+        await expect(toast(page, TOO_MANY)).toHaveCount(0, { timeout: 15_000 })
+        refusing = true
+        const files = [...saved]
+        const picture = await exportAs(page, /^Picture/)
+        await picture.getByRole("button", { name: "Export" }).click()
+        const png = page.getByRole("button", { name: "Export to PNG" })
+        await expect(png).toBeVisible({ timeout: 10_000 })
+        await png.click()
+        await refusedHere(["csv", "csv", "picture"], files)
+      } else {
+        await page.getByRole("button", { name: "Board options" }).tap()
+        await page.getByRole("menuitem", { name: "Export…" }).tap()
+        const sheet = page.locator("[data-v3-sheet]").filter({ hasText: "Export this board" })
+        await sheet.getByRole("radio", { name: /^Picture/ }).tap()
+        await sheet.getByRole("button", { name: "Export" }).tap()
+        const png = page.getByRole("button", { name: "Export to PNG" })
+        await expect(png).toBeVisible({ timeout: 10_000 })
+        await png.tap()
+        await refusedHere(["picture"])
+        const download = page.waitForEvent("download")
+        await png.tap()
+        expect((await download).suggestedFilename()).toMatch(/\.png$/)
+        expect(told).toEqual(tells("picture", "picture"))
+      }
+      await context.close()
+    }
   })
 
   test("on a phone, exporting is a sheet with its action pinned in reach", async ({ browser }) => {

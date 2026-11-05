@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Field } from "@/components/ui/field"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import {
   EvalScenario,
   EvalScore,
@@ -156,7 +156,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
       const res = await runEvalScenario(id)
       setResults((r) => ({ ...r, [id]: res.result }))
     } catch (e) {
-      toast({ title: "Couldn't run the test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't run the test", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunningId(null)
     }
@@ -171,7 +171,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
       setResults(next)
       setSuite({ passed: res.passed, scored: res.scored, total: res.total })
     } catch (e) {
-      toast({ title: "Couldn't run the tests", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't run the tests", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunningAll(false)
     }

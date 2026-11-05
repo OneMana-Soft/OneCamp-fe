@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { getMyModels, setMyModel, type UserModelOption } from "@/services/aiModelService"
 import { withAI } from "@/components/common/withFeature"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 const DEFAULT_VALUE = "__default__"
 
@@ -49,8 +50,9 @@ const AiModelPicker: React.FC = () => {
     setSaving(true)
     try {
       await setMyModel(value === DEFAULT_VALUE ? "" : value)
-    } catch {
+    } catch (error) {
       setSelected(prev) // revert on failure
+      saysWriteFailure(error)
       toast({ title: "Error", description: "Couldn't change the model", variant: "destructive" })
     } finally {
       setSaving(false)

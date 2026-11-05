@@ -11,7 +11,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
-import { PopoverContent } from "@/components/ui/popover"
+import { PopoverContent } from "@/components/ui/popoverOnDemand"
 import { OverlayBody, OverlayFooter, OverlayHeader } from "@/components/ui/overlay"
 import type { FieldType, TableField } from "@/services/tableService"
 import { FormulaEditor } from "@/components/table/FormulaEditor"

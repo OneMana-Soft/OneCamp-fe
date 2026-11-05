@@ -14,6 +14,7 @@ vi.mock("@/lib/tables/ledger", async (importOriginal) => ({
 
 import { createColumn, deleteColumn, duplicateColumn, saveColumn, type Columns } from "@/components/table/columnOps"
 import type { TableField } from "@/services/tableService"
+import { UndoOrder, type Aim, type SetOf } from "@/lib/tables/undoOrder"
 
 // A column's add, save, duplicate and delete live in their own chunk, off the
 // table's first load: what each sends, and what it tells the grid.
@@ -23,7 +24,10 @@ const fields: TableField[] = [
   { id: "twice", table_id: "t", name: "Twice", type: "formula", config: JSON.stringify({ formula: "{Cost} * 2", result: "number", error: "x" }), position: 1 },
 ]
 function columns() {
-  const c = { tableId: "t", fields, onChange: vi.fn(), confirm: vi.fn(), offerUndo: vi.fn(), openMenu: vi.fn() }
+  // The grid's write (the table's undo order), as a stand-in that sends at once and keeps what entered it.
+  const made: string[] = []
+  const write = vi.fn((what: string, send: () => Promise<unknown>) => (made.push(what), send()))
+  const c = { tableId: "t", fields, onChange: vi.fn(), confirm: vi.fn(), offerUndo: vi.fn(), openMenu: vi.fn(), write, made }
   return { c, cols: c as unknown as Columns }
 }
 /** What Delete asked the reader to confirm. */
@@ -87,5 +91,58 @@ describe("a column's changes", () => {
     expect(c.offerUndo).toHaveBeenCalledWith("Column deleted", expect.any(Function))
     c.offerUndo.mock.calls[0][1]()
     expect(api.restoreFromTrash).toHaveBeenCalledWith("t", { fields: ["cost"] })
+  })
+})
+
+// V-369: a column's add, save, copy and delete, and the delete's Undo, go in
+// the table's undo order as a row's writes do (V-360), so a Ctrl+Z pressed
+// while one is on its way takes THAT change, never the one before it.
+describe("a column's changes in the table's undo order", () => {
+  it("enters each change, and the delete's Undo, in the grid's write", async () => {
+    const { c, cols } = columns()
+    api.createField.mockResolvedValue({ id: "new" })
+    api.updateField.mockResolvedValue(undefined)
+    api.deleteField.mockResolvedValue(undefined)
+    // A restore of a column alone stores no change set: its answer names none (lib/tables/ledger restoreFromTrash).
+    api.restoreFromTrash.mockResolvedValue({ rows: [], fields: ["cost"], views: [] })
+    await createColumn(cols, { name: "Due", type: "date", config: {} } as never)
+    await saveColumn(cols, fields[1], { name: "Price" } as never)
+    await duplicateColumn(cols, fields[1])
+    deleteColumn(cols, fields[1])
+    await asked(c.confirm).onConfirm()
+    await c.offerUndo.mock.calls[0][1]()
+    expect(c.made).toEqual(["new column", "column change", "column copy", "column delete", "restore"])
+    expect(api.restoreFromTrash).toHaveBeenCalledWith("t", { fields: ["cost"] })
+  })
+
+  it("holds an Undo pressed while a new column is on its way until it's answered, then does what an Undo pressed after it would", async () => {
+    const order = new UndoOrder()
+    const { c, cols } = columns()
+    c.write.mockImplementation((what: string, send: () => Promise<unknown>, setOf?: SetOf<unknown>) => order.write(what, send, setOf))
+    let answer!: (f: unknown) => void
+    api.createField.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+    const adding = createColumn(cols, { name: "Due", type: "date", config: {} } as never)
+    const ran = vi.fn(async (aim: Aim) => aim)
+    const undone = order.press(ran)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(ran).not.toHaveBeenCalled()
+    answer({ id: "new" })
+    await expect(adding).resolves.toBe(true)
+    // A field's answer names no change set (adding a column stores none on the server), so the Undo, once the column
+    // is answered, takes the latest change, exactly as an Undo pressed after it would. That is not the column.
+    await expect(undone).resolves.toEqual({ kind: "latest" })
+  })
+
+  it("says a column that wasn't saved has nothing to undo", async () => {
+    const order = new UndoOrder()
+    const { c, cols } = columns()
+    c.write.mockImplementation((what: string, send: () => Promise<unknown>, setOf?: SetOf<unknown>) => order.write(what, send, setOf))
+    let refuse!: (e: Error) => void
+    api.createField.mockReturnValue(new Promise((_, reject) => (refuse = reject)))
+    const adding = createColumn(cols, { name: "Due", type: "date", config: {} } as never)
+    const undone = order.press(async (aim) => aim)
+    refuse(new Error("refused"))
+    await expect(adding).resolves.toBe(false)
+    await expect(undone).resolves.toEqual({ kind: "lost", what: "new column" })
   })
 })

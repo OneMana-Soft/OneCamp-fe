@@ -40,6 +40,7 @@ import { runTableQueryPlan, type QueryPlanSpec } from "@/services/tableService";
 import { runDataSourceQueryPlan, type DataSourceQueryPlan } from "@/services/dataSourceService";
 import type { NormalizedChart } from "@/lib/utils/chartSpec";
 import SvgChart from "@/components/charts/SvgChart";
+import { saidHere } from "@/lib/http/saidHere";
 
 // RenderablePlan is the common shape both re-run endpoints return (native tables
 // and external data sources). matched_rows is optional because a data source
@@ -205,11 +206,7 @@ function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
             }
             setResult(res);
         } catch (e: unknown) {
-            const msg =
-                (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg ||
-                (e as Error)?.message ||
-                "Could not run this plan.";
-            setError(msg);
+            setError(saidHere(e, "Could not run this plan."));
         } finally {
             setRunning(false);
         }

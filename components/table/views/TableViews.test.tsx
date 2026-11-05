@@ -10,8 +10,9 @@ const api = vi.hoisted(() => ({
   lockView: vi.fn(async () => {}),
 }))
 vi.mock("@/services/tableViews", () => api)
-// Asked to confirm, the reader says yes.
-vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (o: { onConfirm: () => unknown }) => void o.onConfirm() }))
+// Asked to confirm, the reader says yes; what they were told is kept.
+const asked = vi.hoisted(() => ({ description: "" }))
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (o: { description: string; onConfirm: () => unknown }) => void ((asked.description = o.description), o.onConfirm()) }))
 vi.mock("@/hooks/useCopyToClipboard", () => ({ copyToClipboard: vi.fn(async () => true) }))
 // A phone: the menu is a sheet (overlayMode's SHEET_QUERY).
 const phone = vi.hoisted(() => ({ on: false }))
@@ -200,6 +201,8 @@ describe("a table's saved views", () => {
     openMenu()
     await act(async () => void fireEvent.click(await screen.findByRole("menuitem", { name: "Delete view" })))
     await waitFor(() => expect(api.deleteView).toHaveBeenCalledWith("t", "v3"))
+    // H2b: a deleted view waits in the trash, and the question says so.
+    expect(asked.description).toBe("It's yours alone, so no one else loses it. It waits in the table's trash, until you bring it back.")
     expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ layout: "grid", rules: NO_RULES }))
     expect(screen.getByRole("button", { name: /^View: Everything/ })).toBeTruthy()
   })

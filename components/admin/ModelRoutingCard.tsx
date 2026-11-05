@@ -22,6 +22,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import {
   getAuthorizedModels,
   getModelRouting,
@@ -76,7 +77,7 @@ export default function ModelRoutingCard() {
       await load()
       toast({ title: "Model choices saved", description: "Background work now runs on the models you chose." })
     } catch (e) {
-      toast({ title: "Couldn't save the model choices", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
+      toast({ title: "Couldn't save the model choices", description: saidHere(e, "Try again."), variant: "destructive" })
     } finally {
       setSaving(false)
     }

@@ -20,23 +20,24 @@ function forecastOf(pages: ForecastPages | undefined, projectId: string): Projec
 }
 
 /** One listed project's forecast: "Lands ~25 Nov", held up or not (the projects overview's rows), after `before`. */
-export function ForecastWhenOf({ forecasts, projectId, before, className }: { forecasts: ForecastPages | undefined; projectId: string; before?: ReactNode; className?: string }) {
-  return <ForecastWhen forecast={forecastOf(forecasts, projectId)} before={before} className={className} />
+export function ForecastWhenOf({ forecasts, projectId, before, className, fit }: { forecasts: ForecastPages | undefined; projectId: string; before?: ReactNode; className?: string; fit?: boolean }) {
+  return <ForecastWhen forecast={forecastOf(forecasts, projectId)} before={before} className={className} fit={fit} />
 }
 
 /**
  * A goal's project's line of its own: "Lands ~25 Nov", and ", after the goal's date" when it lands after an open
- * goal's date. That part never gives: the date's words do, when the line runs out of room.
+ * goal's date. The line is one line and never more, so the face fits it (ForecastFace's `fit` and `after`): when room
+ * runs out, "Lands", then the date, give whole, and "held up" and ", after the goal's date" never do.
  */
 export function GoalProjectLands({ forecasts, projectId, due }: { forecasts: ForecastPages | undefined; projectId: string; due?: string }) {
   const forecast = forecastOf(forecasts, projectId)
   if (!forecastDay(forecast)) return null
-  return (
-    <>
-      <ForecastWhen forecast={forecast} />
-      {landsAfter(forecast, due) && <span data-lands-after-goal="" className="shrink-0 font-medium text-danger-ink">, after the goal&apos;s date</span>}
-    </>
-  )
+  const after = landsAfter(forecast, due) ? (
+    <span data-lands-after-goal="" className="font-medium text-danger-ink">
+      , after the goal&apos;s date
+    </span>
+  ) : undefined
+  return <ForecastWhen forecast={forecast} fit after={after} />
 }
 
 /** How many of an open goal's projects land after its date: the forecast's word on the goal's health. */

@@ -31,11 +31,20 @@ vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => 
 import { PreJoin, previewMessage } from "@/components/livekit/PreJoin"
 import { CallRemoved, CaptionsOverlay, captionsLift, GREEN_ROOM_GROUND, LivePill, NamePlate, RecordingPill, StageFace } from "@/components/livekit/CallStage"
 import { CameraOffFace, cameraIsOff } from "@/components/livekit/StageTile"
+import { PersonTag } from "@/components/livekit/personTag"
 import { CallDock, CONTROL_LABELS, VideoControls } from "@/components/livekit/VideoControls"
 import { whoIsHere } from "@/components/livekit/PreJoin"
 import { ParticipantKind } from "livekit-client"
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
 import { captionsHigh, STAGE_FRAME, STAGE_TYPE } from "@/components/livekit/VideoConference"
+
+/** What a screen reader hears in an element: its text, less what is hidden from it, its spaces as one. */
+function heardIn(el: HTMLElement): string {
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let said = ""
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) if (!n.parentElement?.closest("[aria-hidden=true]")) said += n.textContent ?? ""
+  return said.replace(/\s+/g, " ").trim()
+}
 
 // The camera never answers: the preview's in-between state.
 beforeEach(() => {
@@ -203,11 +212,63 @@ describe("the call stage", () => {
   // no hue of its own (calls HU13; DESIGN-BUILD-4, 22 Oct).
   it("plates someone invited into the call with an Invited tag, shaped as Guest's and neutral", () => {
     render(<NamePlate name="Jonas Weber" invited />)
-    const invited = screen.getByText("Invited")
-    const guest = render(<NamePlate name="Priya" guest />).getByText("Guest")
+    // The tag itself, whose word is one of its parts.
+    const chip = (el: HTMLElement) => el.closest<HTMLElement>("[data-person-tag]")!
+    const invited = chip(screen.getByText("Invited"))
+    const guest = chip(render(<NamePlate name="Priya" guest />).getByText("Guest"))
     const shape = (el: HTMLElement) => el.className.split(/\s+/).filter((c) => !/^(bg|text)-/.test(c) || c === "text-micro")
     expect(shape(invited)).toEqual(shape(guest))
     expect(invited.className).not.toMatch(/sun|agent|brand|hue/)
+  })
+
+  // Narrow tiles (V-211, V-253; DESIGN-BUILD-76, 1 Nov): under 128 px the plate tightens and a tag becomes a 14 px mark
+  // of its own glyph, so the name keeps its first word. jsdom evaluates no container query, so these pin the parts and
+  // their rules; e2e/callStageLayout.spec.ts proves the look at 1280, 390 and 320.
+  it("splits a plate's name so its first word is cut last, and hears a tag after the name", () => {
+    const { container } = render(<NamePlate name="Kai Lin" guest muted />)
+    const plate = container.querySelector<HTMLElement>("[data-name-plate]")!
+    expect(plate.firstElementChild!.textContent, "its first part is the whole name").toBe("Kai Lin")
+    expect(plate.querySelector("[data-plate-first]")!.textContent).toBe("Kai")
+    expect(plate.querySelector("[data-plate-rest]")!.textContent).toBe(" Lin")
+    expect(plate.querySelector("[data-plate-first]")!.className.split(/\s+/), "the first word never shrinks before the rest").toContain("shrink-0")
+    const rules = plate.className.split(/\s+/)
+    for (const rule of ["@max-[128px]:bottom-1", "@max-[128px]:left-1", "@max-[128px]:max-w-[calc(100%-8px)]", "@max-[128px]:px-1.5", "@max-[128px]:gap-1"])
+      expect(rules, "a narrow tile's plate tightens").toContain(rule)
+    const tag = plate.querySelector<HTMLElement>("[data-person-tag=Guest]")!
+    expect(tag.getAttribute("aria-hidden"), "the plate says the tag in words").toBe("true")
+    expect(tag.title).toBe("Guest")
+    expect(tag.className.split(/\s+/), "narrow, a 14 px mark").toContain("@max-[128px]:size-3.5")
+    expect(tag.querySelector("svg"), "of its own glyph").toBeTruthy()
+    expect(heardIn(plate)).toBe("Kai Lin, guest")
+  })
+
+  it("plates a one-word name whole, with no rest to cut", () => {
+    const { container } = render(<NamePlate name="Priya" muted />)
+    expect(container.querySelector("[data-plate-first]")!.textContent).toBe("Priya")
+    expect(container.querySelector("[data-plate-rest]")).toBeNull()
+    expect(heardIn(container.querySelector<HTMLElement>("[data-name-plate]")!)).toBe("Priya")
+  })
+
+  it("plates a share with a screen glyph and its sharer's first name, heard as their screen (V-253)", () => {
+    const { container } = render(<NamePlate name="Priya Shah" screen />)
+    const plate = container.querySelector<HTMLElement>("[data-name-plate]")!
+    expect(plate.querySelector("[data-share-glyph]")).toBeTruthy()
+    expect(plate.querySelector("[data-plate-first]")!.textContent).toBe("Priya")
+    const rest = plate.querySelector<HTMLElement>("[data-plate-rest]")!
+    expect(rest.textContent).toBe(" Shah is presenting")
+    expect(rest.className.split(/\s+/), "a narrow tile keeps her first name alone").toContain("@max-[128px]:hidden")
+    expect(heardIn(plate)).toBe("Priya Shah's screen")
+  })
+
+  it("marks each kind of person with a glyph of its own, and keeps the chat's tag in words", () => {
+    const kinds = ["Guest", "Agent", "Invited"] as const
+    const glyphs = kinds.map((kind) => render(<PersonTag kind={kind} mark />).container.querySelector(`[data-person-tag=${kind}] svg`)?.outerHTML)
+    expect(glyphs.every(Boolean), "every kind has a glyph").toBe(true)
+    expect(new Set(glyphs).size, "each its own").toBe(kinds.length)
+    const chat = render(<PersonTag kind="Guest" />).container.firstElementChild as HTMLElement
+    expect(chat.textContent).toBe("Guest")
+    expect(chat.querySelector("svg")).toBeNull()
+    expect(chat.className, "the chat's tag has no narrow rule").not.toMatch(/@max-/)
   })
 
   it("has a Live pill that stands still where asked", () => {

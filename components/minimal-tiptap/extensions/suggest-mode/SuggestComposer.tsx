@@ -22,7 +22,7 @@ import { OverlayUnavailable } from "@/lib/lazy/overlayUnavailable"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { useModKey } from "@/hooks/useModKey"
 import { cn } from "@/lib/utils/helpers/cn"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { proposeReplacement, type Tracked } from "@/lib/proposals/review"
 import { discardProposal, focusProposal, proposalsOf, showProposal } from "@/components/minimal-tiptap/extensions/proposals"
 import { submitProposal } from "@/components/proposals/persisted"
@@ -186,7 +186,7 @@ export function SuggestComposer({ editor, docId, open, onClose }: { editor: Edit
       onClose()
       if (!editor.isDestroyed) editor.commands.focus()
     } catch (e) {
-      setError(apiErrorMessage(e, "Couldn't suggest it. Try again in a moment."))
+      setError(saidHere(e, "Couldn't suggest it. Try again in a moment."))
     } finally {
       setSending(false)
     }

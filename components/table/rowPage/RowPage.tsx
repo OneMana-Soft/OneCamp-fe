@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { rowPagePath, type RowPage as RowPageInfo } from "@/services/tableService"
 import { ensureRowPage } from "@/services/tableCalls"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 const RowPageEditor = dynamic(() => import("./RowPageEditor"), { loading: () => <PageLoading /> })
 
@@ -62,7 +63,8 @@ export default function RowPage({ tableId, rowId, page }: RowPageProps) {
       const got = await ensureRowPage(tableId, rowId)
       setMade({ row: rowId, doc: got.doc_uuid })
       void mutate()
-    } catch {
+    } catch (error) {
+      saysWriteFailure(error)
       toast({ title: "Couldn't start the page", description: "Nothing was lost. Try again in a moment.", variant: "destructive" })
     } finally {
       setMaking(false)

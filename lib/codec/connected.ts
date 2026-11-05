@@ -1,7 +1,8 @@
 /**
  * The codec's rules for connected work (docs programme C1): a page in a doc
  * (subpage), a date in a line (dateMention), a project's tasks or board
- * (taskListEmbed, boardEmbed), and a to-do's task (taskId on taskItem). The
+ * (taskListEmbed, boardEmbed), a whiteboard (whiteboardEmbed, miro-34), and a
+ * to-do's task (taskId on taskItem). The
  * same rules, in the same order, as the API's business/ContentCodec/
  * connected.go; the golden fixture testdata/codec/connected.* holds the two to
  * the same bytes.
@@ -23,21 +24,36 @@ export const CONNECTED_NODE_SPECS: Record<string, NodeSpec> = {
   dateMention: { name: 'dateMention', inline: true, content: 'nothing', attrs: ['date', 'reminder'].map(none) },
   taskListEmbed: { name: 'taskListEmbed', content: 'nothing', attrs: [none('projectId'), { name: 'show', def: 'open' }] },
   boardEmbed: { name: 'boardEmbed', content: 'nothing', attrs: [none('projectId')] },
+  whiteboardEmbed: { name: 'whiteboardEmbed', content: 'nothing', attrs: [none('boardId')] },
 }
+
+/**
+ * A table read by a name from a doc: only its own entries answer. A plain object also answers "constructor",
+ * "toString" and "__proto__" from its prototype, so a doc naming one read as a block, or threw.
+ */
+const table = <T,>(entries: Record<string, T>): Readonly<Record<string, T>> => Object.freeze(Object.assign(Object.create(null) as Record<string, T>, entries))
+
+/** The id attribute each connected block keeps, and its HTML attribute: nothing else of what it shows. */
+const BLOCK_IDS = table<{ attr: string; html: string }>({
+  subpage: { attr: 'docId', html: 'data-doc-id' },
+  taskListEmbed: { attr: 'projectId', html: 'data-project-id' },
+  boardEmbed: { attr: 'projectId', html: 'data-project-id' },
+  whiteboardEmbed: { attr: 'boardId', html: 'data-board-id' },
+})
 
 const orNull = (s: string) => (s === '' ? null : s)
 
 /** A connected node's attribute as the editor's schema types it; undefined when it isn't one of theirs. */
 export function typedConnectedAttr(typ: string, name: string, v: unknown): unknown {
-  if ((typ === 'subpage' && name === 'docId') || ((typ === 'taskListEmbed' || typ === 'boardEmbed') && name === 'projectId')) return orNull(connectedId(v))
+  if (BLOCK_IDS[typ]?.attr === name) return orNull(connectedId(v))
   if (typ === 'dateMention' && name === 'date') return orNull(isoDate(v))
   if (typ === 'taskListEmbed' && name === 'show') return taskListShow(v)
   return undefined
 }
 
 /** Each connected block's data-type, and back. */
-const BLOCKS: Record<string, string> = { subpage: 'subpage', taskListEmbed: 'task-list-embed', boardEmbed: 'board-embed' }
-const TYPES: Record<string, string> = Object.fromEntries(Object.entries(BLOCKS).map(([type, dataType]) => [dataType, type]))
+const BLOCKS = table<string>({ subpage: 'subpage', taskListEmbed: 'task-list-embed', boardEmbed: 'board-embed', whiteboardEmbed: 'whiteboard-embed' })
+const TYPES = table<string>(Object.fromEntries(Object.entries(BLOCKS).map(([type, dataType]) => [dataType, type])))
 
 const attr = (name: string, value: string) => ' ' + name + '="' + escapeAttr(value) + '"'
 
@@ -46,16 +62,14 @@ export function writeConnectedBlock(out: string[], n: CNode): boolean {
   const dataType = BLOCKS[n.type]
   if (!dataType) return false
   out.push('<div data-type="' + dataType + '"')
+  const key = BLOCK_IDS[n.type]
+  const id = connectedId(n.attrs?.[key.attr])
+  if (id) out.push(attr(key.html, id))
   if (n.type === 'subpage') {
-    const id = connectedId(n.attrs?.docId)
-    if (id) out.push(attr('data-doc-id', id))
     const t = attrString(n, 'title')
     if (t) out.push(attr('data-title', t))
-  } else {
-    const id = connectedId(n.attrs?.projectId)
-    if (id) out.push(attr('data-project-id', id))
-    if (n.type === 'taskListEmbed') out.push(attr('data-show', taskListShow(n.attrs?.show)))
   }
+  if (n.type === 'taskListEmbed') out.push(attr('data-show', taskListShow(n.attrs?.show)))
   out.push('>')
   const { path, words } = connectedLinkOf(n.type, n.attrs)
   if (path) out.push('<a href="' + escapeAttr(path) + '">' + escapeText(words) + '</a>')
@@ -75,25 +89,18 @@ export function writeDateMention(out: string[], n: CNode) {
 
 /** A connected block read from its div, or null for any other div. */
 export function readConnectedBlock(dataType: string, el: Element): CNode | null {
-  switch (dataType) {
-    case 'subpage': {
-      const m = node('subpage', { attrs: {} })
-      const id = connectedId(el.getAttribute('data-doc-id'))
-      if (id) setAttr(m, 'docId', id)
-      const t = el.getAttribute('data-title')
-      if (t) setAttr(m, 'title', t)
-      return m
-    }
-    case 'task-list-embed':
-    case 'board-embed': {
-      const m = node(TYPES[dataType], { attrs: {} })
-      const id = connectedId(el.getAttribute('data-project-id'))
-      if (id) setAttr(m, 'projectId', id)
-      if (m.type === 'taskListEmbed') setAttr(m, 'show', taskListShow(el.getAttribute('data-show')))
-      return m
-    }
+  const type = TYPES[dataType]
+  if (!type) return null
+  const m = node(type, { attrs: {} })
+  const key = BLOCK_IDS[type]
+  const id = connectedId(el.getAttribute(key.html))
+  if (id) setAttr(m, key.attr, id)
+  if (type === 'subpage') {
+    const t = el.getAttribute('data-title')
+    if (t) setAttr(m, 'title', t)
   }
-  return null
+  if (type === 'taskListEmbed') setAttr(m, 'show', taskListShow(el.getAttribute('data-show')))
+  return m
 }
 
 /** A date in a line, read from its <time>. */

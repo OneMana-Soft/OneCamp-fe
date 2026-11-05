@@ -29,6 +29,7 @@ import {
     removePendingAction,
 } from "@/store/slice/pendingActionSlice"
 import { withAI } from "@/components/common/withFeature"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 interface PendingActionsTrayProps {
     // The conversation surface to render approvals for (e.g. the DM grouping id
@@ -105,9 +106,10 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
             } else {
                 toast({ title: "Done", description: a.description || "Action completed." })
             }
-        } catch {
+        } catch (error) {
             // Network / unexpected error: restore the card so the user can retry.
             dispatch(markPendingActionStatus({ id: a.id, status: "pending" }))
+            saysWriteFailure(error)
             toast({ title: "Error", description: "Could not process the approval. Please try again.", variant: "destructive" })
         } finally {
             setBusyFor(a.id, false)
@@ -121,7 +123,8 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
             await rejectPendingAction(a.id)
             dispatch(removePendingAction(a.id))
             toast({ title: "Dismissed", description: "I won't run that." })
-        } catch {
+        } catch (error) {
+            saysWriteFailure(error)
             toast({ title: "Error", description: "Could not dismiss. Please try again.", variant: "destructive" })
         } finally {
             setBusyFor(a.id, false)

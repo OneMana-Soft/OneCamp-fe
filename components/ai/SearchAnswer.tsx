@@ -30,6 +30,7 @@ import {
   type UnifiedAnswerResponse,
 } from "@/services/aiSearchService"
 import { withAI } from "@/components/common/withFeature"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 // citationHref maps a citation to a navigable target. External hits carry an
 // absolute url (opened in a new tab); internal hits are resolved to an in-app
@@ -123,6 +124,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string; resultCount?: n
         // a failure.
         if (!cancelled && !isAbortedRequest(e)) {
           setAnswered(null)
+          saysWriteFailure(e)
           setFailed(true)
         }
       } finally {

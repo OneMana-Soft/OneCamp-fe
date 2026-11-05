@@ -25,6 +25,7 @@ import { Field } from "@/components/ui/field"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { SECRET_REENTRY_CODE, secretMoves, secretReentryHint } from "@/lib/utils/secretDestination"
 import { webURL } from "@/lib/links/webURL"
 
@@ -185,7 +186,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
         setTestError(res.msg || "Couldn't connect. Check the address and the secret, then test again.")
       }
     } catch (e) {
-      setTestError(`Couldn't connect. ${apiErrorMessage(e, "Check the address and the secret, then test again.")}`)
+      setTestError(`Couldn't connect. ${saidHere(e, "Check the address and the secret, then test again.")}`)
     } finally {
       setTesting(false)
     }

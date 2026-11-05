@@ -57,6 +57,12 @@
       "type": "boardEmbed"
     },
     {
+      "attrs": {
+        "boardId": "4c4b5f6a-7b8c-4d9e-9f3a-4b5c6d7e8f9a"
+      },
+      "type": "whiteboardEmbed"
+    },
+    {
       "content": [
         {
           "attrs": {

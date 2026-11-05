@@ -56,18 +56,20 @@ export function stampNewNotes(
  * writes them, and the notes among them new to the board are stamped with their maker first, in one walk of the
  * scene. Stamping over the whole scene asked every note's maker on every frame of a drag (8.9 ms a frame on a
  * 4,000-object board); only a changed note can be new to the board. Call it inside the document's transaction
- * (LOCAL_ORIGIN). Returns how many it wrote and stamped.
+ * (LOCAL_ORIGIN). Returns how many it wrote and stamped. `outbound` (private mode's veil) gives each element as
+ * the board may have it, before its write.
  */
 export function storeWithMakers(
   authors: { has(id: string): boolean; set(id: string, maker: NoteAuthor): unknown },
   shared: Pick<SharedElements, "get" | "set">,
   scene: readonly BoardElement[],
   who: NoteAuthor | null | undefined,
+  outbound?: (el: BoardElement) => BoardElement,
 ): { wrote: number; stamped: number } {
   const changed = changedElements(shared, scene)
   if (changed.length === 0) return { wrote: 0, stamped: 0 }
   const stamped = stampNewNotes(authors, changed as never, shared, who)
-  for (const el of changed) shared.set(el.id, cloneElement(el))
+  for (const el of changed) shared.set(el.id, cloneElement(outbound ? outbound(el) : el))
   return { wrote: changed.length, stamped }
 }
 

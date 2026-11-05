@@ -1,5 +1,7 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import type { TaskWorkType } from "@/types/task"
+import { madeOffline } from "@/lib/offline/offlineId"
+import { projectTypesPath } from "@/lib/work/workTypes"
 
 /**
  * Task keys and types (projects A8K, router/projectsKeys.go), out of
@@ -20,7 +22,7 @@ export interface ProjectType extends TaskWorkType {
 }
 
 export const projectKeyPath = (projectId: string) => `/project/${projectId}/key`
-export const projectTypesPath = (projectId: string) => `/project/${projectId}/types`
+export { projectTypesPath }
 
 /** Changes a project's key; answers the key as it is now. */
 export async function setProjectKey(projectId: string, key: string): Promise<ProjectKey> {
@@ -48,6 +50,16 @@ export async function archiveProjectType(projectId: string, typeId: string): Pro
 export async function setTaskType(taskUUID: string, typeId: string): Promise<TaskWorkType | null> {
   const res = await axiosInstance.post<{ data: { task_work_type: TaskWorkType | null } }>("/task/type", { task_uuid: taskUUID, type_id: typeId }, OWN_ERRORS)
   return res.data.data.task_work_type
+}
+
+/**
+ * Gives a task just made the type of the place it was added in (a board's
+ * column or a list's group of a type). Nothing for a plain Task (""), or for a
+ * task made offline, which waits as one create.
+ */
+export async function typeMade(made: unknown, typeId: string | undefined): Promise<void> {
+  if (!typeId || typeof made !== "string" || !made || madeOffline(made)) return
+  await setTaskType(made, typeId)
 }
 
 /** The task a key ("Q4-12") names, for the task's own page. */

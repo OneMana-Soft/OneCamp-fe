@@ -1,10 +1,10 @@
-import { errorToastCopy, shownRecently } from "@/lib/utils/errorToast";
+import { errorToastCopy } from "@/lib/utils/errorToast";
 import { endSession } from "@/lib/sessionEnd";
 import axios from 'axios'
 import {loadingBus} from "@/lib/utils/loadingBus";
-import { toast } from "@/hooks/use-toast";
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity";
 import { tellReadFailure } from "@/lib/http/loadFailure";
+import { tellWriteFailure } from "@/lib/http/writeFailure";
 import { refreshSession, sessionIsStale } from "@/lib/auth/sessionRefresh";
 import { REQUEST_TIMEOUT_MS, isTimeout, waitsAsLongAsItTakes } from "@/lib/http/requestTimeout";
 import { onVisitorPage } from "@/lib/visitorPage";
@@ -203,28 +203,26 @@ axiosInstance.interceptors.response.use(
             noteNetworkFailure();
             const method = String(error.config?.method || "get").toLowerCase();
             const copy = isTimeout(error) ? NO_ANSWER_IN_TIME : NO_ANSWER_TO_A_WRITE;
-            if (method !== "get" && method !== "head" && !error.config?.suppressErrorToast && !shownRecently(copy)) {
-                toast({ variant: "destructive", ...copy });
+            if (method !== "get" && method !== "head" && !error.config?.suppressErrorToast) {
+                tellWriteFailure(error, copy);
             }
         }
 
         // Standardized Error Toasting (excluding 401 refresh attempts).
         // A request may opt out via `suppressErrorToast` (e.g. an embedded
         // table whose target was deleted renders its own friendly fallback).
-        // A write is the person's own change: its failure is said at once. A
-        // read is said only when nothing on screen says it (lib/http/
-        // loadFailure); useFetch's reads decide for themselves, so a failed
-        // refresh under what is shown says nothing.
+        // A write is the person's own change: its failure is said once, in
+        // place when its row says it, else in a toast a turn later (lib/http/
+        // writeFailure). A read is said only when nothing on screen says it
+        // (lib/http/loadFailure); useFetch's reads decide for themselves, so a
+        // failed refresh under what is shown says nothing.
         // @ts-ignore
         if (error.response && error.response.status !== 401 && !error.config?.suppressErrorToast) {
             const method = String(error.config?.method || "get").toLowerCase();
             if (method === "get" || method === "head") {
                 tellReadFailure(error);
             } else {
-                const copy = errorToastCopy(error.response.status, error.response.data?.msg, error.response.data?.code)
-                if (!shownRecently(copy)) {
-                    toast({ variant: "destructive", ...copy });
-                }
+                tellWriteFailure(error, errorToastCopy(error.response.status, error.response.data?.msg, error.response.data?.code));
             }
         }
 

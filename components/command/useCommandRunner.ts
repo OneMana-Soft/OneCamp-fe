@@ -32,6 +32,7 @@ import { browserTZ } from "@/lib/utils/timeZone"
 import { executeRequest } from "@/lib/command/executeRequest"
 import { escapeText } from "@/lib/codec/htmlEscape"
 import { useCommandCatalog } from "@/components/command/useCommandCatalog"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 export interface CommandSurfaceContext {
     surfaceKey: string          // channel uuid or dm grouping id
@@ -198,7 +199,8 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                     executeRequest(command, typed, ctx, browserTZ(), triggerId, mentions),
                 )
                 routeResponse(resp, triggerId, command)
-            } catch {
+            } catch (error) {
+                saysWriteFailure(error)
                 toast({
                     variant: "destructive",
                     title: "Command failed",
@@ -244,7 +246,8 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                     dm_group_id: ctx.dmGroupId,
                 })
                 routeResponse(resp, triggerId, command)
-            } catch {
+            } catch (error) {
+                saysWriteFailure(error)
                 toast({ variant: "destructive", title: "Action failed" })
             }
         },

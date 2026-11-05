@@ -30,7 +30,7 @@ import {
   runAISelfTest,
   getAISelfTestStatus,
 } from "@/services/aiModelService"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 
 export const SELF_TEST_STAGGER_MS = 120
 
@@ -88,7 +88,7 @@ export function useSelfTest() {
       stopPolling()
       pollRef.current = setInterval(poll, 2500)
     } catch (e) {
-      toast({ title: "Couldn't start the self-test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't start the self-test", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }, [poll, stopPolling, target, toast])
 

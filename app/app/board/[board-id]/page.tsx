@@ -18,7 +18,7 @@ import { warmCollabToken } from "@/lib/collabToken";
 import { focusHandOff } from "@/lib/ui/focusHandOff";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
-import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, Sparkles, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo } from "@/lib/icons";
+import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, Sparkles, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo, ShieldCheck } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { LoadFailureState } from "@/components/ui/load-failure-state";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
@@ -52,6 +52,8 @@ import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import WithAddWorkReads from "@/components/board/addWorkReads";
+import { useLabelling } from "@/components/labels/labelData";
+import { NoLabelsYet } from "@/components/labels/noLabels";
 
 // In the cluster, and in a phone's menu.
 const TOOLS = [
@@ -80,6 +82,7 @@ const facilitation = lazyPart<React.ComponentProps<typeof BoardFacilitationPart>
 // React and raise a hand (miro-24), for everyone on the board: the button and its tray in a chunk of their own, in a
 // room of the button's size while it comes; what they do comes with the board's tools (components/board/boardSignals).
 const BoardReact = lazyPiece(() => import("@/components/board/boardReact"));
+const BoardLabel = lazyPiece(() => import("@/components/labels/boardLabel")); // miro-44 L
 
 // Ask AI wears the agent's colour, open or not: brand is for actions.
 const AI_BUTTON = (open: boolean) =>
@@ -188,6 +191,10 @@ export default function BoardPage() {
   // the menu had faded, and the menu then gave it back to More: what was typed went to the button (V-195).
   const [handOff] = React.useState(focusHandOff);
   const [boardStyle, setBoardStyle] = useBoardStyle(provider ?? null, synced);
+  // miro-44 L: the label is read and written here; the lazy chip and picker draw once there's one or it's asked for.
+  const [labelOpen, setLabelOpen] = React.useState(false);
+  const labelling = useLabelling("board", boardId, labelOpen);
+  const labelChip = (phone?: boolean) => (labelling.label || labelOpen) && <React.Suspense><BoardLabel phone={phone} labelling={labelling} edit={hasEditAccess} open={labelOpen} onOpen={setLabelOpen} empty={<NoLabelsYet />} /></React.Suspense>;
 
   // The board's name, renamed in place in the top-left cluster.
   const [title, setTitle] = React.useState("");
@@ -361,6 +368,10 @@ export default function BoardPage() {
               <History className="mr-2 size-4" />
               Version history
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={handOff.to(() => setLabelOpen(true))}>
+              <ShieldCheck className="mr-2 size-4" />
+              Label…
+            </DropdownMenuItem>
             {/* For anyone in the workspace to start a board from (miro-19 3). */}
             <DropdownMenuItem onClick={handOff.to(() => run("saveTemplate"))} disabled={!excalApi}>
               <LayoutTemplate className="mr-2 size-4" />
@@ -468,6 +479,7 @@ export default function BoardPage() {
               }}
               saveState={saveState}
               menu={(trigger) => menu(trigger, "start")}
+              label={labelChip()}
             />
             {offline && (
               <div
@@ -540,6 +552,7 @@ export default function BoardPage() {
           the top it sat on Excalidraw's tool row and covered its last tools). */}
       {isMobile && (
         <div className="pointer-events-none absolute bottom-[5rem] right-3 z-20 flex items-center gap-2" data-board-phone-actions="" data-phone-foot="">
+          {labelChip(true)}
           <ChromeCluster label="Board tools" className="h-11 rounded-[14px] [&_button]:size-9">
             {hasEditAccess && (
               <>

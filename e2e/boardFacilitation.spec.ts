@@ -236,6 +236,8 @@ test("on a phone, Bring everyone here is on the bar while someone else is on the
   const ann = await open(browser, "computer", { on, user: USERS.ann })
   await expect(bring).toBeVisible({ timeout: 10_000 })
   await whole(b.page, 390)
+  // Private mode's start stays in the row beside it, by its name (its word gives way to its icon when short of room).
+  await expect(b.bar.getByRole("button", { name: "Start private mode" })).toBeVisible()
   await bring.tap()
   await expect(ann.page.locator(".toast-root").filter({ hasText: `${displayNameOf(USERS.sam)} brought everyone here` })).toBeVisible({ timeout: 10_000 })
 
@@ -521,7 +523,7 @@ for (const device of ["computer", "phone"] as const) {
     test.setTimeout(120_000)
     let held = { refused: 0 }
     const sam = await open(browser, device, { route: async (context) => void (held = await refuseBarCode(context)) })
-    const failed = sam.page.getByRole("alert").filter({ hasText: "Couldn't load Timer, Vote and Present." })
+    const failed = sam.page.getByRole("alert").filter({ hasText: "Couldn't load Timer, Vote, Present and Private mode." })
     await expect(failed).toBeVisible()
     expect(held.refused, "the bar's code was asked for, and refused").toBeGreaterThan(0)
     await inScreenAndApart(failed, size)
@@ -529,7 +531,7 @@ for (const device of ["computer", "phone"] as const) {
     await selectsANote(sam.page, device)
     // The connection is back: Try again brings the bar, in the same place.
     await sam.context.unroute(CHUNKS)
-    const again = failed.getByRole("button", { name: "Couldn't load Timer, Vote and Present. Try again" })
+    const again = failed.getByRole("button", { name: "Couldn't load Timer, Vote, Present and Private mode. Try again" })
     await (device === "phone" ? again.tap() : again.click())
     await expect(sam.bar).toBeVisible()
     await expect(failed).toHaveCount(0)

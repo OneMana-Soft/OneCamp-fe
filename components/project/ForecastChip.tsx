@@ -77,7 +77,7 @@ export function ForecastChip({ projectId, className }: { projectId: string; clas
           {...ix("chip")}
           className={cn("chip inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-[510] text-foreground", className)}
         >
-          <ForecastFace lands={lands} held={held} pace={<CalendarClock className="size-3.5 shrink-0 text-ink-3" aria-hidden />} />
+          <ForecastFace day={day} held={held} pace={<CalendarClock className="size-3.5 shrink-0 text-ink-3" aria-hidden />} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" data-forecast-card="" className="w-80 p-4">

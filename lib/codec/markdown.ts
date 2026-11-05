@@ -173,7 +173,8 @@ class Writer {
         return ['[Call recording](' + linkDest(this.appURL('/app/recordings')) + ')']
       case 'subpage':
       case 'taskListEmbed':
-      case 'boardEmbed': {
+      case 'boardEmbed':
+      case 'whiteboardEmbed': {
         const { path, words } = connectedLinkOf(n.type, n.attrs)
         return [path ? '[' + escapeLinkText(words) + '](' + linkDest(this.appURL(path)) + ')' : escapeMarkdownText(words, true)]
       }

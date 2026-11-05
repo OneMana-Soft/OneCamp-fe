@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -9,11 +10,11 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { SlidersHorizontal } from "@/lib/icons"
+import { BarChart3, SlidersHorizontal } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { boardQuery } from "@/lib/board/boardQuery"
+import { boardQuery, insightsHref } from "@/lib/board/boardQuery"
 import type { TaskInfoInterface } from "@/types/task"
 import { accessOf, canEditTask } from "@/lib/work/access"
 import { mayMoveInto } from "@/lib/board/moveInto"
@@ -46,6 +47,11 @@ import { columnPaging } from "@/components/kanbanComponents/TaskBoard"
 import { columnTotals } from "@/lib/board/columnTotals"
 import { useStoredState } from "@/hooks/useStoredState"
 import { NO_ASSIGNEE, groupByAssignee, type BoardGrouping } from "@/lib/board/groupBy"
+import { groupByType, typeMove } from "@/lib/board/groupByType"
+import { useProjectTypes } from "@/hooks/useProjectTypes"
+import { setTaskType, typeMade } from "@/lib/work/keysApi"
+import { useToast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { assigneeLanes, priorityLanes, type BoardLanes } from "@/lib/board/lanes"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { priorities } from "@/types/table"
@@ -81,11 +87,11 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     const projectHue = useProjectHue(projectId)
     const moveTask = useMoveTask()
     const { reassign, setPriority } = useTaskFields()
-    // Status columns, or one column per person (Linear's "group by assignee").
+    // Status columns, one column per person (Linear's "group by assignee"), or per type (linear-03).
     const [grouping, setGrouping] = useStoredState<BoardGrouping>(
         projectId ? `oc_board_grouping:${projectId}` : undefined,
         "status",
-        (v): v is BoardGrouping => v === "status" || v === "assignee",
+        (v): v is BoardGrouping => v === "status" || v === "assignee" || v === "type",
     )
     // Rows across the status columns (swimlanes), when grouped by status.
     const [laneBy, setLaneBy] = useStoredState<BoardLanes>(
@@ -122,23 +128,26 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     // "Add task" in a column: a task in that column's status (built-in or the
     // project's own), then the board reloads to show it in place.
     const quickAdd = async (column: string, name: string, lane?: string) => {
-        // On a board of people the column is who it is for; otherwise its
+        // On a board of people the column is who it is for; on a board of
+        // types, its type (given once the task is made); otherwise its
         // status, and a lane adds who has it or its priority.
         const forPerson = (who: string) => (who === NO_ASSIGNEE ? "" : who)
         const payload: { task_name: string; task_project_uuid: string; task_status: string; task_assignee_uuid?: string; task_priority?: string } =
             grouping === "assignee"
                 ? { task_name: name, task_project_uuid: projectId, task_status: "todo", task_assignee_uuid: forPerson(column) }
-                : { task_name: name, task_project_uuid: projectId, task_status: column }
+                : { task_name: name, task_project_uuid: projectId, task_status: grouping === "type" ? "todo" : column }
         if (grouping === "status" && lane !== undefined) {
             if (laneBy === "assignee") payload.task_assignee_uuid = forPerson(lane)
             if (laneBy === "priority") payload.task_priority = lane
         }
+        const typeId = grouping === "type" ? typeMove({}, column, byType?.options ?? []) : undefined
         const res = await post.makeRequest<typeof payload, { task_uuid?: string }>({
             apiEndpoint: PostEndpointUrl.CreateTask,
             payload,
             showErrorToast: true,
         })
         if (!res) return false
+        await typeMade(res.task_uuid, typeId).catch(typeFailed)
         await projectInfo.mutate()
         return true
     }
@@ -214,6 +223,10 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         () => (grouping === "assignee" ? groupByAssignee(columns, p?.project_members, hideEmpty) : null),
         [grouping, columns, p?.project_members, hideEmpty],
     )
+    const { types } = useProjectTypes(projectId, grouping === "type")
+    const byType = useMemo(() => (grouping === "type" ? groupByType(columns, types, hideEmpty) : null), [grouping, columns, types, hideEmpty])
+    const { toast } = useToast()
+    const typeFailed = (e: unknown) => toast({ title: "Couldn't change the type", description: apiErrorMessage(e, "Try again."), tone: "error" })
     const members = p?.project_members
     const lanes = useMemo(() => {
         if (grouping !== "status" || laneBy === "none") return undefined
@@ -300,6 +313,8 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                         onShown={setColumnShown}
                         onManageStatuses={access.manage ? () => setManaging(true) : undefined}
                         onManageFields={access.manage ? () => setManagingFields(true) : undefined}
+                        insights={insightsHref(projectId, columnFilters, search, "")}
+                        tagsLeftOut={tagFilter.length > 0}
                     />
                 }
             />
@@ -332,6 +347,22 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                     void reassign(task.task_uuid, projectId, to)
                                 }}
                                 boardKey={`project:${projectId}:assignee`}
+                                onQuickAdd={access.create_tasks ? quickAdd : undefined}
+                                badgeFor={(task) => task.task_custom_status_name || taskStatusLabel(task.task_status)}
+                                onOpen={onOpen}
+                            />
+                        ) : byType ? (
+                            <TaskBoard
+                                columns={byType.columns}
+                                visible={byType.options}
+                                canDrag={canEdit}
+                                onMove={(task, drop) => {
+                                    // Into another type's column: it takes that type (Task makes it plain).
+                                    const next = typeMove(task, drop.column, byType.options)
+                                    if (next === undefined) return
+                                    void setTaskType(task.task_uuid, next).catch(typeFailed).finally(() => void projectInfo.mutate())
+                                }}
+                                boardKey={`project:${projectId}:type`}
                                 onQuickAdd={access.create_tasks ? quickAdd : undefined}
                                 badgeFor={(task) => task.task_custom_status_name || taskStatusLabel(task.task_status)}
                                 onOpen={onOpen}
@@ -383,6 +414,8 @@ function BoardDisplayMenu({
     onShown,
     onManageStatuses,
     onManageFields,
+    insights,
+    tagsLeftOut,
 }: {
     grouping: BoardGrouping
     onGrouping: (g: BoardGrouping) => void
@@ -395,6 +428,10 @@ function BoardDisplayMenu({
     onShown: (column: string, shown: boolean) => void
     onManageStatuses?: () => void
     onManageFields?: () => void
+    /** Where this board's insights open (lib/board/boardQuery insightsHref). */
+    insights: string
+    /** The tag filter is the board's own, so the report can't keep it. */
+    tagsLeftOut: boolean
 }) {
     return (
         <DropdownMenu>
@@ -405,11 +442,23 @@ function BoardDisplayMenu({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[200px]">
+                {/* Insights (B9-b1): the project's report, narrowed to this board's filters and search. First, so it
+                    shows without scrolling: the menu runs past the fold at 1280x860 with a project's statuses. */}
+                <DropdownMenuItem asChild>
+                    <Link href={insights} className="gap-2">
+                        <BarChart3 className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                            Insights for this view
+                            {tagsLeftOut && <span className="block text-xs text-ink-3">without the tag filter</span>}
+                        </span>
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel>Group by</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {(["status", "assignee"] as const).map((g) => (
+                {(["status", "assignee", "type"] as const).map((g) => (
                     <DropdownMenuCheckboxItem key={g} checked={grouping === g} onCheckedChange={() => onGrouping(g)}>
-                        {g === "status" ? "Status" : "Assignee"}
+                        {g === "status" ? "Status" : g === "assignee" ? "Assignee" : "Type"}
                     </DropdownMenuCheckboxItem>
                 ))}
                 {grouping === "status" && (
@@ -423,9 +472,9 @@ function BoardDisplayMenu({
                         ))}
                     </>
                 )}
-                {(grouping === "assignee" || laneBy !== "none") && (
+                {(grouping !== "status" || laneBy !== "none") && (
                     <DropdownMenuCheckboxItem checked={hideEmpty} onCheckedChange={(v) => onHideEmpty(Boolean(v))}>
-                        {grouping === "assignee" || laneBy === "assignee" ? "Hide people with no tasks" : "Hide empty rows"}
+                        {grouping === "assignee" || laneBy === "assignee" ? "Hide people with no tasks" : grouping === "type" ? "Hide types with no tasks" : "Hide empty rows"}
                     </DropdownMenuCheckboxItem>
                 )}
                 <DropdownMenuSeparator />

@@ -34,7 +34,7 @@ import { type AuthorizedModel, type UserModelOption } from "@/services/aiModelSe
 import { cn } from "@/lib/utils/helpers/cn"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { Spark } from "@/components/ui/graphics/motifs"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { secretMoves, secretReentryHint } from "@/lib/utils/secretDestination"
 import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug, Shield } from "@/lib/icons"
 import { MenuCheck } from "@/components/ui/menuCheck"
@@ -324,7 +324,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
         }),
       )
     } catch (e) {
-      setAguiCheck({ ok: false, error: apiErrorMessage(e, "The check could not be run.") })
+      setAguiCheck({ ok: false, error: saidHere(e, "The check could not be run.") })
     } finally {
       setAguiChecking(false)
     }
@@ -516,7 +516,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       if (d.max_steps) setMaxSteps(d.max_steps)
       setDmAble(!!d.dm_able)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't draft the agent")
+      setError(saidHere(e, "Couldn't draft the agent"))
     } finally {
       setDrafting(false)
     }
@@ -722,7 +722,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       const res = await runAgent(agent.id, testPrompt.trim(), dryRun)
       setOutcome(res)
     } catch (e) {
-      toast({ title: "Couldn't run the test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't run the test", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunning(false)
     }

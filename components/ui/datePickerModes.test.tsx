@@ -60,6 +60,8 @@ type Field = "DateField" | "TimeField" | "DatePicker" | "DateTimeField"
 const FORMS: Array<{ file: string; host: Host; field: Field; via?: string }> = [
   { file: "app/invoice/[project]/page.tsx", host: "page", field: "DateField" },
   { file: "components/admin/AgentEditDialog.tsx", host: "dialog", field: "TimeField" },
+  // A legal hold's search, from and to (gcal-new-audit-retention H2).
+  { file: "components/admin/LegalHoldsCard.tsx", host: "dialog", field: "DateField" },
   { file: "components/calendar/bookingEditor.tsx", host: "page", field: "TimeField" },
   { file: "components/calendar/form/eventForm.tsx", host: "sheet", field: "DateField" },
   { file: "components/calendar/repeat/customRepeatSheet.tsx", host: "dialog", field: "DateField" },

@@ -9,6 +9,7 @@
  */
 
 import { isMacLike } from "@/lib/keys/chord"
+import { pressTab } from "@/lib/keys/tabOrder"
 import { nextCell, swallowsAtEdge } from "@/lib/tables/gridKeys"
 import { cellOf, kindAt, type KeyInput } from "@/lib/tables/gridKeyKinds"
 import { tableCellCommand } from "@/lib/tables/tableKeys"
@@ -207,6 +208,111 @@ export function gridKeyUp(e: { key: string; preventDefault(): void }): void {
 }
 
 /**
+ * A key typed at a cell's box at rest before this chunk landed (V-474), held
+ * (DataTableGrid): it goes into the live box of the cell the focus is in now,
+ * as the key would have, so a word typed after a held Enter or Tab lands where
+ * that key took the focus (CR-214). The first key in a cell brings it to life,
+ * everything selected for it to replace; a character goes in over the
+ * selection, Backspace and Delete take it (or the character beside the caret),
+ * through the editor's own command so the box's undo keeps it, else by the
+ * value and an input event, which React reads as typing. `at` (an element in
+ * the cell) types into another cell than the focus's. False when that is no
+ * cell with a text box, or the cell can't come to life.
+ */
+export function typeHeld(key: string, bringToLife: (td: Element | null) => boolean, at: Element | null = document.activeElement): boolean {
+  const td = at?.closest("tbody td[data-field]") ?? null
+  const boxOf = () => td?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input[data-cell], textarea[data-cell]") ?? null
+  let box = boxOf()
+  const woke = !!box?.hasAttribute("data-rest")
+  if (woke) box = bringToLife(td) ? boxOf() : null
+  if (!box || box.hasAttribute("data-rest")) return false
+  if (woke || document.activeElement !== box) {
+    box.focus()
+    box.select()
+  }
+  const command = key === "Backspace" ? "delete" : key === "Delete" ? "forwardDelete" : "insertText"
+  const text = command === "insertText" ? key : ""
+  if (typeof document.execCommand === "function" && document.execCommand(command, false, text)) return true
+  let from = box.selectionStart ?? box.value.length
+  let to = box.selectionEnd ?? from
+  if (from === to && command === "delete") from = Math.max(0, from - 1)
+  if (from === to && command === "forwardDelete") to = Math.min(box.value.length, to + 1)
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(box), "value")?.set?.call(box, box.value.slice(0, from) + text + box.value.slice(to))
+  // An email box has no caret to set (it throws): its text goes in all the same.
+  try {
+    box.setSelectionRange(from + text.length, from + text.length)
+  } catch {}
+  box.dispatchEvent(new Event("input", { bubbles: true }))
+  return true
+}
+
+/**
+ * A held key nothing took: a key made in code gets no browser default, so a
+ * Tab (Shift+Tab) moves on as the browser's own would (pressTab), and the box
+ * it leaves saves on its blur (CR-214).
+ */
+function freeKey(target: Element, k: KeyInput): void {
+  if (k.key === "Tab" && !k.altKey && !k.ctrlKey && !k.metaKey && target instanceof HTMLElement) pressTab(target, k.shiftKey)
+}
+
+/**
+ * A key held after typed ones (typeHeld): pressed on what holds the focus, as
+ * the key itself, so a live box's own keys come first (its Enter saves) and
+ * the grid's after, as they would have; then as the browser's (freeKey).
+ */
+export function pressHeld(target: Element, k: KeyInput): void {
+  const { key, shiftKey, altKey, ctrlKey, metaKey } = k
+  if (target.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, altKey, ctrlKey, metaKey, bubbles: true, cancelable: true }))) freeKey(target, k)
+}
+
+/**
+ * What the grid held while this chunk came: a key (with the cell it was typed
+ * at, when it types), or a click on a cell at rest; each with what held the
+ * focus then (`from`).
+ */
+export type Held = ((KeyInput & { cell?: string }) | { click: Parameters<typeof cellClick>[0] }) & { from?: Element | null }
+
+/**
+ * Plays what the grid held, in the order it came (V-474): a click (or a tap)
+ * where it was made (cellClick), so a word typed after it goes into the cell
+ * it opened (CR-214 row 2510); a typed key into the cell it was typed at, or,
+ * when the focus never left where it was at the latest held move or click,
+ * where that took the focus (typeHeld; CR-215 row 2513); a key after typed
+ * ones on what holds the focus (pressHeld); one before them through the
+ * grid's keys, then as the browser's (freeKey: a Tab they leave moves on).
+ * It stops once the focus has left the grid's table, and a typed key with
+ * nowhere to go says so.
+ */
+export function playHeld(held: Held[], table: Element | null, g: GridKeyHost, couldNot: (what: string) => void): void {
+  let typed = false
+  // The latest held move or click: a key typed from where the focus was then waited for it (a finger's tap moves the focus itself).
+  let after: Held | undefined
+  for (const k of held) {
+    if ("click" in k) {
+      cellClick(k.click, g.bringToLife)
+      after = k
+      continue
+    }
+    const target = document.activeElement
+    const out = !target || !table?.contains(target)
+    if (k.cell) {
+      const at = after && k.from === after.from ? target : (table?.querySelector(`[data-cell="${k.cell}"]`) ?? null)
+      if (out || !typeHeld(k.key, g.bringToLife, at)) return couldNot("type in the cell")
+      typed = true
+      continue
+    }
+    after = k
+    if (out) return
+    else if (typed) pressHeld(target, k)
+    else {
+      let took = false
+      gridKeyDown({ ...k, target, composing: false, preventDefault: () => void (took = true), stopPropagation() {} }, g)
+      if (!took) freeKey(target, k)
+    }
+  }
+}
+
+/**
  * The keys between cells, from a cell's box or a shut cell (which holds the
  * focus itself): Shift+Space selects the row; Enter or F2 opens a selected
  * cell (selectedCell), the caret at its text's end, and a typed key opens a
@@ -234,6 +340,13 @@ export function gridKeyDown(e: GridKey, g: GridKeyHost): void {
   // A shut cell, or a text or number cell's box selected: not typed in.
   const selected = shut || ((kind === "text" || kind === "number") && isBox(target) && selectedCell(target))
   const plain = !e.ctrlKey && !e.metaKey && !e.altKey
+  // Tab (Shift+Tab) goes on from a shut cell's text box, as a sheet's does:
+  // the browser's own would go into it (CR-215 row 2513).
+  if (shut && plain && e.key === "Tab") {
+    e.preventDefault()
+    pressTab(cellOf(target) ?? target, e.shiftKey)
+    return
+  }
   // Enter or F2 opens a selected cell to type in, the caret at its text's
   // end, as a sheet's do (V-295; Shift+Enter goes up from it). A typed key
   // opens a shut cell to replace what's there (the key goes on to the box,

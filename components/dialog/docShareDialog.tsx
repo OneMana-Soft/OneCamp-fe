@@ -1,6 +1,6 @@
 "use client"
 
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import * as React from "react"
 import { useSelector } from "react-redux"
@@ -227,7 +227,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
       if (change.general) docShared(docId)
     } catch (e) {
       // An invite says so in its own row.
-      if (!opts.invite) setError(apiErrorMessage(e, "That change wasn't saved. Try again."))
+      if (!opts.invite) setError(saidHere(e, "That change wasn't saved. Try again."))
       throw e
     } finally {
       await appMutate(docAccessKey(docId)).catch(() => undefined)
@@ -281,7 +281,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
       toast({ title: approve ? `${r.requester ? displayNameOf(r.requester) : "They"} can open it now` : "Request declined" })
       void requests.mutate()
     } catch (e) {
-      toast({ title: "The request wasn't answered", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The request wasn't answered", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
 

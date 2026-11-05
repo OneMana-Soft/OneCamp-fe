@@ -54,6 +54,69 @@ export interface Report {
   truncated: boolean
   /** Where the tasks stood at the end of each week (missing from servers before it). */
   flow?: FlowWeek[]
+  /** How long the work took (business/Project/insights.go; missing from servers before it). */
+  insights?: Insights
+}
+
+/** How a set of durations, in hours, spreads: how many, and the 25th to 95th percentiles (helpers/spread.go). */
+export interface Spread {
+  n: number
+  p25: number
+  p50: number
+  p85: number
+  p95: number
+}
+
+/** How long the report's work took, in hours. Cycle, lead and time in status: the tasks done in the weeks shown;
+ * triage: the tasks that left the backlog in them; age: the tasks open now. */
+export interface Insights {
+  cycle: Spread
+  lead: Spread
+  triage: Spread
+  age: Spread
+  /** Each step work moves through (backlog, to do, in progress, in review; a project's own status counts as its category) and how long done tasks spent in it. */
+  in_status: (Spread & { status: string })[]
+  /** The tasks done in the weeks shown, the latest first, up to 500 (points_capped when there were more). */
+  points: InsightPoint[]
+  points_capped: boolean
+  slices: InsightSlice[]
+  /** The projects' custom fields the work is also sliced by (select, multi-select, person): their slices are by "field:<id>" (B9-b1). */
+  fields?: InsightField[]
+  /** More fields than the report slices by (20): narrowing to a project slices by its own. */
+  fields_capped?: boolean
+}
+
+/** A custom field the report slices work by. */
+export interface InsightField {
+  by: `field:${string}`
+  name: string
+  type: "select" | "multi_select" | "person"
+  project_uuid: string
+}
+
+/** One task done in the weeks shown; cycle is missing when it was never started. */
+export interface InsightPoint {
+  task_uuid: string
+  task_name: string
+  done_at: string
+  cycle?: number
+  lead: number
+  project_uuid: string
+  person_uuid?: string
+  priority?: string
+  type_id?: string
+  /** The task's keys in each field it is sliced by ("" for none). */
+  in?: Record<string, string[]>
+}
+
+/** The spreads of one project, person, priority, type or custom field's value; an empty key is the work with none. */
+export interface InsightSlice {
+  by: "project" | "person" | "priority" | "type" | `field:${string}`
+  key: string
+  name: string
+  cycle: Spread
+  lead: Spread
+  age: Spread
 }
 
 /** The flow of work at the end of one week: the open tasks by where they stand, and what got done since the report began. */
@@ -64,11 +127,34 @@ export interface FlowWeek {
   done: number
 }
 
-/** The report's address in the cache: the reader's zone, how many weeks, which projects (none for all). */
-export function reportKey(tz: string, weeks: number, projects: string[] = []): string {
+/** The report's address in the cache: the reader's zone, how many weeks, which projects (none for all), and a view's filters as its list sends them (B9-b1). */
+export function reportKey(tz: string, weeks: number, projects: string[] = [], filters = ""): string {
   const q = new URLSearchParams({ tz, weeks: String(weeks) })
   if (projects.length > 0) q.set("projects", [...projects].sort().join(","))
+  if (filters) q.set("filters", filters)
   return `${ProjectsGet.ProjectReport}?${q.toString()}`
+}
+
+/**
+ * The list or board view a report was opened from (lib/board/boardQuery's
+ * insightsHref): its one project, its filters as the board sends them, and
+ * its saved name ("" for a view never saved); null when the address names no
+ * one project. Pure.
+ */
+export function reportView(q: { get(name: string): string | null }): { project: string; filters: string; name: string } | null {
+  const project = (q.get("projects") ?? "").trim()
+  if (!project || project.includes(",")) return null
+  return { project, filters: q.get("filters") ?? "", name: (q.get("name") ?? "").trim() }
+}
+
+/**
+ * What a report opened from a view says it shows (reportView's view): the
+ * saved view's name, or else its project's, filtered when the view was. Pure.
+ */
+export function reportViewName(view: { filters: string; name: string }, projectName: string | undefined): string {
+  if (view.name) return view.name
+  const project = projectName || "this project"
+  return view.filters && view.filters !== "[]" ? `${project}, filtered` : project
 }
 
 /** The spans a report can cover, in weeks. */
@@ -90,6 +176,15 @@ export function weekLabel(iso: string, locale?: string): string {
   const date = new Date(Date.UTC(y, m - 1, d))
   if (locale) return date.toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" })
   return `${d} ${MONTHS[m - 1]}`
+}
+
+/**
+ * "6 Oct" for a moment, the day it fell on here, written as weekLabel writes a
+ * week, so a dot's tip reads like the axis under it and like the rest of the
+ * app: day before month, never the browser's "Oct 6". Pure.
+ */
+export function dayLabel(at: Date): string {
+  return `${at.getDate()} ${MONTHS[at.getMonth()]}`
 }
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 

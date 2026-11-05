@@ -6,7 +6,8 @@ vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn() }) })
 vi.mock("@/hooks/useTaskUpdate", () => ({ useTaskUpdate: () => ({ revalidateTaskKeys: vi.fn() }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 
-import BoardTools from "./boardTools"
+import BoardTools, { NotesToTasksDialog } from "./boardTools"
+import { privateViews } from "@/lib/board/privateMode"
 
 const BOARD = "b0a10000-0000-4000-8000-000000000001"
 type Listener = (elements: readonly unknown[], appState: { selectedElementIds: Record<string, boolean> }) => void
@@ -92,5 +93,20 @@ describe("a board's tools", () => {
     // A shape arrives: the card goes (after its fade).
     act(() => emit([{ id: "b", type: "rectangle", isDeleted: false }], {}))
     await waitFor(() => expect(screen.queryByText("Start with a template")).toBeNull())
+  })
+})
+
+describe("making notes into tasks", () => {
+  it("leaves out a note held in private mode, and says it waits for the round to end (miro-25)", () => {
+    const { api } = fakeApi([
+      { id: "open", type: "rectangle", customData: { kind: "note" } },
+      { id: "held", type: "rectangle", customData: { kind: "note" } },
+    ])
+    const veil = (e: { id: string }) => (e.id === "held" ? { ...e, customData: { kind: "note", privateBy: "u-sam", privateName: "Sam" } } : e)
+    privateViews.set(api, { holds: () => false, handle: { current: { outward: (scene: { id: string }[]) => scene.map(veil) } } })
+    render(<NotesToTasksDialog open onOpenChange={vi.fn()} api={api} notes={[{ noteId: "open", text: "Ship it" }, { noteId: "held", text: "Secret plan" }]} />)
+    expect(screen.getByText("Ship it")).toBeTruthy()
+    expect(screen.queryByText("Secret plan")).toBeNull()
+    expect(screen.getByText(/1 private note waits for the round to end\./)).toBeTruthy()
   })
 })

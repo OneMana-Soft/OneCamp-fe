@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { HUE_CLASS, avatarHueClass } from "@/components/ui/graphics/hues"
-import { Captions, MicOff, Lock } from "@/lib/icons"
+import { Captions, MicOff, Lock, MonitorUp } from "@/lib/icons"
 import { type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -131,6 +131,7 @@ export function NamePlate({
   agent = false,
   invited = false,
   poor = false,
+  screen = false,
   children,
   className,
 }: {
@@ -142,21 +143,44 @@ export function NamePlate({
   agent?: boolean
   invited?: boolean
   poor?: boolean
+  /** A shared screen's plate (V-253): a screen glyph and its sharer's first name, heard as their screen. */
+  screen?: boolean
   children?: ReactNode
   className?: string
 }) {
+  // The first word is cut last: the rest of the name (and a share's "is presenting") gives way first (V-211).
+  const at = name.indexOf(" ")
+  const first = at < 0 ? name : name.slice(0, at)
+  const rest = `${at < 0 ? "" : name.slice(at)}${screen ? " is presenting" : ""}`
+  const tags = (["Guest", "Agent", "Invited"] as const).filter((k) => ({ Guest: guest, Agent: agent, Invited: invited })[k])
   return (
     <div
       data-name-plate=""
       className={cn(
         "pointer-events-none absolute bottom-2 left-2 z-[2] flex h-6 max-w-[calc(100%-16px)] items-center gap-1.5 rounded-[12px] bg-[rgb(11_12_14/0.72)] px-2 text-meta font-medium text-[#EEEEF0]",
+        // Under 128 px, as the row under a phone's share draws its places, the plate tightens (DESIGN-BUILD-76, 1 Nov).
+        "@max-[128px]:bottom-1 @max-[128px]:left-1 @max-[128px]:max-w-[calc(100%-8px)] @max-[128px]:gap-1 @max-[128px]:px-1.5",
         className,
       )}
     >
-      <span className="min-w-0 truncate">{name}</span>
-      {guest ? <PersonTag kind="Guest" /> : null}
-      {agent ? <PersonTag kind="Agent" /> : null}
-      {invited ? <PersonTag kind="Invited" /> : null}
+      {screen ? <span className="sr-only">{`${name}'s screen`}</span> : null}
+      <span className="flex min-w-0 items-center" aria-hidden={screen || undefined}>
+        {screen ? <MonitorUp data-share-glyph="" className="mr-1 size-3 shrink-0" /> : null}
+        <span data-plate-first="" className="max-w-full shrink-0 truncate">
+          {first}
+        </span>
+        {rest ? (
+          <span data-plate-rest="" className={cn("min-w-0 overflow-hidden text-ellipsis whitespace-pre", screen && "@max-[128px]:hidden")}>
+            {rest}
+          </span>
+        ) : null}
+      </span>
+      {tags.map((k) => (
+        <span key={`said-${k}`} className="sr-only">{`, ${k.toLowerCase()}`}</span>
+      ))}
+      {tags.map((k) => (
+        <PersonTag key={k} kind={k} mark />
+      ))}
       {muted ? <MicOff className="size-3 shrink-0 text-[#FF8086]" aria-label="Muted" /> : speaking ? <LevelBars level={level} /> : null}
       {poor ? (
         <span aria-label="Poor connection" className="flex h-2.5 items-end gap-px">

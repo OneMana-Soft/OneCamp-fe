@@ -101,4 +101,29 @@ describe("a project's board", () => {
       vi.useRealTimers()
     }
   })
+
+  it("opens the project's insights from its Display, with its search, and says when its tag filter can't go (B9-b1)", async () => {
+    await warmSearchInput()
+    vi.useFakeTimers()
+    try {
+      render(<ProjectTaskKanban projectId={P} />)
+      fireEvent.click(screen.getByRole("button", { name: "Search tasks" }))
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), { target: { value: "retro" } })
+      await act(async () => {
+        vi.advanceTimersByTime(350)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+    fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), { key: "Enter" })
+    const item = await screen.findByRole("menuitem", { name: /^Insights for this view/ })
+    // First in the menu, so it shows without scrolling (DB-112 F1: at the foot it sat under the fold at 1280x860).
+    expect(screen.getByRole("menu").querySelector('[role^="menuitem"]')).toBe(item)
+    const href = new URL(item.getAttribute("href")!, "http://x")
+    expect(href.pathname).toBe("/app/project")
+    expect(href.searchParams.get("projects")).toBe(P)
+    expect(JSON.parse(href.searchParams.get("filters")!)).toEqual([{ id: "task_name", value: "retro" }])
+    expect(screen.queryByText("without the tag filter")).toBeNull()
+  })
 })
+

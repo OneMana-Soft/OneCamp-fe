@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Sparkles } from "@/lib/icons"
 import { getMyAIInstructions, setMyAIInstructions } from "@/services/aiModelService"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 const MAX_LEN = 2000
 
@@ -57,7 +58,8 @@ const AiInstructionsDialog: React.FC<{
       setInitial(value.trim())
       toast({ title: "Instructions saved" })
       onOpenChange(false)
-    } catch {
+    } catch (error) {
+      saysWriteFailure(error)
       toast({ title: "Error", description: "Couldn't save your instructions", variant: "destructive" })
     } finally {
       setSaving(false)

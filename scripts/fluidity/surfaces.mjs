@@ -32,7 +32,8 @@
 //   release-1011/tools/heavy.sh --light ~/bin/browser-isolated --forward 3171 -- node scripts/fluidity/surfaces.mjs ...
 //
 // Every run records the host's load average before and after; a run above
-// load 16 is flagged in the output (BUSY), and its times are read with that.
+// half the host's CPUs in load (lib.mjs BUSY_LOAD), or on CPUs slower than the
+// host's fastest, is flagged in the output (BUSY), and its times are read with that.
 import { chromium } from "@playwright/test"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
@@ -479,6 +480,10 @@ async function newPage(group, log) {
   for (const s of group.initScripts ?? []) await context.addInitScript(s.fn, s.arg)
   await fakeApp(context, { app: BASE, user: USERS.sam, docs: group.docs ?? [], collab: group.collab ?? NO_COLLAB, rtt: RTT, fixtures: group.fixtures(), log, delays: group.delays, broker: group.broker })
   const page = await context.newPage()
+  // What the page threw or logged as an error, among the run's requests (--shots
+  // keeps them): what an error boundary's "Something broke" stood for.
+  page.on("pageerror", (e) => log.push(`PAGEERROR ${String(e?.stack || e).slice(0, 600)}`))
+  page.on("console", (m) => m.type() === "error" && log.push(`CONSOLE ERROR ${m.text().slice(0, 600)}`))
   const cdp = await context.newCDPSession(page)
   if (CPU > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU })
   const net = await netBytes(cdp)
@@ -508,7 +513,7 @@ for (const [name, group] of Object.entries(GROUPS)) {
     await context.close().catch(() => {})
     const loadAfter = hostLoad()
     const cpuAfter = cpuState()
-    // Busy: the machine's load, or a run on the slower E-cores (timings from them don't compare).
+    // Busy: the machine's load, or a run on a hybrid host's slower cores (timings from them don't compare).
     const busy = Math.max(loadBefore ?? 0, loadAfter ?? 0) > BUSY_LOAD || !cpuBefore.pcore
     result.runs.push({ group: name, run: r, load: [loadBefore, loadAfter], cpu: [cpuBefore, cpuAfter], busy, metrics, rows: h.rows })
     if (SHOTS) writeFileSync(join(SHOTS, `${name}-${DEVICE}-${CPU}x-run${r}-requests.txt`), log.join("\n") + "\n")

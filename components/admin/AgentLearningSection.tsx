@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { shortDate } from "@/lib/utils/date/shortDate"
 
 /** The assertion a proposal would create, in words rather than JSON. */
@@ -89,7 +89,7 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
             setAccepted((prev) => new Set(prev).add(p.run_id))
             toast({ title: "Added to this agent's saved tests" })
         } catch (e) {
-            toast({ title: "Couldn't add the test", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't add the test", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setAccepting(null)
         }

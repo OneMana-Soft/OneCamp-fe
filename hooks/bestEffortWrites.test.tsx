@@ -37,6 +37,7 @@ let restore: () => void = () => {}
 afterEach(() => {
   restore()
   toasts.length = 0
+  vi.useRealTimers()
 })
 
 async function post(options: { showErrorToast?: boolean; showToast?: boolean }) {
@@ -48,16 +49,24 @@ async function post(options: { showErrorToast?: boolean; showToast?: boolean }) 
 
 describe("a write that asks for no error toast", () => {
   it("says nothing when it fails", async () => {
+    // Nothing, even once the task a toast would come in has run.
+    vi.useFakeTimers({ toFake: ["setTimeout"] })
     restore = serverAnswers(404, { msg: "Not in this test" })
     await post({ showErrorToast: false })
+    await vi.runOnlyPendingTimersAsync()
     expect(toasts).toEqual([])
   })
 
   it("leaves a write that didn't ask to say its failure", async () => {
     // A failure of its own: the global toast doesn't say the same words twice
-    // in a row.
+    // in a row. It comes a task after the failure (lib/http/writeFailure,
+    // V-397), so the test holds the timers: the toast is looked for once that
+    // task has run, whatever the machine's load. Looked for before it, the
+    // check lost that race 4 times in 8 under load (V-434).
+    vi.useFakeTimers({ toFake: ["setTimeout"] })
     restore = serverAnswers(500, { msg: "The disk is full" })
     await post({})
+    await vi.runOnlyPendingTimersAsync()
     expect(toasts).toHaveLength(1)
   })
 })

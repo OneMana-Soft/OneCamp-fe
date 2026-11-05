@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Plug, Save, Trash2, X, KeyRound, CheckCircle2, XCircle, Loader2, Settings2, ChevronDown } from "lucide-react"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import {
   ModelView,
   ProviderView,
@@ -174,7 +174,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       await onChanged()
     } catch (e: unknown) {
       setEnabled(prev) // roll back on failure
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -194,7 +194,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       setApiKey("")
       await onChanged()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -219,7 +219,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       setTestState({ ok: res.ok, msg: res.message })
       if (res.ok) onEnsureModels(provider.id, true)
     } catch (e: unknown) {
-      setTestState({ ok: false, msg: apiErrorMessage(e, "failed") })
+      setTestState({ ok: false, msg: saidHere(e, "failed") })
     } finally {
       setBusy(false)
     }
@@ -232,7 +232,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       toast({ title: "API key cleared" })
       await onChanged()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -262,7 +262,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       toast({ title: "Provider removed", description: provider.label })
       await onChanged()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -551,7 +551,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
       })
       setTestState({ ok: res.ok, msg: res.message })
     } catch (e: unknown) {
-      setTestState({ ok: false, msg: apiErrorMessage(e, "failed") })
+      setTestState({ ok: false, msg: saidHere(e, "failed") })
     } finally {
       setBusy(false)
     }
@@ -569,7 +569,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
       await onChanged()
       onClose()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }

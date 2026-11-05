@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Check } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
@@ -80,7 +81,11 @@ export function useSaveStatus() {
       if (offer && !undoing.current) void import("@/components/ui/undoToast").then((m) => m.offerBack(offer, undoing))
       return true
     } catch (err) {
-      if (mounted.current) setStatus((s) => ({ state: "error", error: reasonOf(err), failures: s.failures + 1 }))
+      // Said on the row, so no toast says it again (V-397); a row gone keeps it.
+      if (mounted.current) {
+        saysWriteFailure(err)
+        setStatus((s) => ({ state: "error", error: reasonOf(err), failures: s.failures + 1 }))
+      }
       return false
     }
   }, [])

@@ -7,7 +7,7 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { loadPopover, Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popoverOnDemand"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ArrowUpDown, Filter, Loader2, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -25,9 +25,10 @@ import { lazyView } from "@/lib/lazy/lazyView"
  * table's first screen.
  */
 const ruleMenus = lazyView(() => import("@/components/table/rules/RuleMenus"))
-const warmRuleMenus = () => void ruleMenus.prefetch()
+/** The table page asks for it once idle, too (V-475). */
+export const warmRuleMenus = () => void ruleMenus.prefetch()
 /** The menus' chunk, loaded: what a test of the menus waits for first. */
-export const loadRuleMenus = () => ruleMenus.warm()
+export const loadRuleMenus = () => Promise.all([ruleMenus.warm(), loadPopover()])
 
 /** A menu while its chunk is on its way: a moment, the first time. */
 function MenuWait() {
@@ -65,13 +66,12 @@ export function ruleText(rule: FilterRule, field: TableField | undefined): strin
 }
 
 /**
- * How many rows show, as the toolbar says it; null when every row does. While
- * the page doesn't hold every row it says how many it holds, of how many
- * ("Showing 2,000 of 12,400 rows"), and when a filter or a search leaves out
- * some, that it looked only in those ("Showing 12 in the 2,000 of 12,400
- * rows loaded"). total is null when the server doesn't say. A view the server
- * answers (tables T5c) is complete: shown is its count, null until the server
- * has counted it, and atLeast when the count stopped at the server's cap.
+ * How many rows show, as the toolbar says it; null when every row does. With
+ * rows unread it says how many it holds of how many ("Showing 2,000 of 12,400
+ * rows"), and a filter or search says it looked only in those ("Showing 12 in
+ * the 2,000 of 12,400 rows loaded"); total is null when the server doesn't say.
+ * A view the server answers (tables T5c) is complete: shown is its count, null
+ * until counted, atLeast when the count stopped at the server's cap.
  */
 export function rowsShownText(shown: number | null, held: number, total: number | null, complete: boolean, atLeast = false, working = false): string | null {
   const n = (x: number) => formatLocale(x, {})

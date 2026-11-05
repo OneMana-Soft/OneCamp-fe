@@ -109,6 +109,16 @@ function pinchable(share: Locator): Promise<string> {
 const tilesIn = (scope: Locator) => scope.locator("[data-stage-tile]")
 const shareOf = (p: FakePerson) => `[data-flip-key="${p.identity}|screen_share"]`
 const cameraOf = (p: FakePerson) => `[data-flip-key="${p.identity}|camera"]`
+/** What a screen reader hears in a name plate: its text, less what is hidden from it, its spaces as one. */
+const heard = (plate: Locator) =>
+  plate.evaluate((el) => {
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let said = ""
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) if (!n.parentElement?.closest("[aria-hidden=true]")) said += n.textContent ?? ""
+    return said.replace(/\s+/g, " ").trim()
+  })
+/** Whether a part of a plate shows its words whole: drawn, and nothing cut to an ellipsis. */
+const whole = (part: Locator) => part.evaluate((el) => el.clientWidth > 0 && el.scrollWidth <= el.clientWidth + 1)
 
 for (const [label, viewport, touch] of [
   ["at 1280", { width: 1280, height: 860 }, false],
@@ -211,6 +221,11 @@ for (const [label, viewport, touch] of [
         await expect(focus.locator(shareOf(JO))).toBeVisible()
         await expect(tilesIn(focus)).toHaveCount(1)
         await expect(page.locator("[data-stage-strip] button").first()).toHaveAccessibleName("Show Priya Shah's screen")
+        // Her waiting share never reads as her camera: a screen glyph and her first name, heard as her screen (V-253).
+        const waiting = page.locator(`[data-stage-strip] ${shareOf(PRIYA)} [data-name-plate]`)
+        await expect(waiting.locator("[data-share-glyph]"), "her waiting share's plate carries a screen glyph").toBeVisible()
+        expect(await whole(waiting.locator("[data-plate-first]")), "and her first name, whole").toBe(true)
+        expect(await heard(waiting), "a screen reader hears whose screen it is").toBe("Priya Shah's screen")
       } else {
         await expect(focus.locator(shareOf(PRIYA))).toBeVisible()
         await expect(focus.locator(shareOf(JO))).toBeVisible()
@@ -278,5 +293,73 @@ for (const [label, viewport, touch] of [
         await shots(page, `call-stage-share-${others.length > 1 ? "busy" : "empty"}-${size}`)
       })
     }
+  })
+}
+
+// Name plates in narrow places (V-211, V-253 and V-252; DESIGN-BUILD-76's ruling, 1 Nov). In a tile under 128 px wide,
+// as the row under a phone's share draws them (85 px at 390, 68 at 320), the plate tightens and a Guest, Agent or
+// Invited tag becomes a 14 px mark of its own glyph, so the name keeps its first word wherever it fits. A share's plate
+// carries a screen glyph and is heard as its sharer's screen. A wider tile keeps today's plate, its tag in words.
+const KAI: FakePerson = { identity: "guest-9a1c0000-0000-4000-8000-0000000003a4", name: "Guest: Kai Lin" }
+const CAPTAIN: FakePerson = { identity: "9a1c0000-0000-4000-8000-0000000003a5", name: "Release Captain", agent: true }
+for (const [label, viewport, touch] of [
+  ["at 1280", { width: 1280, height: 860 }, false],
+  ["at 390 with touch", { width: 390, height: 844 }, true],
+  ["at 320 with touch", { width: 320, height: 640 }, true],
+] as const) {
+  test.describe(`${label}, name plates`, () => {
+    test.use({ viewport, isMobile: touch, hasTouch: touch })
+    test(`a plate keeps a name's first word, a tag ${touch ? "turns into its mark" : "stays in words"}, and a share's plate is its sharer's screen`, async ({ page }, testInfo) => {
+      const server = await joinWith(page, testInfo, [PRIYA, KAI, CAPTAIN])
+      server.share(PRIYA.identity)
+      const strip = page.locator("[data-stage-strip]")
+      const plate = (p: FakePerson) => strip.locator(`${cameraOf(p)} [data-name-plate]`)
+      await expect(page.locator(`[data-stage-focus] ${shareOf(PRIYA)}`), "her screen takes the stage").toBeVisible({ timeout: 30_000 })
+      await expect(plate(CAPTAIN), "everyone's camera is in the strip").toBeVisible()
+      // Measured once the tiles have moved to where stageLayout says (they glide there, FLIP).
+      const input = { tiles: ["p0|camera", "p1|camera", "p2|camera", "p3|camera"], presenting: [`${PRIYA.identity}|screen_share`], mode: "speaker" as const }
+      await expect
+        .poll(
+          async () => {
+            const [want, box] = [await said(page, input), await strip.locator(cameraOf(KAI)).boundingBox()]
+            return box && Math.abs(box.width - want.strip.tile.w) <= 1 ? "settled" : `Kai's place is ${Math.round(box?.width ?? 0)} px; stageLayout says ${want.strip.tile.w}`
+          },
+          { message: "the strip settles where stageLayout says" },
+        )
+        .toBe("settled")
+      const side = Math.round((await strip.locator(cameraOf(KAI)).boundingBox())!.width)
+      if (touch) expect(side, "a place in the row under a phone's share is under 128 px").toBeLessThan(128)
+      else expect(side, "a tile in the strip beside a share at 1280 is 128 px or wider").toBeGreaterThanOrEqual(128)
+      const tag = (p: FakePerson, kind: string) => plate(p).locator(`[data-person-tag="${kind}"]`)
+      for (const [p, kind] of [[KAI, "Guest"], [CAPTAIN, "Agent"]] as const) {
+        if (touch) {
+          const box = (await tag(p, kind).boundingBox())!
+          expect([Math.round(box.width), Math.round(box.height)], `${p.name}'s ${kind} tag is a 14 px mark`).toEqual([14, 14])
+          await expect(tag(p, kind).locator("svg"), `drawn as the ${kind} glyph`).toBeVisible()
+        } else {
+          await expect(tag(p, kind).getByText(kind, { exact: true }), `${p.name}'s tag says ${kind} in words`).toBeVisible()
+          await expect(tag(p, kind).locator("svg"), "and draws no glyph").toBeHidden()
+        }
+      }
+      // The first word shows whole where it fits: everywhere at 390 and wider. At 320 a guest's name starts, with its
+      // mark and mic beside it (accepted for 320 alone by DESIGN-BUILD-76).
+      if (viewport.width >= 390) {
+        for (const p of [KAI, PRIYA]) expect(await whole(plate(p).locator("[data-plate-first]")), `${p.name}'s first word shows whole`).toBe(true)
+      } else {
+        expect(await plate(KAI).locator("[data-plate-first]").evaluate((el) => el.clientWidth), "a guest's name still starts at 320").toBeGreaterThan(4)
+      }
+      expect(await heard(plate(KAI)), "a screen reader hears a guest as one").toBe("Kai Lin, guest")
+      expect(await heard(plate(CAPTAIN)), "and an agent as one").toBe("Release Captain, agent")
+      expect(await heard(plate(PRIYA)), "and a member by name alone").toBe("Priya Shah")
+      // The share on the stage carries the glyph too and, with room to spare, says she is presenting.
+      const shared = page.locator(`[data-stage-focus] ${shareOf(PRIYA)} [data-name-plate]`)
+      await expect(shared.locator("[data-share-glyph]"), "a share's plate carries a screen glyph").toBeVisible()
+      await expect(shared.locator("[data-plate-rest]")).toContainText("Shah is presenting")
+      expect(await whole(shared.locator("[data-plate-rest]")), "and says she is presenting, whole").toBe(true)
+      expect(await heard(shared), "a screen reader hears whose screen it is").toBe("Priya Shah's screen")
+      await expect.poll(() => insideFrame(page), { message: "the share and the strip lie inside the stage" }).toBe("inside")
+      await expect.poll(() => facesClear(page), { message: "every face is clear of its name plate, its mark included" }).toBe("clear")
+      await shots(page, `call-stage-plates-${viewport.width}`)
+    })
   })
 }

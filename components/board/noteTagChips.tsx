@@ -41,12 +41,31 @@ const NAMED = "pointer-fine:pointer-events-auto"
 /** Nothing selected: one array for every render, so the notes the chips walk are worked out again only when the selection changes. */
 const NO_IDS: readonly string[] = []
 
-/** A note's box on the canvas at this view, and whether any of it is in view. */
-function noteBox(view: BoardView, n: SceneElement) {
+/** A note's box on the canvas at this view, and whether any of it is in view (its chips, private mode's veil). */
+export function noteBox(view: BoardView, n: SceneElement) {
   const at = sceneToLocal(view, n.x, n.y)
   const width = n.width * view.zoom
   const height = n.height * view.zoom
   return { left: at.left, top: at.top, width, height, inView: boxInView(view, at.left, at.top, at.left + width, at.top + height) }
+}
+
+/**
+ * Excalidraw's dark board: its canvas goes through this filter (its THEME_FILTER), so an overlay painted in a
+ * scene's colours takes it too, to match what the canvas draws. noteTagChips.test holds it to Excalidraw's own.
+ */
+export const BOARD_DARK_FILTER = "invert(93%) hue-rotate(180deg)"
+
+/**
+ * A note's whole face at this view, its edge included, to draw over it (private mode's veil): its box grown by half
+ * its stroke and a pixel, with the corner Excalidraw rounds it by (a quarter of its short side; the adaptive kind
+ * notes use stops at 32), grown the same.
+ */
+export function noteFace(view: BoardView, n: SceneElement & { strokeWidth?: number; roundness?: { type: number; value?: number } | null }) {
+  const box = noteBox(view, n)
+  const grow = ((n.strokeWidth ?? 1) / 2) * view.zoom + 1
+  const quarter = Math.min(n.width, n.height) / 4
+  const corner = !n.roundness ? 0 : n.roundness.type === 3 ? Math.min(quarter, n.roundness.value ?? 32) : quarter
+  return { ...box, left: box.left - grow, top: box.top - grow, width: box.width + 2 * grow, height: box.height + 2 * grow, radius: corner * view.zoom + grow }
 }
 
 export function NoteTagChips({

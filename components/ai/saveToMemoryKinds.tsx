@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CheckCircle2, HelpCircle, Zap } from "@/lib/icons"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { captureMemory, type MemoryKind } from "@/services/memoryService"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 type CaptureKind = Exclude<MemoryKind, "glossary">
 
@@ -61,6 +62,7 @@ export default function SaveToMemoryKinds({ messageText, channelUUID, chatGrpID,
       toast({ title: "Saved to memory", description: `Captured as a ${kind}.` })
     } catch (e: unknown) {
       const msg = errMessage(e)
+      saysWriteFailure(e)
       toast({
         title: msg.includes("not enabled") ? "Workspace Memory is off" : "Couldn't save",
         description: msg.includes("not enabled") ? "An admin can enable it in AI settings." : msg,

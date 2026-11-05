@@ -45,6 +45,11 @@ interface CspOrigins {
      * (CALL_PAGES): they may compile it, and only they.
      */
     wasm?: boolean
+    /**
+     * A page another site may frame (lib/security/framing.ts): its enforced
+     * policy says frame-ancestors *, so this one leaves the directive out.
+     */
+    framable?: boolean
 }
 
 /**
@@ -179,8 +184,9 @@ export function buildCsp(origins: CspOrigins): string {
         // and from nowhere else.
         "frame-src": ["'self'", "blob:", "data:", ...EMBED_FRAME_ORIGINS],
 
-        // Nothing embeds OneCamp. This is the header version of X-Frame-Options,
-        // which is also set for browsers that predate CSP support here.
+        // No other site frames OneCamp. This is the header version of
+        // X-Frame-Options, which is also set for browsers that predate CSP
+        // support here. The embeddable pages leave it out (framable).
         "frame-ancestors": ["'self'"],
 
         // No plugins, no <base> rewriting, and forms may only post back to us.
@@ -188,6 +194,7 @@ export function buildCsp(origins: CspOrigins): string {
         "base-uri": ["'self'"],
         "form-action": ["'self'"],
     }
+    if (origins.framable) delete directives["frame-ancestors"]
 
     // BOTH reporting mechanisms, because neither covers every browser. report-uri
     // is deprecated and is still the only one Firefox and Safari act on; report-to
@@ -218,9 +225,10 @@ export function reportingEndpointsFromEnv(): string {
 }
 
 /** Build the policy from process.env. Kept separate so buildCsp stays pure. */
-export function cspFromEnv(opts: { wasm?: boolean } = {}): string {
+export function cspFromEnv(opts: { wasm?: boolean; framable?: boolean } = {}): string {
     return buildCsp({
         wasm: opts.wasm,
+        framable: opts.framable,
         backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL,
         // Not a variable of its own in most installs: derived from the backend
         // host by convention, so a stock deployment needs no extra setting.

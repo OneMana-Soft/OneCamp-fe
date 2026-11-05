@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
 import { BoardInfoInterface, BoardInfoResponse } from "@/types/board";
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
+import { BoardEmbedRow } from "@/components/guest/BoardEmbedRow";
 import {
   AccessCard,
   GENERAL_ACCESS_LABEL,
@@ -191,7 +192,7 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
               onChange={(v) => void handlePrivacyChange(v)}
               disabled={!isOwner}
             />
-            {boardId && <GuestLinkSection card resourceType="board" resourceId={boardId} canShare={canShareExternally} />}
+            {boardId && <GuestLinkSection card resourceType="board" resourceId={boardId} canShare={canShareExternally} extra={(link) => <BoardEmbedRow link={link} name={title} />} />}
           </section>
         </div>
         <ShareFooter onDone={setOpenState} />

@@ -205,8 +205,9 @@ export const RecordingPlayerDialog = () => {
         lines: shownLines.length,
         failed: transcriptFailed,
     });
-    // A phone's Download (the header's own shows from md up): in the Transcript
-    // panel's head, or in the header when there's no panel.
+    // A phone's Download (the header's own shows from md up): in the sheet's
+    // head beside Close, as at 1280, whether or not the words are beside it.
+    // On the Transcript row it read as the transcript's own (V-189).
     const phoneDownload = (className: string) => mediaUrl && isMobile ? (
         <Button aria-label="Download recording" variant="ghost" size="sm" onClick={() => void download()} className={className}>
             <Download className="h-4 w-4" />
@@ -251,7 +252,7 @@ export const RecordingPlayerDialog = () => {
                                 <span className="text-xs">Download</span>
                             </Button>
                         )}
-                        {layout !== "panel" && phoneDownload("h-8 w-8 p-0")}
+                        {phoneDownload("h-8 w-8 p-0")}
 
                         {!isMobile && (
                             <Button aria-label={isFullscreen ? "Exit full screen" : "Full screen"} variant="ghost" size="icon" onClick={toggleFullscreen} className="h-8 w-8">
@@ -320,7 +321,6 @@ export const RecordingPlayerDialog = () => {
                                 {transcriptOnly ? <Captions className="size-4 text-ink-3" aria-hidden /> : null}
                                 {transcriptOnly ? "Transcript · this call wasn't recorded" : "Transcript"}
                             </span>
-                            {phoneDownload("h-7 w-7 p-0")}
                         </div>
                         {/* px-1 and the rows' own p-2 start their text under the heading's. */}
                         <div className="flex-1 overflow-hidden px-1 py-2 relative">

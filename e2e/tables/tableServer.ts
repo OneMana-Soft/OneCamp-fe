@@ -163,6 +163,10 @@ export class TableServer {
    * reader: one made "personal" is the reader's own (owner_id), as on the server.
    */
   savedViews: { id: string; table_id: string; name: string; type: string; config: string; position: number; owner_id?: string; locked?: boolean }[] = []
+  /** Its deleted views, newest first, as its trash lists them (H2b: a delete sets deleted_at, a restore clears it). */
+  deletedViews: (TableServer["savedViews"][number] & { deleted_at: string })[] = []
+  /** Each restore from the table's trash (POST /tables/{id}/trash/restore): its body, as sent. */
+  readonly restores: Record<string, unknown>[] = []
   /** Each Excel export a page asked for (POST /tables/{id}/export): its body, as sent. */
   readonly exports: Record<string, unknown>[] = []
   /** The export answers as for a table the reader can't open: not found. */
@@ -459,6 +463,25 @@ export class TableServer {
         return json(at >= 0 ? 200 : 404, { msg: at >= 0 ? "Deleted" : "Form not found" })
       }
     }
+    // The table's trash (H2b): its deleted views the reader may change, and a restore that brings them back
+    // (rows and columns stay with the ledger's own specs). As business/DataTable TableTrash and RestoreFromTrash answer.
+    if (parts.length === 3 && parts[1] === this.id && parts[2] === "trash" && req.method() === "GET") {
+      return json(200, { data: { rows: [], more: false, fields: [], views: this.deletedViews.filter((v) => !v.owner_id || v.owner_id === this.reader) } })
+    }
+    if (parts.length === 4 && parts[1] === this.id && parts[2] === "trash" && parts[3] === "restore" && req.method() === "POST") {
+      this.restores.push(body)
+      const ids = (body.views as string[] | undefined) ?? []
+      const back = this.deletedViews.filter((v) => ids.includes(v.id))
+      if (back.length !== ids.length) return json(404, { msg: "view not found" })
+      this.deletedViews = this.deletedViews.filter((v) => !ids.includes(v.id))
+      const live = back.map((v) => {
+        const { deleted_at, ...rest } = v
+        void deleted_at
+        return rest
+      })
+      this.savedViews = [...this.savedViews, ...live].sort((a, b) => a.position - b.position)
+      return json(200, { data: { rows: [], fields: [], views: ids } })
+    }
     // A saved view made, changed, deleted or locked, as the server keeps it.
     if (parts[2] === "views" && req.method() === "POST") {
       this.writes.push({ kind: "view", body: { ...body, view: parts[3], action: parts[4] ?? "create" } })
@@ -470,7 +493,10 @@ export class TableServer {
       }
       const v = this.savedViews.find((x) => x.id === parts[3])
       if (!v) return json(404, { msg: "view not found" })
-      if (parts[4] === "delete") this.savedViews = this.savedViews.filter((x) => x !== v)
+      if (parts[4] === "delete") {
+        this.savedViews = this.savedViews.filter((x) => x !== v)
+        this.deletedViews.unshift({ ...v, deleted_at: new Date().toISOString() })
+      }
       else if (parts[4] === "lock") v.locked = body.locked === true
       else Object.assign(v, written)
       return json(200, { msg: "ok" })

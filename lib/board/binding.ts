@@ -155,8 +155,8 @@ export interface SceneApi {
 }
 
 /** Puts the document's elements on the scene, outside undo. Returns how many it took (0: the scene is untouched). */
-export function applyShared(api: SceneApi, shared: Iterable<BoardElement>): number {
-  const { elements, adopted } = mergeShared(api.getSceneElementsIncludingDeleted() as BoardElement[], shared)
+export function applyShared(api: SceneApi, shared: Iterable<BoardElement>, inbound?: (remote: BoardElement) => BoardElement): number {
+  const { elements, adopted } = mergeShared(api.getSceneElementsIncludingDeleted() as BoardElement[], inbound ? Array.from(shared, inbound) : shared)
   if (adopted > 0) api.updateScene({ elements: elements as never, captureUpdate: CAPTURE.NEVER })
   return adopted
 }
@@ -213,6 +213,8 @@ export interface FollowOptions {
   /** The next animation frame, and its cancel (tests pass their own). */
   frame?: (cb: () => void) => number
   cancel?: (id: number) => void
+  /** Each document copy as this tab takes it (private mode's author keeps the words). */
+  inbound?: (remote: BoardElement) => BoardElement
 }
 
 /**
@@ -233,7 +235,10 @@ export function followShared(api: SceneApi, shared: Omit<SharedElements, "set">,
   const flush = () => {
     const ids = pending
     pending = new Set()
-    const out = mergeChanged(api.getSceneElementsIncludingDeleted() as BoardElement[], ids, (id) => shared.get(id))
+    const out = mergeChanged(api.getSceneElementsIncludingDeleted() as BoardElement[], ids, (id) => {
+      const remote = shared.get(id)
+      return remote && opts.inbound ? opts.inbound(remote) : remote
+    })
     if (!out) return
     api.updateScene({ elements: out.elements as never, captureUpdate: CAPTURE.NEVER })
     opts.onMerged?.(out.adopted)
@@ -253,7 +258,7 @@ export function followShared(api: SceneApi, shared: Omit<SharedElements, "set">,
     booked = frame(tick)
   }
   shared.observe(onChange)
-  const first = applyShared(api, shared.values())
+  const first = applyShared(api, shared.values(), opts.inbound)
   if (first > 0) opts.onMerged?.(first)
   return {
     stop() {

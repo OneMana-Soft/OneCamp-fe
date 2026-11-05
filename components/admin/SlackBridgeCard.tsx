@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import {
     connectSlackBridge,
     disconnectSlackBridge,
@@ -125,7 +126,7 @@ const SlackBridgeCard: React.FC = () => {
             setSecret("")
             toast({ title: "Slack connected", description: "Now link a Slack channel to a OneCamp channel." })
         } catch (e) {
-            setFormError(apiErrorMessage(e, "Couldn't connect Slack."))
+            setFormError(saidHere(e, "Couldn't connect Slack."))
         } finally {
             setBusy("")
         }
@@ -141,7 +142,7 @@ const SlackBridgeCard: React.FC = () => {
         } catch (e) {
             toast({
                 title: "Couldn't disconnect Slack",
-                description: apiErrorMessage(e, "Try again in a moment."),
+                description: saidHere(e, "Try again in a moment."),
                 variant: "destructive",
             })
         } finally {
@@ -172,7 +173,7 @@ const SlackBridgeCard: React.FC = () => {
                 description: `#${created.slack_channel_name} in Slack and #${created.channel_name} here now share one conversation.`,
             })
         } catch (e) {
-            setFormError(apiErrorMessage(e, "Couldn't link those channels."))
+            setFormError(saidHere(e, "Couldn't link those channels."))
         } finally {
             setBusy("")
         }
@@ -187,7 +188,7 @@ const SlackBridgeCard: React.FC = () => {
         } catch (e) {
             toast({
                 title: "Couldn't unlink the channels",
-                description: apiErrorMessage(e, "Try again in a moment."),
+                description: saidHere(e, "Try again in a moment."),
                 variant: "destructive",
             })
         } finally {

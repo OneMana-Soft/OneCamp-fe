@@ -100,6 +100,8 @@ import {
   deleteModel,
 } from "@/services/aiModelService"
 import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
+import { saidHere } from "@/lib/http/saidHere"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { RunnerTestStatus, type RunnerProbe } from "@/components/admin/ai/RunnerTestStatus"
 import { ProviderEditor } from "@/components/admin/ai/ProviderEditor"
@@ -335,7 +337,7 @@ export function AmbientAgentsPanel() {
       setConfig((c) => (c ? { ...c, meeting_recap_instructions: instructions } : c))
       toast({ title: "Recap instructions saved" })
     } catch (e) {
-      toast({ title: "Couldn't save the recap instructions", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't save the recap instructions", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
 
@@ -356,7 +358,7 @@ export function AmbientAgentsPanel() {
             : `Posted ${res.posted} ${res.posted === 1 ? "report" : "reports"}.`),
       })
     } catch (e: unknown) {
-      toast({ title: "Couldn't run the team report", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't run the team report", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setRunningReport(false)
     }
@@ -370,7 +372,7 @@ export function AmbientAgentsPanel() {
       const msg = await sendTestDigest()
       toast({ title: "Test digest sent", description: msg })
     } catch (e: unknown) {
-      toast({ title: "Couldn't send the test digest", description: apiErrorMessage(e, "Check the email settings, then try again."), variant: "destructive" })
+      toast({ title: "Couldn't send the test digest", description: saidHere(e, "Check the email settings, then try again."), variant: "destructive" })
     } finally {
       setSendingDigest(false)
     }
@@ -387,7 +389,7 @@ export function AmbientAgentsPanel() {
       setBackfill({ state: "running", started_at: Math.floor(Date.now() / 1000) })
       void pollBackfill()
     } catch (e: unknown) {
-      toast({ title: "Couldn't start the memory rebuild", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "Couldn't start the memory rebuild", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
 
@@ -1291,7 +1293,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       })
       await onChanged()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setSavingVision(false)
     }
@@ -1306,7 +1308,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       toast({ title: "Vision turned off", description: "Image analysis is disabled." })
       await onChanged()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setSavingVision(false)
     }
@@ -1323,7 +1325,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       toast({ title: "Chat model updated", description: `${chatModel} is now active.` })
       await onChanged()
     } catch (e: unknown) {
-      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+      toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
     } finally {
       setSavingChat(false)
     }
@@ -1354,7 +1356,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
           },
         })
       } else {
-        toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+        toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
       }
     } finally {
       setSavingEmb(false)
@@ -1604,7 +1606,7 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null; tit
                 await onEnsureModels(p.id, true)
                 await onChanged()
               } catch (e: unknown) {
-                toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
+                toast({ title: "Failed", description: saidHere(e), variant: "destructive" })
               }
             }}
           />
@@ -1742,7 +1744,7 @@ function WebSearchSection({
     } catch (e) {
       toast({
         title: "Couldn't save web search",
-        description: apiErrorMessage(e, "Try again in a moment."),
+        description: saidHere(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -1940,7 +1942,7 @@ function SandboxSection({
     } catch (e) {
       toast({
         title: "Couldn't save the sandbox settings",
-        description: apiErrorMessage(e, "Try again in a moment."),
+        description: saidHere(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -1963,6 +1965,7 @@ function SandboxSection({
     } catch (e) {
       const message = apiErrorMessage(e, "The runner didn't answer. Check its address and token.")
       setProbe({ ok: false, message, at: new Date() })
+      saysWriteFailure(e)
       toast({ title: "Couldn't run the sample analysis", description: message, variant: "destructive" })
     } finally {
       setTesting(false)
@@ -1979,7 +1982,7 @@ function SandboxSection({
     } catch (e) {
       toast({
         title: "Couldn't turn the sandbox off",
-        description: apiErrorMessage(e, "Try again now."),
+        description: saidHere(e, "Try again now."),
         variant: "destructive",
       })
     } finally {
@@ -2161,7 +2164,7 @@ function CodePRSection({
     } catch (e) {
       toast({
         title: "Couldn't change the code-run model",
-        description: apiErrorMessage(e, "Try again in a moment."),
+        description: saidHere(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2179,7 +2182,7 @@ function CodePRSection({
     } catch (e) {
       toast({
         title: "Couldn't go back to the chat model",
-        description: apiErrorMessage(e, "Try again in a moment."),
+        description: saidHere(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2262,6 +2265,7 @@ function CodePRSection({
     } catch (e) {
       const message = apiErrorMessage(e, "The runner didn't answer. Check its address and token.")
       setProbe({ ok: false, message, at: new Date() })
+      saysWriteFailure(e)
       toast({ title: "Couldn't test the coding runner", description: message, variant: "destructive" })
     } finally {
       setTesting(false)
@@ -2314,7 +2318,7 @@ function CodePRSection({
     } catch (e) {
       toast({
         title: "Couldn't save the code pull request settings",
-        description: apiErrorMessage(e, "Try again in a moment."),
+        description: saidHere(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -2332,7 +2336,7 @@ function CodePRSection({
     } catch (e) {
       toast({
         title: "Couldn't turn code pull requests off",
-        description: apiErrorMessage(e, "Try again now."),
+        description: saidHere(e, "Try again now."),
         variant: "destructive",
       })
     } finally {

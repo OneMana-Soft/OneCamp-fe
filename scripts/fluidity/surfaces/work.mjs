@@ -346,10 +346,20 @@ const group = {
       M.columnDragRenders = col?.renders
     }
 
-    // ---- the timeline ----
+    // ---- the timeline: opened by its number key, its place among the
+    // project's tabs. Backlog came before it on 18 Oct (B3), so the "3" this
+    // step pressed opened Backlog and the step timed out on every build ----
     if (!h.phone) {
+      const key = await page
+        .getByRole("tab", { name: /^Timeline$/ })
+        .first()
+        .evaluate((t) => String([...(t.closest("[role=tablist]")?.querySelectorAll("[role=tab]") ?? [])].indexOf(t) + 1), undefined, { timeout: 5000 })
+        .catch(() => "0")
       const tl = await h.step("timelineOpen", {
-        act: () => page.keyboard.press("3"),
+        act: async () => {
+          if (key === "0") throw new Error("no Timeline tab among the project's tabs")
+          await page.keyboard.press(key)
+        },
         ready: () => h.ready({ sel: BAR }, { timeout: 30000 }),
         settle: 1200,
       })

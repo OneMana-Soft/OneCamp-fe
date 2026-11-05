@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
 
@@ -41,6 +41,14 @@ describe("keys in a list", () => {
     // The key comes before the title in the row.
     expect(row.textContent!.indexOf("Q4-1")).toBeLessThan(row.textContent!.indexOf("Task 1"))
     expect(list.querySelectorAll("[data-task-key]")).toHaveLength(3)
+  })
+
+  // linear-03 (DESIGN-BUILD-107, V-459): a project without keys still has types;
+  // its typed tasks show their glyph in the slot every row keeps for one.
+  it("leave the type's slot in a list with types but no keys, so a typed task shows its glyph", async () => {
+    const list = renderList([t("1", "todo", { task_work_type: { id: "b", builtin: "bug", name: "Bug", icon: "bug" } }), t("2", "todo")])
+    expect(list.querySelectorAll("[data-task-key]")).toHaveLength(2)
+    expect(await screen.findByRole("img", { name: "Bug" }, { timeout: 5000 })).toBeTruthy()
   })
 
   it("aren't drawn at all in a list where no task has one yet", () => {

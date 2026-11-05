@@ -44,6 +44,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { SpotImported } from "@/components/ui/graphics"
 import { cn } from "@/lib/utils/helpers/cn"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid";
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import {
   cancelSlackImport,
@@ -236,6 +237,7 @@ const SlackImportCard: React.FC = () => {
           toast({ title: "Cancelling the import", description: "It stops once the messages in progress are written." })
           swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
         } catch (err) {
+          saysWriteFailure(err)
           toast({ title: "Couldn't cancel the import", description: importProblemOf(err).message, variant: "destructive" })
         } finally {
           setBusyJobId(null)
@@ -257,6 +259,7 @@ const SlackImportCard: React.FC = () => {
           toast({ title: "Discarded" })
           swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
         } catch (err) {
+          saysWriteFailure(err)
           toast({ title: "Couldn't discard it", description: importProblemOf(err).message, variant: "destructive" })
         } finally {
           setBusyJobId(null)

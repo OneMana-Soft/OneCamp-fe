@@ -50,4 +50,39 @@ describe("a project's forecast in a row that is a link", () => {
     expect(when.textContent).toBe("Lands ~25 Nov· held up")
     expect(when.children.length).toBe(3)
   })
+
+  it("on a line that is one line (fit), it reads the same words in order, and its title says the whole forecast for a part that gave (V-280)", () => {
+    const held = forecast({ held_by: late, held_count: 1, by_links: "2026-11-25", date: "2026-11-25" })
+    const { container, rerender } = render(<ForecastWhen forecast={held} fit />)
+    let words = container.querySelector("[data-forecast-words]")!
+    expect(container.querySelector("[data-forecast-when]")!.textContent).toBe("Lands ~25 Nov · held up")
+    expect(words.getAttribute("title")).toBe("Lands ~25 Nov · held up")
+    // "held up" is a part of its own (it never gives), after the date that carries the " · " and gives with it.
+    expect([...words.children].map((el) => el.textContent)).toEqual(["Lands ", "~25 Nov · ", "held up"])
+    rerender(<ForecastWhen forecast={forecast()} fit />)
+    words = container.querySelector("[data-forecast-words]")!
+    expect(words.getAttribute("title")).toBe("Lands ~18 Nov")
+    expect([...words.children].map((el) => el.textContent)).toEqual(["Lands ", "~18 Nov"])
+    // Without fit (the chip, the table's cell) the face never gives, so it has no words box.
+    rerender(<ForecastWhen forecast={held} />)
+    expect(container.querySelector("[data-forecast-words]")).toBeNull()
+  })
+
+  it("what follows the forecast on its line (after) comes last, inside a fitted face's words, first in their order (V-280)", () => {
+    const held = forecast({ held_by: late, held_count: 1, by_links: "2026-11-25", date: "2026-11-25" })
+    const after = <span data-after="">, after the goal&apos;s date</span>
+    const { container, rerender } = render(<ForecastWhen forecast={held} fit after={after} />)
+    const words = container.querySelector("[data-forecast-words]")!
+    expect(container.querySelector("[data-forecast-when]")!.textContent).toBe("Lands ~25 Nov · held up, after the goal's date")
+    // In the reversed wrap the first in order is drawn last and never gives, so the words' spare room trails after it.
+    const last = words.lastElementChild!
+    expect(last.querySelector("[data-after]")).not.toBeNull()
+    expect(last.className).toContain("-order-1")
+    // Without fit it follows the face, a part of the line like the rest.
+    rerender(<ForecastWhen forecast={held} after={after} />)
+    expect(container.querySelector("[data-forecast-when]")!.textContent).toBe("Lands ~25 Nov· held up, after the goal's date")
+    // Nothing to forecast: nothing follows either.
+    rerender(<ForecastWhen forecast={undefined} fit after={after} />)
+    expect(container.textContent).toBe("")
+  })
 })

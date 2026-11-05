@@ -2,9 +2,11 @@
 
 // A table's trash (tables A2, the row ledger): the rows deleted from it,
 // newest first, with who deleted them and when, each with Restore; and, for
-// someone who can change the table, its deleted columns. A row comes back
-// with its cells, its place and its links whose other row is still there; a
-// column with its cells and links, which never left.
+// someone who can change the table, its deleted columns; and its deleted
+// views the reader may change (their own, and shared ones they manage), as
+// the API's trash lists them. A row comes back with its cells, its place and
+// its links whose other row is still there; a column with its cells and
+// links, which never left; a view as it was.
 
 import * as React from "react"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
@@ -19,8 +21,8 @@ import { fieldKind } from "@/lib/fieldTypes/registry"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { cardTitle } from "@/lib/tables/formula"
 import { readTableTrash, restoreFromTrash, rowsText, type TableTrash as Trash, type TrashRow } from "@/lib/tables/ledger"
-import { TOUCH_ROW } from "@/components/table/TableViewFrame"
-import { cn } from "@/lib/utils/helpers/cn"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
+import { VIEW_LAYOUTS } from "@/components/table/viewLayouts"
 import type { TableField } from "@/services/tableService"
 
 /** A deleted row's name: its primary field's value, else its number. Pure. */
@@ -31,39 +33,60 @@ export function trashRowName(row: TrashRow, fields: TableField[]): string {
   return row.row_no ? `Row ${row.row_no}` : "Untitled"
 }
 
-/** "Deleted 2h ago by Bo". Pure given now. */
-function deletedLine(at: string, by: string | undefined, now: Date): string {
+/** "Deleted 2h ago by Bo", then what else the line says ("only you see it"). Pure given now. */
+function deletedLine(at: string, by: string | undefined, now: Date, aside?: string): string {
   const d = new Date(at)
   const when = isNaN(d.getTime()) ? "" : ` ${agoOrDate(d, now)}`
-  return `Deleted${when}${by ? ` by ${by}` : ""}`
+  return `Deleted${when}${by ? ` by ${by}` : ""}${aside ? ` · ${aside}` : ""}`
 }
 
-function TrashLine({ name, at, by, glyph, busy, disabled, onRestore }: { name: string; at?: string; by?: string; glyph?: React.ReactNode; busy: boolean; disabled: boolean; onRestore: () => void }) {
+function TrashLine({ name, at, by, aside, glyph, busy, disabled, onRestore }: { name: string; at?: string; by?: string; aside?: string; glyph?: React.ReactNode; busy: boolean; disabled: boolean; onRestore: () => void }) {
   const d = at ? new Date(at) : null
+  // min-h-12 is a full touch reach; on a touch screen Restore is a full touch target too, and the line grows to hold it.
   return (
-    <li data-trash-item="" className={cn("flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5", TOUCH_ROW)}>
+    <li data-trash-item="" className="flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5">
       {glyph ? <span className="inline-flex shrink-0 text-ink-3">{glyph}</span> : null}
       <div className="min-w-0 flex-1">
         <p className="truncate text-ui font-[450] text-ink">{name}</p>
         {at ? (
           <p className="truncate text-meta text-ink-3" title={d && !isNaN(d.getTime()) ? fullDateTime(d) : undefined}>
-            {deletedLine(at, by, new Date())}
+            {deletedLine(at, by, new Date(), aside)}
           </p>
         ) : null}
       </div>
-      <Button size="sm" variant="secondary" onClick={onRestore} busy={busy} disabled={disabled} className="shrink-0 gap-1.5" aria-label={`Restore ${name}`}>
+      <Button size="sm" variant="secondary" onClick={onRestore} busy={busy} disabled={disabled} className="shrink-0 gap-1.5 pointer-coarse:h-11" aria-label={`Restore ${name}`}>
         Restore
       </Button>
     </li>
   )
 }
 
-type Restoring = { rows?: string[]; fields?: string[] }
+type Restoring = { rows?: string[]; fields?: string[]; views?: string[] }
 
 /** What busy names while these come back: their ids, joined, so a line's is its own id. */
-const busyKeyOf = (what: Restoring) => [...(what.rows ?? []), ...(what.fields ?? [])].join(",")
+const busyKeyOf = (what: Restoring) => [...(what.rows ?? []), ...(what.fields ?? []), ...(what.views ?? [])].join(",")
 
-export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: string; fields: TableField[]; onClose: () => void; onRestored: () => void }) {
+/**
+ * canEdit false is a reader who doesn't write the table's rows (V-170): rows and columns
+ * they can't bring back aren't offered, only their own deleted views, which anyone who
+ * opens the table brings back (the server's restoreViews).
+ */
+export function TableTrash({
+  tableId,
+  fields,
+  canEdit = true,
+  write,
+  onClose,
+  onRestored,
+}: {
+  tableId: string
+  fields: TableField[]
+  canEdit?: boolean
+  /** The table's undo order (the page's write): a Ctrl+Z pressed while a restore is on its way takes that restore (V-369). */
+  write: UndoOrder["write"]
+  onClose: () => void
+  onRestored: () => void
+}) {
   const { toast } = useToast()
   const [trash, setTrash] = React.useState<Trash | null>(null)
   const [failed, setFailed] = React.useState<string | null>(null)
@@ -96,13 +119,14 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
   const restore = async (what: Restoring, said: string) => {
     setBusy(busyKeyOf(what))
     try {
-      await restoreFromTrash(tableId, what)
+      await write("restore", () => restoreFromTrash(tableId, what))
       setTrash((t) =>
         t
           ? {
               ...t,
               rows: t.rows.filter((r) => !what.rows?.includes(r.id)),
               fields: t.fields.filter((f) => !what.fields?.includes(f.field.id)),
+              views: t.views?.filter((v) => !what.views?.includes(v.id)),
             }
           : t,
       )
@@ -115,14 +139,15 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
     }
   }
 
-  const rows = trash?.rows ?? []
-  const columns = trash?.fields ?? []
+  const rows = (canEdit && trash?.rows) || []
+  const columns = (canEdit && trash?.fields) || []
+  const views = trash?.views ?? []
   const everyRow: Restoring = { rows: rows.map((r) => r.id) }
-  const empty = !!trash && rows.length === 0 && columns.length === 0
+  const empty = !!trash && rows.length === 0 && columns.length === 0 && views.length === 0
   return (
     <ResponsiveDialog
       title="Trash"
-      description="Rows and columns deleted from this table, newest first."
+      description={canEdit ? "Rows, columns and views deleted from this table, newest first." : "Your views deleted from this table, newest first."}
       onClose={onClose}
       wide
       footer={
@@ -141,7 +166,7 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
             <Loader2 className="size-4 animate-spin text-ink-3" aria-label="Reading the trash" />
           </div>
         ) : empty ? (
-          <EmptyState icon={RotateCcw} title="The trash is empty" description="Rows and columns you delete wait here, until you bring them back." />
+          <EmptyState icon={RotateCcw} title="The trash is empty" description={`${canEdit ? "Rows, columns and views" : "Views"} you delete wait here, until you bring them back.`} />
         ) : (
           <>
             {rows.length > 0 ? (
@@ -185,6 +210,27 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
                         glyph={<G className="size-3.5" aria-hidden />}
                         {...busyWith(busy, c.field.id)}
                         onRestore={() => void restore({ fields: [c.field.id] }, `Restored the column “${c.field.name}”`)}
+                      />
+                    )
+                  })}
+                </ul>
+              </section>
+            ) : null}
+            {views.length > 0 ? (
+              <section aria-label="Deleted views" className={rows.length > 0 || columns.length > 0 ? "mt-3" : undefined}>
+                <h3 className="flex h-8 items-center px-2 text-meta font-medium text-ink-3">Views</h3>
+                <ul>
+                  {views.map((v) => {
+                    const G = (VIEW_LAYOUTS.find((l) => l.type === v.type) ?? VIEW_LAYOUTS[0]).icon
+                    return (
+                      <TrashLine
+                        key={v.id}
+                        name={v.name}
+                        at={v.deleted_at}
+                        aside={v.owner_id ? "only you see it" : undefined}
+                        glyph={<G className="size-3.5" aria-hidden />}
+                        {...busyWith(busy, v.id)}
+                        onRestore={() => void restore({ views: [v.id] }, `Restored the view “${v.name}”`)}
                       />
                     )
                   })}

@@ -29,7 +29,7 @@ import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/adm
 import { FALLBACK_EVENT_TYPES, INCOMING_CHANNEL_HELP, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
 import { parseEvents, TICK_AN_EVENT } from "@/components/admin/webhookParts"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { StateWord } from "@/components/admin/connectParts"
 import { PlayCircle } from "lucide-react"
 
@@ -79,7 +79,7 @@ function SendTest({ webhookId }: { webhookId: string }) {
         setState("failed")
       }
     } catch (e) {
-      setProblem(apiErrorMessage(e, "Couldn't send the test. Try again."))
+      setProblem(saidHere(e, "Couldn't send the test. Try again."))
       setState("failed")
     }
   }

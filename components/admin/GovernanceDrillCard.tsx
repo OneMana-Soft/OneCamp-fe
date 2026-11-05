@@ -41,6 +41,7 @@ import {
     ShieldX,
 } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { ChainPair } from "@/components/admin/ChainPair"
 import { Spark } from "@/components/ui/graphics/motifs"
 import { useStagger } from "@/components/admin/ai/useStagger"
@@ -208,7 +209,7 @@ const GovernanceDrillCard: React.FC = () => {
         try {
             setStatus(await setupDrill())
         } catch (e) {
-            setActionError({ what: "Couldn't set up the drill", why: apiErrorMessage(e, "Try again in a moment.") })
+            setActionError({ what: "Couldn't set up the drill", why: saidHere(e, "Try again in a moment.") })
         } finally {
             setBusy(undefined)
         }
@@ -223,7 +224,7 @@ const GovernanceDrillCard: React.FC = () => {
         try {
             setResult(await runDrill())
         } catch (e) {
-            setActionError({ what: "Couldn't run the drill", why: apiErrorMessage(e, "Try again in a moment.") })
+            setActionError({ what: "Couldn't run the drill", why: saidHere(e, "Try again in a moment.") })
         } finally {
             setBusy(undefined)
         }

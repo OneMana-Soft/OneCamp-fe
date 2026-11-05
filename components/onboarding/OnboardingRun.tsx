@@ -29,7 +29,7 @@ import { SegmentedProgress } from "@/components/ui/graphics/SegmentedProgress"
 import { useKeyLesson } from "@/components/onboarding/useKeyLesson"
 import { KeyRows } from "@/components/onboarding/KeyboardTip"
 import { markSeen as markKeysTipSeen } from "@/components/onboarding/keysTip"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { app_doc_path } from "@/types/paths"
 import type { OnboardingState } from "@/services/onboardingService"
 import { makeSampleProject, removeSampleProject, type OnboardingSample } from "@/services/onboardingSampleService"
@@ -108,7 +108,7 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
             else await removeSampleProject()
             refresh()
         } catch (e) {
-            setError(apiErrorMessage(e, make ? "Couldn't make the sample project. Try again." : "Couldn't remove the sample project. Try again."))
+            setError(saidHere(e, make ? "Couldn't make the sample project. Try again." : "Couldn't remove the sample project. Try again."))
         } finally {
             setBusy(false)
         }

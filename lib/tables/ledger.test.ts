@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest"
-import { rowsText, undoableWrite, undoneNote, type UndoResult } from "@/lib/tables/ledger"
+import { describe, expect, it, vi } from "vitest"
+
+const post = vi.fn()
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
+
+import { restoreFromTrash, rowsText, undoableWrite, undoneNote, type UndoResult } from "@/lib/tables/ledger"
 import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
 
 const result = (skipped: number): UndoResult => ({ change_set: "u", reversed: "c", kind: "edit", changes: 3, skipped })
@@ -58,5 +62,37 @@ describe("a write whose toast offers its Undo", () => {
     const { offered, aims } = await takenOnItsWay({ change_sets: ["c5", "c6"] }, (t) => t.change_sets[0] ?? null)
     expect(offered.set).toBeNull()
     expect(aims).toEqual([{ kind: "set", set: "c5" }])
+  })
+})
+
+// V-369 (CODE-REVIEWER-208 F1): a restore of columns or views alone stores no change set, yet the server's answer names
+// Go's zero uuid (RestoreResult's value uuid, V-452). That is no set: a Ctrl+Z pressed while the restore was on its way
+// takes the latest change, as one pressed after it would, never an undo of a set that doesn't exist (a 404's toast).
+describe("a restore from the trash", () => {
+  const NIL = "00000000-0000-0000-0000-000000000000"
+  /** The restore held on its way, with a Ctrl+Z pressed meanwhile: what the restore says, and what the Ctrl+Z took. */
+  async function pressedOnItsWay(data: unknown) {
+    let land!: (r: unknown) => void
+    post.mockReturnValueOnce(new Promise((r) => (land = r)))
+    const o = new UndoOrder()
+    const going = o.write("restore", () => restoreFromTrash("t", { fields: ["cost"] }))
+    const aims: Aim[] = []
+    const pressed = o.press(async (aim) => void aims.push(aim))
+    land({ data: { data } })
+    const answer = await going
+    await pressed
+    return { answer, aims }
+  }
+
+  it("names no change set when it brought back columns or views alone, so a Ctrl+Z on its way takes the latest", async () => {
+    const { answer, aims } = await pressedOnItsWay({ change_set: NIL, rows: [], fields: ["cost"], views: [] })
+    expect(answer.change_set).toBeUndefined()
+    expect(aims).toEqual([{ kind: "latest" }])
+  })
+
+  it("names the change set a restore of rows stored, which a Ctrl+Z on its way takes", async () => {
+    const { answer, aims } = await pressedOnItsWay({ change_set: "cs", rows: ["r1"], fields: [], views: [] })
+    expect(answer.change_set).toBe("cs")
+    expect(aims).toEqual([{ kind: "set", set: "cs" }])
   })
 })

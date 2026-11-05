@@ -69,11 +69,14 @@ describe("meet-02: a recording player with no transcript to read", () => {
     expect(download[0].closest("[data-transcript]")).toBeNull()
   })
 
-  it("keeps a channel's recording as it was: its panel, with the phone's Download in the panel's head", () => {
+  it("keeps a channel's recording's panel, and puts the phone's Download in the sheet's head beside Close, as at 1280 (V-189)", () => {
     open(CHANNEL)
+    expect(panel()).not.toBeNull()
     const download = screen.getAllByRole("button", { name: "Download recording" })
     expect(download).toHaveLength(1)
-    expect(panel()?.contains(download[0])).toBe(true)
+    expect(download[0].closest("[data-transcript]")).toBeNull()
+    // The head's own Close (the dialog's built-in one is hidden by the sheet).
+    expect(screen.getAllByRole("button", { name: "Close" }).some((c) => download[0].parentElement?.contains(c))).toBe(true)
   })
 
   it("gives a desktop no icon Download: the sheet's head has its own from md up", () => {

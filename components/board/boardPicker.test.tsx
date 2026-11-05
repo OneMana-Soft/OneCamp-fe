@@ -37,7 +37,7 @@ describe("Present a board", () => {
     const rows = screen.getAllByRole("button", { name: /Launch plan|Retro/ })
     expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("Launch plan"), expect.stringContaining("Retro")])
     fireEvent.click(rows[1])
-    expect(onPick).toHaveBeenCalledWith("b1")
+    expect(onPick).toHaveBeenCalledWith("b1", "Retro")
     expect(onClose).toHaveBeenCalled()
   })
 

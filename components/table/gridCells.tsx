@@ -41,7 +41,7 @@ import {
 } from "@/components/table/cellFaces"
 
 // The grid's keys between cells and its column drag come with the live cells (V-148).
-export { cellClick, cellKeyDown, cellMouseDown, cellPress, columnDrag, gridKeyDown, gridKeyUp } from "@/components/table/gridMoves"
+export { cellClick, cellKeyDown, cellMouseDown, cellPress, columnDrag, gridKeyDown, gridKeyUp, playHeld, pressHeld, typeHeld } from "@/components/table/gridMoves"
 
 /** A files cell (FilesCell.tsx): a chunk of its own, as few tables have one. */
 const filesPart = lazyView(() => import("@/components/table/FilesCell"))

@@ -5,14 +5,14 @@ import { dialogFor, registerAction, registerBlock, registerDialog, registerSlot 
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import type { ActionContext } from "@/components/docEditor/registry/types"
 import { stageDrop } from "@/components/docEditor/chrome/stagedDrop"
-import { ArrowRightToLine, ArrowUpRight, CircleCheck, FileText, Kanban, ListTodo } from "@/lib/icons"
+import { ArrowRightToLine, ArrowUpRight, CircleCheck, FileText, Kanban, ListTodo, Presentation } from "@/lib/icons"
 import { snapshot, type DocChipData } from "@/lib/liveEntity"
 import { trackPos } from "../smart-paste/smartPaste"
 import { actionBlock } from "../../utils/actionBlock"
 import { ancestor } from "../../utils/ancestor"
 import { openWhenDrawn } from "../subpage/opening"
 import { subpagePrivate } from "@/lib/docCache"
-import { pickPage, pickProject, PICK_PAGE, PICK_PROJECT, type Picked } from "./pick"
+import { pickBoard, pickPage, pickProject, PICK_BOARD, PICK_PAGE, PICK_PROJECT, type Picked } from "./pick"
 
 /**
  * What the chunk adds as it loads (chunk.ts), before a doc's editor is built:
@@ -102,6 +102,16 @@ registerBlock({
       order: 132,
       run: (editor, range) => placeAfter(editor, range, () => pickProject(busFor(editor), "board"), (p) => ({ type: "boardEmbed", attrs: { projectId: p.id } })),
     },
+    {
+      id: "whiteboard",
+      title: "Whiteboard",
+      description: "A whiteboard, live, to look around",
+      aliases: ["canvas", "diagram", "drawing", "sketch", "miro"],
+      icon: Presentation,
+      section: "Media and embeds",
+      order: 133,
+      run: (editor, range) => placeAfter(editor, range, () => pickBoard(busFor(editor)), (p) => ({ type: "whiteboardEmbed", attrs: { boardId: p.id } })),
+    },
   ],
 })
 
@@ -169,3 +179,4 @@ registerAction({
 registerSlot({ slot: "foot", id: "subpage.inside", edition: "both", load: () => import("../subpage/PagesInside") })
 registerDialog({ id: PICK_PROJECT, edition: "both", load: () => import("./ProjectPickerDialog") })
 registerDialog({ id: PICK_PAGE, edition: "both", load: () => import("./PagePickerDialog") })
+registerDialog({ id: PICK_BOARD, edition: "both", load: () => import("./BoardPickerDialog") })

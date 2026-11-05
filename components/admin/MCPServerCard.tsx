@@ -33,6 +33,7 @@ import { StatusWord } from "@/components/ui/statusWord"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { ShieldAlert } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -196,7 +197,7 @@ function MCPServerCard() {
                 title: "Couldn't save external agent access",
                 // The server names the valid groups when one is unrecognised, so its
                 // message is more useful than anything written here.
-                description: apiErrorMessage(e, "Try again in a moment."),
+                description: saidHere(e, "Try again in a moment."),
                 variant: "destructive",
             })
         } finally {

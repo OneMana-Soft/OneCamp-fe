@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
 import {
     type AgentSkill,
@@ -110,7 +110,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onTo
             load()
             onChanged?.()
         } catch (e) {
-            toast({ title: "Couldn't save the skill", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't save the skill", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -132,7 +132,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onTo
             load()
             onChanged?.()
         } catch (e) {
-            toast({ title: "Couldn't delete the skill", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't delete the skill", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -161,7 +161,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onTo
             load()
             onChanged?.()
         } catch (e) {
-            toast({ title: "Couldn't restore that version", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: "Couldn't restore that version", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }

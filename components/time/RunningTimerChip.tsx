@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { CornerCard } from "@/components/ui/CornerStack"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import { CircleStop } from "@/lib/icons"
 import { formatClock } from "@/lib/tasks/time"
 import { stopTimer, useElapsed, useRunningTimer } from "@/hooks/useTaskTime"
@@ -45,6 +46,7 @@ export function RunningTimerChip({ className = "" }: { className?: string }) {
           try {
             await stopTimer(running.entry.task_uuid)
           } catch (e) {
+            saysWriteFailure(e)
             toast({ title: "Couldn't stop the timer", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
           } finally {
             setBusy(false)

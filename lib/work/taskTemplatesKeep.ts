@@ -65,8 +65,10 @@ export async function placeLists(http: KeepHttp, projectId?: string): Promise<Pl
   const read = async <T>(path: string, pick: (data: unknown) => T | undefined, none: T): Promise<T> => {
     try {
       return pick((await http.get<{ data: unknown }>(path, OWN_ERRORS)).data.data) ?? none
-    } catch {
-      partial = true
+    } catch (e) {
+      // A list this install doesn't serve at all reads as none, not as a failure: the AI-free edition answers the
+      // AI teammates' read 501 (as useTodayEvents reads a calendar it lacks). A passing failure still says so.
+      if ((e as { response?: { status?: number } } | undefined)?.response?.status !== 501) partial = true
       return none
     }
   }
