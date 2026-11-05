@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SpotPlug } from "@/components/ui/graphics/spots"
 import type { CampHue } from "@/lib/campHue"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import { listConnectors, startConnect, disconnectConnector } from "@/services/connectorService"
 import type { ConnectorStatus } from "@/types/connector"
 import { ConnectionCard, RowMenu, SourceMark, StateWord } from "@/components/admin/connectParts"
@@ -232,6 +233,7 @@ function ConnectorList() {
                 toast({ title: `${c.name} disconnected` })
                 mutate()
             } catch (e) {
+                saysWriteFailure(e)
                 toast({
                     title: `Couldn't disconnect ${c.name}`,
                     description: apiErrorMessage(e, "Try again in a moment."),

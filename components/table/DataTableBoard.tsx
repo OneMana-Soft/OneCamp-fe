@@ -27,6 +27,7 @@ import { keepInSight } from "@/lib/tables/viewRules"
 import { useTableEdit } from "@/lib/tables/tableEdit"
 import type { UndoOrder } from "@/lib/tables/undoOrder"
 import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 interface DataTableBoardProps {
   tableId: string
@@ -285,7 +286,8 @@ export function DataTableBoard({
       const r = await write("card", () => createRow(tableId, column.key === NO_VALUE ? {} : { [groupField.id]: column.label }))
       if (onCreated && r?.id) onCreated([r], true)
       else onChange()
-    } catch {
+    } catch (error) {
+      saysWriteFailure(error)
       toast({ title: "Could not add card", variant: "destructive" })
     }
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { hoursChart, openOf, reportCSV, throughputChart, totalHours, weekLabel, type Report } from "./reports"
+import { hoursChart, openOf, reportCSV, reportView, reportViewName, throughputChart, totalHours, weekLabel, type Report } from "./reports"
 
 const report: Report = {
   weeks: ["2026-09-28", "2026-10-05"],
@@ -57,5 +57,26 @@ describe("reports", () => {
     expect(risky).toContain("'=HYPERLINK()")
     const tabbed = reportCSV({ ...report, people: [{ ...report.people[0], user_name: "\t=1+1" }] }, (p) => p.user_name ?? "")
     expect(tabbed).toContain("'\t=1+1")
+  })
+})
+
+describe("reportView (B9-b1)", () => {
+  const q = (s: string) => new URLSearchParams(s)
+  it("reads the view a report was opened from: one project, its filters and its name", () => {
+    expect(reportView(q("view=reports&projects=p1&filters=%5B%5D&name=High"))).toEqual({ project: "p1", filters: "[]", name: "High" })
+    expect(reportView(q("projects=p1&name=Board"))).toEqual({ project: "p1", filters: "", name: "Board" })
+    expect(reportView(q("projects=p1&filters=x"))).toEqual({ project: "p1", filters: "x", name: "" })
+    expect(reportView(q("view=reports&projects=p1"))).toEqual({ project: "p1", filters: "", name: "" })
+  })
+  it("is none for the report's own choices: no project, or several", () => {
+    expect(reportView(q("view=reports"))).toBeNull()
+    expect(reportView(q("projects=p1,p2&filters=x"))).toBeNull()
+    expect(reportView(q("projects=%20"))).toBeNull()
+  })
+  it("names a view by its saved name, or by its project, filtered when it was", () => {
+    expect(reportViewName({ filters: "[1]", name: "High work" }, "Launch")).toBe("High work")
+    expect(reportViewName({ filters: '[{"id":"task_priority"}]', name: "" }, "Launch")).toBe("Launch, filtered")
+    expect(reportViewName({ filters: "", name: "" }, "Launch")).toBe("Launch")
+    expect(reportViewName({ filters: "[]", name: "" }, undefined)).toBe("this project")
   })
 })

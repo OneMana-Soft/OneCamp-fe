@@ -6,6 +6,7 @@ import { Lock } from "@/lib/icons"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { useProjectBoard } from "@/hooks/useProjectBoard"
+import type { LiveEntityState } from "@/lib/liveEntity/types"
 
 /** A frame for the embed: its head, then what it shows. */
 export function EmbedFrame({ selected, head, children }: { selected: boolean; head: React.ReactNode; children: React.ReactNode }) {
@@ -30,13 +31,68 @@ export function EmbedNote({ children, action }: { children: React.ReactNode; act
   )
 }
 
+/** What an embed has read, in the shape its states need: a project's tasks or board, a whiteboard. */
+export interface EmbedRead {
+  state: LiveEntityState
+  failed: boolean
+  retry(): void
+  loading: boolean
+  /** There is something to show. */
+  ready: boolean
+}
+
+/** What an embed says in place of what it shows, in its own words. */
+export interface EmbedWords {
+  guest: string
+  none: string
+  gone: string
+  failed: string
+}
+
 /**
- * What a project's embed shows in place of its tasks (docs C1): to a guest,
- * that it shows for people in the workspace; to someone outside the project,
- * that they can't see it, never its name; that it was deleted; that it
- * couldn't be read, with Try again; a skeleton while it loads. Null once
- * there is a board to show. `what` is "tasks" or "board".
+ * What an embed shows in place of its content (docs C1; a whiteboard,
+ * miro-34): to a guest, that it shows for people in the workspace; to someone
+ * who can't open it, that they can't see it, never its name; that it was
+ * deleted; that it couldn't be read, with Try again; a skeleton while it
+ * loads. Null once there is something to show.
  */
+export function embedNote({
+  guest,
+  missing,
+  read,
+  words,
+  skeleton,
+}: {
+  guest: boolean
+  /** The block names nothing to read. */
+  missing: boolean
+  read: EmbedRead
+  words: EmbedWords
+  skeleton: React.ReactNode
+}): React.ReactNode | null {
+  if (guest) return <EmbedNote>{words.guest}</EmbedNote>
+  if (missing || read.state === "none")
+    return (
+      <EmbedNote>
+        <span className="inline-flex items-center gap-1.5">
+          <Lock className="size-3.5" aria-hidden="true" />
+          {words.none}
+        </span>
+      </EmbedNote>
+    )
+  if (read.state === "gone") return <EmbedNote>{words.gone}</EmbedNote>
+  if (read.failed)
+    return (
+      <EmbedNote action={<Button size="sm" variant="secondary" onClick={read.retry}>Try again</Button>}>
+        <SaysLoadFailure />
+        {words.failed}
+      </EmbedNote>
+    )
+  if (read.loading || !read.ready) return skeleton
+  return null
+}
+
+/** A project's embed (docs C1): its tasks or its board, in a project's words. `what` is "tasks" or "board". */
 export function embedState({
   guest,
   projectId,
@@ -50,24 +106,19 @@ export function embedState({
   what: "tasks" | "board"
   skeleton: React.ReactNode
 }): React.ReactNode | null {
-  if (guest) return <EmbedNote>{what === "tasks" ? "A project's tasks show" : "A project's board shows"} here for people in the workspace.</EmbedNote>
-  if (!projectId || read.project.state === "none")
-    return (
-      <EmbedNote>
-        <span className="inline-flex items-center gap-1.5">
-          <Lock className="size-3.5" aria-hidden="true" />
-          You can&apos;t see this project&apos;s {what}. Ask someone in it to add you.
-        </span>
-      </EmbedNote>
-    )
-  if (read.project.state === "gone") return <EmbedNote>This project was deleted.</EmbedNote>
-  if (read.failed)
-    return (
-      <EmbedNote action={<Button size="sm" variant="secondary" onClick={read.retry}>Try again</Button>}>
-        <SaysLoadFailure />
-        Couldn&apos;t load the {what}.
-      </EmbedNote>
-    )
-  if (read.loading || !read.board) return skeleton
-  return null
+  return embedNote({
+    guest,
+    missing: !projectId,
+    read: { state: read.project.state, failed: read.failed, retry: read.retry, loading: read.loading, ready: !!read.board },
+    words: {
+      guest: `${what === "tasks" ? "A project's tasks show" : "A project's board shows"} here for people in the workspace.`,
+      none: `You can't see this project's ${what}. Ask someone in it to add you.`,
+      gone: "This project was deleted.",
+      failed: loadFailedWords(what),
+    },
+    skeleton,
+  })
 }
+
+/** What an embed says when its read failed: embedNote draws it beside SaysLoadFailure. */
+export const loadFailedWords = (what: string) => `Couldn't load the ${what}.`

@@ -26,6 +26,7 @@ import { SettingRow, SettingsCard, SettingsCardFooter, SettingsRowsSkeleton, Set
 import { NumberUnitInput } from "@/components/ui/settingsControls"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { Disclosure } from "@/components/ui/disclosure"
 
 const asDraft = (p: RetentionPolicy) => (p.window_days > 0 ? String(p.window_days) : "")
@@ -85,7 +86,7 @@ const RetentionCard: React.FC = () => {
                 toast({ title: applied.keeps_everything ? "Keeping everything" : `Keeping ${applied.window_days} days`, tone: "success" })
             }
         } catch (e) {
-            toast({ title: "Couldn't save the redaction window", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })
+            toast({ title: "Couldn't save the redaction window", description: saidHere(e, "Try again in a moment."), tone: "error" })
         } finally {
             setSaving(false)
         }

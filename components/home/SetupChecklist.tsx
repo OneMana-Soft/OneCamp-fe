@@ -47,6 +47,7 @@ import {
     type OnboardingState,
     type OnboardingStep,
 } from "@/services/onboardingService"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 /**
  * Whether the card has anything to say. Pulled out of the component because it is
@@ -225,8 +226,9 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 }
                 setState(s)
             })
-            .catch(() => {
+            .catch((error) => {
                 setState(before)
+                saysWriteFailure(error)
                 setSkipFailed(true)
             })
     }, [])

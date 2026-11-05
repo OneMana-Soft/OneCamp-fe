@@ -49,7 +49,10 @@ const group = {
     await page.waitForTimeout(2000)
 
     // ---- a pane carried by its bar to the page's left, timed from the
-    // release until it sits there ----
+    // release until it sits there. The carry's marks are in the page before
+    // it, in a layer of their own, and shown by data-on (SplitArrange, 21 Oct):
+    // the ghost is up while it has data-on, never merely while it is there,
+    // so the step waited out its 10 s on every run since ----
     if (!h.phone && h.wants("splitPaneDrag")) {
       const bar = await page.locator(handle(B)).boundingBox()
       const main = await page.locator(sheet("main")).boundingBox()
@@ -61,7 +64,7 @@ const group = {
           await page.mouse.move(x0, y0)
           await page.mouse.down()
           await page.mouse.move(x0 + 12, y0)
-          await page.waitForSelector(".split-ghost", { timeout: 5000 })
+          await page.waitForSelector(".split-ghost[data-on]", { timeout: 5000 })
           await carry(page, { x: x0 + 12, y: y0 }, { x: main.x + main.width * 0.08, y: y0 + 200 })
           await page.evaluate(() => (window.__fluInputAt = performance.now()))
           await page.mouse.up()
@@ -71,7 +74,7 @@ const group = {
             ([b]) => {
               const p = document.querySelector(`[data-split-sheet="${b}"]`)?.getBoundingClientRect()
               const m = document.querySelector('[data-split-sheet="main"]')?.getBoundingClientRect()
-              return !!p && !!m && p.left < m.left && !document.querySelector(".split-ghost")
+              return !!p && !!m && p.left < m.left && !document.querySelector(".split-ghost[data-on]")
             },
             [B],
             { timeout: 10000 },

@@ -240,7 +240,11 @@ const group = {
     server = collabFor(ALL.map((b) => ({ id: boardDocName(b.uuid), update: b.update, levels: LEVELS })))
     return server
   },
-  storage: Object.fromEntries(ALL.map((b) => [`onecamp:board:viewport:${b.uuid}`, JSON.stringify(CAMERA)])),
+  // Each board's camera; and the demo's corner card, seeded as already turned
+  // down (as work.mjs has it): it rises after a first "win" (the note's drag),
+  // and on a phone it spans the screen's width over the board's middle, where
+  // it took every finger of the pinch (wbZoom on a phone changed nothing).
+  storage: { ...Object.fromEntries(ALL.map((b) => [`onecamp:board:viewport:${b.uuid}`, JSON.stringify(CAMERA)])), "onecamp:demo-lead-dismissed": "1" },
   initScripts: [{ fn: boardPage }],
   async run(h) {
     const { page, cdp } = h
@@ -264,10 +268,15 @@ const group = {
     }
     // The board's frame: its own page with the board's title (the app's part,
     // which needs none of Excalidraw's code), and the canvas: Excalidraw's.
+    // A computer shows the board's name in the page's own top-left cluster; a
+    // phone shows it in the app's top bar instead ([data-phone-topbar]): the
+    // board page draws no name of its own there (its cluster is !isMobile's).
     const frameShown = ({ uuid, title }) => {
       if (!location.pathname.includes(uuid)) return false
       const p = document.querySelector("[data-board-page]")
-      return !!p && p.getClientRects().length > 0 && (p.innerText || "").includes(title)
+      if (!p || !p.getClientRects().length) return false
+      const named = (el) => !!el && (el.innerText || "").includes(title)
+      return named(p) || named(document.querySelector("[data-phone-topbar]"))
     }
     const canvasShown = (uuid) => location.pathname.includes(uuid) && !!document.querySelector("[data-board-page] .excalidraw canvas.interactive")
     // W-0's mark at the board's count (or a teammate's move merged), then one more frame.

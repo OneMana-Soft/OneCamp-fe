@@ -132,7 +132,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, cross
     return (
         <>
             {/* The type, the key and the marks (STEP4 #8): a label line, top left. */}
-            {(task.task_key || task.task_blocked_open || task.task_restricted || task.task_waiting) && (
+            {(task.task_key || task.task_work_type || task.task_blocked_open || task.task_restricted || task.task_waiting) && (
                 <div className="flex h-4 min-w-0 items-center gap-1.5 pr-6 text-micro text-ink-3" data-card-key="">
                     {task.task_work_type && (
                         <Suspense fallback={<span className="size-3" />}>

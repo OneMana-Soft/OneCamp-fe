@@ -21,7 +21,7 @@ import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { Loader2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -78,7 +78,7 @@ const GitHubCallbackPage = () => {
         sendOn.current?.go(2000)
       } catch (err) {
         setStatus("error")
-        setErrorMsg(apiErrorMessage(err, `GitHub didn't finish connecting. ${START_AGAIN}`))
+        setErrorMsg(saidHere(err, `GitHub didn't finish connecting. ${START_AGAIN}`))
       }
     }
 

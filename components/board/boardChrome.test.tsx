@@ -71,6 +71,23 @@ describe("a board's chrome", () => {
     expect(boardSaveState("synced", true)).toBe("saved")
   })
 
+  it("draws the board's sensitivity label beside its name, before the save dot (miro-44 L)", () => {
+    render(<BoardTitleCluster backHref="/app/board" title="Launch retro" editable onRename={() => {}} saveState="saved" menu={(t) => t} label={<span data-testid="label">Confidential</span>} />)
+    const label = screen.getByTestId("label")
+    const name = screen.getByRole("button", { name: /Launch retro, rename/ })
+    expect(name.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(label.compareDocumentPosition(screen.getByRole("button", { name: "More" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The board page gives it the label's chip, a button to the picker for an editor, on a computer and a phone,
+    // and More opens the same picker.
+    const page = readFileSync("app/app/board/[board-id]/page.tsx", "utf8")
+    // One chip, built once (labelChip) and mounted twice: beside the name, and leading the phone's cluster. The page
+    // reads and writes the label through its hook; the lazy chip and picker are given it.
+    expect(page).toMatch(/const labelling = useLabelling\("board", boardId, labelOpen\)/)
+    expect(page).toMatch(/<BoardLabel phone=\{phone\} labelling=\{labelling\} edit=\{hasEditAccess\} open=\{labelOpen\} onOpen=\{setLabelOpen\} empty=\{<NoLabelsYet \/>\} \/>/)
+    expect(page.match(/label=\{labelChip\(\)\}|\{labelChip\(true\)\}/g)).toHaveLength(2)
+    expect(page).toMatch(/handOff\.to\(\(\) => setLabelOpen\(true\)\)/)
+  })
+
   it("has no top bar row on the board page, and its clusters don't follow the canvas's scroll", () => {
     const page = readFileSync("app/app/board/[board-id]/page.tsx", "utf8")
     expect(page).not.toMatch(/border-b bg-background px-2 sm:h-14/)

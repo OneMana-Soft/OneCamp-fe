@@ -17,9 +17,9 @@ describe("the board canvas", () => {
 
   it("sends nothing, and schedules no thumbnail, for a pan or a zoom", () => {
     const change = src.slice(src.indexOf("const handleChange = React.useCallback("))
-    const skip = change.indexOf("if (signature === lastSignatureRef.current) return")
+    const skip = change.indexOf("if (signature === lastSignatureRef.current || privateHolds()) return")
     expect(skip).toBeGreaterThan(0)
-    expect(change.indexOf("storeWithMakers(yAuthors, yElements as never, sceneNow")).toBeGreaterThan(skip)
+    expect(change.indexOf("storeWithMakers(yAuthors, yElements as never, scene,")).toBeGreaterThan(skip)
     expect(change.indexOf("scheduleThumbnail()")).toBeGreaterThan(skip)
   })
 
@@ -33,8 +33,8 @@ describe("the board canvas", () => {
     expect(merged.indexOf("markRemoteMerge()")).toBeGreaterThan(0)
     expect(merged.indexOf("lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)")).toBeGreaterThan(merged.indexOf("markRemoteMerge()"))
     expect(src).not.toMatch(/hydrateFromY/)
-    // The sync's once-more, inside the remote-change guard.
-    const applies = [...src.matchAll(/if \(applyShared\(api, yElements\.values\(\) as never\) > 0\) markRemoteMerge\(\)/g)]
+    // The sync's once-more, inside the remote-change guard (private mode's author keeps the words: miro-25).
+    const applies = [...src.matchAll(/if \(applyShared\(api, yElements\.values\(\) as never(, \(remote\) => privateRef\.current\?\.inbound\(remote\) \?\? remote)?\) > 0\) markRemoteMerge\(\)/g)]
     expect(applies).toHaveLength(1)
     for (const a of applies) {
       const before = src.slice(Math.max(0, a.index! - 400), a.index!)
@@ -64,6 +64,19 @@ describe("the board canvas", () => {
 
   it("starts from the empty scene's fingerprint, so Excalidraw's first call is no change", () => {
     expect(src).toMatch(/const lastSignatureRef = React\.useRef\(sceneSignature\(\[\]\)\)/)
+  })
+
+  // Private mode (miro-25): while a running round waits for its code, nothing of the scene leaves the tab.
+  it("sends no thumbnail while private mode's code comes under a running round, and sends others' view after", () => {
+    const thumb = src.slice(src.indexOf("const captureThumbnail = React.useCallback("), src.indexOf("const scheduleThumbnail"))
+    expect(thumb).toMatch(/if \(!api \|\| !editable \|\| privateHolds\(\)\) return/)
+    expect(thumb).toContain("elements: privateRef.current?.outward(els) ?? els,")
+  })
+
+  it("loads private mode only when its gate wants it, and sends the write it held once its code is in", () => {
+    expect(src).toMatch(/const PrivateNotesHost = lazyPiece\(\(\) => import\("@\/components\/board\/privateNotesHost"\)\)/)
+    expect(src).toMatch(/\{privateWanted && \(\s+<React\.Suspense fallback=\{null\}>\s+<PrivateNotesHost/)
+    expect(src).toContain("onReady={() => apiRef.current && handleChange(apiRef.current.getSceneElementsIncludingDeleted()")
   })
 })
 

@@ -15,7 +15,7 @@
 import { useEffect } from "react"
 import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useDispatch, useSelector } from "react-redux"
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { openUI } from "@/store/slice/uiSlice"
 import { updateUserStatus, updateUserConnectedDeviceCount } from "@/store/slice/userSlice"
@@ -100,7 +100,7 @@ export default function CommandActionBridge() {
             }
 
             axiosInstance
-                .post(PostEndpointUrl.UpdateUserPresence, { user_status: status })
+                .post(PostEndpointUrl.UpdateUserPresence, { user_status: status }, OWN_ERRORS)
                 .then(() => {
                     if (selfUUID) {
                         dispatch(updateUserStatus({ userUUID: selfUUID, status }))
@@ -218,7 +218,7 @@ export default function CommandActionBridge() {
                         to_uuid: userUUID,
                         text_html: `<p>${escapeHtml(msg)}</p>`,
                         media_attachments: [],
-                    })
+                    }, OWN_ERRORS)
                     toast({ title: `Message sent to ${userName}` })
                 } catch {
                     toast({ title: "Couldn't send the message", variant: "destructive" })
@@ -241,7 +241,7 @@ export default function CommandActionBridge() {
                         channel_id: match.channel_uuid,
                         post_text_html: `<p>${escapeHtml(msg)}</p>`,
                         post_attachments: [],
-                    })
+                    }, OWN_ERRORS)
                     toast({ title: `Message sent to #${match.channel_name || "channel"}` })
                 } catch {
                     toast({ title: "Couldn't send the message", variant: "destructive" })

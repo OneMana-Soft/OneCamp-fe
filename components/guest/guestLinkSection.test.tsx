@@ -151,3 +151,33 @@ describe("anyone with the link, as the share dialog's card (D19)", () => {
     expect(turnOffGuestLink).toHaveBeenCalledWith("l1")
   })
 })
+
+
+describe("a kind's own row beside its link, as the card's extra (a board's embed code)", () => {
+  afterEach(() => cleanup())
+  type Extra = Parameters<typeof GuestLinkSection>[0]["extra"]
+  const turnOn = async (extra?: Extra) => {
+    createGuestLink.mockReset().mockResolvedValue({ token: "tok" })
+    render(<GuestLinkSection card resourceType="board" resourceId="r1" canShare extra={extra} />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+  }
+
+  it("draws the row with no link before one is made, then with the new link in place of the copy hint", async () => {
+    const extra = vi.fn((link: string) => <p>{link ? `row for ${link}` : "row before a link"}</p>)
+    await turnOn(extra)
+    expect(screen.getByText("row before a link")).toBeInTheDocument()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
+    expect(screen.getByText("row for https://acme.test/guest/p/tok")).toBeInTheDocument()
+    expect(screen.queryByText("row before a link")).toBeNull()
+    expect(screen.queryByText("Copy it now: it won't be shown again.")).toBeNull()
+    expect(extra.mock.calls.map(([link]) => link)).toEqual(expect.arrayContaining(["", "https://acme.test/guest/p/tok"]))
+  })
+
+  it("keeps the copy hint, and offers no embed code, without one", async () => {
+    await turnOn()
+    expect(screen.queryByText(/embed/)).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
+    expect(screen.getByText("Copy it now: it won't be shown again.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Copy embed code" })).toBeNull()
+  })
+})

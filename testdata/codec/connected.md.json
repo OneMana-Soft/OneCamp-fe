@@ -88,6 +88,25 @@
     {
       "content": [
         {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://app.example.test/app/board/4c4b5f6a-7b8c-4d9e-9f3a-4b5c6d7e8f9a",
+                "rel": "noopener noreferrer nofollow",
+                "target": "_blank"
+              },
+              "type": "link"
+            }
+          ],
+          "text": "Whiteboard",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
           "attrs": {
             "checked": true
           },

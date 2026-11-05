@@ -14,6 +14,8 @@ const DOC = "0d0c0000-0000-4000-8000-000000000001"
 const NEW_PAGE = "0d0c0000-0000-4000-8000-000000000002"
 const OTHER_PAGE = "0d0c0000-0000-4000-8000-000000000003"
 const PROJECT = "9e0c0000-0000-4000-8000-000000000004"
+const BOARD = "b0a40000-0000-4000-8000-000000000021"
+const OTHER_BOARD = "b0a40000-0000-4000-8000-000000000022"
 const TASK = "7a5c0000-0000-4000-8000-000000000005"
 
 type Answer = { kind: string; id: string; access: string; data?: Record<string, unknown>; topic?: string }
@@ -47,6 +49,8 @@ vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosIns
       if (url === "/user/profile" && selfUser) return { status: 200, data: { data: selfUser } }
       if (url.startsWith("/user/userProjectList") && failProjects) throw Object.assign(new Error("503"), { response: { status: 503, data: {} } })
       if (url.startsWith(`/project/taskListForKanban/${PROJECT}`)) return { status: 200, data: { data: board } }
+      if (url.startsWith("/board/getBoardList"))
+        return { status: 200, data: { msg: "", data: { boards: [{ board_uuid: BOARD, board_title: "Launch flow" }, { board_uuid: OTHER_BOARD, board_title: "Retro" }], count: 2 } } }
       return { status: 200, data: {} }
     }),
     post: vi.fn(async (url: string, body: Record<string, unknown>) => {
@@ -69,6 +73,19 @@ vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosIns
   },
 }))
 vi.mock("@/services/docGraphService", () => ({ createDoc: vi.fn(async () => ({ doc_uuid: NEW_PAGE, doc_title: "" })), refreshDocGraph: vi.fn() }))
+// The live canvas (Excalidraw) draws nothing in jsdom: what the whiteboard block hands it is what is checked.
+vi.mock("@/components/guest/GuestBoardViewer", () => ({
+  GuestBoardViewer: (p: { documentName: string; canDraw?: boolean; tokenFetcher?: unknown; imageURL?: (objectUuid: string) => string; quiet?: boolean }) => (
+    <div
+      data-testid="board-viewer"
+      data-document={p.documentName}
+      data-can-draw={String(!!p.canDraw)}
+      data-session={p.tokenFetcher ? "guest" : "member"}
+      data-quiet={String(!!p.quiet)}
+      data-picture={p.imageURL?.("o1") ?? ""}
+    />
+  ),
+}))
 vi.mock("@/hooks/useMqttTopic", () => ({
   useMqttTopic: ({ topic, onMessage }: { topic: string; onMessage?: (raw: string) => void }) => {
     if (topic && onMessage) topics.set(topic, onMessage)
@@ -102,10 +119,11 @@ import { GuestReaderContext } from "@/components/minimal-tiptap/guestReader"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { mentionSuggestionOptions } from "../mention-list/mentionList"
 import { forgetMentionAccess } from "../mention-list/mentionInDoc"
-import { PICK_PAGE, PICK_PROJECT, peekPick, pickProject, type Picked } from "./pick"
+import { PICK_BOARD, PICK_PAGE, PICK_PROJECT, peekPick, pickBoard, pickProject, type Picked } from "./pick"
 import { countMention, mentionCounts } from "@/lib/mentionedOften"
 import { MqttMessageType } from "@/services/mqttService"
 import ProjectPickerDialog from "./ProjectPickerDialog"
+import BoardPickerDialog from "./BoardPickerDialog"
 import { pinTestClock } from "@/lib/testing/testClock"
 import { bindAppMutate } from "@/lib/swrMutate"
 import { docInfoKey } from "@/lib/docCache"
@@ -654,6 +672,117 @@ describe("a project's tasks and board in a doc", () => {
     expect(await screen.findByText("Write the post", undefined, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByRole("listitem", { name: "To do, 1" })).toBeInTheDocument()
     expect(screen.getByRole("listitem", { name: "Done, 1" })).toBeInTheDocument()
+  })
+})
+
+// miro-34 H-b: a whiteboard in a doc, live and read-only (the block keeps only the board's id).
+describe("a whiteboard in a doc", () => {
+  const block = `<div data-type="whiteboard-embed" data-board-id="${BOARD}"></div>`
+  const named = () => entities.set(`board:${BOARD}`, { kind: "board", id: BOARD, access: "ok", data: { title: "Launch flow" } })
+
+  it("/whiteboard puts the board picked in the doc, keeping only its id", async () => {
+    const editor = await docEditor("<p>/whiteboard</p>")
+    busFor(editor)!.on("openDialog", ({ id: dialog }: { id: string }) => {
+      if (dialog === PICK_BOARD) peekPick(PICK_BOARD)?.answer({ id: BOARD, name: "Launch flow" })
+    })
+    const entry = blockById("connectedSlash")!.slash!.find((s) => s.id === "whiteboard")
+    expect(entry, "a /whiteboard entry").toBeDefined()
+    await act(async () => entry!.run(editor, { from: 1, to: 12 }))
+    await vi.waitFor(() => expect(editor.getJSON().content?.find((n) => n.type === "whiteboardEmbed")?.attrs).toMatchObject({ boardId: BOARD }), { timeout: 3000 })
+    expect(json(editor)).not.toContain("Launch flow")
+    expect(json(editor)).not.toContain("/whiteboard")
+  })
+
+  it("draws the board live and read-only, as the reader, with its name and Open board", async () => {
+    named()
+    await docEditor(block)
+    const viewer = await screen.findByTestId("board-viewer", undefined, { timeout: 5000 })
+    expect(viewer).toHaveAttribute("data-document", `board:${BOARD}`)
+    expect(viewer).toHaveAttribute("data-can-draw", "false")
+    // The reader's own session, as on the board's page (one socket per board in a tab), and it only looks: no reaction or hand goes out as a guest's.
+    expect(viewer).toHaveAttribute("data-session", "member")
+    expect(viewer).toHaveAttribute("data-quiet", "true")
+    // Its pictures come by the reader's own access, as on the board's page (a guest's grant needs a token a member has none of).
+    expect(viewer.getAttribute("data-picture")).toMatch(new RegExp(`/board/getBoardAttachment/${BOARD}/o1$`))
+    expect(screen.getByText("Launch flow · Whiteboard")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Open board/ })).toHaveAttribute("href", `/app/board/${BOARD}`)
+  })
+
+  it("keeps the canvas still until the reader asks to look around, so the doc scrolls past it", async () => {
+    named()
+    await docEditor(block)
+    await screen.findByTestId("board-viewer", undefined, { timeout: 5000 })
+    const stage = document.querySelector("[data-whiteboard-stage]")!
+    expect(stage).toHaveAttribute("data-looking", "false")
+    // Still, the canvas is inert: no focus and no screen reader walks into it, only Look around does. Its own layers
+    // stack inside it (isolate), so Look around and the ring are drawn over them (DB-103: the pill hid under them).
+    const canvas = stage.querySelector(":scope > div")!
+    expect(canvas).toHaveAttribute("inert")
+    expect(canvas).toHaveClass("isolate")
+    expect(stage.querySelector("[data-whiteboard-ring]")).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Look around/ })))
+    expect(stage).toHaveAttribute("data-looking", "true")
+    expect(canvas).not.toHaveAttribute("inert")
+    // Looking, the stage wears the brand's ring, over the canvas.
+    expect(stage.querySelector("[data-whiteboard-ring]")).toHaveClass("ring-brand")
+    // The button goes, so the board takes the focus: Escape is heard there, and moving on stills it.
+    expect(stage).toHaveFocus()
+    await act(async () => void fireEvent.keyDown(stage, { key: "Escape" }))
+    expect(stage).toHaveAttribute("data-looking", "false")
+    expect(canvas).toHaveAttribute("inert")
+  })
+
+  it("tells someone who can't open the board that they can't see it, and never its name", async () => {
+    await docEditor(block)
+    expect(await screen.findByText(/You can't see this whiteboard/, undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByTestId("board-viewer")).toBeNull()
+    expect(screen.queryByRole("link", { name: /Open board/ })).toBeNull()
+  })
+
+  it("tells someone who could open the board that it was deleted, with no canvas and no way to it", async () => {
+    // The entities read answers "gone" for a deleted board its reader could open (CR-204: EntityLink readBoards).
+    entities.set(`board:${BOARD}`, { kind: "board", id: BOARD, access: "gone" })
+    await docEditor(block)
+    expect(await screen.findByText("This whiteboard was deleted.", undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByTestId("board-viewer")).toBeNull()
+    expect(screen.queryByRole("link", { name: /Open board/ })).toBeNull()
+    expect(screen.queryByText(/Launch flow/)).toBeNull()
+  })
+
+  it("tells a guest only that a whiteboard shows here, and reads nothing about it", async () => {
+    named()
+    await docEditor(block, { guest: true })
+    expect(await screen.findByText("A whiteboard shows here for people in the workspace.", undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByText(/Launch flow/)).toBeNull()
+    expect(posted.filter((p) => p.url === "/entities" && JSON.stringify(p.body).includes(BOARD))).toEqual([])
+  })
+
+  it("says it couldn't load the whiteboard, and Try again reads it again", async () => {
+    named()
+    failReads = true
+    await docEditor(block, { freshReads: true })
+    const again = await screen.findByRole("button", { name: "Try again" }, { timeout: 5000 })
+    expect(screen.getByText(/Couldn't load the whiteboard/)).toBeInTheDocument()
+    failReads = false
+    await act(async () => again.click())
+    expect(await screen.findByTestId("board-viewer", undefined, { timeout: 5000 })).toBeInTheDocument()
+  })
+
+  it("the board picker offers the boards the reader can open, and picking one answers with it", async () => {
+    const editor = await docEditor("<p></p>")
+    const answer = pickBoard(busFor(editor))
+    render(
+      <Provider store={store}>
+        <MediaQueryProvider>
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <BoardPickerDialog docId={DOC} onClose={() => undefined} />
+          </SWRConfig>
+        </MediaQueryProvider>
+      </Provider>,
+    )
+    expect(gets.some((u) => u.startsWith("/board/getBoardList?") && !u.includes("editable"))).toBe(true)
+    await act(async () => fireEvent.click(await screen.findByText("Launch flow", undefined, { timeout: 5000 })))
+    await expect(answer).resolves.toMatchObject({ id: BOARD, name: "Launch flow" })
   })
 })
 

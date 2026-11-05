@@ -11,13 +11,15 @@ import type { Page, WebSocketRoute } from "@playwright/test"
 // The protocol's messages come from livekit-client's own copy of
 // @livekit/protocol, so they are the ones the app decodes.
 const protocol = createRequire(require.resolve("livekit-client"))("@livekit/protocol")
-const { DataPacket, DataPacket_Kind, JoinResponse, ParticipantInfo, ParticipantInfo_State, ParticipantPermission, ParticipantUpdate, Room, ServerInfo, SessionDescription, SignalRequest, SignalResponse, TrackInfo, TrackPublishedResponse, TrackSource, TrackType, UserPacket } = protocol
+const { DataPacket, DataPacket_Kind, JoinResponse, ParticipantInfo, ParticipantInfo_Kind, ParticipantInfo_State, ParticipantPermission, ParticipantUpdate, Room, ServerInfo, SessionDescription, SignalRequest, SignalResponse, TrackInfo, TrackPublishedResponse, TrackSource, TrackType, UserPacket } = protocol
 
 /** Someone in the call: their identity, the name everyone sees, and their LiveKit attributes (the call's role travels there). */
 export interface FakePerson {
   identity: string
   name: string
   attributes?: Record<string, string>
+  /** An AI agent, which LiveKit names by its participant kind, as a dispatched agent joins. */
+  agent?: boolean
   /** Sharing their screen as they join; share() starts or stops it later. No media flows: the share is a publication, drawn as its tile. */
   shares?: boolean
 }
@@ -30,6 +32,7 @@ function personInfo(p: FakePerson, sid: string, state = ParticipantInfo_State.AC
     identity: p.identity,
     name: p.name,
     attributes: p.attributes ?? {},
+    kind: p.agent ? ParticipantInfo_Kind.AGENT : ParticipantInfo_Kind.STANDARD,
     state,
     tracks: sharing ? [new TrackInfo({ sid: `TR_screen_${sid}`, type: TrackType.VIDEO, name: "screen", source: TrackSource.SCREEN_SHARE, width: 1920, height: 1080 })] : [],
     joinedAt: BigInt(Math.floor(Date.now() / 1000)),

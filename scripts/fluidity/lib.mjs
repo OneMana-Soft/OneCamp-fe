@@ -15,6 +15,7 @@
 //     PUBLISH going out; the collaboration socket passes sign-in and the
 //     first sync request out and drops edits and presence.
 import { readFileSync } from "node:fs"
+import os from "node:os"
 import { gzipSync } from "node:zlib"
 
 export const FE = "https://onecamp.onemana.dev"
@@ -777,23 +778,68 @@ const cpuList = (spec) =>
       return Number.isFinite(b) ? Array.from({ length: b - a + 1 }, (_, i) => a + i) : Number.isFinite(a) ? [a] : []
     })
 
+/** A file under /sys or /proc as a number, or null where it isn't there. */
+const sysNumber = (path) => {
+  try {
+    const n = Number(readFileSync(path, "utf8"))
+    return Number.isFinite(n) ? n : null
+  } catch {
+    return null
+  }
+}
+/** The host's CPUs, all of them (not the slot's, nor Node's os.cpus(), which heavy.sh sizes to the slot). */
+const hostCpus = () => {
+  try {
+    return cpuList(readFileSync("/sys/devices/system/cpu/online", "utf8").trim())
+  } catch {
+    return cpuList(`0-${Math.max(0, os.cpus().length - 1)}`)
+  }
+}
+/**
+ * The host's fastest CPUs: those whose top clock (cpuinfo_max_freq) is within
+ * a tenth of the highest any CPU reaches. Every CPU on a host whose cores are
+ * all alike (all top clocks equal, or none readable: the SR650's Xeons, with
+ * no cpufreq driver); on a hybrid one only the fast cores (the laptop's i9:
+ * P-cores 0-15 at 5.2-5.4 GHz, its favoured cores the higher; E-cores 16-31 at
+ * 3.9 GHz). Read once.
+ */
+let fastest = null
+const fastestCpus = () => {
+  if (fastest) return fastest
+  const all = hostCpus()
+  const top = new Map(all.map((c) => [c, sysNumber(`/sys/devices/system/cpu/cpu${c}/cpufreq/cpuinfo_max_freq`)]))
+  const known = [...top.values()].filter((f) => f != null)
+  const max = known.length ? Math.max(...known) : null
+  fastest = new Set(max == null || known.every((f) => f === max) ? all : all.filter((c) => top.get(c) != null && top.get(c) >= max * 0.9))
+  return fastest
+}
+
 /**
  * What the CPUs are doing now, for every run's record: the mean clock of the
- * CPUs this process may use (MHz) and the package's temperature (°C), so a
- * run slowed by heat or a power limit shows in the data. The machine's P-cores
- * are CPUs 0-15 (to 5.4 GHz), its E-cores 16-31 (to 3.9 GHz).
+ * CPUs this process may use (MHz; /proc/cpuinfo's where cpufreq isn't there)
+ * and the package's temperature (°C), so a run slowed by heat or a power limit
+ * shows in the data. pcore: every CPU this process may use is among the
+ * host's fastest (fastestCpus), so its timings compare with another run's.
  */
 export function cpuState() {
   const cpus = cpuList(cpusAllowed())
   let sum = 0
   let n = 0
+  let info = null
   for (const c of cpus) {
-    try {
-      sum += Number(readFileSync(`/sys/devices/system/cpu/cpu${c}/cpufreq/scaling_cur_freq`, "utf8")) / 1000
-      n++
-    } catch {
-      /* not readable here */
+    let mhz = sysNumber(`/sys/devices/system/cpu/cpu${c}/cpufreq/scaling_cur_freq`)
+    if (mhz != null) mhz /= 1000
+    else {
+      try {
+        info ??= Object.fromEntries(readFileSync("/proc/cpuinfo", "utf8").split("\n\n").map((b) => [Number(/^processor\s*:\s*(\d+)/m.exec(b)?.[1]), Number(/^cpu MHz\s*:\s*([\d.]+)/m.exec(b)?.[1])]))
+      } catch {
+        info = {}
+      }
+      mhz = Number.isFinite(info[c]) ? info[c] : null
     }
+    if (mhz == null) continue
+    sum += mhz
+    n++
   }
   let tempC = null
   for (let z = 0; z < 8; z++) {
@@ -806,10 +852,15 @@ export function cpuState() {
       break
     }
   }
-  return { mhz: n ? Math.round(sum / n) : null, tempC, pcore: cpus.length > 0 && cpus.every((c) => c < 16) }
+  const fast = fastestCpus()
+  return { mhz: n ? Math.round(sum / n) : null, tempC, pcore: cpus.length > 0 && cpus.every((c) => fast.has(c)) }
 }
-/** Load above this marks a run as taken on a busy machine (the brief's hygiene rule). */
-export const BUSY_LOAD = 16
+/**
+ * Load above this marks a run as taken on a busy machine (the brief's hygiene
+ * rule): half the host's CPUs, so 16 on the laptop's 32 threads and 28 on the
+ * SR650's 56.
+ */
+export const BUSY_LOAD = Math.max(1, Math.floor(hostCpus().length / 2))
 
 /**
  * A wheel's scroll, through the browser's own gesture (DevTools'

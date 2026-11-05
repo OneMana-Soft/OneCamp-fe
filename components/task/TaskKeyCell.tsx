@@ -1,17 +1,14 @@
 "use client"
 
-import { Suspense } from "react"
 import type { TaskInfoInterface } from "@/types/task"
-import { lazyPiece } from "@/lib/lazy/lazyPiece"
-
-const TaskTypeGlyph = lazyPiece(() => import("@/components/task/TaskTypeGlyph"))
+import TypeGlyphOnDemand from "@/components/task/TypeGlyphOnDemand"
 
 /** A task's type glyph, in a slot kept for one, and its key, --key-w wide (STEP4 #8). */
 export function TaskKeyCell({ task }: { task: TaskInfoInterface }) {
   const type = task.task_work_type
   return (
     <span data-task-key="" className="flex shrink-0 items-center gap-1 text-meta font-[510] tabular-nums text-ink-3">
-      <span className="flex size-3.5">{type && <Suspense><TaskTypeGlyph type={type} /></Suspense>}</span>
+      <span className="flex size-3.5">{type && <TypeGlyphOnDemand type={type} />}</span>
       <span className="w-[var(--key-w)] whitespace-nowrap">{task.task_key}</span>
     </span>
   )

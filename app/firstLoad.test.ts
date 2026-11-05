@@ -199,6 +199,21 @@ describe("a project's first screen", () => {
     const whole = walk(entries).files as Map<string, string | null>
     expect(chainOf(whole, PLAN_CHIPS_CORE_PATH.file)).toBe("hooks/useFetch.ts <- hooks/useProjectMembers.ts <- components/project/ProjectPlanChips.tsx")
   })
+
+  // The legal holds card (gcal-new-audit-retention H2) is a new lazy chunk on the admin page. The page hands it its
+  // client (it confirms a save in place, with the settings rows' own tick), so the card itself reaches no shared core (LEAD-RULES, 30 Oct 00:13). ONE path in, the
+  // settings design system's own: settingsSection and the error state say a failed read through lib/http/loadFailure,
+  // which reads hooks/use-toast, as every admin card's does (RetentionCard's among them). Every other path is refused.
+  const HOLDS_CORE_PATH = { file: "hooks/use-toast.ts", importer: "lib/http/loadFailure.ts" }
+  it("keeps the legal holds card off the shared core: the admin page hands it its client", () => {
+    const allowed = (file: string, importer: string) => file === HOLDS_CORE_PATH.file && importer === HOLDS_CORE_PATH.importer
+    const { files, packages } = walk(["components/admin/LegalHoldsCard.tsx"], { follow: (file: string, importer: string) => !allowed(file, importer) }) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(files.has("lib/admin/legalHolds.ts")).toBe(true)
+    expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
+    const whole = walk(["components/admin/LegalHoldsCard.tsx"]).files as Map<string, string | null>
+    expect(chainOf(whole, HOLDS_CORE_PATH.file).startsWith("hooks/use-toast.ts <- lib/http/loadFailure.ts <- ")).toBe(true)
+  })
 })
 
 // The calendar's first screen (calendar programme A0; PM-3, CAL13): the grid
@@ -394,6 +409,11 @@ const TABLE_LAZY = [
   "lib/tables/tableKeys.ts",
   "components/table/tablePalette.ts",
   "lib/tables/cellsWrite.ts",
+  // V-415: Radix's popover comes with a menu's first hover, focus or open
+  // (components/ui/popoverOnDemand), not with the grid.
+  "components/ui/popover.tsx",
+  // and so does the on-demand popover's content, which holds Radix's.
+  "components/ui/popoverHeld.tsx",
 ]
 /**
  * G1's range piece (31 Oct 2026). A NEW lazy chunk that imports what other
@@ -766,12 +786,34 @@ describe("the projects overview's first screen", () => {
     expect(views.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
   })
 
+  // The Workload view groups by person through lib/board/groupBy. A board by
+  // type (linear-03) is the kanban's alone, so its columns and the types they
+  // read never ride into the overview through that shared grouping.
+  it("leaves a board by type to the kanban: the overview's grouping reads no work types", () => {
+    const reached = reach("app/app/project/page.tsx")
+    const kanbanOnly = ["lib/board/groupByType.ts", "lib/work/workTypes.ts"]
+    expect(kanbanOnly.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
+  })
+
   // A new chunk that reaches the shared core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13 and 20:5x).
   it("keeps the Timeline view off the shared core: the overview hands it the projects and their milestones", () => {
     const { files, packages } = walk(["components/project/ProjectsTimeline.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
     const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "components/ui/error-state.tsx", "components/ui/empty-state.tsx", "components/ui/graphics/index.ts"]
     expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
     expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/|sonner)/.test(spec))).toEqual([])
+  })
+})
+
+// A board's private mode (miro-25, 4 Nov 2026): the board's first load carries
+// only its gate (lib/board/privateMode). The notes' code and the host that wires
+// it to the canvas come once a round runs or this browser kept a round's notes.
+describe("a board's first screen", () => {
+  it("leaves private mode to a chunk of its own: only its gate comes with the canvas", () => {
+    const reached = reach("app/app/board/[board-id]/page.tsx")
+    const lazy = ["lib/board/privateNotes.ts", "components/board/privateNotesHost.tsx"]
+    expect(lazy.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
+    expect(lazy.filter((f) => !existsSync(f))).toEqual([])
+    expect(reached.has("lib/board/privateMode.ts")).toBe(true)
   })
 })
 

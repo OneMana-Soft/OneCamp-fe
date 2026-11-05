@@ -21,7 +21,7 @@ import type { DocAccess } from "@/types/docAccess"
 import type { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 import { ChromeSheet } from "./chrome/Sheet"
 import { InlineError } from "./chrome/parts"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { setFacts } from "./chrome/pageFacts"
 import { useDoc } from "./chrome/useDoc"
 
@@ -79,7 +79,7 @@ export default function OwnerControl({ docId, onClose }: { docId: string; onClos
       toast({ title: displayNameOf(to) ? `${displayNameOf(to)} owns “${title}” now` : `They own “${title}” now`, description: "You still have full access." })
       onClose()
     } catch (e) {
-      setError(apiErrorMessage(e, "It's still yours. Try again in a moment."))
+      setError(saidHere(e, "It's still yours. Try again in a moment."))
     } finally {
       setBusy(false)
     }

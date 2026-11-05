@@ -7,7 +7,7 @@
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { TablesGet, TablesPost } from "@/services/endpoints/tables"
-import type { DataTable, TableField, TableRow } from "@/services/tableService"
+import type { DataTable, TableField, TableRow, TableView } from "@/services/tableService"
 import type { ActorKind, ChangeKind } from "@/lib/tables/types"
 import type { SetOf, UndoOrder } from "@/lib/tables/undoOrder"
 
@@ -138,6 +138,8 @@ export interface TableTrash {
   rows: TrashRow[]
   more: boolean
   fields: TrashField[]
+  /** None from an older server. */
+  views?: (TableView & { deleted_at?: string })[] | null
 }
 
 export async function readTableTrash(tableId: string, before?: string): Promise<TableTrash> {
@@ -146,10 +148,18 @@ export async function readTableTrash(tableId: string, before?: string): Promise<
   return (res.data?.data as TableTrash) ?? { rows: [], more: false, fields: [] }
 }
 
-/** Brings rows (one change set) and fields back from a table's trash. */
-export async function restoreFromTrash(tableId: string, what: { rows?: string[]; fields?: string[] }): Promise<{ change_set?: string }> {
-  const res = await axiosInstance.post(`${TablesPost.RestoreTableTrash}/${tableId}/trash/restore`, { rows: what.rows ?? [], fields: what.fields ?? [] })
-  return (res.data?.data as { change_set?: string }) ?? {}
+/** Go's zero uuid, which a restore of fields or views alone names as its change set though it stored none (V-452). */
+const NO_SET = "00000000-0000-0000-0000-000000000000"
+
+/**
+ * Brings rows (one change set), fields and views back from a table's trash. Fields or views alone store no change set,
+ * so their answer names none: a Ctrl+Z pressed while the restore was on its way then takes the latest change, as one
+ * pressed after it would (V-369), never an undo of a set that doesn't exist.
+ */
+export async function restoreFromTrash(tableId: string, what: { rows?: string[]; fields?: string[]; views?: string[] }): Promise<{ change_set?: string }> {
+  const res = await axiosInstance.post(`${TablesPost.RestoreTableTrash}/${tableId}/trash/restore`, what)
+  const answer = (res.data?.data as { change_set?: string }) ?? {}
+  return answer.change_set === NO_SET ? { ...answer, change_set: undefined } : answer
 }
 
 /** A deleted table, as the tables' trash lists it. */

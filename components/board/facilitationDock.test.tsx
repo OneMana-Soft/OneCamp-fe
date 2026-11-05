@@ -35,15 +35,15 @@ function aBoard() {
   }
 }
 
-const OFF = { presenting: false, voting: false, timer: false }
+const OFF = { presenting: false, voting: false, timer: false, private: false }
 const VIEW = { scrollX: 0, scrollY: 0, zoom: 1, width: 800, height: 600 }
 /** A person the relay stamps an editor, from the board's member list: only they present or hold everyone. */
 const editor = (name: string) => ({ name, edit: true })
 
 describe("what a screen whose facilitation bar couldn't come is missing", () => {
   it("an editor misses the bar's own tools, whatever is on", () => {
-    expect(missingFromBar(OFF, true)).toBe("Timer, Vote and Present")
-    expect(missingFromBar({ presenting: true, voting: true, timer: true }, true)).toBe("Timer, Vote and Present")
+    expect(missingFromBar(OFF, true)).toBe("Timer, Vote, Present and Private mode")
+    expect(missingFromBar({ presenting: true, voting: true, timer: true, private: true }, true)).toBe("Timer, Vote, Present and Private mode")
   })
 
   it("a viewer misses only what's on, in the bar's order, and nothing while nothing is", () => {
@@ -52,7 +52,9 @@ describe("what a screen whose facilitation bar couldn't come is missing", () => 
     expect(missingFromBar({ ...OFF, timer: true }, false)).toBe("the timer")
     expect(missingFromBar({ ...OFF, presenting: true }, false)).toBe("who's presenting")
     expect(missingFromBar({ ...OFF, voting: true, timer: true }, false)).toBe("the vote and the timer")
-    expect(missingFromBar({ presenting: true, voting: true, timer: true }, false)).toBe("who's presenting, the vote and the timer")
+    expect(missingFromBar({ ...OFF, presenting: true, voting: true, timer: true }, false)).toBe("who's presenting, the vote and the timer")
+    expect(missingFromBar({ ...OFF, private: true }, false)).toBe("private mode")
+    expect(missingFromBar({ ...OFF, timer: true, private: true }, false)).toBe("the timer and private mode")
   })
 })
 
@@ -61,8 +63,8 @@ describe("the facilitation bar's place when its code couldn't come", () => {
     const board = aBoard()
     const retry = vi.fn()
     render(<FacilitationFailed provider={board.provider} editable retry={retry} />)
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load Timer, Vote and Present.")
-    fireEvent.click(screen.getByRole("button", { name: "Couldn't load Timer, Vote and Present. Try again" }))
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load Timer, Vote, Present and Private mode.")
+    fireEvent.click(screen.getByRole("button", { name: "Couldn't load Timer, Vote, Present and Private mode. Try again" }))
     expect(retry).toHaveBeenCalledTimes(1)
   })
 
@@ -76,6 +78,10 @@ describe("the facilitation bar's place when its code couldn't come", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load the vote and the timer.")
     board.set("voting", null)
     board.set("timer", null)
+    expect(container).toBeEmptyDOMElement()
+    board.set("private", { id: "p1", byId: "lee", byName: "Lee", startedAt: 1 })
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load private mode.")
+    board.set("private", null)
     expect(container).toBeEmptyDOMElement()
   })
 
@@ -150,7 +156,7 @@ describe("the one reader of what's on", () => {
     expect(timerIn(shared)).toEqual(timer)
   })
 
-  it("is what useFacilitationOn says, live: presenting, a round (ended too) and a timer, and nothing once they're gone", () => {
+  it("is what useFacilitationOn says, live: presenting, a round (ended too), a timer and private mode, and nothing once they're gone", () => {
     const b = aBoard()
     const { result } = renderHook(() => useFacilitationOn(b.provider))
     expect(result.current).toEqual(OFF)
@@ -159,10 +165,12 @@ describe("the one reader of what's on", () => {
     b.state(4, { user: editor("Ann"), presenting: { userId: "ann", name: "Ann", view: VIEW } })
     b.set("voting", { id: "r1", perPerson: 3, byId: "lee", byName: "Lee", closedAt: 5 })
     b.set("timer", { endsAt: 1_000, durationMs: 60_000, byName: "Lee" })
-    expect(result.current).toEqual({ presenting: true, voting: true, timer: true })
+    b.set("private", { id: "p1", byId: "lee", byName: "Lee", startedAt: 1 })
+    expect(result.current).toEqual({ presenting: true, voting: true, timer: true, private: true })
     b.state(4, { presenting: null })
     b.set("voting", null)
     b.set("timer", null)
+    b.set("private", null)
     expect(result.current).toEqual(OFF)
   })
 })

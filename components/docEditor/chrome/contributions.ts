@@ -13,8 +13,8 @@
 // and the Undo toast went with it (N32 under load: the chunk was in at 1.25 s,
 // Delete was answered at 1.62 s, the guard took over at 1.73 s).
 
-import { ArrowRightToLine, Copy, Crown, Lock, SlidersHorizontal, Star, Trash2 } from "@/lib/icons"
-import { registerAction, registerDialog } from "@/components/docEditor/registry/registry"
+import { ArrowRightToLine, Copy, Crown, Lock, ShieldCheck, SlidersHorizontal, Star, Trash2 } from "@/lib/icons"
+import { registerAction, registerDialog, registerSlot } from "@/components/docEditor/registry/registry"
 import type { ActionContext } from "@/components/docEditor/registry/types"
 import { factsOf } from "./pageFacts"
 
@@ -54,6 +54,20 @@ export function offerPageActions() {
     isEnabled: (c) => c.canEdit,
     run: open("doc.lock"),
   })
+  // miro-44 L: a sensitivity label, put on by anyone who can edit the doc (components/labels): its chip beside the
+  // title, offered here with the action, off the first load of every editor's route.
+  registerSlot({ slot: "titleChips", id: "l.label", edition: both, load: () => import("@/components/labels/docLabelChip") })
+  registerAction({
+    id: "doc.label",
+    label: "Label…",
+    icon: ShieldCheck,
+    group: "view",
+    order: 55,
+    surfaces: surfaces(),
+    edition: both,
+    isEnabled: (c) => c.canEdit,
+    run: open("doc.label"),
+  })
   registerAction({ id: "doc.duplicate", label: "Duplicate", icon: Copy, group: "doc", order: 30, surfaces: surfaces(), edition: both, run: run("duplicate") })
   registerAction({
     id: "doc.moveTo",
@@ -92,6 +106,7 @@ export function offerPageActions() {
 
   registerDialog({ id: "doc.moveTo", edition: both, load: () => import("../MoveToDialog") })
   registerDialog({ id: "doc.lock", edition: both, load: () => import("../LockControl") })
+  registerDialog({ id: "doc.label", edition: both, load: () => import("@/components/labels/docLabel") })
   registerDialog({ id: "doc.transfer", edition: both, load: () => import("../OwnerControl") })
   registerDialog({ id: "doc.customize", edition: both, load: () => import("../CustomizePage") })
 }

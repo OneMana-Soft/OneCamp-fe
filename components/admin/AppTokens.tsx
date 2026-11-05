@@ -13,7 +13,7 @@ import { RevealCard } from "@/components/admin/revealCard"
 import { ScopeChecklist, tokenDates, useOneTimeSecret } from "@/components/tokens/tokenParts"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Key, Loader2, Plus, RefreshCw, Trash2 } from "@/lib/icons"
 import { scopeLabel } from "@/services/apiTokenService"
@@ -62,7 +62,7 @@ export function AppTokens({ appId, identity, tokens, onChanged }: { appId: strin
           setRotated({ name: t.name, secret })
           onChanged()
         } catch (e) {
-          toast({ title: `Couldn't rotate "${t.name}"`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+          toast({ title: `Couldn't rotate "${t.name}"`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
           setBusy(null)
         }
@@ -82,7 +82,7 @@ export function AppTokens({ appId, identity, tokens, onChanged }: { appId: strin
           toast({ title: "Token revoked", tone: "success" })
           onChanged()
         } catch (e) {
-          toast({ title: `Couldn't revoke "${t.name}"`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+          toast({ title: `Couldn't revoke "${t.name}"`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
           setBusy(null)
         }
@@ -202,7 +202,7 @@ function AppTokenForm({ appId, identity, onCreated, onDone }: { appId: string; i
       once.setSecret(made.plaintext)
       onCreated()
     } catch (e) {
-      setProblem(`Couldn't make the token. ${apiErrorMessage(e, "Try again in a moment.")}`)
+      setProblem(`Couldn't make the token. ${saidHere(e, "Try again in a moment.")}`)
     } finally {
       setSaving(false)
     }

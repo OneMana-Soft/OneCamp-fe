@@ -32,6 +32,18 @@ const EmbedSlot = React.memo(function EmbedSlot({ link, view: View, place, point
 })
 
 /**
+ * "?" on the canvas is Excalidraw's Help, the list the board's More menu opens as "Keyboard shortcuts". The app's own
+ * list (components/shortcuts/ShortcutsDialog) opens on "?" too, unless something took the key first, and it lies on
+ * the same modal layer (V-491), so it was drawn over the Help. Excalidraw's handler is on its container, inside this
+ * one, so the Help is open when the key gets here: the key is marked taken, and one list opens per "?". A "?" typed
+ * into a field is left alone; the app's list never opens there.
+ */
+function takeHelpKey(e: React.KeyboardEvent) {
+  const t = e.target as HTMLElement
+  if (e.key === "?" && !t.isContentEditable && !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) e.preventDefault()
+}
+
+/**
  * Excalidraw as every board draws it (the member's canvas and the guest's
  * viewer load this, never Excalidraw alone): it comes with Excalidraw's own
  * code, a chunk the board loads when it opens, so cards add nothing to the
@@ -160,7 +172,7 @@ export default function BoardExcalidraw({
   )
 
   return (
-    <div ref={wrapRef} className="contents" onDropCapture={handleDrop}>
+    <div ref={wrapRef} className="contents" onDropCapture={handleDrop} onKeyDown={takeHelpKey}>
       <Excalidraw
         {...props}
         excalidrawAPI={handleApi}

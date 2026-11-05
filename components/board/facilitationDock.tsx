@@ -9,6 +9,7 @@ import { useMedia } from "@/context/MediaQueryContext"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { BoardTimer, BoardVoting } from "@/lib/board/facilitation"
 import { presentersIn } from "@/lib/board/presenting"
+import { PRIVATE_KEY } from "@/lib/board/privateMode"
 
 /**
  * Where the facilitation bar docks, and the one surface it is drawn on. The bar (boardFacilitation) is a
@@ -51,6 +52,7 @@ export interface FacilitationOn {
   presenting: boolean
   voting: boolean
   timer: boolean
+  private: boolean
 }
 
 // ---- The one reader -------------------------------------------------------
@@ -74,11 +76,12 @@ export const timerIn = (shared: YMap<unknown>): BoardTimer | null => (shared.get
 const PRESENTING = 1
 const VOTING = 2
 const TIMER = 4
+const PRIVATE = 8
 
 /** What's on, as bits (a stable snapshot), through the one reader. */
 function onNow(provider: HocuspocusProvider): number {
   const shared = facilitationOf(provider.document)
-  return (presentersIn(provider.awareness).length > 0 ? PRESENTING : 0) | (roundIn(shared) ? VOTING : 0) | (timerIn(shared) ? TIMER : 0)
+  return (presentersIn(provider.awareness).length > 0 ? PRESENTING : 0) | (roundIn(shared) ? VOTING : 0) | (timerIn(shared) ? TIMER : 0) | (shared.get(PRIVATE_KEY) ? PRIVATE : 0)
 }
 
 /** What's on in the board's facilitation, live, without the bar's code. */
@@ -97,7 +100,7 @@ export function useFacilitationOn(provider: HocuspocusProvider): FacilitationOn 
     [provider],
   )
   const bits = React.useSyncExternalStore(subscribe, () => onNow(provider), () => 0)
-  return { presenting: (bits & PRESENTING) > 0, voting: (bits & VOTING) > 0, timer: (bits & TIMER) > 0 }
+  return { presenting: (bits & PRESENTING) > 0, voting: (bits & VOTING) > 0, timer: (bits & TIMER) > 0, private: (bits & PRIVATE) > 0 }
 }
 
 /**
@@ -106,8 +109,8 @@ export function useFacilitationOn(provider: HocuspocusProvider): FacilitationOn 
  * while nothing is (main and design review, 29 Oct).
  */
 export function missingFromBar(on: FacilitationOn, editable: boolean): string | null {
-  if (editable) return "Timer, Vote and Present"
-  const parts = [on.presenting && "who's presenting", on.voting && "the vote", on.timer && "the timer"].filter((part): part is string => !!part)
+  if (editable) return "Timer, Vote, Present and Private mode"
+  const parts = [on.presenting && "who's presenting", on.voting && "the vote", on.timer && "the timer", on.private && "private mode"].filter((part): part is string => !!part)
   if (parts.length === 0) return null
   return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`
 }

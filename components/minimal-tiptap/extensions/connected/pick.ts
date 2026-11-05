@@ -3,7 +3,7 @@ import type { DocCommandBus } from "@/components/docEditor/registry/types"
 
 /**
  * Asking the doc's pickers for a choice (docs C1): a project, to make a task
- * in or to show the tasks or board of, or a page to link. The command that
+ * in or to show the tasks or board of, a page to link, or a whiteboard to show (miro-34). The command that
  * asks waits for the answer; the dialog reads the question as it opens
  * (useHandoff: peekPick, then releasePick once it is shown) and answers
  * once, with null when it closes without a choice.
@@ -19,9 +19,10 @@ export type ProjectPurpose = "task" | "tasks" | "board"
 
 export const PICK_PROJECT = "connected.pickProject"
 export const PICK_PAGE = "connected.pickPage"
+export const PICK_BOARD = "connected.pickBoard"
 
 interface Question {
-  dialog: typeof PICK_PROJECT | typeof PICK_PAGE
+  dialog: typeof PICK_PROJECT | typeof PICK_PAGE | typeof PICK_BOARD
   purpose?: ProjectPurpose
   answer(p: Picked | null): void
 }
@@ -41,6 +42,9 @@ function ask(bus: DocCommandBus | undefined, dialog: Question["dialog"], purpose
 export const pickProject = (bus: DocCommandBus | undefined, purpose: ProjectPurpose) => ask(bus, PICK_PROJECT, purpose)
 
 export const pickPage = (bus: DocCommandBus | undefined) => ask(bus, PICK_PAGE)
+
+/** Which whiteboard (miro-34): any board the person can open. */
+export const pickBoard = (bus: DocCommandBus | undefined) => ask(bus, PICK_BOARD)
 
 /** The question a picker dialog answers, as it opens. */
 export function peekPick(dialog: Question["dialog"]): Question | null {

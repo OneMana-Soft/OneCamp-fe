@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CountTick } from "@/components/ui/CountTick"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import TaskTypeGlyph from "@/components/task/TypeGlyphOnDemand"
 import { LabelChip } from "@/components/ui/chip"
 import { DueLabel } from "@/components/task/DueLabel"
 import { TaskCheck, TaskTitle } from "@/components/task/TaskCheck"
@@ -224,6 +225,8 @@ export function GroupedTaskList({
   }
 
   const keyW = keyWidth(tasks)
+  // Types without keys keep the slot (V-459).
+  const typed = tasks.some((t) => t.task_work_type)
   const list = (
     <div ref={box} data-grouped-list="" data-task-sequence="" aria-label="Tasks" className="relative" style={keyW ? ({ "--key-w": `${keyW}ch` } as React.CSSProperties) : undefined}>
       {groups.map((g) => {
@@ -263,7 +266,7 @@ export function GroupedTaskList({
                   <TaskRow
                     key={t.task_uuid}
                     task={t}
-                    keyed={keyW > 0}
+                    keyed={keyW > 0 || typed}
                     options={options}
                     props={props}
                     editable={canEdit(t)}
@@ -324,6 +327,8 @@ function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: Ta
           <StatusGlyph status={statusKindOf(group.status)} hue={group.status.hue} />
         ) : group.projectId ? (
           <ProjectTile id={group.projectId} size={16} />
+        ) : group.workType ? (
+          <TaskTypeGlyph type={group.workType} className="size-4 text-ink-2" decorative />
         ) : group.when === "today" ? (
           <span className="hue-sun inline-flex size-4 items-center justify-center rounded-[5px] bg-hue-tint text-hue">
             <Sun className="size-2.5" aria-hidden="true" />

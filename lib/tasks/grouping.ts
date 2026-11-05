@@ -12,20 +12,24 @@
  *   priority  Urgent, High, Medium, Low, No priority.
  *   project   by project, in the order they first appear.
  *   assignee  by person, then Unassigned.
+ *   type      by the task's type (linear-03): a built-in one (Bug) is one
+ *             group across projects; plain work is Task's; built-ins first.
  *   none      one group.
  */
 import { isClosedStatus, statusOptionOf, statusOptions, type StatusOption } from "@/lib/taskStatus"
-import type { TaskInfoInterface } from "@/types/task"
+import type { TaskInfoInterface, TaskWorkType } from "@/types/task"
 import { displayNameOf } from "@/lib/personName"
 import { dueDateOf } from "@/components/task/DueLabel"
+import { PLAIN_TASK, compareTypes, typeKey, typeOf } from "@/lib/work/workTypes"
 
-export type Grouping = "status" | "when" | "priority" | "project" | "assignee" | "none"
+export type Grouping = "status" | "when" | "priority" | "project" | "assignee" | "type" | "none"
 
 export const GROUPINGS: { value: Grouping; label: string }[] = [
   { value: "status", label: "Status" },
   { value: "when", label: "Due" },
   { value: "priority", label: "Priority" },
   { value: "assignee", label: "Assignee" },
+  { value: "type", label: "Type" },
   { value: "project", label: "Project" },
   { value: "none", label: "None" },
 ]
@@ -39,6 +43,8 @@ export interface TaskGroup {
   /** A when group: the due date a task added in it takes ("today", "week"); a project group: its uuid. */
   when?: "overdue" | "today" | "week" | "later" | "none" | "done"
   projectId?: string
+  /** A type group's type, for its header's glyph. */
+  workType?: TaskWorkType
   /** Finished work: shown capped, and collapsible to its header. */
   closed?: boolean
   /** Shown in danger ink (Overdue). */
@@ -78,6 +84,16 @@ const PRIORITY_GROUPS = [
   { key: "low", label: "Low" },
   { key: "", label: "No priority" },
 ]
+
+/**
+ * The groupings by a key of the task's own: its group's id ("" for none, which goes last), its label, and the
+ * label of none. A built-in type is keyed by its built-in name, so a Bug is one group across projects.
+ */
+const KEYED: Record<"project" | "assignee" | "type", { id: (t: TaskInfoInterface) => string; label: (t: TaskInfoInterface) => string; none: string }> = {
+  project: { id: (t) => t.task_project?.project_uuid ?? "", label: (t) => t.task_project?.project_name || "No project", none: "No project" },
+  assignee: { id: (t) => t.task_assignee?.user_uuid ?? "", label: (t) => displayNameOf(t.task_assignee) || "Unassigned", none: "Unassigned" },
+  type: { id: (t) => typeKey(t.task_work_type), label: (t) => typeOf(t.task_work_type).name, none: PLAIN_TASK.name },
+}
 
 /**
  * The groups for tasks. `pinned` holds tasks in the group they were in for a
@@ -130,16 +146,25 @@ export function groupTasks(
     }
     return groups.filter((g) => g.tasks.length > 0)
   }
-  if (by === "project" || by === "assignee") {
+  if (by === "project" || by === "assignee" || by === "type") {
+    const keyed = KEYED[by]
     const groups = new Map<string, TaskGroup>()
     for (const t of tasks) {
       if (t.task_status === "canceled") continue
-      const id = by === "project" ? t.task_project?.project_uuid ?? "" : t.task_assignee?.user_uuid ?? ""
-      const label = by === "project" ? t.task_project?.project_name || "No project" : displayNameOf(t.task_assignee) || "Unassigned"
-      if (!groups.has(id)) groups.set(id, { key: `${by}:${id}`, label: id ? label : by === "project" ? "No project" : "Unassigned", tasks: [], projectId: by === "project" ? id : undefined })
+      const id = keyed.id(t)
+      if (!groups.has(id))
+        groups.set(id, {
+          key: `${by}:${id}`,
+          label: id ? keyed.label(t) : keyed.none,
+          tasks: [],
+          projectId: by === "project" ? id : undefined,
+          workType: by === "type" ? typeOf(t.task_work_type) : undefined,
+        })
       groups.get(id)!.tasks.push(t)
     }
     const out = [...groups.values()]
+    // Types in their own order: the built-in ones, then the project's.
+    if (by === "type") return out.sort((a, b) => compareTypes(a.workType!, b.workType!))
     // Nobody's tasks last.
     return [...out.filter((g) => !g.key.endsWith(":")), ...out.filter((g) => g.key.endsWith(":"))]
   }

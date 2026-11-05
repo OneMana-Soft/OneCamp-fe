@@ -54,6 +54,10 @@ export function connectedLinkOf(type: string, attrs: Record<string, unknown> | n
       const id = connectedId(a.projectId)
       return { path: id ? '/app/project/' + id : '', words: type === 'taskListEmbed' ? 'Tasks' : 'Board' }
     }
+    case 'whiteboardEmbed': {
+      const id = connectedId(a.boardId)
+      return { path: id ? '/app/board/' + id : '', words: 'Whiteboard' }
+    }
   }
   return { path: '', words: '' }
 }

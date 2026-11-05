@@ -226,7 +226,7 @@ export const TaskListTask = React.memo(function TaskListTask({
           </span>
           <span className="flex min-w-0 items-center gap-2 text-2xs text-ink-3">
             <TaskPriorityCell priority={taskInfo.task_priority} label="tip" size={14} />
-            {taskInfo.task_key && (
+            {(taskInfo.task_key || taskInfo.task_work_type) && (
               <span data-task-key="" className="inline-flex shrink-0 items-center gap-1 font-[510] tabular-nums">
                 {taskInfo.task_work_type && (
                   <Suspense fallback={<span className="size-3" />}>

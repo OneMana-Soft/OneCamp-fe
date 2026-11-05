@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { Report } from "@/lib/reports"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+pinTestClock()
 
 const report: Report = {
   weeks: ["2026-09-28", "2026-10-05"],
@@ -35,12 +38,19 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "Asia/Kolkata" }))
+// The address a report was opened from (B9-b1): none, unless a test sets one.
+let address = new URLSearchParams()
+const replace = vi.fn()
+vi.mock("next/navigation", () => ({ useSearchParams: () => address, useRouter: () => ({ replace }) }))
 const download = vi.fn(() => true)
 vi.mock("@/lib/utils/file/downloadTextFile", () => ({ downloadTextFile: (...a: unknown[]) => download(...(a as [])) }))
 
 const { ReportsView } = await import("@/components/reports/ReportsView")
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  address = new URLSearchParams()
+})
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -78,6 +88,21 @@ describe("ReportsView", () => {
     expect(screen.getByText("Nobody")).toBeTruthy()
     expect(screen.getByRole("img", { name: "3 to do, 2 in progress, 1 in review" })).toBeTruthy()
     expect(screen.getByText("High")).toBeTruthy()
+  })
+
+  it("opened from a list or board view, asks for that view's project and filters, says so, and lets it go (B9-b1)", () => {
+    address = new URLSearchParams({ view: "reports", projects: "p1", filters: '[{"id":"task_priority","value":["high"]}]', name: "High work" })
+    render(<ReportsView />)
+    expect(asked.filter(Boolean)[0]).toBe("/project/report?tz=Asia%2FKolkata&weeks=12&projects=p1&filters=%5B%7B%22id%22%3A%22task_priority%22%2C%22value%22%3A%5B%22high%22%5D%7D%5D")
+    fireEvent.click(screen.getByRole("button", { name: "Show all work, not only High work" }))
+    expect(replace).toHaveBeenCalledWith("/app/project?view=reports")
+  })
+
+  it("names a view never saved by its project, and puts that project in the picker (B9-b1)", () => {
+    address = new URLSearchParams({ view: "reports", projects: "q4", filters: '[{"id":"task_priority","value":["high"]}]' })
+    render(<ReportsView />)
+    expect(screen.getByRole("button", { name: "Show all work, not only Q4 launch, filtered" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /^Projects: Q4 launch/ })).toBeTruthy()
   })
 
   it("asks for the weeks and zone it shows, and downloads what it shows", () => {
@@ -139,5 +164,34 @@ describe("ReportsView", () => {
     answer = { data: { data: { ...report, done: [0, 0], added: [0, 0] } } }
     const { container } = render(<ReportsView />)
     expect(container.querySelector("[data-chart-empty]")!.textContent).toBe("Nothing done or added in these 12 weeks.")
+  })
+
+  it("draws how long work takes from a chunk of its own once the report is in, and its rows join the CSV (B9-a)", async () => {
+    const s = (n: number, p50: number) => ({ n, p25: p50, p50, p85: p50, p95: p50 })
+    const insights = {
+      cycle: s(1, 30),
+      lead: s(1, 60),
+      triage: s(0, 0),
+      age: s(2, 100),
+      in_status: [{ status: "todo", ...s(1, 10) }],
+      points: [{ task_uuid: "t1", task_name: "Ship the page", done_at: "2026-10-06T10:00:00Z", cycle: 30, lead: 60, project_uuid: "q4" }],
+      points_capped: false,
+      slices: [{ by: "project" as const, key: "q4", name: "Q4 launch", cycle: s(1, 30), lead: s(1, 60), age: s(2, 100) }],
+    }
+    // A server before insights: no section, and the CSV as it was.
+    render(<ReportsView />)
+    expect(screen.queryByRole("region", { name: "How long work takes" })).toBeNull()
+    cleanup()
+    answer = { data: { data: { ...report, insights } } }
+    render(<ReportsView />)
+    expect(await screen.findByRole("region", { name: "How long work takes" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: /Download CSV/ }))
+    await vi.waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        "onecamp-report-2026-10-05.csv",
+        expect.stringMatching(/^Week starting,[\s\S]*Maya Chen[\s\S]*\nCycle time \(started to done\),1,30,[\s\S]*\nShip the page,2026-10-06T10:00:00Z,30,60,Q4 launch,/),
+        "text/csv",
+      ),
+    )
   })
 })

@@ -17,10 +17,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
 import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLinks } from "@/services/guestService"
 import { PublishSection } from "@/components/guest/PublishSection"
+import { useItemLabel } from "@/components/labels/labelData"
+import { LabelHeldNote } from "@/components/labels/labelHeldNote"
+import { RULE_NO_GUEST_LINKS, carriesLabels, labelHas } from "@/lib/labels/labelRules"
 import { useFetch } from "@/hooks/useFetch"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { GUEST_HUE } from "@/components/guest/guestUi"
@@ -39,6 +42,12 @@ interface GuestLinkSectionProps {
   embedded?: boolean
   /** As the share dialog's "Anyone with the link" card, with a switch (D19). */
   card?: boolean
+  /**
+   * The card's row for what a kind gives beside its link (a board's embed
+   * code, components/guest/BoardEmbedRow): given "" before a link is made,
+   * then the new link, in place of the copy hint, while it shows.
+   */
+  extra?: (link: string) => React.ReactNode
 }
 
 // A UI-only sentinel. It never travels as a ttl, because 0 already means "use
@@ -154,7 +163,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
         title: "Couldn't create the link",
         // The server says which it was: guest access off, or not allowed to
         // share this resource.
-        description: apiErrorMessage(
+        description: saidHere(
           e,
           status === 403 ? `Guest access is off for this workspace, or you can't share this ${noun}.` : "Try again in a moment.",
         ),
@@ -280,7 +289,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
                   await turnOffGuestLink(l.id)
                   await links.mutate()
                 } catch (e: unknown) {
-                  toast({ title: "Couldn't turn the link off", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                  toast({ title: "Couldn't turn the link off", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
                 } finally {
                   setTurningOff(null)
                 }
@@ -333,7 +342,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
  * a read-only field with Copy. Links already live list under it with Turn
  * off. Turning the switch off asks first, then turns every live link off.
  */
-function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionProps) {
+function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkSectionProps) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const kind = RESOURCE[resourceType]
@@ -345,16 +354,24 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
   const [copied, setCopied] = React.useState(false)
   const links = useFetch<ResourceGuestLinks>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
   const [turningOff, setTurningOff] = React.useState<string | null>(null)
+  // A board's or a doc's sensitivity label may hold guest links back (miro-44 L): the server refuses one, in its own
+  // words, and the card says so before anyone tries. Links made before the label went on still show, to turn off.
+  const labelled = carriesLabels(resourceType) ? resourceType : null
+  const label = useItemLabel(labelled ?? "board", labelled && canShare ? resourceId : "")
+  const heldBy = labelHas(label, RULE_NO_GUEST_LINKS) ? label : null
 
   if (!canShare) return null
 
   const live = links.data?.data ?? []
-  const on = open || !!link || live.length > 0
+  const held = !!heldBy && live.length === 0 && !link
+  const on = !held && (open || !!link || live.length > 0)
   const permissionOf = (c: GuestCapability) => (c === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel)
   const first = live[0]
   const status = first
     ? ["On", permissionOf(first.capability), first.expires_at ? `expires ${format(new Date(first.expires_at), "d MMM")}` : "doesn't expire", ...(live.some((l) => l.slug) ? ["published as a web page"] : [])].join(" · ")
-    : on
+    : held
+      ? `Off · Labelled ${heldBy!.name}`
+      : on
       ? "On · make the link below"
       : resourceType === "doc" && (links.data?.publish_allowed ?? true)
         ? "Off · Turn on to share a link or publish it as a web page"
@@ -373,7 +390,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
       const status = (e as { response?: { status?: number } })?.response?.status
       toast({
         title: "Couldn't create the link",
-        description: apiErrorMessage(e, status === 403 ? `Guest access is off for this workspace, or you can't share this ${kind.noun}.` : "Try again in a moment."),
+        description: saidHere(e, status === 403 ? `Guest access is off for this workspace, or you can't share this ${kind.noun}.` : "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -387,7 +404,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
       try {
         await turnOffGuestLink(id)
       } catch (e: unknown) {
-        toast({ title: "Couldn't turn the link off", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+        toast({ title: "Couldn't turn the link off", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
       }
     }
     setTurningOff(null)
@@ -425,8 +442,9 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
       label="Anyone with the link"
       description={status}
       data-guest-link-card=""
-      aside={<Switch checked={on} onCheckedChange={onSwitch} aria-label="Anyone with the link" />}
+      aside={<Switch checked={on} onCheckedChange={onSwitch} disabled={held} aria-label="Anyone with the link" />}
     >
+      {held ? <LabelHeldNote label={heldBy!} rule={RULE_NO_GUEST_LINKS} className="ml-11 mt-2" /> : null}
       {on ? (
           <div className="content-rise flex flex-col gap-2 pl-11 pt-2" data-guest-link-options="">
             {!link ? (
@@ -454,6 +472,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
                     {capLine(links.data?.max_days)}
                   </p>
                 ) : null}
+                {extra?.("")}
               </div>
             ) : (
               <>
@@ -483,7 +502,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 </div>
-                <p className="text-meta text-ink-3">Copy it now: it won&apos;t be shown again.</p>
+                {extra ? extra(link) : <p className="text-meta text-ink-3">Copy it now: it won&apos;t be shown again.</p>}
               </>
             )}
             {live.length > (link ? 1 : 0) ? (

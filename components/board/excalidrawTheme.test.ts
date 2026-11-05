@@ -96,3 +96,19 @@ describe("a card on the canvas wears OneCamp's marks, not Excalidraw's (DB-54)",
     }
   })
 })
+
+describe("the board's overlays on the app's scale", () => {
+  it("lays Excalidraw's dialogs on the app's modal layer, so a toast, a tooltip or a confirm said while one is open is drawn over it (V-491)", () => {
+    // Excalidraw portals its dialogs (Save as image, Help, a confirm) into a container on the body at a layer of its own,
+    // --zIndex-modal (1000), above the app's whole scale; a refused export's toast (800) was drawn under its dialog.
+    const lib = readFileSync("node_modules/@excalidraw/excalidraw/dist/prod/index.css", "utf8")
+    expect(lib).toContain(".excalidraw.excalidraw-modal-container{position:absolute;z-index:var(--zIndex-modal)}")
+    expect(lib).toMatch(/--zIndex-modal: ?1000/)
+    // The board's theme puts that container on the app's modal layer, by a selector that outranks the library's.
+    expect(css).toMatch(/\.excalidraw\.excalidraw\.excalidraw-modal-container \{[^}]*z-index: var\(--z-modal\);/)
+    // And the app's scale keeps every layer said over a dialog above it.
+    const scale = readFileSync("app/globals.css", "utf8")
+    const z = (name: string) => Number(scale.match(new RegExp(`--z-${name}: (\\d+);`))?.[1])
+    for (const over of ["popover", "dropdown", "confirm", "tooltip", "toast"]) expect(z(over), over).toBeGreaterThan(z("modal"))
+  })
+})

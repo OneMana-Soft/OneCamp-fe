@@ -31,6 +31,8 @@ import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templ
 import { loadConvert, stampLaidOut, type SceneElement } from "@/components/board/boardOps"
 import { STYLE_FONT, makeTasksLabel, type BoardElementLike, type BoardStyle, type SelectedNote } from "@/lib/board/notes"
 import { CAPTURE, bumped } from "@/lib/board/binding"
+import { outwardNow } from "@/lib/board/sceneOut"
+import { veiledBy } from "@/lib/board/privateNotes"
 import { TemplatePreview } from "@/components/board/templatePreview"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -183,8 +185,16 @@ export function NotesToTasksDialog({
   const { toast } = useToast()
   const [project, setProject] = React.useState("")
   const [busy, setBusy] = React.useState(false)
-  const fresh = notes.filter((n) => !n.taskUuid)
-  const already = notes.length - fresh.length
+  // Private mode (miro-25): a note held in this tab isn't the board's until its round ends, so it stays a note
+  // (lib/board/sceneOut). While a round's private mode is still coming, every note waits.
+  const held = React.useMemo(() => {
+    if (!open) return new Set<string>()
+    const out = outwardNow<{ id: string }>(api)
+    return new Set((out ?? (api.getSceneElements() as readonly { id: string }[])).filter((e) => !out || veiledBy(e)).map((e) => e.id))
+  }, [open, api])
+  const already = notes.filter((n) => n.taskUuid).length
+  const fresh = notes.filter((n) => !n.taskUuid && !held.has(n.noteId))
+  const waiting = notes.length - already - fresh.length
   // Each note is ticked when the dialog opens; one unticked (a template's
   // prompt, a duplicate) is left a note.
   const [left, setLeft] = React.useState<ReadonlySet<string>>(new Set())
@@ -243,6 +253,7 @@ export function NotesToTasksDialog({
           <DialogDescription>
             Each note becomes a task in the project you choose, and links to it from the board.
             {already > 0 && ` ${already} selected ${already === 1 ? "note is" : "notes are"} already a task and will be skipped.`}
+            {waiting > 0 && ` ${waiting} private ${waiting === 1 ? "note waits" : "notes wait"} for the round to end.`}
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-48 overflow-y-auto rounded-xl bg-sunken p-1 text-ui">

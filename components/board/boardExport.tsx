@@ -18,6 +18,9 @@ import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
+import { useItemLabel } from "@/components/labels/labelData"
+import { LabelHeldNote } from "@/components/labels/labelHeldNote"
+import { RULE_NO_EXPORT, labelHas } from "@/lib/labels/labelRules"
 import { Button } from "@/components/ui/button"
 import { addCopies, type SceneElement } from "@/components/board/boardOps"
 import { facilitationOf, roundIn } from "@/components/board/facilitationDock"
@@ -153,6 +156,10 @@ export default function BoardExport({
   const { toast } = useToast()
   const [format, setFormat] = React.useState<Format>("pdf")
   const [busy, setBusy] = React.useState(false)
+  // A label that holds exports back (miro-44 L): the server refuses the export's tell in its own words, so no file is
+  // made; the dialog says so before anyone tries.
+  const label = useItemLabel("board", boardId)
+  const held = labelHas(label, RULE_NO_EXPORT)
   const counts = React.useMemo(() => {
     const els = api.getSceneElements() as unknown as ExportElement[]
     return { frames: pdfFrames(els, shared(provider).frameOrder).length, notes: noteRows(els, null, null).length }
@@ -177,12 +184,13 @@ export default function BoardExport({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void run()} disabled={format === "csv" && counts.notes === 0} busy={busy} className="gap-1.5" data-board-export-run="">
+          <Button onClick={() => void run()} disabled={held || (format === "csv" && counts.notes === 0)} busy={busy} className="gap-1.5" data-board-export-run="">
             Export
           </Button>
         </>
       }
     >
+      {held && label ? <LabelHeldNote label={label} rule={RULE_NO_EXPORT} className="mb-3" /> : null}
       <div role="radiogroup" aria-label="Format" className="grid gap-2" data-board-export="">
         {OPTIONS.map((o) => {
           const on = format === o.id

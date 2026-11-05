@@ -4,6 +4,7 @@ import * as React from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { followUrl, setFollow, type FollowMode, type FollowState } from "@/services/followService"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 /**
  * How much the reader hears about a doc, and choosing it: one copy for the
@@ -25,7 +26,8 @@ export function useFollowChoice(docId: string) {
         try {
             // Choosing the default again forgets the choice.
             await setFollow(docId, mode === state.default ? null : mode)
-        } catch {
+        } catch (error) {
+            saysWriteFailure(error)
             toast({ title: "Couldn't change your notifications", description: "Try again in a moment.", variant: "destructive" })
         } finally {
             setSaving(false)

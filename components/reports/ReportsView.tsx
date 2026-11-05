@@ -6,6 +6,7 @@
 // Asana keeps this for its Advanced plan and monday for Pro; here it needs no
 // dashboard built first. Only projects you're in are counted.
 
+import { useRouter, useSearchParams } from "next/navigation"
 import { displayNameOf } from "@/lib/personName"
 import Link from "next/link"
 import { useEffect, useMemo } from "react"
@@ -28,7 +29,7 @@ import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { useFetch } from "@/hooks/useFetch"
 import { useStoredState } from "@/hooks/useStoredState"
-import { ChevronDown, Download } from "@/lib/icons"
+import { ChevronDown, Download, X } from "@/lib/icons"
 import {
   PRIORITY_LABEL,
   REPORT_WEEKS,
@@ -36,6 +37,8 @@ import {
   openOf,
   reportCSV,
   reportKey,
+  reportView,
+  reportViewName,
   flowChart,
   throughputChart,
   totalHours,
@@ -52,6 +55,10 @@ import { useProjectHues } from "@/lib/projectHue"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { areaHue } from "@/lib/areas"
 import { Sparkline } from "@/components/ui/graphics/Sparkline"
+import { lazyView } from "@/lib/lazy/lazyView"
+
+// How long work takes (B9-a) is a chunk of its own, drawn once the report is in: off the overview's first load.
+const Insights = lazyView(() => import("@/components/reports/ReportInsights"))
 
 const isWeeks = (v: unknown): v is number => (REPORT_WEEKS as readonly unknown[]).includes(v)
 const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
@@ -194,7 +201,11 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   const tz = useMemo(() => browserTZ(), [])
   // Asked once both remembered choices are read, not once before and once after;
   // the last report stays up while a new span or set of projects loads.
-  const key = weeksLoaded && chosenLoaded ? reportKey(tz, weeks, chosen) : ""
+  // Opened from a list or board view (B9-b1): that view's project and filters, until Clear.
+  const params = useSearchParams()
+  const router = useRouter()
+  const view = useMemo(() => (params ? reportView(params) : null), [params])
+  const key = weeksLoaded && chosenLoaded ? (view ? reportKey(tz, weeks, [view.project], view.filters) : reportKey(tz, weeks, chosen)) : ""
   const { data, isLoading, isError, mutate } = useFetch<{ data: Report }>(key, undefined, { keepPreviousData: true })
   const report = data?.data
 
@@ -205,6 +216,9 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   useEffect(() => {
     if (report && picked.length !== chosen.length) setChosen(picked)
   }, [report, picked, chosen.length, setChosen])
+  // A view's report names it, and its one project stands in the picker.
+  const viewProject = view ? available.find((p) => p.project_uuid === view.project)?.project_name : undefined
+  const viewName = view ? reportViewName(view, viewProject) : ""
   const toggle = (id: string) => setChosen(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id])
 
   // The overview's frame (components/task/workFrame): this row is where
@@ -227,9 +241,11 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       </Select>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={!report}>
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={!report || !!view}>
             <span className="sr-only">Projects: </span>
-            {picked.length === 0
+            {view
+              ? (viewProject ?? "1 project")
+              : picked.length === 0
               ? "All projects"
               : picked.length === 1
                 ? available.find((p) => p.project_uuid === picked[0])?.project_name
@@ -256,12 +272,24 @@ export function ReportsView({ compact }: { compact?: boolean }) {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+      {view && (
+        <Button variant="secondary" size="sm" className="max-w-56 gap-1 text-xs" data-report-view="" onClick={() => router.replace("/app/project?view=reports")} aria-label={`Show all work, not only ${viewName}`}>
+          <span className="truncate">Only {viewName}</span>
+          <X className="size-3.5 shrink-0" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="sm"
         className="gap-1.5 text-xs"
         disabled={!report}
-        onClick={() => report && downloadTextFile(`onecamp-report-${report.weeks[report.weeks.length - 1]}.csv`, reportCSV(report, personName), "text/csv")}
+        onClick={() => {
+          if (!report) return
+          // The Insights rows come with their section's chunk; without it (offline), the rest still downloads.
+          const save = (more: string) => downloadTextFile(`onecamp-report-${report.weeks[report.weeks.length - 1]}.csv`, reportCSV(report, personName) + more, "text/csv")
+          if (!report.insights) return save("")
+          Insights.warm().then((m) => save(m.insightsCSV(report)), () => save(""))
+        }}
       >
         <Download className="h-3.5 w-3.5" />
         Download CSV
@@ -468,6 +496,12 @@ export function ReportsView({ compact }: { compact?: boolean }) {
                 ))}
               </ul>
             </Section>
+          )}
+          {report.insights && (
+            <Insights.View
+              fallback={<Skeleton className="h-96 w-full rounded-lg" />}
+              render={(m) => <m.ReportInsights insights={report.insights!} weeks={report.weeks} compact={compact} />}
+            />
           )}
         </>
       )}

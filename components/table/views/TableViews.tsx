@@ -211,7 +211,7 @@ export function TableViews({
     current &&
     confirm({
       title: `Delete the view “${current.name}”?`,
-      description: current.owner_id ? "It's yours alone, so no one else loses it." : "It's gone for everyone who opens this table. The table and its rows stay.",
+      description: `${current.owner_id ? "It's yours alone, so no one else loses it." : "It's gone for everyone who opens this table. The table and its rows stay."} It waits in the table's trash, until you bring it back.`,
       confirmText: "Delete view",
       destructive: true,
       onConfirm: () =>

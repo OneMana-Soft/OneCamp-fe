@@ -35,7 +35,7 @@ import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
 import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { CredentialDropZone, readServiceAccount } from "@/components/admin/CredentialDropZone"
 
 /** What the current state means, in the operator's terms rather than the API's. */
@@ -119,7 +119,7 @@ const PushNotificationsCard: React.FC = () => {
             toast({ title: `Push notifications are on for ${next.project_id}`, tone: "success" })
         } catch (e) {
             // Said in the dialog, where the key is, not in a toast behind it.
-            setSaveError(apiErrorMessage(e, "The key wasn't saved. Try again in a moment."))
+            setSaveError(saidHere(e, "The key wasn't saved. Try again in a moment."))
         } finally {
             setSaving(false)
         }
@@ -148,7 +148,7 @@ const PushNotificationsCard: React.FC = () => {
                 description: "Revoke the key in the Google Cloud console too if you are rotating it.",
             })
         } catch (e) {
-            toast({ title: "Couldn't turn off push notifications", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })
+            toast({ title: "Couldn't turn off push notifications", description: saidHere(e, "Try again in a moment."), tone: "error" })
         } finally {
             setRemoving(false)
         }

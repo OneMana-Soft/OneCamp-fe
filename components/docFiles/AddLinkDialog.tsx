@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { checkLinkUrl, linkProvider, linkSite } from "@/lib/docs/docNode"
 import { isComposingKey } from "@/lib/keys/ime"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { createLink, type NodePlace } from "@/services/docFilesService"
 
 /**
@@ -44,7 +44,7 @@ export function AddLinkDialog({ place, onClose }: { place: NodePlace; onClose: (
       await createLink(link.url, name, place)
       onClose()
     } catch (e) {
-      setError(apiErrorMessage(e, "The link wasn't added. Try again in a moment."))
+      setError(saidHere(e, "The link wasn't added. Try again in a moment."))
     } finally {
       setBusy(false)
     }

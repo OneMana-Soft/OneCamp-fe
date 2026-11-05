@@ -19,7 +19,7 @@ import { stageDrop } from "./chrome/stagedDrop"
 import type { DocAncestors, DocMoveTarget, TreeNodeJSON } from "@/types/docGraph"
 import { DocIcon } from "./DocIcon"
 import { isComposingKey } from "@/lib/keys/ime"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { usePageFacts } from "./chrome/pageFacts"
 import { useDoc } from "./chrome/useDoc"
 import { useInSplitPane } from "@/hooks/useLinkTarget"
@@ -82,7 +82,7 @@ async function dropPage(dragged: string, parent: { uuid: string; title: string }
           altText="Move it back"
           onClick={() =>
             void moveDoc({ doc_uuid: dragged, ...(from ? { parent_uuid: from } : { space: "workspace" }), place: "last", access: "keep" }).catch((e) =>
-              toast({ title: "It didn't move back", description: apiErrorMessage(e, "Move it from its new place."), variant: "destructive" }),
+              toast({ title: "It didn't move back", description: saidHere(e, "Move it from its new place."), variant: "destructive" }),
             )
           }
         >
@@ -91,7 +91,7 @@ async function dropPage(dragged: string, parent: { uuid: string; title: string }
       ),
     })
   } catch (e) {
-    toast({ title: "The page didn't move", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+    toast({ title: "The page didn't move", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
   }
 }
 
@@ -197,7 +197,7 @@ function DocCrumb({ docId, title, icon, canEdit }: { docId: string; title: strin
     try {
       await renameDoc(store.dispatch, docId, next)
     } catch (e) {
-      toast({ title: "The title didn't change", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The title didn't change", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
   if (editing)

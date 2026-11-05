@@ -36,7 +36,9 @@ import { DUE_WEEK, filtersFromAddress, filtersToAddress } from "@/lib/tasks/list
 import { projectTaskListQuery } from "@/lib/tasks/listQuery"
 import { WorkState } from "@/components/task/workFrame"
 import { ErrorState } from "@/components/ui/error-state"
-import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
+import { SERVER_FILTERS_HIDDEN, useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
+import { useToast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages"
@@ -153,8 +155,8 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
         columns,
         state: {
             sorting,
-            // task_cycle only carries the cycle filter to the server.
-            columnVisibility: { ...columnVisibility, task_cycle: false },
+            // The carriers only take their filters to the server.
+            columnVisibility: { ...columnVisibility, ...SERVER_FILTERS_HIDDEN },
             columnFilters,
             globalFilter,
         },
@@ -187,19 +189,26 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
 
     const post = usePost()
     const { revalidateTaskKeys } = useTaskUpdate()
+    const { toast } = useToast()
     const addInGroup = useCallback(
         async (group: TaskGroup, name: string) => {
             // Made in the group's status, in one request: a project whose new
             // tasks start elsewhere still lands it in the group it was added
             // in, and with no network it waits as one create (lib/offline).
+            // In a group of a type it takes that type (lib/work/keysApi typeMade).
             const status = group.status?.value
-            await post.makeRequest<Record<string, unknown>, { task_uuid?: string }>({
+            const made = await post.makeRequest<Record<string, unknown>, { task_uuid?: string }>({
                 apiEndpoint: PostEndpointUrl.CreateTask,
                 payload: { task_name: name, task_project_uuid: projectId, ...(status ? { task_status: status } : {}) },
             })
+            const typeId = group.workType?.id
+            // keysApi comes on use: it is no part of the list's first load (app/firstLoad).
+            if (typeId) await import("@/lib/work/keysApi").then(({ typeMade }) => typeMade(made?.task_uuid, typeId)).catch((e) =>
+                toast({ title: "Couldn't change the type", description: apiErrorMessage(e, "The task was made as a Task."), tone: "error" }),
+            )
             revalidateTaskKeys(projectId)
         },
-        [post, projectId, revalidateTaskKeys],
+        [post, projectId, revalidateTaskKeys, toast],
     )
     const [managing, setManaging] = useState(false)
     // One function for the page's life: every row takes it (F-1 #1).

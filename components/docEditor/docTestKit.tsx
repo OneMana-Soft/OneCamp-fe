@@ -116,10 +116,11 @@ export const EVERY_BLOCK: JSONContent = {
     { type: "bookmark", attrs: { href: "https://example.com/post", title: "A post", siteName: "Example" } },
     { type: "webEmbed", attrs: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } },
     { type: "fileBlock", attrs: { kind: "file", src: "https://api.example.com/doc/getDocAttachment/d/o", name: "rows.csv", size: 12 } },
-    // C1: a page, a project's tasks and board.
+    // C1: a page, a project's tasks and board; miro-34: a whiteboard.
     { type: "subpage", attrs: { docId: "0d0c1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b", title: "Launch plan" } },
     { type: "taskListEmbed", attrs: { projectId: "2f2e3c4d-5e6f-4a7b-8c1d-2e3f4a5b6c7d", show: "open" } },
     { type: "boardEmbed", attrs: { projectId: "2f2e3c4d-5e6f-4a7b-8c1d-2e3f4a5b6c7d" } },
+    { type: "whiteboardEmbed", attrs: { boardId: "4c4b5f6a-7b8c-4d9e-9f3a-4b5c6d7e8f9a" } },
     p("the end"),
   ],
 }

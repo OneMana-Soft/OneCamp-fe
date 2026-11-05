@@ -27,13 +27,18 @@
  *     collaboration server names them by their link. A call's guest reacts
  *     in the call (its reactions are the board's set).
  *     A call's guest follows the call's slides instead.
+ *   - an embed's viewer (quiet: the board in another site's frame) only
+ *     looks: as a share link's guest, with no React button and no hand.
+ *   - a whiteboard in a doc (miro-34) is a member's, and only looks too:
+ *     the member's own session (no tokenFetcher) and pictures (imageURL).
  *
  * This is a deliberately SLIM, isolated view rather than a reuse of the
  * member BoardCanvas: the member canvas depends on authenticated hooks (client
  * config, the member image pipeline, axios auth interceptors) that don't apply
  * to a guest and could trigger auth redirects. Here we only:
  *   - bind the elements map through BoardCanvas's own lib/board/binding, both ways,
- *   - resolve images through the grant-authorized guest attachment endpoint,
+ *   - resolve images through the grant-authorized guest attachment endpoint
+ *     (a member's, in a doc's whiteboard, through the address its page gives),
  *   - make no thumbnails.
  */
 
@@ -81,8 +86,19 @@ interface GuestBoardViewerProps {
   boardId: string
   /** What authorizes guest image fetches: a share link's token, or a call's board token ("" until it comes). */
   token: string
-  /** Returns a fresh short-lived guest collab JWT on every (re)connect. */
-  tokenFetcher: () => Promise<string>
+  /**
+   * Where this reader reads a picture, when they read the board as a member
+   * (a whiteboard in a doc, miro-34: the board's own route, by their access).
+   * Unset, pictures come through the guest's grant, by token. Keep it stable:
+   * a new one reads the pictures again.
+   */
+  imageURL?: (objectUuid: string) => string
+  /**
+   * Returns a fresh short-lived guest collab JWT on every (re)connect. Unset,
+   * the reader is a member (a whiteboard in a doc, miro-34): the tab's own
+   * session for the board, with the member's token, as the board's page has.
+   */
+  tokenFetcher?: () => Promise<string>
   /** The call lets this guest draw now; the collaboration server has the last word. */
   canDraw?: boolean
   /**
@@ -97,12 +113,18 @@ interface GuestBoardViewerProps {
   opensAt?: string
   /** Excalidraw's API and the board's document, once both are there (a call's stage reads the frames' order). */
   onApiReady?: (api: ExcalidrawImperativeAPI, doc: Y.Doc) => void
+  /**
+   * Looks and nothing more (an embed, in another site's frame; a doc's whiteboard): no React button
+   * and no hand, so nothing of this viewer's reaches the board's people. They
+   * still see everyone's reactions rise and follow an editor presenting.
+   */
+  quiet?: boolean
 }
 
 /** A share link's guest: no one to the board's people, so no cursor either way. */
 const NO_ONE = { id: "", name: "" }
 
-export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = false, user, theme: given, opensAt, onApiReady }: GuestBoardViewerProps) {
+export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, canDraw = false, user, theme: given, opensAt, onApiReady, quiet = false }: GuestBoardViewerProps) {
   const followed = useBoardTheme()
   const theme = given ?? followed
   const sheetMode = useSheetMode()
@@ -134,7 +156,7 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
   const { react, hand, layer: rising } = useBoardSignalsLater(live, false, synced)
   const hereKey = `guest:${documentName}`
   const control = React.useMemo<PresenceControl | null>(() => {
-    if (!live) return null
+    if (!live || quiet) return null
     // They say who they are on their first act; the collaboration server names them by their link.
     const sayWho = () => {
       if (!live.getLocalState()?.user) live.setLocalStateField("user", { id: "guest", name: "Guest" })
@@ -155,7 +177,7 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
         },
       },
     }
-  }, [live, react, hand])
+  }, [live, quiet, react, hand])
   React.useEffect(() => {
     if (!control) return
     setPresenceControl(hereKey, control)
@@ -177,10 +199,12 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
   }, [])
 
   const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "")
-  const guestAttachmentURL = React.useCallback(
-    (objectUuid: string) =>
-      `${backendBase}/guest/board-attachment/${encodeURIComponent(token)}/${encodeURIComponent(objectUuid)}`,
-    [backendBase, token],
+  // A picture's address: the reader's own (a member's), or the guest's grant by token; none while a call's guest waits for theirs.
+  const pictureURL = React.useMemo(
+    () =>
+      imageURL ??
+      (token ? (objectUuid: string) => `${backendBase}/guest/board-attachment/${encodeURIComponent(token)}/${encodeURIComponent(objectUuid)}` : null),
+    [imageURL, backendBase, token],
   )
 
   // As on the member's canvas, nothing goes on before Excalidraw's own scene,
@@ -198,7 +222,7 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
 
     const resolveFileEntries = (entries: Record<string, unknown>[]) => {
       // A call's guest's pictures wait for the board's token; the files are read again once it comes.
-      if (!token) return
+      if (!pictureURL) return
       const toAdd: { id: string; dataURL: string; mimeType: string; created: number }[] = []
       for (const meta of entries) {
         const m = meta as { id?: string; objectUuid?: string; mimeType?: string }
@@ -206,7 +230,7 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
         seenFilesRef.current.add(m.id)
         toAdd.push({
           id: m.id,
-          dataURL: guestAttachmentURL(m.objectUuid),
+          dataURL: pictureURL(m.objectUuid),
           mimeType: m.mimeType || "image/png",
           created: Date.now(),
         })
@@ -237,7 +261,7 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
       follow.stop()
       yFiles.unobserve(onFiles)
     }
-  }, [api, provider, sceneReady, guestAttachmentURL, token])
+  }, [api, provider, sceneReady, pictureURL])
 
   // A guest who may draw writes what they changed to the document, as a
   // member's canvas does; a pan or a zoom changes no element, so it writes
@@ -271,7 +295,9 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
     const tryFit = () => {
       const els = api.getSceneElements()
       if (els.length > 0) {
-        api.scrollToContent(els, { fitToContent: true, animate: false } as never)
+        // Fitted with room round it (a twentieth of the view each side) and never past 100%: fitted edge to
+        // edge, a phone's narrow stage cut the drawing at its sides.
+        api.scrollToContent(els, { fitToViewport: true, viewportZoomFactor: 0.9, maxZoom: 1, animate: false })
       } else if (attempts++ < 12) {
         timer = setTimeout(tryFit, 200)
       }

@@ -54,11 +54,11 @@ export function cellOf(target: Element): HTMLElement | null {
 /**
  * Whether the grid holds this key on target until the live cells land, and
  * presses it again once they do: a key that moves between cells, by the
- * cell's kind, and on a cell selected but shut, Enter or F2, which open it
- * (gridMoves' gridKeyDown). A key outside every cell goes by.
+ * cell's kind, and on a cell selected but shut, Enter or F2, which open it,
+ * and Tab (gridMoves' gridKeyDown). A key outside every cell goes by.
  */
 export function waitsForLiveCells(e: KeyInput, target: Element): boolean {
   if (!cellOf(target)) return false
-  if (target.hasAttribute("data-cell-box") && (e.key === "Enter" || e.key === "F2")) return true
+  if (target.hasAttribute("data-cell-box") && ["Enter", "F2", "Tab"].includes(e.key)) return true
   return movesBetweenCells(e, kindAt(target))
 }

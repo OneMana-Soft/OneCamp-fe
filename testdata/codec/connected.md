@@ -8,5 +8,7 @@ Ship it 12 Oct 2026, and remind me 20 Oct 2026.
 
 [Board](https://app.example.test/app/project/2f2e3c4d-5e6f-4a7b-8c1d-2e3f4a5b6c7d)
 
+[Whiteboard](https://app.example.test/app/board/4c4b5f6a-7b8c-4d9e-9f3a-4b5c6d7e8f9a)
+
 - [x] [Write the launch post](https://app.example.test/app/task/3a3f4d5e-6f7a-4b8c-9d2e-3f4a5b6c7d8e)
 - [ ] Book the room

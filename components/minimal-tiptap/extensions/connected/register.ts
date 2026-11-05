@@ -11,13 +11,17 @@ import { once } from "@/lib/lazy/once"
  */
 
 const chunk = once(() => import("./chunk"))
-type Part = "Subpage" | "DateMention" | "TaskListEmbed" | "BoardEmbed" | "TaskItemLink" | "PageLink" | "MentionInDoc"
+type Part = "Subpage" | "DateMention" | "TaskListEmbed" | "BoardEmbed" | "WhiteboardEmbed" | "TaskItemLink" | "PageLink" | "MentionInDoc"
 const load = (...names: Part[]) => () => chunk().then((m) => names.map((name) => m[name]))
 
-registerBlock({ id: "subpage", editors: DOC_EDITORS, edition: "both", label: "Page", load: load("Subpage"), schema: [{ kind: "node", name: "subpage", attrs: ["docId", "title"] }] })
-registerBlock({ id: "dateMention", editors: DOC_EDITORS, edition: "both", load: load("DateMention"), schema: [{ kind: "node", name: "dateMention", attrs: ["date", "reminder"] }] })
-registerBlock({ id: "taskListEmbed", editors: DOC_EDITORS, edition: "both", load: load("TaskListEmbed"), schema: [{ kind: "node", name: "taskListEmbed", attrs: ["projectId", "show"] }] })
-registerBlock({ id: "boardEmbed", editors: DOC_EDITORS, edition: "both", load: load("BoardEmbed"), schema: [{ kind: "node", name: "boardEmbed", attrs: ["projectId"] }], wide: true })
+// A node block, named as its node: the ids it keeps (miro-34's whiteboard keeps only the board's).
+const node = (name: string, part: Part, attrs: string[], more?: { label?: string; wide?: boolean }) =>
+  registerBlock({ id: name, editors: DOC_EDITORS, edition: "both", load: load(part), schema: [{ kind: "node", name, attrs }], ...more })
+node("subpage", "Subpage", ["docId", "title"], { label: "Page" })
+node("dateMention", "DateMention", ["date", "reminder"])
+node("taskListEmbed", "TaskListEmbed", ["projectId", "show"])
+node("boardEmbed", "BoardEmbed", ["projectId"], { wide: true })
+node("whiteboardEmbed", "WhiteboardEmbed", ["boardId"], { wide: true })
 registerBlock({
   id: "taskItemLink",
   editors: DOC_EDITORS,

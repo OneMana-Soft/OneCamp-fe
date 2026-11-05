@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { DataTableGrid, SelectionPart, TableKeysPart } from "@/components/table/DataTableGrid"
 import { BoardPart, CalendarPart, ChartPart, CleanupPart, FindPart, FormsPart, GalleryPart, ListPart, TimelinePart, MenusPart, PresencePart, RecordPart, RulesPart, SaveDotPart, SharePart, TrashPart, ViewsPart, warmView } from "@/components/table/lazyParts"
 import { warmCellPickers } from "@/components/table/cellPickerPart"
+import { loadPopover } from "@/components/ui/popoverOnDemand"
 import { monthOf } from "@/lib/tables/month"
 import {
   createRow,
@@ -40,7 +41,8 @@ import { usePageName } from "@/lib/utils/pageName"
 import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
 import { ToastAction } from "@/components/ui/toast"
 import { formatLocale } from "@/lib/tables/numberFormat"
-import { ViewRulesBar } from "@/components/table/ViewRulesBar"
+import { ViewRulesBar, warmRuleMenus } from "@/components/table/ViewRulesBar"
+import { warmColumnMenus } from "@/components/table/ColumnMenu"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -197,8 +199,9 @@ export default function TableDetailPage() {
   const { bundle, isLoading, isError, refresh } = held
   // Whether the reader edits the table's rows (V-170): its owner chooses; a bundle that doesn't say means they do.
   const canEdit = bundle?.can_edit ?? true
-  // A row's record, the find bar and a cell's picker are a click or a key
-  // away: their chunks load once the table is drawn and the page is idle.
+  // A row's record, the find bar, a cell's picker, a popover and the menus'
+  // insides are a click, tap or key away: their chunks load once the table is
+  // drawn and the page is idle (V-475: a tap has no hover to ask first).
   const loaded = !!bundle
   React.useEffect(() => {
     if (!loaded) return
@@ -207,6 +210,9 @@ export default function TableDetailPage() {
       void FindPart.prefetch()
       void SelectionPart.prefetch()
       warmCellPickers()
+      void loadPopover()
+      warmColumnMenus()
+      warmRuleMenus()
     }
     if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(warm)
@@ -326,11 +332,10 @@ export default function TableDetailPage() {
   const linkedLayout = linked?.type
   React.useLayoutEffect(() => void (linkedLayout && setActiveView(linkedLayout)), [linkedLayout])
 
-  // The server's windows come ruled, in the view's order: the browser applies
-  // the rules only to the rows the page holds, with the rules' own chunk,
-  // which loads beside the bundle. Until it lands, such a view draws its
-  // skeleton, never rows its rules would hide; so does one whose rules name
-  // me until the profile says who that is. A chart reads no rows here.
+  // The server's windows come ruled; the browser rules only the rows it holds,
+  // with the rules' chunk (loaded beside the bundle). Until it lands, or the
+  // profile says who "me" is for rules naming me, such a view draws its
+  // skeleton, never rows its rules would hide. A chart reads no rows here.
   const applying = RulesPart.useLoaded()
   const awaitingMe = profile.isLoading && namesMe(rules.filters)
   const ruling = !windowed && (!applying || awaitingMe) && activeView !== "chart"
@@ -431,11 +436,11 @@ export default function TableDetailPage() {
   const failedInBody = !noRows && windowed && held.failed && held.rows.length === 0
   const viewCount = failedInBody ? 0 : held.count
 
-  // What the views need held: a board, a calendar, a sort, a filter or a
-  // search looks at every row (up to 10,000; past that, "Load all"). The grid
-  // reads a page more as it nears the end of what's held. A row the address
-  // names is read on to, as far as those 10,000: past them it's said once,
-  // with "Load all" (a link to a row gone read every row of the table).
+  // What the views need held: a board, calendar, sort, filter or search looks
+  // at every row (up to 10,000, then "Load all"); the grid reads a page more
+  // near the end of what's held. A row the address names is read on to, up to
+  // 10,000, past which it says so once with "Load all" (a link to a row gone
+  // read the whole table).
   const { all: holdAll, more: holdMore } = held
   const needsAll = !windowed && (activeView === "board" || activeView === "calendar" || rules.sort.length + rules.filters.length > 0 || !!rules.groups || query.trim() !== "")
   React.useEffect(() => {
@@ -848,9 +853,9 @@ export default function TableDetailPage() {
             render={(m) => <m.SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={reload} className="ml-1" />}
           />
         </nav>
-        {bundle.can_manage || !canEdit ? null : (
-          // Rows anyone who edits them may write come back from the trash; its columns are a manager's.
-          <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted rows" onPointerEnter={() => void TrashPart.prefetch()} onFocus={() => void TrashPart.prefetch()} onClick={() => setTrashOpen(true)}>
+        {bundle.can_manage ? null : (
+          // The trash gives rows back to their editors, columns to managers, own views to anyone.
+          <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Trash" onPointerEnter={() => void TrashPart.prefetch()} onFocus={() => void TrashPart.prefetch()} onClick={() => setTrashOpen(true)}>
             <RotateCcw className="size-4" />
           </Button>
         )}
@@ -1209,7 +1214,7 @@ export default function TableDetailPage() {
         />
       ) : null}
 
-      {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TableTrash tableId={tableId} fields={fields} onClose={() => setTrashOpen(false)} onRestored={reload} />} /> : null}
+      {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TableTrash tableId={tableId} fields={fields} canEdit={canEdit} write={write} onClose={() => setTrashOpen(false)} onRestored={reload} />} /> : null}
 
       {cleaning ? (
         <CleanupPart.View

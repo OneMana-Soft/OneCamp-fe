@@ -19,6 +19,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PriorityGlyph, StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import TaskTypeGlyph from "@/components/task/TypeGlyphOnDemand"
+import { useProjectTypes } from "@/hooks/useProjectTypes"
+import { ProjectTypesState } from "@/components/task/ProjectTypesState"
+import { PLAIN_TASK } from "@/lib/work/workTypes"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { statusKindOf } from "@/components/task/taskStatusCell"
@@ -139,6 +143,14 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
   }
   const prio = valuesOf("task_priority")
   if (prio.length) chips.push({ id: "task_priority", facet: "Priority", words: prio.map((p) => PRIORITY_VALUES.find((x) => x.value === p)?.label ?? p).join(", "), glyph: <PriorityGlyph level={PRIORITY_VALUES.find((x) => x.value === prio[0])?.level ?? 0} size={14} /> })
+  // A project's types (linear-03), read once the filter opens or a type filter needs its names.
+  const kinds = valuesOf("task_work_type")
+  const [filterOpen, setFilterOpen] = React.useState(false)
+  const { types, loading: typesLoading, failed: typesFailed } = useProjectTypes(projectId, filterOpen || kinds.length > 0)
+  if (kinds.length) {
+    const first = types.find((x) => x.id === kinds[0])
+    chips.push({ id: "task_work_type", facet: "Type", words: kinds.map((v) => types.find((x) => x.id === v)?.name ?? "a type").join(", "), glyph: first ? <TaskTypeGlyph type={first} className="text-ink-2" decorative /> : undefined })
+  }
   const who = valuesOf("task_assignee_name")
   if (who.length) chips.push({ id: "task_assignee_name", facet: "Assignee", words: who.map((u) => displayNameOf(people2.find((p) => p.uid === u)) || "someone").join(", ") })
   const proj = valuesOf("task_project_name")
@@ -157,7 +169,6 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
   // "/" opens search; F opens Filter; C makes a task (when the list has the keys).
   const [searching, setSearching] = React.useState(!!state.globalFilter)
   const searchRef = React.useRef<HTMLInputElement>(null)
-  const [filterOpen, setFilterOpen] = React.useState(false)
   const newTask = React.useCallback(
     (e?: { altKey: boolean }) => dispatch(openUI({ key: "createTask", data: { projectId, assignToMe: !projectId, pickTemplate: e?.altKey } })),
     [dispatch, projectId],
@@ -228,6 +239,17 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
               </DropdownMenuCheckboxItem>
             ))}
           </FacetSub>
+          {projectId && (
+            <FacetSub label="Type" glyph={<TaskTypeGlyph type={PLAIN_TASK} className="text-ink-3" decorative />}>
+              <ProjectTypesState loading={typesLoading} failed={typesFailed} />
+              {types.map((k) => (
+                <DropdownMenuCheckboxItem key={k.id} checked={kinds.includes(k.id)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggle("task_work_type", k.id)} className="h-[30px] gap-2 text-sm">
+                  <TaskTypeGlyph type={k} className="text-ink-2" decorative />
+                  <span className="truncate">{k.name}</span>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </FacetSub>
+          )}
           {projectId ? (
             <FacetSub label="Assignee" glyph={<Users className="size-3.5 text-ink-3" />}>
               {people2.map((p) => (
@@ -311,7 +333,10 @@ function FacetSub({ label, glyph, children }: { label: string; glyph: React.Reac
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger className="h-[30px] gap-2 text-sm">
-        <span className="inline-flex size-4 items-center justify-center">{glyph}</span>
+        {/* The facet is named by its label; its glyph is for the eye. */}
+        <span aria-hidden="true" className="inline-flex size-4 items-center justify-center">
+          {glyph}
+        </span>
         {label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="max-h-80 w-60 overflow-y-auto p-1">{children}</DropdownMenuSubContent>

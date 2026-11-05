@@ -124,6 +124,37 @@ const cursorsDrawn = () =>
     return { name: el.dataset.cursor, at: el.style.transform, fill: tag?.style.background, text: tag?.style.color }
   })
 
+// A whiteboard in a doc (miro-34) shows a member the board through this view.
+// Its pictures come by the member's own access, as on the board's page; a
+// guest's by the share link's or the call's token, once it is there.
+describe("the board's pictures", () => {
+  const withPicture = () => {
+    const doc = new Y.Doc()
+    doc.getMap("files").set("f1", { id: "f1", objectUuid: "o1", mimeType: "image/png" })
+    collab = { provider: { document: doc }, synced: true, readOnly: true }
+  }
+  const picturesAdded = () => api.addFiles.mock.calls.flatMap(([files]) => (files as { id: string; dataURL: string }[]).map((f) => `${f.id} ${f.dataURL}`))
+
+  it("come to a member by the address the reader's page gives, with no token", async () => {
+    api.addFiles.mockClear()
+    withPicture()
+    render(viewer({ token: "", imageURL: (objectUuid) => `/board/getBoardAttachment/b1/${objectUuid}` }))
+    await waitFor(() => expect(picturesAdded()).toEqual(["f1 /board/getBoardAttachment/b1/o1"]))
+  })
+
+  it("come to a guest through the guest's grant, and wait for a call's guest's token", async () => {
+    api.addFiles.mockClear()
+    withPicture()
+    const { unmount } = render(viewer({ token: "" }))
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
+    expect(picturesAdded()).toEqual([])
+    unmount()
+    withPicture()
+    render(viewer())
+    await waitFor(() => expect(picturesAdded()).toEqual([expect.stringMatching(/^f1 .*\/guest\/board-attachment\/tok\/o1$/)]))
+  })
+})
+
 describe("a guest's live board before it connects", () => {
   it("holds the canvas's place and says so, without a spinner", () => {
     render(viewer())
@@ -279,12 +310,12 @@ describe("the canvas's theme", () => {
 describe("a call's guest and the room's slide", () => {
   const drawn = [{ id: "f1", version: 1, versionNonce: 1, isDeleted: false }]
 
-  it("frames the drawing on a first visit, but leaves the camera to the stage when the board opens at a slide", async () => {
+  it("frames the drawing on a first visit with room round it, never past 100%, but leaves the camera to the stage when the board opens at a slide", async () => {
     scene = drawn
     collab = { provider: { document: new Y.Doc() }, synced: true, readOnly: true }
     api.scrollToContent.mockClear()
     render(viewer())
-    await waitFor(() => expect(api.scrollToContent).toHaveBeenCalledWith(drawn, expect.objectContaining({ fitToContent: true })))
+    await waitFor(() => expect(api.scrollToContent).toHaveBeenCalledWith(drawn, expect.objectContaining({ fitToViewport: true, viewportZoomFactor: 0.9, maxZoom: 1 })))
     cleanup()
     scene = drawn
     api.scrollToContent.mockClear()

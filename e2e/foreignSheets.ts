@@ -56,11 +56,12 @@ export function placeOf(el: Locator) {
  * it, and every control, runs to within GUTTER of its inner edges), a
  * popover's keeps SURFACE_GUTTER in from them, and every row or grid of
  * buttons a popover holds spreads across it; it is as tall as what it holds,
- * up to its tallest, with the rest to scroll; its grabber is one pill of its
- * own (expectGrabber); and on a touch screen its fields draw their text at
- * FIELD_TEXT or more (expectFieldText). These are soft, so a walk goes on and
- * names every sheet that fails. Any other sheet shows what it holds, or SHOWN px of it
- * with the rest to scroll.
+ * up to its tallest, with the rest to scroll; and its grabber is one pill of
+ * its own (expectGrabber). These are soft, so a walk goes on and names every
+ * sheet that fails. Any other sheet shows what it holds, or SHOWN px of it
+ * with the rest to scroll. On a touch screen every sheet's fields, docked or
+ * the app's own (a board's comment, reply and AI composer), draw their text
+ * at FIELD_TEXT or more (expectFieldText; V-373, V-377).
  * A docked sheet's row of actions is its pinned footer: see expectPinned.
  */
 export async function expectSheet(sheet: Locator, what: string, action?: Locator) {
@@ -138,8 +139,8 @@ export async function expectSheet(sheet: Locator, what: string, action?: Locator
     expect.soft(boxed, `${told} every row or grid of buttons it holds spreads across its width`).toEqual([])
     expect.soft(held.shown, `${told} is as tall as what it holds, up to its tallest`).toBeGreaterThanOrEqual(Math.min(held.holds, held.tallest) - 1)
     if (held.grabber) await expectGrabber(sheet, told)
-    await expectFieldText(sheet, what)
   } else expect(held.shown, `${told} shows what it holds, or ${SHOWN} px of it`).toBeGreaterThanOrEqual(Math.min(held.holds, SHOWN))
+  await expectFieldText(sheet, what)
   if (!action) return
   await expect(action, `${what}'s action is there`).toBeVisible()
   const act = await placeOf(action)

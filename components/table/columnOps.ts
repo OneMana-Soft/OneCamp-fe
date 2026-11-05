@@ -3,6 +3,7 @@
 // route diet, main 21:52 and 22:4x). DataTableGrid hands each its Columns.
 
 import type { useConfirm } from "@/hooks/useConfirm"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
 import { restoreFromTrash } from "@/lib/tables/ledger"
 import { parseFieldConfig, type TableField } from "@/services/tableService"
 import { createField, deleteField, updateField } from "@/services/tableCalls"
@@ -17,6 +18,8 @@ export interface Columns {
   offerUndo: (title: string, undo: () => void) => void
   /** Opens a column's menu on its name. */
   openMenu: (fieldId: string) => void
+  /** The table's undo order (useCellCommit's write): a Ctrl+Z pressed while a change is on its way takes that change (V-369). */
+  write: UndoOrder["write"]
 }
 
 /**
@@ -24,10 +27,10 @@ export interface Columns {
  * Resolves whether it was made: one the server refused keeps its form open,
  * with what was typed in it (a formula), as AddColumnBody reads false.
  */
-export async function createColumn({ tableId, fields, onChange, openMenu }: Columns, input: ColumnCreateInput): Promise<boolean> {
+export async function createColumn({ tableId, fields, onChange, openMenu, write }: Columns, input: ColumnCreateInput): Promise<boolean> {
   const pos = fields.length ? Math.max(...fields.map((f) => f.position)) + 1 : 0
   try {
-    const f = await createField(tableId, { name: input.name, type: input.type, position: pos, config: input.config })
+    const f = await write("new column", () => createField(tableId, { name: input.name, type: input.type, position: pos, config: input.config }))
     onChange()
     if (f?.id && input.type !== "formula" && input.type !== "relation" && input.type !== "rollup") openMenu(f.id)
     return true
@@ -43,9 +46,9 @@ export async function createColumn({ tableId, fields, onChange, openMenu }: Colu
  * with a rename or an option, put back a column someone had moved meanwhile,
  * and its name a rename.
  */
-export async function saveColumn({ tableId, onChange }: Columns, field: TableField, input: ColumnSaveInput): Promise<boolean> {
+export async function saveColumn({ tableId, onChange, write }: Columns, field: TableField, input: ColumnSaveInput): Promise<boolean> {
   try {
-    await updateField(tableId, field.id, input)
+    await write("column change", () => updateField(tableId, field.id, input))
     return true
   } catch {
     // surfaced
@@ -56,13 +59,13 @@ export async function saveColumn({ tableId, onChange }: Columns, field: TableFie
 }
 
 /** Copies a column after the last: its settings, without what a formula or a rollup worked out. */
-export async function duplicateColumn({ tableId, fields, onChange }: Columns, field: TableField): Promise<void> {
+export async function duplicateColumn({ tableId, fields, onChange, write }: Columns, field: TableField): Promise<void> {
   const pos = Math.max(...fields.map((f) => f.position)) + 1
   const { result: _r, error: _e, ...cfg } = parseFieldConfig(field) as Record<string, unknown>
   void _r
   void _e
   try {
-    await createField(tableId, { name: `${field.name} copy`, type: field.type, position: pos, config: cfg })
+    await write("column copy", () => createField(tableId, { name: `${field.name} copy`, type: field.type, position: pos, config: cfg }))
     onChange()
   } catch {
     // surfaced
@@ -70,7 +73,7 @@ export async function duplicateColumn({ tableId, fields, onChange }: Columns, fi
 }
 
 /** Deletes a column once confirmed: it's kept in the table's trash with its cells, and one Undo brings it back. */
-export function deleteColumn({ tableId, onChange, confirm, offerUndo }: Columns, field: TableField): void {
+export function deleteColumn({ tableId, onChange, confirm, offerUndo, write }: Columns, field: TableField): void {
   confirm({
     title: `Delete the column "${field.name}"?`,
     description: "It's removed for everyone, and kept in the table's trash with its cells.",
@@ -78,9 +81,9 @@ export function deleteColumn({ tableId, onChange, confirm, offerUndo }: Columns,
     destructive: true,
     onConfirm: async () => {
       try {
-        await deleteField(tableId, field.id)
+        await write("column delete", () => deleteField(tableId, field.id))
         onChange()
-        offerUndo("Column deleted", () => restoreFromTrash(tableId, { fields: [field.id] }))
+        offerUndo("Column deleted", () => write("restore", () => restoreFromTrash(tableId, { fields: [field.id] })))
       } catch {
         // surfaced
       }

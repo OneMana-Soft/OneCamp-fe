@@ -24,6 +24,11 @@ import type { TaskField } from "@/lib/tasks/fields"
 // A field's column is keyed by its filter id, which the server always sends.
 // A field without one is left out, and said once, rather than a column with
 // no id taking the whole list or board down (TanStack throws on one).
+/** The filters the server applies that no column shows: the cycle (business/Cycle) and the type (business/WorkTaxonomy, linear-03). */
+export const SERVER_FILTERS = ["task_cycle", "task_work_type"] as const
+/** Their carrier columns, never drawn. */
+export const SERVER_FILTERS_HIDDEN = Object.fromEntries(SERVER_FILTERS.map((id) => [id, false])) as Record<(typeof SERVER_FILTERS)[number], false>
+
 const unkeyed = new Set<string>()
 const keyedFields = (fields: TaskField[]) =>
     fields.filter((f) => {
@@ -278,17 +283,17 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
             enableSorting: false,
             filterFn: () => true,
         })),
-        // Never shown: carries the cycle filter (see business/Cycle), which the
-        // server applies, so every row it returns passes here.
-        {
-            id: "task_cycle",
+        // Never shown: they carry the filters the server applies, so every
+        // row it returns passes here.
+        ...SERVER_FILTERS.map((id) => ({
+            id,
             accessorFn: () => "",
             header: () => null,
             cell: () => null,
             enableHiding: false,
             enableSorting: false,
             filterFn: () => true,
-        },
+        })),
         // Uncomment if needed
         // {
         //   id: "actions",

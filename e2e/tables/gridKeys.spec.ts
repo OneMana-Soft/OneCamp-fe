@@ -125,7 +125,7 @@ async function openGrid(browser: Browser, testInfo: TestInfo, options: BrowserCo
   await page.goto(`/app/tables/${server.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   const cell = (at: string) => page.locator(`[data-cell="${at}"]`)
   await expect(cell("2:2")).toBeAttached({ timeout: 60_000 })
-  return { page, context, chunk, cell }
+  return { page, context, chunk, cell, server }
 }
 
 for (const device of [
@@ -191,4 +191,115 @@ for (const device of [
     await expect.poll(width, { timeout: 30_000 }).toBeCloseTo(dragged, 0)
     await context.close()
   })
+}
+
+// V-474 (DESIGN-BUILD-109, the wM36 LIVE look, 4 Nov): a cell clicked in the table's first second or two, before
+// the live cells' chunk is in, holds the focus in its box at rest, and every key typed there was dropped ("held
+// back" by preventDefault, kept nowhere), Enter too: a word typed in a table just opened was lost, silently. Now the
+// keys typed at a box at rest are held with it, and once the chunk lands that cell comes to life and takes them as
+// they were typed, everything selected for the first to replace; the keys after them follow, in order, to the live
+// box first (its Enter saves), as keys would.
+test("at 1280, a word typed in a cell clicked before the cells' code lands goes into it once it does, and Enter saves it", async ({ browser }, testInfo) => {
+  const { page, context, chunk, cell, server } = await openGrid(browser, testInfo, {}, MOVES_MARK)
+  await expect.poll(() => chunk!.asked(), { timeout: 30_000 }).toBe(true)
+  await cell("1:1").click()
+  await expect(cell("1:1")).toBeFocused()
+  await expect(cell("1:1")).toHaveAttribute("data-rest", "")
+  await page.keyboard.type("Hall C")
+  await page.keyboard.press("Enter")
+  chunk!.release()
+  await expect(cell("1:1")).toHaveValue("Hall C", { timeout: 30_000 })
+  await expect(cell("1:1")).not.toHaveAttribute("data-rest")
+  // Enter saved it, and went on down as it does.
+  await expect(cell("2:1")).toBeFocused()
+  await expect.poll(() => server.valuesOf(1), { timeout: 15_000 }).toEqual({ name: "Banner", where: "Hall C", notes: "Print" })
+  await chunk!.done()
+  await context.close()
+})
+
+// CR-214 row 2508 (M1): keys typed after a held move go where that move takes the focus, as they would live: the
+// cell a key was typed at is where the focus was then, and a held Enter or Tab moves it before the next word lands
+// (each word is saved by the key after it: Tab on the last row, which an Enter would go past).
+for (const move of [
+  { key: "Enter", close: "Tab", next: "2:1", word: "Desk 9", row: 2, saved: { name: "Badges", where: "Desk 9", notes: "Lanyards" } },
+  { key: "Tab", close: "Enter", next: "1:2", word: "Ink", row: 1, saved: { name: "Banner", where: "Hall C", notes: "Ink" } },
+]) {
+  test(`at 1280, a word, ${move.key}, then a word typed before the cells' code lands: each word in its own cell`, async ({ browser }, testInfo) => {
+    const { page, context, chunk, cell, server } = await openGrid(browser, testInfo, {}, MOVES_MARK)
+    await expect.poll(() => chunk!.asked(), { timeout: 30_000 }).toBe(true)
+    await cell("1:1").click()
+    await expect(cell("1:1")).toHaveAttribute("data-rest", "")
+    await page.keyboard.type("Hall C")
+    await page.keyboard.press(move.key)
+    await page.keyboard.type(move.word)
+    await page.keyboard.press(move.close)
+    chunk!.release()
+    await expect(cell(move.next)).toHaveValue(move.word, { timeout: 30_000 })
+    await expect(cell("1:1")).toHaveValue("Hall C")
+    await expect.poll(() => server.valuesOf(1), { timeout: 15_000 }).toMatchObject({ where: "Hall C" })
+    await expect.poll(() => server.valuesOf(move.row), { timeout: 15_000 }).toEqual(move.saved)
+    await chunk!.done()
+    await context.close()
+  })
+}
+
+// CR-214 row 2510 (M2): a click (a tap) on another cell before the cells' code lands waits in line with the keys, so a
+// word typed after it goes into that cell, never into the one before it (beta dropped them; delta 2 typed them in there).
+for (const device of [
+  { name: "at 1280 by mouse", options: {}, touch: false },
+  { name: "at 390 by a tap", options: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, touch: true },
+]) {
+  test(`${device.name}, a word, a click on another cell, then a word, all before the cells' code lands: each word in its own cell`, async ({ browser }, testInfo) => {
+    const { page, context, chunk, cell, server } = await openGrid(browser, testInfo, device.options, MOVES_MARK)
+    await expect.poll(() => chunk!.asked(), { timeout: 30_000 }).toBe(true)
+    // A finger selects a cell at rest: its box holds the focus, shut (its text box ignores taps until then).
+    const at = (id: string) => (device.touch ? page.locator(`[data-cell-box]:has([data-cell="${id}"])`) : cell(id))
+    const press = (id: string) => (device.touch ? at(id).tap() : at(id).click())
+    await press("1:1")
+    await expect(at("1:1")).toBeFocused()
+    await page.keyboard.type("Ink")
+    await press("2:2")
+    await page.keyboard.type("Lan")
+    await page.keyboard.press("Tab")
+    chunk!.release()
+    await expect(cell("2:2")).toHaveValue("Lan", { timeout: 30_000 })
+    await expect(cell("1:1")).toHaveValue("Ink")
+    await expect.poll(() => server.valuesOf(1), { timeout: 15_000 }).toEqual({ name: "Banner", where: "Ink", notes: "Print" })
+    await expect.poll(() => server.valuesOf(2), { timeout: 15_000 }).toEqual({ name: "Badges", where: "Desk", notes: "Lan" })
+    await chunk!.done()
+    await context.close()
+  })
+}
+
+// CR-215 row 2513 (M3): a move held with no word before it goes first, so the word typed after it goes into the cell it
+// reached, never the one it left (delta 3 typed it into the cell the press selected, and that row saved it). A word's
+// keys held at a tapped cell are the cell's alone: its r never added a row (the page's key) while it waited.
+for (const device of [
+  { name: "at 1280 by mouse", options: {}, touch: false },
+  { name: "at 390 by a tap", options: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, touch: true },
+]) {
+  for (const move of [
+    { key: "ArrowDown", next: "2:1", word: "Ox", saved: [{ name: "Banner", where: "Hall B", notes: "Print" }, { name: "Badges", where: "Ox", notes: "Lanyards" }] },
+    { key: "Tab", next: "1:2", word: "Pr", saved: [{ name: "Banner", where: "Hall B", notes: "Pr" }, { name: "Badges", where: "Desk", notes: "Lanyards" }] },
+    { key: "ArrowRight", next: "1:2", word: "Pr", saved: [{ name: "Banner", where: "Hall B", notes: "Pr" }, { name: "Badges", where: "Desk", notes: "Lanyards" }] },
+  ]) {
+    test(`${device.name}, a press, ${move.key}, then a word, all before the cells' code lands: the word goes where ${move.key} took the focus`, async ({ browser }, testInfo) => {
+      const { page, context, chunk, cell, server } = await openGrid(browser, testInfo, device.options, MOVES_MARK)
+      await expect.poll(() => chunk!.asked(), { timeout: 30_000 }).toBe(true)
+      const at = (id: string) => (device.touch ? page.locator(`[data-cell-box]:has([data-cell="${id}"])`) : cell(id))
+      await (device.touch ? at("1:1").tap() : at("1:1").click())
+      await expect(at("1:1")).toBeFocused()
+      await page.keyboard.press(move.key)
+      await page.keyboard.type(move.word)
+      await page.keyboard.press("Tab")
+      chunk!.release()
+      await expect(cell(move.next)).toHaveValue(move.word, { timeout: 30_000 })
+      await expect(cell("1:1")).toHaveValue("Hall B")
+      await expect.poll(() => [server.valuesOf(1), server.valuesOf(2)], { timeout: 15_000 }).toEqual(move.saved)
+      await expect(page.getByText(/Couldn't (type in the cell|move between cells)/)).toHaveCount(0)
+      expect(server.rows, "no row added").toHaveLength(3)
+      await chunk!.done()
+      await context.close()
+    })
+  }
 }

@@ -4,6 +4,9 @@ import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
 import { ExportCSVButton } from "@/components/task/ExportCSVButton"
+import Link from "next/link"
+import { insightsHref } from "@/lib/board/boardQuery"
+import { BarChart3 } from "@/lib/icons"
 import { taskViewScope } from "@/lib/tasks/views"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -27,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { taskPriorityOptions } from "@/types/taskScale"
 import { DATE_SORTS } from "@/lib/tasks/sortChoices"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
+import { useProjectTypes } from "@/hooks/useProjectTypes"
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
 import { ProjectsGet } from "@/services/endpoints/projects";
@@ -50,6 +54,7 @@ const filterSchema = z.object({
     priority: z.array(z.string()).optional(),
     status: z.array(z.string()).optional(),
     assignee: z.array(z.string()).optional(),
+    type: z.array(z.string()).optional(),
 })
 
 type FilterFormValues = z.infer<typeof filterSchema>
@@ -65,6 +70,8 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     const [activeTab, setActiveTab] = React.useState("sort")
     const projectInfo = useFetch<ProjectInfoRawInterface>(projectId ? ProjectsGet.GetProjectMemberInfo + '/' + projectId : '')
     const { options: statusOpts } = useProjectStatuses(projectId)
+    // The project's types (linear-03), read while the drawer is open.
+    const { types } = useProjectTypes(projectId, drawerOpenState)
     const { cycles } = useProjectCycles(drawerOpenState ? projectId : undefined)
     const dispatch = useDispatch()
     const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId])
@@ -78,9 +85,12 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     useEffect(() => {
         if (drawerOpenState) {
             const filters = taskFiltersAndSorts?.filters || []
-            const priority = filters.find((f: any) => f.id === "task_priority")?.value || []
-            const status = filters.find((f: any) => f.id === "task_status")?.value || []
-            const assignee = filters.find((f: any) => f.id === "task_assignee_name")?.value || []
+            // A facet's chosen values, as the list's filters keep them.
+            const valuesOf = (id: string) => (filters.find((f) => f.id === id)?.value as string[] | undefined) ?? []
+            const priority = valuesOf("task_priority")
+            const status = valuesOf("task_status")
+            const assignee = valuesOf("task_assignee_name")
+            const type = valuesOf("task_work_type")
             
             const sortArr = taskFiltersAndSorts?.sort || []
             const sort = sortArr.length > 0 ? sortArr[0] : MANUAL
@@ -90,6 +100,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                 priority,
                 status,
                 assignee,
+                type,
             })
         }
     }, [drawerOpenState, taskFiltersAndSorts])
@@ -106,6 +117,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             sort: MANUAL,
             priority: [],
             status: [],
+            type: [],
         },
     })
 
@@ -118,6 +130,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
         { id: "cycle", label: "Cycle" },
         { id: "sort", label: "Sort" },
         { id: "priority", label: "Priority" },
+        { id: "type", label: "Type" },
         { id: "status", label: "Status" },
         { id: "assignee", label: "Assignee" },
     ]
@@ -133,6 +146,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             ...(data.priority?.length ? [{ id: "task_priority", value: data.priority }] : []),
             ...(data.status?.length ? [{ id: "task_status", value: data.status }] : []),
             ...(data.assignee?.length ? [{ id: "task_assignee_name", value: data.assignee }] : []),
+            ...(data.type?.length ? [{ id: "task_work_type", value: data.type }] : []),
             // The cycle is picked in its own tab; keep it.
             ...(taskFiltersAndSorts?.filters ?? []).filter((f) => f.id === "task_cycle"),
         ]
@@ -155,6 +169,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             priority: [],
             status: [],
             assignee: [],
+            type: [],
         })
         dispatch(updateProjectSortingAndFiltering({ projectId, filters: [], sort: [] }))
         setOpenState(false)
@@ -229,7 +244,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             )
         }
 
-        const fieldName = activeTab as "priority" | "status" | "assignee"
+        const fieldName = activeTab as "priority" | "status" | "assignee" | "type"
 
         if (activeTab === "assignee") {
             return (
@@ -265,6 +280,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             priority: taskPriorityOptions,
             // The project's own statuses too, beside the built-in ones.
             status: statusOpts.map((o) => ({ id: o.value, label: o.label })),
+            type: types.map((t) => ({ id: t.id, label: t.name })),
         }
 
         const currentOptions = optionsMap[activeTab as keyof typeof optionsMap] || []
@@ -309,7 +325,16 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                             <DrawerTitle>Sort and filter</DrawerTitle>
                             <DrawerDescription></DrawerDescription>
                         </div>
-                        <ExportCSVButton onExport={exportCSV} className="-mr-2 shrink-0" />
+                        <span className="-mr-2 flex shrink-0 items-center">
+                            {/* Insights (B9-b1): the project's report, narrowed to the filters this list reads by. */}
+                            <Button asChild variant="ghost" size="sm">
+                                <Link href={insightsHref(projectId, taskFiltersAndSorts?.filters ?? [], "", "")} onClick={() => setOpenState(false)}>
+                                    <BarChart3 className="size-3.5" aria-hidden="true" />
+                                    Insights
+                                </Link>
+                            </Button>
+                            <ExportCSVButton onExport={exportCSV} />
+                        </span>
                     </DrawerHeader>
                     <div className="flex min-h-0 flex-1 flex-col">
                         <div className="grid min-h-0 flex-1 grid-cols-9 grid-rows-[minmax(0,1fr)] border-t border-b">

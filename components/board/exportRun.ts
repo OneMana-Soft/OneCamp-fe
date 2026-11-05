@@ -3,7 +3,7 @@ import type { ExportElement } from "@/lib/board/exportBoard"
 import type { useToast } from "@/hooks/use-toast"
 import { urlToDataURL } from "@/lib/utils/file/urlToDataURL"
 import { downloadFile, exportFileName } from "@/lib/export/download"
-import { EXPORT_FAILED, recordBoardExport, type BoardExportFormat } from "@/components/board/exportRecord"
+import { EXPORT_FAILED, EXPORT_REFUSED_TITLE, recordBoardExport, type BoardExportFormat } from "@/components/board/exportRecord"
 
 // What both export paths run, the Export dialog (./boardExport) and Ctrl or Cmd+S (./exportRecord), in a module
 // of its own: the key, which rides in Excalidraw's lazy chunk wherever a board's canvas draws (a call's stage, a
@@ -33,10 +33,13 @@ export async function saveBoardFile(api: ExcalidrawImperativeAPI, title: string)
 }
 
 /**
- * An export made, said, and told to the admin log once its file is made
- * (./exportRecord): the Export dialog's and Ctrl or Cmd+S's alike. A picture
- * is told at its own dialog's PNG or SVG instead. `made` runs before the
- * toast. Whether it was made.
+ * An export told to the admin log (./exportRecord), then made and said: the
+ * Export dialog's and Ctrl or Cmd+S's alike. The tell comes first, so an
+ * export the log refuses (too many in a few minutes) or can't be reached for
+ * is never made, and says why (V-363); a file that then fails to be made
+ * leaves its tell in the log, which over-tells rather than under-tells. A
+ * picture is told at its own dialog's PNG or SVG instead. `made` runs before
+ * the toast. Whether it was made.
  */
 export async function runBoardExport({
   format,
@@ -51,9 +54,16 @@ export async function runBoardExport({
   toast: ReturnType<typeof useToast>["toast"]
   made?: () => void
 }): Promise<boolean> {
+  if (format !== "picture") {
+    try {
+      await recordBoardExport(boardId, format)
+    } catch (err) {
+      toast({ variant: "destructive", title: EXPORT_REFUSED_TITLE, description: (err as Error).message })
+      return false
+    }
+  }
   try {
     const said = await make()
-    if (format !== "picture") recordBoardExport(boardId, format)
     made?.()
     if (said) toast({ title: said })
     return true

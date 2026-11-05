@@ -18,6 +18,7 @@ import { TableToolbar, TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from 
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import { aggregateTable, isNumeric, type AggregateOp, type AggregateResult, type TableField } from "@/services/tableService"
 import { partialNote } from "@/lib/tables/chartNote"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 // DataTableChart — a Notion-style "chart view" for a table. The user picks a
 // column to group by, an aggregation (count / sum / avg / min / max) and a chart
@@ -144,7 +145,8 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                 if (Array.isArray(r?.buckets)) setResult(r)
                 else setError("Couldn't build that chart.")
             })
-            .catch(() => {
+            .catch((error) => {
+                saysWriteFailure(error)
                 if (!cancelled) setError("Couldn't build that chart. Try a different column.")
             })
             .finally(() => {

@@ -43,6 +43,7 @@ import {
     Download,
     FileText,
     Key,
+    LayoutDashboard,
     LayoutGrid,
     Loader2,
     Lock,
@@ -54,6 +55,8 @@ import {
     ShieldX,
     SlidersHorizontal,
     Sparkles,
+    Table2,
+    Video,
 } from "@/lib/icons"
 import type { LucideIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -86,13 +89,22 @@ import { clockTime } from "@/lib/utils/date/clock"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 /**
+ * Every category the server can answer (models/postgres/AdminAudit's Category*
+ * constants), in the filter's order.
+ */
+export const AUDIT_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs", "boards", "calendar", "calls", "tables"] as const
+export type AuditCategory = (typeof AUDIT_CATEGORIES)[number]
+
+/**
  * A category's glyph, always in ink-3 on a neutral chip: a category names a
  * kind of thing, and hue in this area is for identity only (§1.5). Agent gets
  * the spark because "a person or an agent on their behalf" is what an
  * auditor scans for first; a category the server starts recording later
- * still renders, with the log's own glyph.
+ * still renders, with the log's own glyph. Typed total over AuditCategory, so
+ * a category added to the list without its own glyph fails tsc
+ * (auditCategoryGlyphs.test.ts walks them all).
  */
-export const CATEGORY_GLYPH: Record<string, LucideIcon> = {
+export const CATEGORY_GLYPH: Record<AuditCategory, LucideIcon> = {
     security: Shield,
     auth: Key,
     integration: Plug,
@@ -102,11 +114,18 @@ export const CATEGORY_GLYPH: Record<string, LucideIcon> = {
     // What happened to docs: shares, access and lock changes, deletes,
     // restores, purges, exports, publishes, transfers and recoveries.
     docs: FileText,
+    // What happened to boards: shares, guest links and exports, as search
+    // draws a board.
+    boards: LayoutDashboard,
     // What happened to events: made, changed, moved to the trash, restored,
     // answered, guests added or taken off (calendar A2). Never their titles.
     calendar: CalendarDays,
+    // What the people running a call did to it and to the people in it.
+    calls: Video,
+    tables: Table2,
 }
-const glyphOf = (c: string) => CATEGORY_GLYPH[c] ?? ScrollText
+const glyphs: Readonly<Partial<Record<string, LucideIcon>>> = CATEGORY_GLYPH
+export const glyphOf = (c: string) => glyphs[c] ?? ScrollText
 
 /** "integration" as a person reads it: "Integration". */
 const categoryLabel = (c: string) => (c === ALL ? "All" : c.charAt(0).toUpperCase() + c.slice(1))
@@ -116,7 +135,7 @@ const serverReason = (e: unknown) => (apiErrorStatus(e) ? apiErrorMessage(e) : u
 
 // The filter list the component starts with, replaced by whatever the server
 // reports, so the menu has its items on the first paint.
-const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs", "boards", "calendar"]
+const SEED_CATEGORIES: string[] = [...AUDIT_CATEGORIES]
 
 const ALL = "all"
 /** Entries read at a time; a page that comes back shorter was the last. */

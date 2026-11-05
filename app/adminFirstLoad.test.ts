@@ -18,7 +18,7 @@ const ENTRY = "app/app/admin/page.tsx"
 const OTHER_SECTIONS = [
   "AIModelsCard", "ModelRoutingCard", "AgentDelegationCard", "AgentInventoryCard", "GovernanceDrillCard", "MCPServerCard", "AIActivityCard",
   "GitHubIntegrationCard", "SlackBridgeCard", "OAuthConfigCard", "AppsCard", "MarketplaceCard", "WebhooksCard", "WorkflowsCard",
-  "TranscriptionSettingsCard", "AdminAuditLog", "RetentionCard", "ArchiveCard", "SlackImportCard", "ImportCard",
+  "TranscriptionSettingsCard", "AdminAuditLog", "RetentionCard", "LegalHoldsCard", "ArchiveCard", "SlackImportCard", "ImportCard",
   "WorkspaceSettingsCard", "DefaultChannelsCard", "ReadReceiptsPolicyCard", "PushNotificationsCard", "GuestAccessCard",
   "ScimProvisioningCard", "PermissionsCard", "EmailSettingsCard", "EmailProviderCard", "teamCard", "adminCard",
   "invitationCard", "ExternalUsersCard", "SystemCheckCard", "UpdatesCard",

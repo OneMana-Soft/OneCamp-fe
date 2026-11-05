@@ -12,7 +12,7 @@ import { ACCESS_LEVEL_LABEL } from "@/lib/docAccess"
 import { accessRequestsKey, requestDocAccess } from "@/services/docAccessService"
 import type { DocAccessRequest, DocAccessRequests } from "@/types/docAccess"
 import { ChoiceCards, InlineError } from "./chrome/parts"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
 
 type Wanted = DocAccessRequest["level_wanted"]
@@ -72,7 +72,7 @@ export function NoAccessPage({ docId, onGranted, canRequest = true, admin = fals
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 409) onGranted()
-      else setError(apiErrorMessage(e, "The request wasn't sent. Try again in a moment."))
+      else setError(saidHere(e, "The request wasn't sent. Try again in a moment."))
     } finally {
       setAsking(false)
     }

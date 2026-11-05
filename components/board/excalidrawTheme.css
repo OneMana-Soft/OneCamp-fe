@@ -373,6 +373,17 @@
     background: var(--press);
   }
 }
+/* Excalidraw's dialogs (Save as image, Help, a confirm) are portalled into a
+   container on the body at a layer of the library's own, --zIndex-modal
+   (1000), above the app's whole scale (globals.css: modal 500 < popover <
+   dropdown < confirm < tooltip < toast 800), so a toast said while one was
+   open, a refused export's, was drawn under it at every width (V-491). The
+   container takes the app's modal layer, where the app's own dialogs and
+   sheets lie, so toasts, tooltips and confirms are drawn over it as over
+   those; what it holds keeps its own order inside it. */
+.excalidraw.excalidraw.excalidraw-modal-container {
+  z-index: var(--z-modal);
+}
 .excalidraw.excalidraw .Modal__content {
   border-radius: 16px;
   box-shadow: var(--e4);

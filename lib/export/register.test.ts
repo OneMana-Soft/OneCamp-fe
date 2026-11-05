@@ -110,6 +110,29 @@ describe('export and import in More', () => {
     expect(knownCapabilities()?.export).toBe(false)
     for (const id of EXPORT_IDS) expect(shown(ctxFor(editor))).not.toContain(id)
   })
+
+  it("makes no file when the doc's sensitivity label holds exports back, says so in the server's words, and keeps the items for other docs (miro-44 L)", async () => {
+    const words = "This doc is labelled Confidential: it can't be exported. Its owner or a workspace admin can change the label."
+    post.mockRejectedValueOnce({ response: { status: 403, data: { code: 'label_forbids', msg: words } } })
+    const editor = docEditor('Plan', '<p>Hi</p>')
+    await actionsFor('more', { ai: false }).find((a) => a.id === 'doc.export.pdf')!.run(ctxFor(editor))
+    expect(downloadFile).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({ title: "Couldn't export", description: words, variant: 'destructive' })
+    // The label is this doc's: the members' export policy is still on, so other docs' items stay.
+    expect(knownCapabilities()?.export).not.toBe(false)
+    for (const id of EXPORT_IDS) expect(shown(ctxFor(editor))).toContain(id)
+  })
+
+  it('makes no file when the log has had too many exports from this member, says so in the server words, and keeps the items', async () => {
+    const words = "You've exported a lot in the last few minutes. Wait a few minutes and try again."
+    post.mockRejectedValueOnce({ response: { status: 429, data: { msg: words } } })
+    const editor = docEditor('Plan', '<p>Hi</p>')
+    await actionsFor('more', { ai: false }).find((a) => a.id === 'doc.export.markdown')!.run(ctxFor(editor))
+    expect(downloadFile).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({ title: "Couldn't export", description: words, variant: 'destructive' })
+    // A wait, not a refusal: exports stay on.
+    expect(knownCapabilities()?.export).not.toBe(false)
+  })
 })
 
 describe('Import files…', () => {

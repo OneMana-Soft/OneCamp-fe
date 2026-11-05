@@ -116,7 +116,6 @@ const BASELINE: Record<string, number> = {
   "components/project/timeline/timelineBars.test.tsx": 5,
   "components/projectUpdates/updateComposer.test.tsx": 1,
   "components/proposals/review.test.tsx": 1,
-  "components/reports/reportsView.test.tsx": 2,
   "components/rightPanel/docCommentsPanel.test.tsx": 6,
   "components/rightPanel/replyRenders.test.tsx": 1,
   "components/rightPanel/taskLabelNoWipe.test.tsx": 1,

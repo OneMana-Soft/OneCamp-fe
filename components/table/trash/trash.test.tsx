@@ -34,10 +34,14 @@ const fields: TableField[] = [
   { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 2, primary: true },
 ]
 const now = TEST_TODAY.toISOString()
+// The page's write (the table's undo order), as a stand-in that sends at once and keeps what entered it (V-369).
+const made: string[] = []
+const write = <T,>(what: string, send: () => Promise<T>) => (made.push(what), send())
 
 afterEach(() => {
   cleanup()
   for (const f of Object.values(ledger)) f.mockReset()
+  made.length = 0
   confirm.mockReset()
   toast.mockReset()
   push.mockReset()
@@ -63,7 +67,7 @@ describe("a table's trash", () => {
     })
     ledger.restoreFromTrash.mockResolvedValue({ change_set: "cs" })
     const restored = vi.fn()
-    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={restored} />)
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={restored} />)
     expect(await screen.findByText("Booth")).toBeTruthy()
     expect(screen.getByText("Deleted just now by Bo")).toBeTruthy()
     expect(screen.getByText("Cost")).toBeTruthy()
@@ -77,6 +81,60 @@ describe("a table's trash", () => {
     expect(ledger.restoreFromTrash).toHaveBeenCalledWith("t", { fields: ["cost"] })
   })
 
+  // H2b: a deleted view waits in the trash as the API's does, with its layout and whether it's the reader's own.
+  it("lists deleted views, the reader's own marked, and brings one back alone", async () => {
+    ledger.readTableTrash.mockResolvedValue({
+      rows: [],
+      more: false,
+      fields: [],
+      views: [
+        { id: "v1", table_id: "t", name: "By stage", type: "board", config: "{}", position: 1, deleted_at: now },
+        { id: "v2", table_id: "t", name: "My week", type: "calendar", config: "{}", position: 2, owner_id: "me", deleted_at: now },
+      ],
+    })
+    ledger.restoreFromTrash.mockResolvedValue({})
+    const restored = vi.fn()
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={restored} />)
+    const views = await screen.findByRole("region", { name: "Deleted views" })
+    expect(within(views).getByText("By stage")).toBeTruthy()
+    expect(within(views).getByText("My week")).toBeTruthy()
+    expect(within(views).getAllByText("Deleted just now")).toHaveLength(1)
+    expect(within(views).getByText("Deleted just now · only you see it")).toBeTruthy()
+    expect(screen.queryByText("The trash is empty")).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Restore By stage" })))
+    expect(ledger.restoreFromTrash).toHaveBeenCalledWith("t", { views: ["v1"] })
+    // In the table's undo order, as the page's other writes are (V-369).
+    expect(made).toEqual(["restore"])
+    expect(screen.queryByText("By stage")).toBeNull()
+    expect(screen.getByText("My week")).toBeTruthy()
+    expect(toast).toHaveBeenCalledWith({ title: "Restored the view “By stage”" })
+    expect(restored).toHaveBeenCalled()
+  })
+
+  // A server from before views' trash sends no views (or null): the trash reads as before.
+  it("reads an answer without views as no deleted views", async () => {
+    ledger.readTableTrash.mockResolvedValue({ rows: [], more: false, fields: [], views: null })
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
+    expect(await screen.findByText("The trash is empty")).toBeTruthy()
+    expect(screen.queryByRole("region", { name: "Deleted views" })).toBeNull()
+  })
+
+  // A reader who doesn't write the rows brings back only their own views: rows and columns they can't restore aren't offered.
+  it("offers a reader who doesn't edit the table only their own views", async () => {
+    ledger.readTableTrash.mockResolvedValue({
+      rows: [{ id: "r1", values: { item: "Booth" }, deleted_at: now }],
+      more: true,
+      fields: [{ field: { id: "cost", table_id: "t", name: "Cost", type: "number", config: "{}", position: 3, deleted_at: now } }],
+      views: [{ id: "v2", table_id: "t", name: "My week", type: "calendar", config: "{}", position: 2, owner_id: "me", deleted_at: now }],
+    })
+    render(<TableTrash tableId="t" fields={fields} write={write} canEdit={false} onClose={vi.fn()} onRestored={vi.fn()} />)
+    expect(await screen.findByRole("button", { name: "Restore My week" })).toBeTruthy()
+    expect(screen.getByText("Your views deleted from this table, newest first.")).toBeTruthy()
+    expect(screen.queryByText("Booth")).toBeNull()
+    expect(screen.queryByText("Cost")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull()
+  })
+
   // Busy is a line's own restore only: the rest wait, without a spinner of their own.
   it("shows the one being restored as busy, and the rest waiting", async () => {
     ledger.readTableTrash.mockResolvedValue({
@@ -88,7 +146,7 @@ describe("a table's trash", () => {
       fields: [{ field: { id: "cost", table_id: "t", name: "Cost", type: "number", config: "{}", position: 3, deleted_at: now } }],
     })
     ledger.restoreFromTrash.mockReturnValue(new Promise(() => {}))
-    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
     const booth = await screen.findByRole<HTMLButtonElement>("button", { name: "Restore Booth" })
     await act(async () => fireEvent.click(booth))
     expect(booth.getAttribute("aria-busy")).toBe("true")
@@ -98,6 +156,29 @@ describe("a table's trash", () => {
       expect(other.disabled).toBe(true)
       expect(other.getAttribute("aria-busy")).toBeNull()
     }
+  })
+
+  // V-416: a view's line is busy while its restore is on its way, and the other lines wait.
+  it("shows a view being restored as busy, and the other views waiting", async () => {
+    ledger.readTableTrash.mockResolvedValue({
+      rows: [],
+      more: false,
+      fields: [],
+      views: [
+        { id: "v1", table_id: "t", name: "By stage", type: "board", config: "{}", position: 1, deleted_at: now },
+        { id: "v2", table_id: "t", name: "By owner", type: "grid", config: "{}", position: 2, deleted_at: now },
+      ],
+    })
+    ledger.restoreFromTrash.mockReturnValue(new Promise(() => {}))
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
+    const stage = await screen.findByRole<HTMLButtonElement>("button", { name: "Restore By stage" })
+    await act(async () => fireEvent.click(stage))
+    expect(stage.getAttribute("aria-busy")).toBe("true")
+    const owner = screen.getByRole<HTMLButtonElement>("button", { name: "Restore By owner" })
+    expect(owner.disabled).toBe(true)
+    expect(owner.getAttribute("aria-busy")).toBeNull()
+    await act(async () => fireEvent.click(stage))
+    expect(ledger.restoreFromTrash).toHaveBeenCalledTimes(1)
   })
 
   it("is busy restoring them all, while every line waits", async () => {
@@ -110,7 +191,7 @@ describe("a table's trash", () => {
       fields: [],
     })
     ledger.restoreFromTrash.mockReturnValue(new Promise(() => {}))
-    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
     const all = await screen.findByRole<HTMLButtonElement>("button", { name: "Restore all 2" })
     await act(async () => fireEvent.click(all))
     expect(ledger.restoreFromTrash).toHaveBeenCalledWith("t", { rows: ["r1", "r2"] })
@@ -121,14 +202,14 @@ describe("a table's trash", () => {
 
   it("says it's empty", async () => {
     ledger.readTableTrash.mockResolvedValue({ rows: [], more: false, fields: [] })
-    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
     expect(await screen.findByText("The trash is empty")).toBeTruthy()
   })
 
   it("reads more, from the last row shown", async () => {
     ledger.readTableTrash.mockResolvedValueOnce({ rows: [{ id: "r1", values: { item: "Booth" }, deleted_at: now }], more: true, fields: [] })
     ledger.readTableTrash.mockResolvedValueOnce({ rows: [{ id: "r0", values: { item: "Older" }, deleted_at: now }], more: false, fields: [] })
-    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
     const more = await screen.findByRole("button", { name: "Show more" })
     await act(async () => fireEvent.click(more))
     expect(ledger.readTableTrash).toHaveBeenLastCalledWith("t", "r1")
@@ -237,5 +318,26 @@ describe("the tables' trash", () => {
     await act(async () => fireEvent.click(again))
     expect(await screen.findByText("Budget")).toBeTruthy()
     expect(ledger.readTablesTrash.mock.calls.length - reads, "Try again reads the trash once more").toBe(2)
+  })
+})
+
+// A deleted view in the trash draws its layout's glyph, and the grid's for a layout the app doesn't know.
+describe("a view's layout glyph in the trash", () => {
+  it("is its layout's, and the grid's for a layout it doesn't know", async () => {
+    ledger.readTableTrash.mockResolvedValue({
+      rows: [],
+      more: false,
+      fields: [],
+      views: [
+        { id: "v1", table_id: "t", name: "By stage", type: "board", config: "{}", position: 1, deleted_at: now },
+        { id: "v2", table_id: "t", name: "Intake", type: "form", config: "{}", position: 2, deleted_at: now },
+      ],
+    })
+    render(<TableTrash tableId="t" fields={fields} write={write} onClose={vi.fn()} onRestored={vi.fn()} />)
+    const views = await screen.findByRole("region", { name: "Deleted views" })
+    const glyphs = [...views.querySelectorAll("[data-trash-item] svg")].map((s) => s.getAttribute("class") ?? "")
+    expect(glyphs).toHaveLength(2)
+    expect(glyphs[0]).toMatch(/lucide-(kanban|square-kanban)/)
+    expect(glyphs[1]).toMatch(/lucide-(layout-grid|grid)/)
   })
 })

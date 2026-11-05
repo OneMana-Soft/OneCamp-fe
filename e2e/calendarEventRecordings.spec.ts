@@ -275,6 +275,19 @@ for (const theme of SHOT_THEMES) {
         await expect
           .poll(() => stageFit(page, phone), { message: "the stage is the picture's box, the words beside or under it", timeout: 10_000 })
           .toEqual({ picture: true, words: true })
+        // V-189: beside its words a recording's Download is still the sheet's own, in its head beside Close,
+        // never an icon on the Transcript row that reads as the transcript's.
+        const close = player.getByRole("button", { name: "Close", exact: true })
+        if (phone) {
+          const download = player.getByRole("button", { name: "Download recording" })
+          await expect(download).toBeVisible({ timeout: 30_000 })
+          await expect(player.locator("[data-transcript]").getByRole("button", { name: "Download recording" })).toHaveCount(0)
+          expect(await download.evaluate((b, c) => !!b.parentElement?.contains(c), await close.elementHandle())).toBe(true)
+          expect(await takesAFinger(download)).toBe(true)
+        } else {
+          await expect(player.getByRole("button", { name: "Download", exact: true })).toBeVisible({ timeout: 30_000 })
+          await expect(player.getByRole("button", { name: "Download recording" })).toHaveCount(0)
+        }
         await reviewShot(page, "event-recording-fit", theme)
       })
 

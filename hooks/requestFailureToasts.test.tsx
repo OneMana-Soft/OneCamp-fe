@@ -122,6 +122,8 @@ describe("a request that gets no answer, outside usePost's toasts", () => {
   it("says a change wasn't saved when it was a write", async () => {
     restore = serverAnswers(0)
     await axiosInstance.post("/updateThing", {}).catch(() => undefined)
+    // A write's toast waits one task, for a row that says it in place (lib/http/writeFailure, V-397).
+    await act(() => new Promise<void>((r) => setTimeout(r, 0)))
     expect(toasts).toEqual([expect.objectContaining({ title: "Couldn't reach the server", variant: "destructive" })])
   })
 

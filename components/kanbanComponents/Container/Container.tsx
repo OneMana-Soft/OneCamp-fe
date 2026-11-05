@@ -10,10 +10,12 @@ import { CountTick } from "@/components/ui/CountTick"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
-import { isBuiltInStatus, type StatusOption } from "@/lib/taskStatus"
+import { isBuiltInStatus } from "@/lib/taskStatus"
+import type { BoardOption } from "@/lib/board/groupBy"
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { MenuOnDemand } from "@/components/ui/menuOnDemand"
 import { columnHue, columnLozenge, columnWash } from "@/components/kanbanComponents/columnLook"
+import TaskTypeGlyph from "@/components/task/TaskTypeGlyph"
 
 interface Props {
     children: React.ReactNode
@@ -24,7 +26,7 @@ interface Props {
     /** The column's name when it is not one of the built-in statuses. */
     title?: string
     /** The column's status (its glyph), or a person's column on a board of people. */
-    status?: StatusOption
+    status?: BoardOption
     style?: React.CSSProperties
     horizontal?: boolean
     /** A card from another column is over this one. */
@@ -54,15 +56,16 @@ interface Props {
 
 /**
  * The column's mark: its status glyph (in a project's own hue for its own
- * status), a person's avatar on a board of people, or a dashed ring for "No
- * assignee". Its header's, and its row's in a card's sheet (CardSheet).
+ * status), a person's avatar on a board of people, a type's glyph on a board
+ * of types, or a dashed ring for "No assignee". Its header's, and its row's in a card's sheet (CardSheet).
  */
-export function ColumnMark({ status, label }: { status?: StatusOption; label?: string }) {
+export function ColumnMark({ status, label }: { status?: BoardOption; label?: string }) {
     if (status && (status.custom || isBuiltInStatus(status.value))) return <TaskStatusCell status={status} label="tip" />
     if (!status) {
         const builtIn = taskStatuses.find((s) => s.value === label)
         return builtIn ? <TaskStatusCell status={{ value: builtIn.value, label: builtIn.label }} label="tip" /> : null
     }
+    if (status.workType) return <TaskTypeGlyph type={status.workType} decorative className="size-4 text-ink-2" />
     if (status.label === "No assignee") {
         return <span aria-hidden="true" data-column-mark="none" className="size-4 shrink-0 rounded-full border border-dashed border-line-3" />
     }

@@ -201,8 +201,8 @@ describe('"/", from the block specs and actions', () => {
       // B4's media and embeds.
       ...['video', 'audio', 'file', 'pdf', 'bookmark', 'embed'].map((m) => `Media and embeds:${m}`),
       'Media and embeds:table',
-      // C1: a project's tasks and board.
-      'Media and embeds:tasks', 'Media and embeds:board',
+      // C1: a project's tasks and board; miro-34: a whiteboard.
+      'Media and embeds:tasks', 'Media and embeds:board', 'Media and embeds:whiteboard',
       ...docAi('AI:ai-write', 'AI:ai-summarize'),
       'Format:bold', 'Format:italic', 'Format:underline', 'Format:strikethrough', 'Format:inlineCode', 'Format:clearFormatting',
       // B3's equations and word count.

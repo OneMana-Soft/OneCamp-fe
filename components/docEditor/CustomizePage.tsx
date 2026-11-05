@@ -11,7 +11,7 @@ import { setDocLook } from "@/services/docChromeService"
 import { busForDoc } from "@/components/docEditor/registry/commandBus"
 import type { DocLookChange } from "@/types/docChrome"
 import { ChromeSheet } from "./chrome/Sheet"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { useBacklinksShown } from "./chrome/backlinksPref"
 import { usePageFacts } from "./chrome/pageFacts"
 import { useDoc } from "./chrome/useDoc"
@@ -52,7 +52,7 @@ export default function CustomizePage({ docId, onClose }: { docId: string; onClo
     try {
       await setDocLook({ doc_uuid: docId, ...c })
     } catch (e) {
-      toast({ title: "The page's style didn't change", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: "The page's style didn't change", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     }
   }
   // Full width is the page's for everyone; this person's view follows at once

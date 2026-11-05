@@ -229,6 +229,7 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
     group: "workspace",
     cards: [
       { title: "Guest access", id: "security-guests" },
+      { title: "Sensitivity labels", id: "security-labels" },
       { title: "SCIM provisioning", id: "security-scim" },
     ],
     keywords: ["scim", "provisioning", "guests"],

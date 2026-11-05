@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import axiosInstance from "@/lib/axiosInstance"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { cn } from "@/lib/utils/helpers/cn"
 import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
@@ -99,7 +99,7 @@ export default function GitHubConfigDialog({
         } catch (e) {
             toast({
                 title: "Couldn't save the GitHub credentials",
-                description: apiErrorMessage(e, "Try again in a moment."),
+                description: saidHere(e, "Try again in a moment."),
                 variant: "destructive",
             })
         } finally {

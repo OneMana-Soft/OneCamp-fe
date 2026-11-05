@@ -150,7 +150,8 @@ export function StageTile({
       {!screen ? <SpeakingRing identity={shown.identity} name={name} hue={hueOf(shown.identity, name)} opacity={ring} agent={agent} /> : null}
       {handPlace !== null && !screen ? <HandBadge place={handPlace} className="absolute left-2 top-2 z-[3]" /> : null}
       <NamePlate
-        name={screen ? `${name} is presenting` : name}
+        name={name}
+        screen={screen}
         muted={!screen && micMuted}
         speaking={!screen && speaking}
         level={level}

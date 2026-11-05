@@ -21,7 +21,7 @@ import { DocIconPicker } from "../DocIconPicker"
 import { CoverPicker, DocCover, GALLERY } from "../DocCover"
 import { PathLine } from "../Breadcrumbs"
 import { iconFor, titleFromLines } from "./iconSuggest"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { usePageFacts } from "./pageFacts"
 import "./band.css"
 
@@ -59,7 +59,7 @@ async function save(change: Parameters<typeof setDocLook>[0], failed: string) {
   try {
     await setDocLook(change)
   } catch (e) {
-    toast({ title: failed, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+    toast({ title: failed, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
   }
 }
 

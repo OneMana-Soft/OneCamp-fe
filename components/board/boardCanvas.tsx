@@ -23,7 +23,8 @@ import * as Y from "yjs"
 import { Loader2 } from "@/lib/icons"
 import axiosInstance from "@/lib/axiosInstance"
 import { PostFileUploadURL } from "@/services/endPoints"
-import { BoardsGet, BoardsPost } from "@/services/endpoints/boards"
+import { BoardsPost } from "@/services/endpoints/boards"
+import { boardAttachmentURL } from "@/lib/board/attachmentURL"
 import { useToast } from "@/hooks/use-toast"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
@@ -33,6 +34,8 @@ import { findFromSearch, linkedFromSearch } from "@/lib/board/frames"
 import { frameDrawing, loadBoardViewport, saveBoardViewport } from "@/lib/board/camera"
 import { LOCAL_ORIGIN, applyShared, followShared, liveCount, type BoardElement, type SharedElements } from "@/lib/board/binding"
 import { NOTE_AUTHORS, storeWithMakers } from "@/lib/board/authors"
+import { privateNotesKey, usePrivateMode } from "@/lib/board/privateMode"
+import type { PrivateNotesHandle } from "@/components/board/privateNotesHost"
 import { useBoardPresence } from "@/components/board/boardPresence"
 import { BoardCursors } from "@/components/board/boardCursors"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
@@ -44,9 +47,11 @@ import "@/components/board/excalidrawTheme.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 // Cards, live (boardCard).
 const MemberEmbedView = lazyPiece(() => import("@/components/board/boardCard").then((m) => ({ default: m.BoardEmbedView })))
+const PrivateNotesHost = lazyPiece(() => import("@/components/board/privateNotesHost"))
 
 const Excalidraw = dynamic(
   async () => (await import("@/components/board/boardExcalidraw")).MemberExcalidraw,
@@ -81,14 +86,6 @@ function isAllowedLibraryHost(url: string): boolean {
   }
 }
 const BOARD_WARN_ELEMENTS = 4000
-
-// boardAttachmentURL builds the backend image URL for a stored object. The
-// endpoint enforces board access and 307-redirects to a presigned MinIO URL,
-// which Excalidraw loads as an image (no raw bytes in the Yjs document).
-function boardAttachmentURL(boardId: string, objectUuid: string): string {
-  const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "")
-  return `${baseUrl}${BoardsGet.GetBoardAttachment}/${boardId}/${objectUuid}`
-}
 
 // uploadBoardImage sends a pasted/dropped image's bytes to the backend
 // (avscan + MinIO) and returns the stored object uuid. The dataURL is only used
@@ -179,6 +176,10 @@ function BoardCanvas({
   const yElements = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("elements"), [yDoc])
   // Who made each note, stamped as a new note is first shared (lib/board/authors).
   const yAuthors = React.useMemo(() => yDoc.getMap<unknown>(NOTE_AUTHORS), [yDoc])
+  // Private mode (miro-25): held notes go out veiled and come back with their words. Its code comes on demand.
+  const who = React.useMemo(() => ({ id: user.id, name: user.name }), [user.id, user.name])
+  const privateRef = React.useRef<PrivateNotesHandle | null>(null)
+  const { wanted: privateWanted, holds: privateHolds } = usePrivateMode(yDoc, privateNotesKey(boardId, user.id), privateRef, api)
   // yFiles holds image METADATA only ({ id, objectUuid, mimeType }) - never raw
   // bytes. Images live in MinIO; clients resolve them to a backend URL.
   const yFiles = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("files"), [yDoc])
@@ -240,13 +241,13 @@ function BoardCanvas({
   // the listing can show a preview. Skipped for empty boards and viewers.
   const thumbTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const captureThumbnail = React.useCallback(async () => {
-    if (!api || !editable) return
+    if (!api || !editable || privateHolds()) return
     try {
       const els = api.getSceneElements()
       if (!els.length) return
       const mod = await import("@excalidraw/excalidraw")
       const blob = await mod.exportToBlob({
-        elements: els,
+        elements: privateRef.current?.outward(els) ?? els,
         appState: {
           ...api.getAppState(),
           exportBackground: true,
@@ -269,7 +270,7 @@ function BoardCanvas({
     } catch {
       // Thumbnails are best-effort; never surface an error to the user.
     }
-  }, [api, editable, boardId])
+  }, [api, editable, boardId, privateHolds])
 
   const scheduleThumbnail = React.useCallback(() => {
     if (!editable) return
@@ -408,6 +409,7 @@ function BoardCanvas({
     // (lib/board/binding followShared). A teammate's move used to re-merge
     // and re-read every element and file on the board.
     const follow = followShared(api, yElements as unknown as SharedElements, {
+      inbound: (remote) => privateRef.current?.inbound(remote) ?? remote,
       onMerged: () => {
         markRemoteMerge()
         // What others drew is not a change of ours: Excalidraw's onChange for
@@ -431,7 +433,7 @@ function BoardCanvas({
     if (!api || !synced || !sceneReady) return
     applyingRemoteRef.current = true
     try {
-      if (applyShared(api, yElements.values() as never) > 0) markRemoteMerge()
+      if (applyShared(api, yElements.values() as never, (remote) => privateRef.current?.inbound(remote) ?? remote) > 0) markRemoteMerge()
       const scene = api.getSceneElementsIncludingDeleted()
       lastSignatureRef.current = sceneSignature(scene as never)
       const mark = wrapRef.current
@@ -539,9 +541,10 @@ function BoardCanvas({
                 yFiles.set(fileId, { id: fileId, objectUuid, mimeType: f.mimeType || "image/png" })
               }, LOCAL_ORIGIN)
             })
-            .catch(() => {
+            .catch((error) => {
               // Keep it marked seen (no retry loop on every change) and tell
               // the user once; they can remove and re-add to try again.
+              saysWriteFailure(error)
               toast({
                 title: "Image upload failed",
                 description: "The image could not be saved to the board. Please try again.",
@@ -558,7 +561,7 @@ function BoardCanvas({
       // whether any element changed.
       const sceneNow = apiRef.current?.getSceneElementsIncludingDeleted() ?? elements
       const signature = sceneSignature(sceneNow as readonly { version?: number; versionNonce?: number }[])
-      if (signature === lastSignatureRef.current) return
+      if (signature === lastSignatureRef.current || privateHolds()) return
       lastSignatureRef.current = signature
       // Sync from the full scene INCLUDING deleted elements so erases persist
       // (an eraser stroke flips isDeleted + bumps version; if we only synced the
@@ -569,7 +572,8 @@ function BoardCanvas({
       // A note new to the shared board goes with its maker: this person, a copy's maker too.
       // Only what changed is walked twice: a drag's frame stamps and writes its moved elements, not the board (miro-06).
       yDoc.transact(() => {
-        storeWithMakers(yAuthors, yElements as never, sceneNow as readonly BoardElement[], { id: user.id, name: user.name })
+        const scene = sceneNow as readonly BoardElement[]
+        storeWithMakers(yAuthors, yElements as never, scene, who, privateRef.current?.writer(yElements as never, scene))
       }, LOCAL_ORIGIN)
 
       // Graceful size warning: count live (non-deleted) elements and warn once
@@ -590,7 +594,7 @@ function BoardCanvas({
       scheduleThumbnail()
 
     },
-    [editable, yDoc, yElements, yAuthors, user.id, user.name, yFiles, boardId, toast, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, scheduleThumbnail, persistViewport],
+    [editable, yDoc, yElements, yAuthors, who, privateHolds, yFiles, boardId, toast, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, scheduleThumbnail, persistViewport],
   )
 
   // -------------------------------------------------------------------------
@@ -642,6 +646,17 @@ function BoardCanvas({
         )}
       </Excalidraw>
       <BoardCursors api={api} awareness={provider.awareness} dark={theme === "dark"} />
+      {privateWanted && (
+        <React.Suspense fallback={null}>
+          <PrivateNotesHost
+            handleRef={privateRef}
+            onReady={() => apiRef.current && handleChange(apiRef.current.getSceneElementsIncludingDeleted(), apiRef.current.getAppState(), {})}
+            {...{ yDoc, boardId, who, api, yAuthors }}
+            yElements={yElements as never}
+            ready={synced && sceneReady}
+          />
+        </React.Suspense>
+      )}
     </div>
   )
 }

@@ -1,10 +1,12 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { act, cleanup, render } from "@testing-library/react"
 import { boardScene, convertForTest, type TestElement } from "@/lib/testing/boardScene"
 import { noteSkeleton, type NoteSize } from "@/lib/board/notes"
 import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { NoteTagChips, TAG_CHIPS_MIN_ZOOM } from "./noteTagChips"
+import { BOARD_DARK_FILTER, NoteTagChips, noteBox, noteFace, TAG_CHIPS_MIN_ZOOM } from "./noteTagChips"
 import type { TagHues } from "./tagHues"
 
 // Tags on the notes (miro-07 5): chips at a tagged note's foot, in each
@@ -197,5 +199,42 @@ describe("tags on a note that moves", () => {
     expect(boxOf("c").style.left).toBe("200px")
     // A note the drag leaves behind stays out of view.
     expect(document.querySelector('[data-note-tags-of="b"]')).toBeNull()
+  })
+})
+
+// A note's whole face, to draw over it (private mode's veil): its box grown past its stroke, with Excalidraw's corner.
+describe("a note's face", () => {
+  const view = (zoom: number) => ({ scrollX: 0, scrollY: 0, zoom, width: 1000, height: 800, offsetLeft: 0, offsetTop: 0 })
+  const shape = (side: number, roundness: { type: number; value?: number } | null, strokeWidth = 1) =>
+    ({ id: "n", type: "rectangle", x: 10, y: 20, width: side, height: side, version: 1, strokeWidth, roundness }) as never
+
+  it.each([
+    // [side, roundness, zoom, corner in scene px]: adaptive is a quarter of the short side up to 32; proportional a quarter.
+    [100, { type: 3 }, 1, 25],
+    [180, { type: 3 }, 1, 32],
+    [180, { type: 3 }, 2, 32],
+    [180, { type: 3, value: 12 }, 1, 12],
+    [180, { type: 2 }, 1, 45],
+    [180, null, 1, 0],
+  ] as const)("a %i note rounded %o at %ix: corner %i", (side, roundness, zoom, corner) => {
+    const n = shape(side, roundness as never)
+    const box = noteBox(view(zoom), n)
+    const face = noteFace(view(zoom), n)
+    const grow = 0.5 * zoom + 1
+    expect(face.left).toBeCloseTo(box.left - grow, 5)
+    expect(face.top).toBeCloseTo(box.top - grow, 5)
+    expect(face.width).toBeCloseTo(box.width + 2 * grow, 5)
+    expect(face.height).toBeCloseTo(box.height + 2 * grow, 5)
+    expect(face.radius).toBeCloseTo(corner * zoom + grow, 5)
+    expect(face.inView).toBe(true)
+  })
+
+  it("grows by half of a thicker stroke", () => {
+    expect(noteFace(view(2), shape(180, { type: 3 }, 4)).left).toBeCloseTo(noteBox(view(2), shape(180, { type: 3 }, 4)).left - 5, 5)
+  })
+
+  it("takes Excalidraw's own dark filter, as its canvas does (an upgrade that changes it fails here)", () => {
+    const constants = readFileSync(join(__dirname, "..", "..", "node_modules", "@excalidraw", "excalidraw", "dist", "types", "excalidraw", "constants.d.ts"), "utf8")
+    expect(BOARD_DARK_FILTER).toBe(/THEME_FILTER = "([^"]+)"/.exec(constants)?.[1])
   })
 })

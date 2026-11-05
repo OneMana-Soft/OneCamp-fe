@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Request, type TestInfo } from "@playwright/test"
+import * as Y from "yjs"
 
-import { SAM, SHOT_THEMES, docInfo, reviewShot, withStatus, type Answers } from "../stubbedApp"
+import { SAM, SHOT_THEMES, docInfo, reviewShot, stubBackend, withStatus, type Answers } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
 import { PRIYA, openDocAs, type DocTab, type OpenAs, type Person } from "./twoPeople"
 import { grip, hover, menu } from "./blockHandle"
@@ -307,3 +308,49 @@ test.describe("on a phone, 390 px with touch", () => {
     })
   }
 })
+
+// A public doc's guest (V-440): the doc holds a page, and its guest reads that
+// it is a page, which goes nowhere, under the doc's own text. The guest page has
+// no live connection, and the page block's live read threw there ("useMqtt must
+// be used within MqttProvider"), taking the whole page to the app's error page.
+const GUEST_LINK = "c7aGuestLink0001"
+
+for (const [label, touch] of [
+  ["1280", false],
+  ["390 with touch", true],
+] as const) {
+  test.describe(`a public doc's guest, ${label}`, () => {
+    test.use(touch ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 900 } })
+
+    test("reads the doc's page as a page that goes nowhere, with no error page", async ({ page }, testInfo) => {
+      // The doc as the server keeps it: a line of text, then the page's block.
+      const relay = new CollabRelay()
+      const line = new Y.XmlElement("paragraph")
+      line.insert(0, [new Y.XmlText("The plan, and the pages inside it.")])
+      const block = new Y.XmlElement("subpage")
+      block.setAttribute("docId", NOTES)
+      block.setAttribute("title", TITLES[NOTES])
+      relay.doc(DOC).getXmlFragment("default").insert(0, [line, block])
+      await stubBackend(page, testInfo, {
+        [`/guest/collab/${GUEST_LINK}`]: {
+          msg: "ok",
+          data: { collab_token: "guest", document_name: DOC, resource_type: "doc", resource_id: DOC, capability: "view", title: TITLES[DOC], workspace_name: "Acme Studio" },
+        },
+        [`/guest/doc-comments/${GUEST_LINK}`]: { msg: "ok", data: { capability: "view", workspace_name: "Acme Studio", comments: [] } },
+      })
+      await relay.attach(page, "guest")
+      const crashes: string[] = []
+      page.on("pageerror", (e) => crashes.push(e.message))
+      await page.goto(`/guest/d/${GUEST_LINK}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+
+      await expect(page.getByText("The plan, and the pages inside it.")).toBeVisible({ timeout: 30_000 })
+      const pageAt = page.locator('[data-subpage][data-state="guest"]')
+      await expect(pageAt).toHaveText("Page")
+      await expect(page.getByText("Something went wrong")).toHaveCount(0)
+      expect(crashes, "the guest page threw").toEqual([])
+      // Nothing of the page: not its title, and no way to it.
+      await expect(pageAt.getByText(TITLES[NOTES])).toHaveCount(0)
+      await expect(pageAt.getByRole("link")).toHaveCount(0)
+    })
+  })
+}

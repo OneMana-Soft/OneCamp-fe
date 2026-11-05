@@ -16,8 +16,10 @@ import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { appMutate } from "@/lib/swrMutate"
 import { boardTemplatesKey, publishTemplate } from "@/services/marketplaceService"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { templateElements, type CopyableElement } from "@/lib/board/copyElements"
+import { outwardNow, outwardScene } from "@/lib/board/sceneOut"
+import { heldNoteCount } from "@/lib/board/privateNotes"
 import { BOARD_TEMPLATE_MAX_BYTES, boardTemplatePayload } from "@/lib/board/teamTemplates"
 
 const kb = (bytes: number) => `${Math.ceil(bytes / 1024).toLocaleString()} KB`
@@ -28,10 +30,18 @@ export default function SaveBoardTemplate({ api, title, onClose }: { api: Excali
   const [description, setDescription] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState("")
-  // The board as it is when the dialog opens.
-  const scene = React.useMemo(() => api.getSceneElements() as unknown as CopyableElement[], [api])
-  const elements = React.useMemo(() => templateElements(scene), [scene])
-  const pictures = scene.some((e) => e.type === "image" && !e.isDeleted)
+  // The board as it is when the dialog opens, as it may leave this tab (lib/board/sceneOut: a note held in private
+  // mode stays out). While a round's private mode is still coming, it is read once that code is in.
+  const [scene, setScene] = React.useState(() => outwardNow<CopyableElement>(api))
+  React.useEffect(() => {
+    if (scene) return
+    outwardScene<CopyableElement>(api).then(setScene, () => setError("The board couldn't be read just now. Try again in a moment."))
+  }, [api, scene])
+  const elements = React.useMemo(() => templateElements(scene ?? []), [scene])
+  const pictures = !!scene?.some((e) => e.type === "image" && !e.isDeleted)
+  // Held notes stay out of the template; the count says so, as Make tasks does.
+  const held = scene ? heldNoteCount(scene) : 0
+  const heldLine = held > 0 ? ` ${held.toLocaleString()} private ${held === 1 ? "note stays" : "notes stay"} out until the round ends.` : ""
   // What the board weighs is read once; a name typed adds only its own bytes
   // (the payload with an empty title, its two quotes taken back).
   const boardBytes = React.useMemo(() => boardTemplatePayload("", elements).bytes - 2, [elements])
@@ -50,7 +60,7 @@ export default function SaveBoardTemplate({ api, title, onClose }: { api: Excali
       toast({ title: "Saved to Templates", description: "Anyone in the workspace can start a board from it." })
       onClose()
     } catch (err) {
-      setError(apiErrorMessage(err, "The template couldn't be saved just now. Try again in a moment."))
+      setError(saidHere(err, "The template couldn't be saved just now. Try again in a moment."))
     } finally {
       setBusy(false)
     }
@@ -83,9 +93,11 @@ export default function SaveBoardTemplate({ api, title, onClose }: { api: Excali
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} rows={3} aria-label="What it's for" placeholder="A retro for the end of each sprint" />
         </label>
         <p className="text-ui-sm text-ink-3" data-template-contents="">
-          {elements.length === 0
-            ? "There's nothing on the board to save yet."
-            : `${elements.length.toLocaleString()} ${elements.length === 1 ? "thing" : "things"} from the board.${pictures ? " Pictures stay with the board." : ""}`}
+          {!scene
+            ? "Reading the board…"
+            : elements.length === 0
+            ? `There's nothing on the board to save yet.${heldLine}`
+            : `${elements.length.toLocaleString()} ${elements.length === 1 ? "thing" : "things"} from the board.${pictures ? " Pictures stay with the board." : ""}${heldLine}`}
         </p>
         {tooBig && (
           <p role="alert" className="text-ui-sm text-danger-ink">

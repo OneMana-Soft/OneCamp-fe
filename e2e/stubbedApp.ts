@@ -32,9 +32,21 @@ export function withStatus(status: number, json: unknown) {
   return { [STATUS]: status, json }
 }
 
-function statusOf(answer: unknown): { status: number; json: unknown } {
+const HEADERS = Symbol("headers")
+
+/**
+ * An answer with headers of its own (a download's counts and parts), which the
+ * app may read: each is exposed to it, as the API's CORS exposes it.
+ */
+export function withHeaders(headers: Record<string, string>, json: unknown, status = 200) {
+  return { [STATUS]: status, [HEADERS]: headers, json }
+}
+
+function statusOf(answer: unknown): { status: number; json: unknown; headers: Record<string, string> } {
   const s = (answer as { [STATUS]?: number } | null)?.[STATUS]
-  return typeof s === "number" ? { status: s, json: (answer as { json: unknown }).json } : { status: 200, json: answer }
+  const own = (answer as { [HEADERS]?: Record<string, string> } | null)?.[HEADERS] ?? {}
+  const headers = Object.keys(own).length ? { ...own, "access-control-expose-headers": Object.keys(own).join(", ") } : {}
+  return typeof s === "number" ? { status: s, json: (answer as { json: unknown }).json, headers } : { status: 200, json: answer, headers }
 }
 
 /**
@@ -333,8 +345,8 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
         // An answer may depend on the query (a page, a page size) or on what a
         // write sent: a function of the URL and the request. Its promise
         // answers when the test lets it (a card that fills in late).
-        const { status, json } = statusOf(typeof answer === "function" ? await (answer as (url: URL, request: Request) => unknown)(new URL(request.url()), request) : answer)
-        return status === 0 ? route.abort("failed") : route.fulfill({ status, headers, json })
+        const { status, json, headers: own } = statusOf(typeof answer === "function" ? await (answer as (url: URL, request: Request) => unknown)(new URL(request.url()), request) : answer)
+        return status === 0 ? route.abort("failed") : route.fulfill({ status, headers: { ...headers, ...own }, json })
       }
       if (/\/user\/profile$/.test(path)) return route.fulfill({ status: 200, headers, json: { msg: "ok", data: SAM } })
       const shell = (request.method() === "GET" ? SHELL_READS : SHELL_WRITES).find(([re]) => re.test(path))

@@ -14,11 +14,13 @@ vi.mock("@/components/board/exportRun", () => ({
   saveBoardFile: (...a: unknown[]) => saveBoardFile(...a),
 }))
 
-import { EXPORT_FAILED, PICTURE_BUTTON, isSaveAsKey, isSaveKey, makesPicture, recordBoardExport, tabBoardName, useBoardExportTrail } from "./exportRecord"
+import { EXPORT_NOT_RECORDED } from "@/lib/export/exportTell"
+import { EXPORT_FAILED, EXPORT_REFUSED_TITLE, PICTURE_BUTTON, isSaveAsKey, isSaveKey, makesPicture, recordBoardExport, tabBoardName, useBoardExportTrail } from "./exportRecord"
 
 const BOARD = "b0a4d000-0000-4000-8000-0000000000f5"
 const PAGE = `/app/board/${BOARD}`
 const flush = () => new Promise((r) => setTimeout(r, 0))
+const TOO_MANY = "You've exported a lot in the last few minutes. Wait a few minutes and try again."
 
 /** Excalidraw's image dialog's row: PNG, SVG, the clipboard's copy, each with a label inside. */
 function imageDialogRow() {
@@ -76,15 +78,18 @@ afterEach(() => {
 })
 
 describe("telling the admin log of a board's export", () => {
-  it("posts the board and the format with no toast, and swallows a failed telling", async () => {
-    recordBoardExport(BOARD, "csv")
+  it("posts the board and the format with no toast of axios's own, and a refused tell throws why", async () => {
+    await recordBoardExport(BOARD, "csv")
     expect(post).toHaveBeenCalledWith("/board/recordExport", { board_uuid: BOARD, format: "csv" }, { suppressErrorToast: true })
+    // Too many exports in a few minutes: the server's words (V-363).
+    post.mockRejectedValueOnce({ response: { status: 429, data: { msg: TOO_MANY } } })
+    await expect(recordBoardExport(BOARD, "pdf")).rejects.toThrow(TOO_MANY)
+    // No answer: the export couldn't be recorded, so none is made.
     post.mockRejectedValueOnce(new Error("offline"))
-    expect(() => recordBoardExport(BOARD, "pdf")).not.toThrow()
-    await flush()
+    await expect(recordBoardExport(BOARD, "pdf")).rejects.toThrow(EXPORT_NOT_RECORDED)
     // No board, nothing to tell.
-    recordBoardExport("", "file")
-    expect(post).toHaveBeenCalledTimes(2)
+    await recordBoardExport("", "file")
+    expect(post).toHaveBeenCalledTimes(3)
   })
 
   it("reads a picture from the image dialog's PNG or SVG, never its clipboard copy or anything else", () => {
@@ -172,6 +177,38 @@ describe("useBoardExportTrail", () => {
     png.click()
     expect(told()).toEqual(["picture", "picture"])
     expect(listeners.size).toBe(0)
+  })
+
+  it("holds a picture's PNG or SVG until the log has its tell, then lets Excalidraw make it; a refusal makes none and says why", async () => {
+    const [png] = imageDialogRow()
+    const made = vi.fn()
+    // Excalidraw's own handler on the button, behind ours (ours listens on the document as presses are captured).
+    png.addEventListener("click", made)
+    const { api, dialog } = fakeApi()
+    renderHook(() => useBoardExportTrail(api, BOARD))
+    dialog("imageExport")
+    let answer: (v: unknown) => void = () => {}
+    post.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+    png.click()
+    // Told, and held while the log answers.
+    expect(told()).toEqual(["picture"])
+    expect(made).not.toHaveBeenCalled()
+    answer({ data: {} })
+    await flush()
+    // Answered: pressed again for Excalidraw, once, and that press isn't told twice.
+    expect(made).toHaveBeenCalledTimes(1)
+    expect(told()).toEqual(["picture"])
+    // Too many exports in a few minutes: no picture, and the server's words.
+    post.mockRejectedValueOnce({ response: { status: 429, data: { msg: TOO_MANY } } })
+    png.click()
+    await flush()
+    expect(made).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: EXPORT_REFUSED_TITLE, description: TOO_MANY })
+    // The next press is held and told again, as any is.
+    png.click()
+    await flush()
+    expect(told()).toEqual(["picture", "picture", "picture"])
+    expect(made).toHaveBeenCalledTimes(2)
   })
 
   it("tells nothing of an empty board's picture, which Excalidraw refuses to save, judged as the dialog opened", () => {

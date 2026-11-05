@@ -9,7 +9,7 @@ import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { isComposingKey } from "@/lib/keys/ime"
 import { Loader2 } from "@/lib/icons"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { createFolder, type NodePlace } from "@/services/docFilesService"
 
 /**
@@ -30,7 +30,7 @@ export function NewFolderDialog({ place, onClose }: { place: NodePlace; onClose:
       await createFolder(name, place)
       onClose()
     } catch (e) {
-      setError(apiErrorMessage(e, "The folder wasn't made. Try again in a moment."))
+      setError(saidHere(e, "The folder wasn't made. Try again in a moment."))
     } finally {
       setBusy(false)
     }

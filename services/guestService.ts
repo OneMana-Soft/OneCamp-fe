@@ -116,6 +116,7 @@ export const getGuestCollabSession = (token: string, displayName?: string) =>
     publicCall<GuestCollabSession>(`/guest/collab/${encodeURIComponent(token)}`, {
         method: "POST",
         body: JSON.stringify({ display_name: (displayName || "").trim() }),
+        credentials: "omit",
     })
 
 /** A fresh collab token for the viewer's (re)connect, or "" when there is none. */
