@@ -80,6 +80,7 @@ import {useToast} from "@/hooks/use-toast"
 import type { CreateTaskCommentInterface, CreateTaskInterface, NewSubTaskDraft, RemoveTaskAttachmentInterface, TaskInfoInterface, TaskInfoRawInterface } from "@/types/task"
 import {useUploadFile} from "@/hooks/useUploadFile"
 import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader"
+import { warmTooltip } from "@/components/ui/tooltip"
 import { inReaderZone } from "@/lib/tasks/readerZone"
 import { TaskTypeField } from "@/components/task/TaskTypeField"
 import { HIDDEN_TASK_NAME, isTaskThere } from "@/lib/work/hiddenTask"
@@ -189,10 +190,11 @@ const ProjectStatusesDialog = lazyPiece(() => import("@/components/project/Proje
 /**
  * Every part the panel draws on a chunk of its own, fetched ahead (lib/offline/warmAhead's list, which TaskInPlace
  * joins), so a task opens whole with no network (asana-12 (a)). Only the statuses dialog, which a press opens, comes
- * when it opens (taskParts.test).
+ * when it opens (taskParts.test). The tooltips' Radix code too (ui/tooltip warmTooltip): the header draws one, and
+ * its code comes once a tooltip is on screen, which a phone's board never had (offlineTasks:674).
  */
 export const warmTaskParts = () =>
-    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), releaseField.warm(), approvalCard.warm(), TaskVisibilityRow.warm()])
+    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), releaseField.warm(), approvalCard.warm(), TaskVisibilityRow.warm(), warmTooltip()])
 
 /** The palette's actions on the open task (linear-28): a chunk of their own, fetched once (the browser keeps it). */
 const loadTaskActions = () => import("@/lib/work/taskPaletteEntries")
