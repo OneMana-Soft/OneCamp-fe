@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Request, type TestInfo } fr
 import { reviewShot, SAM, SHOT_THEMES, TASK_PANEL_READS, stubBackend, withStatus } from "./stubbedApp"
 import { showsFocusRing, tabOnto } from "./focusRing"
 import { animationsSettled } from "./settled"
+import { demoBuild } from "./demoBuild"
 
 // EVLINK head B (gcal-15: events, tasks, docs and calls linked in one place): an event's Linked row takes a doc, a
 // board or a task through the one entity-link search; the chips are named by the reader's own read; a task's chip
@@ -354,8 +355,10 @@ for (const theme of SHOT_THEMES) {
       test.setTimeout(240_000)
       const seen = await open(page, testInfo, `/app/calendar/event/${LAUNCH}`, { refuse: DOC })
       await expect(page.getByRole("heading", { name: "Launch review" })).toBeVisible({ timeout: 60_000 })
-      // The demo's banner put away, so the page's foot holds the Linked chips clear of the toast.
-      await page.getByRole("button", { name: "Got it" }).tap()
+      // The demo's banner put away, so the page's foot holds the Linked chips clear of the toast. Only the demo's build
+      // draws it (components/banner/DemoSharedNote, NEXT_PUBLIC_DEMO_MODE, as demoBuild reads it): there the tap waits
+      // for it however late it comes; a customer's build has none to put away.
+      if (demoBuild()) await page.getByRole("button", { name: "Got it" }).tap()
       await expect(page.getByRole("button", { name: "Got it" })).toHaveCount(0)
       await page.getByRole("button", { name: "Edit event" }).tap()
       const row = page.locator("[data-event-edit] [data-form-files]")
