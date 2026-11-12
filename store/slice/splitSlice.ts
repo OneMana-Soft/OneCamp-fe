@@ -138,7 +138,7 @@ const splitSlice = createSlice({
     // The page shows `here`; open beside too, the pane takes the page left (or closes).
     cases.addCase(setHere, (s, { payload: p }) => {
       const prev = s.here
-      s.here = p
+      if (!(prev && p && same(prev, p))) s.here = p
       const at = p ? s.panes.findIndex((x) => same(x, p)) : -1
       if (!p || at < 0) return
       if (prev && !isCallPane(prev) && !isCallPane(p) && !s.panes.some((x) => same(x, prev))) replace(s, at, prev)

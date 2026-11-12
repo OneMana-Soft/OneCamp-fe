@@ -72,6 +72,15 @@ describe("one item, one view (cases 2 to 4)", () => {
     expect(run(setHere(null), openInSplit(b), setHere(b)).panes).toEqual([])
     expect(run(setHere(a), openInSplit(call), setHere(call)).panes).toEqual([])
   })
+  // The page names its item on every move (FollowRoute); the same item again keeps `here` as it was, so nothing that
+  // reads it draws for a move that changed nothing (H1).
+  it("keeps `here` as it is when the page names the same item again", () => {
+    const s = run(setHere(a), openInSplit(b))
+    const again = r(s, setHere({ ...a }))
+    expect(again.here).toBe(s.here)
+    expect(again).toBe(s)
+    expect(r(s, setHere(c)).here).toEqual(c)
+  })
   it("drops a kept pane that is the page itself", () => {
     expect(run(setHere(a), restoreSplit({ panes: [a, b] })).panes).toEqual([b])
   })

@@ -203,12 +203,19 @@ describe("where toasts are drawn", () => {
     field.getBoundingClientRect = () => box(752, 792)
     const button = document.body.appendChild(document.createElement("button"))
     button.getBoundingClientRect = () => box(752, 792)
+    // A table cell at rest: a readonly textarea, which raises no keyboard and takes no typing (V-831).
+    const rest = document.body.appendChild(document.createElement("textarea"))
+    rest.readOnly = true
+    rest.getBoundingClientRect = () => box(752, 792)
     try {
       // The first field used on a phone fetches the slot's code (off first load).
       act(() => field.focus())
       await vi.waitFor(() => expect(vp.dataset.slot, "the field in the foot slot").toBe("top"))
       act(() => button.focus())
       expect(vp.dataset.slot, "a button: nothing is typed under the toast").toBeUndefined()
+      act(() => field.focus())
+      act(() => rest.focus())
+      expect(vp.dataset.slot, "a readonly field (a table cell at rest): nothing is typed under the toast").toBeUndefined()
       field.getBoundingClientRect = () => box(300, 340)
       act(() => field.focus())
       expect(vp.dataset.slot, "a field well above the slot").toBeUndefined()
@@ -223,6 +230,7 @@ describe("where toasts are drawn", () => {
     } finally {
       field.remove()
       button.remove()
+      rest.remove()
       vi.unstubAllGlobals()
     }
 

@@ -104,7 +104,7 @@ registerBlock({
         return ReactNodeViewRenderer(ReferenceMentionNodeView)
       },
     }).configure({
-      suggestion: makeReferenceSuggestion({ char: "+", types: ["doc", "board", "task", "project"], pluginKey: EntityMentionPluginKey, emptyHint: "Type to search docs, boards, tasks, projects", nodeName: "entityMention" }),
+      suggestion: makeReferenceSuggestion({ char: "+", types: ["doc", "board", "task", "project"], pluginKey: EntityMentionPluginKey, nodeName: "entityMention", letterFirst: true }),
       HTMLAttributes: { class: "entity-mention" },
       renderHTML: (prop): DOMOutputSpec => [
         "span",

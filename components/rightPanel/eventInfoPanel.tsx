@@ -16,6 +16,7 @@ import { Trash2, LogOut, Ellipsis, Video, VideoOff } from "@/lib/icons";
 import { eventCallChoice, eventCallOf, inviteesSkipLobby, joinOffer } from "@/lib/calendar/joinLink";
 import { useEventCallActions } from "@/components/calendar/useEventCallActions";
 import { EventOptionCheckbox } from "@/components/calendar/FocusTimeCheckbox";
+import { VisibilityLine } from "@/components/calendar/visibilityLine";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EventMenuRows, type EventMenuItem } from "@/components/calendar/eventMenu";
 import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
@@ -34,7 +35,6 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
-import { deleteEventConfirm, deleteEventRequest } from "@/lib/calendar/confirmDelete";
 import { submitOnModEnter } from "@/lib/keys/chord";
 import { Button } from "@/components/ui/button";
 import { useSWRConfig, type Cache } from "swr";
@@ -51,8 +51,9 @@ import type { EventFormValues, FormProblem } from "@/lib/calendar/eventForm";
 import { isRichNotes } from "@/lib/calendar/richNotes";
 import { useWhenIdle } from "@/hooks/useWhenIdle";
 import { isInstanceId, seriesIdOf } from "@/lib/calendar/instanceId";
-import { apiEventUrl, eventArtefactsUrl, deleteApiEventRequest, deleteCallArtefactRequest, restoreCallArtefactRequest, dismissProposalRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
-import { eventGuests } from "@/components/calendar/rsvp/eventGuests";
+import { apiEventUrl, eventArtefactsUrl, deleteCallArtefactRequest, restoreCallArtefactRequest, dismissProposalRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
+import { cantGo, eventGuests } from "@/components/calendar/rsvp/eventGuests";
+import { RescheduleOffer } from "@/components/calendar/rsvp/rescheduleOffer";
 import { EventGuestList } from "@/components/calendar/rsvp/guestList";
 import type { FaceGuest } from "@/components/calendar/rsvp/guestFaces";
 import { YourAnswer } from "@/components/calendar/rsvp/yourAnswer";
@@ -62,7 +63,8 @@ import { toast } from "@/hooks/use-toast";
 import { TellGuestsView, useTellGuests } from "@/components/calendar/tellGuests";
 import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import { deletedTitle, offerUndo, restoreBy } from "@/services/restoreService";
-import type { CallToDelete } from "@/components/calendar/eventRecordings";
+import { useAppRouter } from "@/lib/navigation/appRouter";
+import type { CallToDelete } from "@/components/recording/callArtefactList";
 
 // Google's G, shown only on its events: a chunk of its own, off the event page's first load.
 const GoogleMark = lazyPiece(() => import("@/components/ui/graphics/GoogleMark").then((m) => ({ default: m.GoogleMark })));
@@ -79,8 +81,10 @@ const EventRecordings = lazyPiece(() => import("@/components/calendar/eventRecor
 const EventFormView = lazyView(() => import("@/components/calendar/form/panelEdit"));
 // The reader's reminders (calendar A5): a chunk asked for once the row is drawn.
 const Reminders = lazyView(() => import("@/components/calendar/rsvp/reminderRow"));
+// A delete: the calendar's one way (lib/calendar/deleteEvent, CAL-40), and its toast's buttons, as the grid loads them.
+const deleting = () => Promise.all([import("@/lib/calendar/deleteEvent"), import("@/components/calendar/undoToast")]);
 const fetchAhead = () =>
-    [EventFormView, ScopePromptView, TellGuestsView, Reminders].forEach((view) => void view.warm().catch(() => {}));
+    [EventFormView, ScopePromptView, TellGuestsView, Reminders, { warm: deleting }].forEach((view) => void view.warm().catch(() => {}));
 
 interface EventInfoPanelProps {
     eventUUID: string;
@@ -95,6 +99,7 @@ interface EventInfoPanelProps {
 
 export default function EventInfoPanel({ eventUUID, onClose, editRequest }: EventInfoPanelProps) {
     const post = usePost();
+    const router = useAppRouter();
     const { copy } = useCopyToClipboard();
     const [isEditing, setIsEditing] = useState(false);
     // The event by its id (CAL-BUG-7). The panel used to look for it in the
@@ -195,7 +200,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
         EventFormView.warm().then(
             (m) => {
                 if (!live) return;
-                const values = apiEvent ? m.eventValues(apiEvent, m.ownReminders(event), zone) : m.listedValues(event, zone);
+                const values = apiEvent ? m.eventValues(apiEvent, m.ownReminders(event), zone, event) : m.listedValues(event, zone);
                 fromList.current = !apiEvent;
                 setDraft(values);
                 setWas(values);
@@ -255,7 +260,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
     // before, counted in days (a day the clocks change on isn't 24 hours).
     const allDay = allDayItem(event, start, end);
     const lastMoment = allDay ? allDayLastDay(start, end) : end;
-    // Its own call (calendar B11), else the link in its notes.
+    // Its guest call (calendar B11), else the link in its notes, else its own room (gcal-15).
     const call = eventCallOf(event, window.location.origin);
     const callLink = call?.join ?? null;
     const join = joinOffer(callLink, start, end, new Date());
@@ -365,41 +370,36 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
         }));
     };
 
-    const executeDelete = async () => {
-        try {
-            await post.makeRequest(deleteEventRequest(event.event_uuid));
-            closeGone();
-        } catch {
-            // The toast said why.
-        }
-    };
-
+    // Deleted the way the grid deletes: nothing for good, so never "can't be undone". On the one store it
+    // goes to the Trash with Undo, asking "Tell your guests it's cancelled?" first when anyone else is on
+    // it; an instance asks its scope first, and a booked meeting names its guest, each then offering the Trash.
     const handleDelete = async () => {
-        // One instance of a series: which of them go to the trash.
-        if (apiEvent && isInstanceId(apiEvent.id)) {
-            const scope = await askScope("delete");
-            if (!scope) return;
-            try {
-                await post.makeRequest(deleteApiEventRequest(apiEvent.id, scope, apiEvent.sequence));
-                closeGone();
-            } catch {
-                // The toast said why.
-            }
-            return;
-        }
-        dispatch(openUI({
-            key: 'confirmAlert',
-            data: {
-                ...deleteEventConfirm(event),
-                destructive: true,
-                onConfirm: executeDelete
-            }
-        }));
+        const parts = await deleting().catch(() => null);
+        if (!parts) return void toast({ title: `Couldn't delete “${event.event_title}”`, description: "Check your connection and try again.", variant: "destructive" });
+        const [{ deleteEvent, trashRoute }, { toastAction }] = parts;
+        await deleteEvent(
+            {
+                makeRequest: post.makeRequest,
+                askScope,
+                askTell,
+                confirm: (data) => dispatch(openUI({ key: "confirmAlert", data })),
+                toast,
+                action: toastAction,
+                gone: closeGone,
+                back: refreshLists,
+                openTrash: () => router.push(trashRoute(window.location)),
+                full: !!ownApi,
+            },
+            event,
+            apiEvent?.sequence,
+        );
     };
 
     // Which calendar it is on, in that calendar's hue, the way the calendar
     // draws it: dot and word under the title, as a task's status sits under its.
     const onGoogle = event.event_uuid.startsWith("gcal-");
+    // Private or not, as the calendar's own read says it, else as the list's row did (V-643).
+    const visibility = apiEvent?.visibility ?? event.event_visibility;
 
     // Guests' answers (calendar A2), where the calendar keeps them: a guest
     // answers, with a note for the organiser, until the event is over; the
@@ -416,6 +416,8 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
         setSkipAsked(null);
     };
     const answering = !onGoogle && !isCreator && guestView.answered && guestView.mine !== undefined && !ended;
+    // The organiser's offer of a better time after a decline (gcal-16): the organiser alone (isCreator, never mayEdit).
+    const declined = cantGo(guestView, { organiser: isCreator, google: onGoogle, ended });
     const answer = async (a: Answer, note?: string, proposal?: EventProposal | null) => {
         const ok = await sendAnswer({ post, askScope, selfId: currentUserUUID }, event, a, note, proposal);
         if (ok !== null) {
@@ -430,7 +432,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
     const useProposal = async (p: EventProposal) => {
         if (!apiEvent) return;
         const m = await EventFormView.warm();
-        const now = m.eventValues(apiEvent, m.ownReminders(event), readerZone());
+        const now = m.eventValues(apiEvent, m.ownReminders(event), readerZone(), event);
         await saveChange({ ...now, start: new Date(p.start), end: new Date(p.end) }, now, "this");
     };
     const dismissProposal = async (g: FaceGuest) => {
@@ -502,7 +504,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
         ...(callChoice === "remove"
             ? [{ label: "Remove call", icon: VideoOff, onSelect: callActions.remove, destructive: true }]
             : callChoice === "add"
-              ? [{ label: "Add a call", icon: Video, onSelect: () => void callActions.add() }]
+              ? [{ label: "Add a guest link", icon: Video, onSelect: () => void callActions.add() }]
               : []),
         ...(isCreator
             ? [
@@ -584,7 +586,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                         {/* Its first action, while there is a call to join
                             (lib/calendar/joinLink), as the event's pop card has it. */}
                         {callLink && join ? (
-                            <Button asChild size="sm" variant={join === "primary" ? "default" : "secondary"} className="mt-4">
+                            <Button asChild size="sm" variant={join === "primary" ? "default" : "secondary"} className="mt-4 pointer-coarse:h-11">
                                 <a href={callLink} {...(call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })}>
                                     <Video />
                                     Join call
@@ -616,11 +618,21 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                                     {allDay ? "All day" : isSameDay(start, end) ? `${clockTime(start)} to ${clockTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
                                 </dd>
                             </div>
+                            {event.event_location ? <EventFormView.View fallback={null} render={(m) => <m.EventExtra place={event.event_location} />} /> : null}
                             {apiEvent?.recurrence ? (
                                 <div className={fieldRow()} data-event-repeats="">
                                     <dt className={fieldLabel}>Repeats</dt>
                                     <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">
                                         {apiEvent.recurrence.text || "Repeats"}
+                                    </dd>
+                                </div>
+                            ) : null}
+                            {/* Made private (V-643, gcal-1a): one line, as its card says it. */}
+                            {visibility === "private" ? (
+                                <div className={fieldRow()} data-event-visibility="">
+                                    <dt className={fieldLabel}>Visibility</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center">
+                                        <VisibilityLine visibility={visibility} />
                                     </dd>
                                 </div>
                             ) : null}
@@ -686,6 +698,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                             onUseProposal={changesEvent && !ended ? useProposal : undefined}
                             onDismissProposal={changesEvent ? dismissProposal : undefined}
                         />
+                        <RescheduleOffer guests={declined} />
 
                         <section className="mt-6 space-y-2">
                             <h3 className={sectionTitle}>Notes</h3>
@@ -703,6 +716,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                                 <p className="text-sm text-muted-foreground">No notes.</p>
                             )}
                         </section>
+                        {apiEvent?.files?.length ? <EventFormView.View fallback={null} render={(m) => <m.EventExtra files={apiEvent.files} />} /> : null}
                         {artefacts?.data?.length ? (
                             <Suspense fallback={null}>
                                 <EventRecordings

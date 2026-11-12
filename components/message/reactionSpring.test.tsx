@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { TooltipProvider, warmTooltip } from "@/components/ui/tooltip"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 
 // Adding your reaction answers with a little spring (the playful layer's
 // springPop, 1 -> 1.12 -> 1); taking it back does not.
@@ -12,6 +13,9 @@ vi.mock("@/lib/celebrate", () => ({ springPop: (el: Element) => pops(el), celebr
 vi.mock("@/lib/spring", () => ({ springPop: (el: Element) => pops(el) }))
 
 const { ReactionPill } = await import("./reactionPill")
+
+// Who reacted is asserted at once on focus: the tooltip's Radix side (lazy since H2) is here before the tests start.
+warmBeforeTests(warmTooltip)
 
 afterEach(() => {
   cleanup()

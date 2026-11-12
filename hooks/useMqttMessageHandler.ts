@@ -414,6 +414,13 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         window.dispatchEvent(new CustomEvent("onecamp:call-state", { detail: JSON.parse(messageStr)?.data }))
                         break
 
+                    case MqttMessageType.Call_Ring:
+                        // A call rings this person, stops, or (to its caller)
+                        // rings whom or was declined: the ring host and the
+                        // caller's stage read it (lib/calls/ring).
+                        window.dispatchEvent(new CustomEvent("onecamp:call-ring", { detail: JSON.parse(messageStr)?.data }))
+                        break
+
                     case MqttMessageType.Chat_Seen:
                         // A read receipt: someone has seen a conversation up to a time.
                         try {
@@ -430,6 +437,10 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         // An import got further (business/ContentIO's Job);
                         // the import dialog listens (lib/export/contentIO).
                         window.dispatchEvent(new CustomEvent(CONTENT_IO_JOB_EVENT, { detail: JSON.parse(messageStr)?.data }))
+                        break
+
+                    case MqttMessageType.Calendar_Live:
+                        window.dispatchEvent(new CustomEvent("onecamp:calendar-live", { detail: JSON.parse(messageStr)?.data }))
                         break
 
                     case MqttMessageType.Preference:

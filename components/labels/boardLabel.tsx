@@ -10,7 +10,8 @@ import type { Labelling } from "@/lib/labels/labelTypes"
 import { SensitivityChip } from "./labelMarks"
 import LabelPicker from "./LabelPicker"
 
-const PHONE = "pointer-events-auto h-8 max-w-[7.5rem] bg-pop shadow-e3"
+// Under 390 px its name would fall to a letter, a broken word: the shield and the dot alone (V-933 F1).
+const PHONE = "pointer-events-auto h-8 max-w-[7.5rem] bg-pop shadow-e3 max-[390px]:[&_.truncate]:hidden"
 
 export default function BoardLabel({ labelling, edit, open, onOpen, empty, phone }: { labelling: Labelling; edit: boolean; open: boolean; onOpen: (open: boolean) => void; empty: React.ReactNode; phone?: boolean }) {
   const { label } = labelling

@@ -4,17 +4,17 @@
 // floating at the board's right on a computer. Its name heads it, and what it does sits in a footer pinned under its
 // one scroller, so however long the list above grows, the actions stay in sight (and in a thumb's reach on a phone:
 // the owner's overlay rule, 18 Oct).
-// Each panel's code is a chunk of its own, so the board's tools draw its frame at once (BoardSideFrame, V-195): a tap
+// Each panel's code is a chunk of its own, so the board's tools draw its frame at once (boardSideFrame, V-195): a tap
 // that waits on that code raises the sheet with the panel's name and shape, never a blank board, and the panel then
-// fills that same frame, so the sheet rises once. Loaded with the board's tools, never with the board's first paint.
+// fills that same frame, so the sheet rises once. Loaded with the board's tools, never with the board's first paint;
+// and with a board's slides (boardSlides), whose chunk reaches no shared core, so the frame, which reads lazyPanel,
+// is a file of its own.
 
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { Drawer, DrawerContent, DrawerTitle, type SheetDetent } from "@/components/ui/drawer"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { PanelFrame } from "@/lib/lazy/lazyPanel"
 import { X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -32,17 +32,23 @@ export type SideWords = {
 } & Marks
 
 /** The board's side panels, as one place says them: each panel's own words and its frame's (boardWorkbench). */
-export const SIDE_PANELS: Record<"find" | "frames" | "tagFilter" | "addWork", (editable?: boolean) => SideWords> = {
+export const SIDE_PANELS: Record<"find" | "frames" | "tagFilter" | "addWork" | "slides", (editable?: boolean) => SideWords> = {
   find: (editable) => ({ name: editable ? "Find and replace" : "Find on board", closeLabel: "Close find", detent: "half", "data-board-find": "" }),
   frames: () => ({ name: "Frames", closeLabel: "Close frames", "data-frames-panel": "" }),
   tagFilter: () => ({ name: "Filter by tag", closeLabel: "Close Filter by tag", detent: "medium", "data-tag-filter": "" }),
   addWork: () => ({ name: "Add from OneCamp", closeLabel: "Close Add from OneCamp", detent: "half", "data-add-work": "" }),
+  // A board's frames as slides, while presenting or following (components/board/boardSlides).
+  slides: () => ({ name: "Slides", closeLabel: "Close slides", detent: "half", "data-slides-outline": "" }),
 }
 
-/** A frame's hold on the panel in it: the frame's foot, where the panel's footer goes, and how the panel says what the frame shows of it. */
-type Host = { foot: HTMLElement | null; say: (footer: boolean, count: number | undefined) => void }
+/**
+ * A frame's hold on the panel in it: the frame's foot, where the panel's footer goes, and how the panel says what the
+ * frame shows of it: a footer or none, its count, and the sheet's height while it holds more than its words say.
+ */
+export type Said = { footer: boolean; count?: number; detent?: SheetDetent }
+type Host = { foot: HTMLElement | null; say: (said: Said) => void }
 
-const InFrame = React.createContext<Host | null>(null)
+export const InFrame = React.createContext<Host | null>(null)
 
 type Shell = SideWords & {
   /** How many it lists, beside its name on a computer. */
@@ -54,7 +60,7 @@ type Shell = SideWords & {
 }
 
 /** The side panel's shell: a panel's own (BoardSidePanel) or the frame its code comes into (BoardSideFrame). */
-function SideShell({ name, closeLabel, count, foot, detent = "half", onClose, children, ...marks }: Shell) {
+export function SideShell({ name, closeLabel, count, foot, detent = "half", onClose, children, ...marks }: Shell) {
   const sheet = useSheetMode()
 
   if (sheet) {
@@ -72,6 +78,8 @@ function SideShell({ name, closeLabel, count, foot, detent = "half", onClose, ch
       aria-label={name}
       {...marks}
       data-board-chrome=""
+      // Over the canvas's right: a slide shown on the board moves beside it (presentFrame's BOARD_SIDES).
+      data-board-side=""
       className="content-float pointer-events-auto absolute right-3 top-16 z-30 flex max-h-[calc(100%-9rem)] w-[300px] flex-col rounded-xl bg-pop shadow-e3"
     >
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-line pl-3.5 pr-1.5">
@@ -110,7 +118,7 @@ export function BoardSidePanel({
   const host = React.useContext(InFrame)
   const sheet = useSheetMode()
   const foot = footer?.(sheet)
-  if (host) return <FillsFrame host={host} foot={foot} count={count}>{children}</FillsFrame>
+  if (host) return <FillsFrame host={host} foot={foot} count={count} detent={words.detent}>{children}</FillsFrame>
   return (
     <SideShell {...words} count={count} foot={foot}>
       {children}
@@ -122,52 +130,14 @@ export function BoardSidePanel({
  * A panel in its frame: what it holds, in place in the frame's scroller; its footer, in the frame's foot, still the
  * panel's own (a portal), so a field there keeps its words and its focus as the panel draws again.
  */
-function FillsFrame({ host, foot, count, children }: { host: Host; foot: React.ReactNode; count?: number; children: React.ReactNode }) {
+function FillsFrame({ host, foot, count, detent, children }: { host: Host; foot: React.ReactNode; count?: number; detent?: SheetDetent; children: React.ReactNode }) {
   const { say } = host
   const footer = !!foot
-  React.useLayoutEffect(() => say(footer, count), [say, footer, count])
+  React.useLayoutEffect(() => say({ footer, count, detent }), [say, footer, count, detent])
   return (
     <>
       {children}
       {foot && host.foot ? createPortal(foot, host.foot) : null}
     </>
-  )
-}
-
-/**
- * The frame of a side panel whose code is a chunk of its own (V-195), drawn at once from the panel's words with its
- * close live: a tap that waits on the panel's code raises the sheet (or the panel) and says what it is. What it holds
- * while that code comes is lazyPanel's, drawn alone in it: the panel's shape, at 10 s the slow line with Try again, or
- * a failure. The panel, once in, fills this same frame (BoardSidePanel in it): its body in place, its footer in the
- * frame's foot, its count beside the name. The frame never goes away on the way, so a phone's sheet rises once.
- */
-export function BoardSideFrame({ onClose, children, ...words }: SideWords & { onClose: () => void; children: React.ReactNode }) {
-  const [said, setSaid] = React.useState<{ footer: boolean; count?: number }>({ footer: false })
-  const [foot, setFoot] = React.useState<HTMLElement | null>(null)
-  const say = React.useCallback(
-    (footer: boolean, count: number | undefined) => setSaid((now) => (now.footer === footer && now.count === count ? now : { footer, count })),
-    [],
-  )
-  const host = React.useMemo(() => ({ foot, say }), [foot, say])
-  return (
-    <SideShell {...words} count={said.count} onClose={onClose} foot={said.footer ? <div ref={setFoot} className="contents" /> : undefined}>
-      <PanelFrame.Provider value={null}>
-        <InFrame.Provider value={host}>{children}</InFrame.Provider>
-      </PanelFrame.Provider>
-    </SideShell>
-  )
-}
-
-/** A side panel's shape while its code comes, in its frame: a field and three rows, where the panel will draw them. */
-export function SidePanelShape() {
-  return (
-    <div role="status" aria-label="Loading" data-board-panel-shape="" className="grid gap-3 px-1 pt-1">
-      <Skeleton className="h-9 w-full rounded-lg" />
-      <div className="grid gap-2.5" aria-hidden="true">
-        {["w-5/6", "w-2/3", "w-3/4"].map((w) => (
-          <Skeleton key={w} className={cn("h-4", w)} />
-        ))}
-      </div>
-    </div>
   )
 }

@@ -203,6 +203,8 @@ export interface CallDockProps {
   micOn: boolean
   /** Space is held to talk (push to talk): the microphone is open only until it's let go. */
   talking?: boolean
+  /** Another device of someone in the call (meet-04): no microphone or camera, so neither control. */
+  companion?: boolean
   cameraOn: boolean
   sharing?: boolean
   onToggleMic: () => void
@@ -317,32 +319,36 @@ export function CallDock(p: CallDockProps) {
           "@3xl:inset-x-auto @3xl:bottom-4 @3xl:left-1/2 @3xl:-translate-x-1/2 @3xl:items-center @3xl:justify-center @3xl:gap-1.5 @3xl:rounded-[16px] @3xl:border-0 @3xl:bg-[#1F2024] @3xl:p-1.5 @3xl:shadow-e3",
         )}
       >
-        {/* You */}
-        <DockButton
-          label={p.micOn ? CONTROL_LABELS.mute : CONTROL_LABELS.unmute}
-          short={p.talking ? "Talking" : "Mic"}
-          shortcut={CONTROL_KEYS.mic}
-          state={p.micOn ? "on" : "off"}
-          pressed={p.micOn}
-          icon={p.micOn ? <Mic /> : <MicOff />}
-          onClick={p.onToggleMic}
-          menu={p.micMenu}
-          {...heldControl(p.held, "microphone", p.micOn)}
-        />
-        <DockButton
-          label={p.cameraOn ? CONTROL_LABELS.cameraOff : CONTROL_LABELS.cameraOn}
-          short="Camera"
-          shortcut={CONTROL_KEYS.camera}
-          state={p.cameraOn ? "on" : "off"}
-          pressed={p.cameraOn}
-          icon={p.cameraOn ? <Video /> : <VideoOff />}
-          onClick={p.onToggleCamera}
-          menu={p.cameraMenu}
-          {...heldControl(p.held, "camera", p.cameraOn)}
-        />
+        {/* You: a companion has neither */}
+        {p.companion ? null : (
+          <>
+            <DockButton
+              label={p.micOn ? CONTROL_LABELS.mute : CONTROL_LABELS.unmute}
+              short={p.talking ? "Talking" : "Mic"}
+              shortcut={CONTROL_KEYS.mic}
+              state={p.micOn ? "on" : "off"}
+              pressed={p.micOn}
+              icon={p.micOn ? <Mic /> : <MicOff />}
+              onClick={p.onToggleMic}
+              menu={p.micMenu}
+              {...heldControl(p.held, "microphone", p.micOn)}
+            />
+            <DockButton
+              label={p.cameraOn ? CONTROL_LABELS.cameraOff : CONTROL_LABELS.cameraOn}
+              short="Camera"
+              shortcut={CONTROL_KEYS.camera}
+              state={p.cameraOn ? "on" : "off"}
+              pressed={p.cameraOn}
+              icon={p.cameraOn ? <Video /> : <VideoOff />}
+              onClick={p.onToggleCamera}
+              menu={p.cameraMenu}
+              {...heldControl(p.held, "camera", p.cameraOn)}
+            />
+          </>
+        )}
 
         {/* Share */}
-        {hasShareGroup ? <Divider /> : null}
+        {hasShareGroup && !p.companion ? <Divider /> : null}
         {p.onToggleShare ? (
           <span className="hidden @3xl:flex">
             {p.board ? (
@@ -973,7 +979,8 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
   const { held } = rest
   const mic = useHeldSwitch(held, "microphone", useDeviceSwitch("microphone", setMic))
   // The microphone's one switch, holds and all, for an "asked to unmute" notice's Unmute too (unmuteToast).
-  React.useEffect(() => publishSwitch(room, "microphone", mic), [room, mic])
+  const { companion } = rest
+  React.useEffect(() => (companion ? undefined : publishSwitch(room, "microphone", mic)), [room, mic, companion])
   const camera = useHeldSwitch(held, "camera", useDeviceSwitch("camera", React.useCallback((on: boolean) => localParticipant.setCameraEnabled(on), [localParticipant])))
   // A share takes the tab's sound with it, sent as music (meet-14; shareCapture).
   const share = useHeldSwitch(held, "share", useDeviceSwitch("screen", React.useCallback((on: boolean) => localParticipant.setScreenShareEnabled(on, shareCapture(), SHARE_PUBLISH), [localParticipant])))
@@ -1013,21 +1020,21 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
   // Hold Space to talk while muted (meet-18), on this device unless turned off; a keyboard's choice, so no phone shows it.
   const [talk, setTalk] = React.useState(readPushToTalk)
   const [keyboard] = React.useState(() => typeof window === "undefined" || !window.matchMedia?.("(pointer: coarse)").matches)
-  const talking = usePushToTalk(talk && keyboard && !held?.has("microphone"), isMicrophoneEnabled, mic)
+  const talking = usePushToTalk(talk && keyboard && !companion && !held?.has("microphone"), isMicrophoneEnabled, mic)
 
   // Every key a tooltip teaches, from the one table, never while typing.
   const { onToggleCaptions, onToggleAI, onLayoutChange, layout, hand } = rest
   const actions = React.useMemo<Partial<Record<CallAction, () => void>>>(
     () => ({
-      mic: () => void toggleMic(),
-      camera: () => void toggleCamera(),
+      mic: companion ? undefined : () => void toggleMic(),
+      camera: companion ? undefined : () => void toggleCamera(),
       share: shareable ? () => void toggleShare() : undefined,
       captions: onToggleCaptions,
       ai: aiAvailable ? onToggleAI : undefined,
       layout: onLayoutChange ? () => onLayoutChange(layout === "grid" ? "speaker" : "grid") : undefined,
       hand: hand?.onToggle,
     }),
-    [toggleMic, toggleCamera, toggleShare, shareable, onToggleCaptions, aiAvailable, onToggleAI, onLayoutChange, layout, hand?.onToggle],
+    [companion, toggleMic, toggleCamera, toggleShare, shareable, onToggleCaptions, aiAvailable, onToggleAI, onLayoutChange, layout, hand?.onToggle],
   )
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1049,8 +1056,8 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
           micOn={isMicrophoneEnabled}
           cameraOn={isCameraEnabled}
           held={held}
-          onToggleMic={() => void toggleMic()}
-          onToggleCamera={() => void toggleCamera()}
+          onToggleMic={companion ? undefined : () => void toggleMic()}
+          onToggleCamera={companion ? undefined : () => void toggleCamera()}
           onBack={backToCall}
           onLeave={leave}
         />
@@ -1087,7 +1094,7 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
             }
           />
         }
-        cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} extra={rest.effects ? { label: "Background effects…", onSelect: rest.effects.onToggle } : undefined} />}
+        cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} extra={rest.effects ? { label: "Background and touch-up…", onSelect: rest.effects.onToggle } : undefined} />}
       />
     </>
   )

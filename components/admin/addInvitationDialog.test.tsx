@@ -47,7 +47,7 @@ describe("inviting someone on a server that cannot send email", () => {
     it("says so before the admin types anything", () => {
         emailEnabled = false
         open()
-        expect(screen.getByText(/cannot send email yet/i)).toBeTruthy()
+        expect(screen.getByText(/can't send email yet/i)).toBeTruthy()
         expect(screen.getByRole("button", { name: /create invitation/i })).toBeTruthy()
     })
 

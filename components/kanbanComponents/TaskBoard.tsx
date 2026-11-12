@@ -70,7 +70,7 @@ import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { BoardActionsContext, type BoardActions } from "@/components/kanbanComponents/boardActions"
 import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
-import { useRowState } from "@/hooks/useListSelection"
+import { useRowSelected } from "@/hooks/useListSelection"
 import { cellKey, intoCells, splitCell, type Lane, type LaneSpec } from "@/lib/board/lanes"
 import { feedback } from "@/lib/ui/feedback"
 import { usePhone } from "@/hooks/usePhone"
@@ -1267,7 +1267,8 @@ const BoardCard = memo(function BoardCard({
     const start = useContext(CardDragContext)
     const node = useRef<HTMLDivElement>(null)
     const listeners = useMemo(() => (disabled || !start ? undefined : pressesOf(start, task, column, node)), [disabled, start, task, column])
-    const { highlighted, selected } = useRowState(task.task_uuid)
+    // The keys' place is painted on the card (data-highlighted, hooks/useListKeyboard): J draws no card.
+    const selected = useRowSelected(task.task_uuid)
     return (
         <div
             data-card-slot={task.task_uuid}
@@ -1281,7 +1282,6 @@ const BoardCard = memo(function BoardCard({
                 statusBadge={statusBadge}
                 dragging={dragging}
                 lifted={lifted}
-                highlighted={highlighted}
                 selected={selected}
                 listeners={listeners}
                 data-task-id={task.task_uuid}

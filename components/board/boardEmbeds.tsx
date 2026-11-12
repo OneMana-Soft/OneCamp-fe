@@ -100,5 +100,6 @@ export function ShutCard({ kind }: { kind: string }) {
 
 /** A guest's board: frames, and shut cards. */
 export default function GuestEmbedView({ embed }: { embed: NonNullable<BoardEmbed> }) {
+  if ("code" in embed) return null
   return "frame" in embed ? <EmbedFrame embed={embed} /> : <ShutCard kind={embed.card.kind} />
 }

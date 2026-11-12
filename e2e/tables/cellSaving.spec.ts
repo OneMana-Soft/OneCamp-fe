@@ -151,3 +151,134 @@ test("at 390, by touch, in the phone's list, a row whose save fails goes back to
   expect(server.valuesOf(0).cost).toBe(1200)
   await close()
 })
+
+// V-640 (the LIVE walk, 6 Nov): a save the server asks to have again (503, V-583) is kept and marked, and offered
+// back in a toast that closes after 8 s; once it had closed, nothing could send the edit again, and the same value
+// entered again was no change. The cell's mark is a Retry itself, and so is the same value entered again.
+
+/** Refuses the first `refusals` cell saves with a 503, as a server that couldn't store them; the rest it saves. */
+async function refuseSaves(page: Page, refusals: number) {
+  const sent: number[] = []
+  await page.route((url) => /\/rows\/[^/]+\/patch$/.test(url.pathname), async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    const status = sent.length < refusals ? 503 : 200
+    sent.push(status)
+    if (status === 200) return route.fallback()
+    const origin = route.request().headers()["origin"] || "*"
+    return route.fulfill({ status, headers: { "access-control-allow-origin": origin, "access-control-allow-credentials": "true" }, json: { msg: "The table couldn't be read or changed just now. Try again in a moment." } })
+  })
+  return sent
+}
+
+for (const device of devices) {
+  const press = (target: Locator) => (device.touch ? target.tap() : target.click())
+
+  /** Cost typed as 1207 in the first row and left; its save refused, kept and marked; the toast left to close. */
+  async function refusedAndLeft(page: Page, sent: number[]) {
+    const cost = page.getByRole("textbox", { name: "Cost" }).first()
+    const at = (cell: string) => page.locator(device.touch ? `[data-cell-box]:has(> [data-cell="${cell}"])` : `[data-cell="${cell}"]`)
+    await expect(cost).toHaveValue("1200", { timeout: 30_000 })
+    await press(at("0:1"))
+    await cost.fill("1207")
+    await press(at("1:0"))
+    const cell = page.locator('tr[data-row] td[data-field="cost"]').first()
+    await expect(cell).toHaveAttribute("data-unsaved", "true")
+    await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible()
+    // A timed offer keeps its × hidden at rest, with or without hover (only one that stays shows it: V-617 F3).
+    expect(await page.locator(".toast-root:not([data-stays]) .toast-close").first().evaluate((el) => getComputedStyle(el).opacity)).toBe("0")
+    await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0, { timeout: 15_000 })
+    // Kept and shown, and never sent again by itself.
+    await expect(cost).toHaveValue("1207")
+    expect(sent).toEqual([503])
+    return { cost, cell, at, mark: cell.getByRole("button", { name: "Retry saving Cost" }) }
+  }
+
+  test(`${device.name}, a kept unsaved edit is saved by its cell's mark once the toast has closed`, async ({ browser }, testInfo) => {
+    const server = new TableServer(fields, [
+      { item: "Booth", cost: 1200 },
+      { item: "Banner", cost: 300 },
+    ])
+    const { page, close } = await server.open(browser, testInfo, SAM, device.options)
+    const sent = await refuseSaves(page, 1)
+    const { cost, cell, at, mark } = await refusedAndLeft(page, sent)
+    // Under a pointer, a 24 px corner; under a finger, 44 px wide and the cell's whole height (a medium row's 44 px
+    // pitch less its hairline: the most a cell gives).
+    const box = await mark.boundingBox()
+    expect(box!.width).toBeGreaterThanOrEqual(device.touch ? 44 : 24)
+    expect(box!.height).toBeGreaterThanOrEqual(device.touch ? await cell.evaluate((td) => td.clientHeight) : 24)
+    if (device.touch) {
+      // The Retry zone is the cell's right 44 px, and only while it's unsaved: a tap on the rest of the cell still
+      // opens its box and sends nothing (DESIGN-BUILD-119's G2 condition).
+      const face = (await at("0:1").boundingBox())!
+      await at("0:1").tap({ position: { x: face.width / 4, y: face.height / 2 } })
+      await expect(cost).toBeFocused()
+      await press(at("1:0"))
+      expect(sent).toEqual([503])
+      await expect(mark).toBeVisible()
+      // DESIGN-BUILD-120's F2 under a finger (CR-232 E1): a long press on the mark shows its words in the shared
+      // tooltip; its release sends nothing and opens nothing else.
+      const held = (await mark.boundingBox())!
+      const touch = await page.context().newCDPSession(page)
+      const point = { x: held.x + held.width / 2, y: held.y + held.height / 2 }
+      await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] })
+      await expect(page.getByRole("tooltip")).toHaveText("Not saved · Retry saving Cost", { timeout: 10_000 })
+      await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      await page.waitForTimeout(800)
+      expect(sent).toEqual([503])
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(cell).toHaveAttribute("data-unsaved", "true")
+      await mark.tap()
+    } else {
+      // By the keys: Tab from the cell reaches its mark, and Enter presses it.
+      await at("0:1").click()
+      await page.keyboard.press("Tab")
+      await expect(mark).toBeFocused()
+      // DESIGN-BUILD-120: the focus ring hugs the dot and keeps clear of the value's text (F1); the mark's words
+      // show on focus (F2).
+      const ring = await mark.evaluate((button) => {
+        // The ring is whichever of the mark and its dot draws an outline.
+        const drawn = [button, button.querySelector("span")!].filter((el) => getComputedStyle(el).outlineStyle !== "none")
+        const left = (el: Element) => el.getBoundingClientRect().left - parseFloat(getComputedStyle(el).outlineOffset) - parseFloat(getComputedStyle(el).outlineWidth)
+        return { drawn: drawn.length, left: Math.min(...drawn.map(left)) }
+      })
+      const textRight = await cost.evaluate((box) => box.getBoundingClientRect().right - parseFloat(getComputedStyle(box).paddingRight))
+      expect(ring.drawn).toBe(1)
+      expect(ring.left).toBeGreaterThanOrEqual(textRight)
+      await expect(page.getByRole("tooltip")).toHaveText("Not saved · Retry saving Cost")
+      expect(sent).toEqual([503])
+      await page.keyboard.press("Enter")
+    }
+    await expect(cell).not.toHaveAttribute("data-unsaved", "true")
+    await expect(mark).toHaveCount(0)
+    // DESIGN-BUILD-122's F3: by the keys, the focus the mark held goes to its cell's own box, never to the page.
+    if (!device.touch) await expect(cost).toBeFocused()
+    await expect.poll(() => server.valuesOf(0).cost).toBe(1207)
+    await expect(cost).toHaveValue("1207")
+    expect(sent).toEqual([503, 200])
+    await close()
+  })
+
+  test(`${device.name}, a kept unsaved edit is saved by entering the same value again once the toast has closed`, async ({ browser }, testInfo) => {
+    const server = new TableServer(fields, [
+      { item: "Booth", cost: 1200 },
+      { item: "Banner", cost: 300 },
+    ])
+    const { page, close } = await server.open(browser, testInfo, SAM, device.options)
+    const sent = await refuseSaves(page, 1)
+    const { cost, cell, at, mark } = await refusedAndLeft(page, sent)
+    // Passed through with nothing entered: nothing is sent.
+    await press(at("0:1"))
+    await press(at("1:0"))
+    await expect(mark).toBeVisible()
+    expect(sent).toEqual([503])
+    // The same value entered again: its Retry.
+    await press(at("0:1"))
+    await cost.fill("1207")
+    await press(at("1:0"))
+    await expect(cell).not.toHaveAttribute("data-unsaved", "true")
+    await expect.poll(() => server.valuesOf(0).cost).toBe(1207)
+    await expect(cost).toHaveValue("1207")
+    expect(sent).toEqual([503, 200])
+    await close()
+  })
+}

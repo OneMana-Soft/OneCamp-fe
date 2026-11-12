@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useLatch } from "@/hooks/useLatch"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { ChevronDown, ChevronUp } from "@/lib/icons";
 
@@ -163,8 +164,7 @@ const SelectContent = React.forwardRef<
 >(({ className, children, position = "popper", ...props }, ref) => {
   const sheet = React.useContext(SelectSheetContext)
   // Kept from its first opening, so the sheet slides away as it closes.
-  const [drawn, setDrawn] = React.useState(false)
-  if (sheet?.open && !drawn) setDrawn(true)
+  const drawn = useLatch(!!sheet?.open)
   // Closed on a phone, Radix still keeps the rows out of sight for the trigger's value.
   const list = (
     <SelectPrimitive.Portal>

@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { linkVendorDoc, linking, VENDOR_DOC } from "./entityLinking"
 import { expectReachable } from "./menuReach"
-import { openFiles, P, PNG } from "./projectFiles"
+import { openFiles, P, PNG, READER } from "./projectFiles"
+import { reviewShot } from "./stubbedApp"
 
 // A project's Files tab, in a real browser with no backend: a file goes up
 // through Upload and joins the project, and a file is deleted through its ⋯,
@@ -100,5 +101,96 @@ test.describe("on a phone", () => {
     await expectReachable(options)
     await options.tap()
     await deleteFromOpenMenu(page, "Launch brief.pdf", "5f11e5a0-0000-4000-8000-000000000101")
+  })
+})
+
+// A project's links for a member who may only read it (V-732, 7 Nov): the
+// phone's tab offered Link a doc or board and Unlink to everyone, and the
+// server refused the write (canEditSource, 403). Who may link is the
+// project's Work Access add_files, as on a computer; anyone who can view the
+// project sees what is linked. And a phone drew its "no files" tray (40% of
+// the screen) above a project's links when it had no files (V-732 LOW).
+const LINKED = { [`/link/source/project/${P}`]: { msg: "ok", data: { docs: [{ ...VENDOR_DOC, doc_read_access: 1 }], boards: [] } } }
+
+for (const [where, size] of [
+  ["on a computer", { viewport: { width: 1280, height: 800 } }],
+  ["on a phone", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }],
+] as const) {
+  test.describe(`a project's links ${where}`, () => {
+    test.use(size)
+
+    for (const theme of ["light", "dark"] as const) {
+      test(`a read-only member sees what is linked, and nothing to link, unlink or upload (${theme})`, async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        await page.emulateMedia({ colorScheme: theme })
+        await openFiles(page, testInfo, LINKED, { access: READER })
+        await expect(page.getByRole("button", { name: VENDOR_DOC.doc_title })).toBeVisible()
+        await expect(page.getByRole("button", { name: "Link a doc or board" })).toHaveCount(0)
+        await expect(page.getByRole("button", { name: "Unlink" })).toHaveCount(0)
+        await expect(page.getByRole("button", { name: /^Upload$/ })).toHaveCount(0)
+        await reviewShot(page, "files-reader", theme)
+      })
+
+      test(`with links and no files, shows them and no "no files" tray (${theme})`, async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        await page.emulateMedia({ colorScheme: theme })
+        await openFiles(page, testInfo, LINKED, { files: false })
+        await expect(page.getByRole("button", { name: VENDOR_DOC.doc_title })).toBeVisible({ timeout: 60_000 })
+        await expect(page.locator("[data-files-empty]")).toHaveCount(0)
+        // Someone who may add files can still upload the first.
+        await expect(page.getByRole("button", { name: /^Upload$/ }).first()).toBeVisible()
+        await reviewShot(page, "files-links-only", theme)
+      })
+    }
+
+    // With nothing linked and no files, the tray still says so, to the editor and to the reader.
+    for (const [who, access] of [["editor", undefined], ["reader", READER]] as const) {
+      test(`with no links and no files, the ${who} is told there are none`, async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        await openFiles(page, testInfo, { [`/link/source/project/${P}`]: { msg: "ok", data: { docs: [], boards: [] } } }, { access, files: false })
+        await expect(page.locator("[data-files-empty]").first()).toBeVisible({ timeout: 60_000 })
+        await reviewShot(page, `files-empty-${who}`, "light")
+      })
+    }
+  })
+}
+
+// The tray waits for the links: while their read is out, a project with no files never says it has none and then
+// jumps (V-732 LOW). The read is held 1.5 s, and the tray is looked for all through it.
+test.describe("a project's links on a phone, while they load", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+  test("no \"no files\" tray before the links come", async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    let asked = 0
+    let answer = () => {}
+    const held = new Promise<void>((done) => (answer = done))
+    await openFiles(page, testInfo, { [`/link/source/project/${P}`]: async () => (asked++, await held, LINKED[`/link/source/project/${P}`]) }, { files: false })
+    await expect.poll(() => asked, { timeout: 60_000 }).toBeGreaterThan(0)
+    let seen = 0
+    for (const end = Date.now() + 1_500; Date.now() < end; await page.waitForTimeout(100)) seen = Math.max(seen, await page.locator("[data-files-empty]").count())
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/files-links-loading-390-light.png` })
+    expect(seen, "the tray showed while the links were still out").toBe(0)
+    answer()
+    await expect(page.getByRole("button", { name: VENDOR_DOC.doc_title })).toBeVisible({ timeout: 60_000 })
+    await expect(page.locator("[data-files-empty]")).toHaveCount(0)
+  })
+})
+
+// A reader reaches a linked doc by keyboard, with its focus ring (1280).
+test.describe("a project's links by keyboard", () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test("a read-only member tabs to a linked doc", async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    await openFiles(page, testInfo, LINKED, { access: READER })
+    const row = page.getByRole("button", { name: VENDOR_DOC.doc_title })
+    await expect(row).toBeVisible()
+    // Onto the row by the keyboard (back a step and forward again), so it wears the keyboard's ring.
+    await row.focus()
+    await page.keyboard.press("Shift+Tab")
+    await page.keyboard.press("Tab")
+    await expect(row).toBeFocused()
+    await reviewShot(page, "files-reader-focus", "light")
   })
 })

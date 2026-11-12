@@ -12,7 +12,7 @@
 //
 // Nothing here imports LiveKit: the green rooms (PreJoin, a member's door)
 // draw from this file, and a page that hasn't joined yet shouldn't load the
-// call's client. A tile's pieces that read LiveKit live with it (StageTile).
+// call's client. A tile's pieces that read LiveKit live with it (TileBody).
 
 import { personHue } from "@/lib/utils/getAvatarColor"
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react"
@@ -277,7 +277,7 @@ export function useElapsed(since: number | null): string {
   return since === null ? "" : formatElapsed(now - since)
 }
 
-const STAGE_PILL = "flex h-7 items-center gap-2 rounded-[14px] bg-[#1F2024] px-2.5 text-meta font-medium ring-1 ring-white/[0.09]"
+export const STAGE_PILL = "flex h-7 items-center gap-2 rounded-[14px] bg-[#1F2024] px-2.5 text-meta font-medium ring-1 ring-white/[0.09]"
 
 /** Where the stage's top row ends, from the call's top: its pills sit 12px in (top-3), 28px tall (h-7). */
 export const TOP_ROW_END = 12 + 28
@@ -303,7 +303,7 @@ export function PlacePill({ place, since }: { place?: string; since: number | nu
   const label = placeLabel(place)
   if (!label && !elapsed) return null
   return (
-    <p className={cn(STAGE_PILL, "pointer-events-none absolute left-3 top-3 z-20 max-w-[50%] text-ink-2")} data-place-pill="">
+    <p className={cn(STAGE_PILL, "min-w-0 text-ink-2")} data-place-pill="">
       {label ? <span className="truncate">{label}</span> : null}
       {label && elapsed ? <span aria-hidden>·</span> : null}
       {elapsed ? <span className="tabular-nums text-[#EEEEF0]">{elapsed}</span> : null}
@@ -325,17 +325,16 @@ export function CallStatusRow({ children }: { children: ReactNode }) {
 }
 
 /**
- * Says the call is being recorded, and by whom, for as long as it is (C8): a
- * steady 8px danger dot and the words, announced once. Steady, never
- * pulsing. On a phone the pill keeps the dot and the time; who started it is
- * still read out.
+ * Says the call is being recorded, and by whom, for as long as it is (C8): an
+ * 8px danger dot that lands once, and the words, announced once. On a phone
+ * the pill keeps the dot and time; who started it is still read out.
  */
 export function RecordingPill({ by, since }: { by: string | null; since?: number | null }) {
   const elapsed = useElapsed(since ?? null)
   return (
     <div role="status" className="min-w-0">
       <span className={cn(STAGE_PILL, "hub-pop-down text-[#EEEEF0]")} data-recording-pill="">
-        <span className="size-2 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+        <span className="content-save-land size-2 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
         Recording{by ? <span className="sr-only @3xl:not-sr-only">{` · started by ${by}`}</span> : null}
         {elapsed ? <span className="tabular-nums text-ink-2">{elapsed}</span> : null}
       </span>
@@ -412,48 +411,6 @@ export function CaptionsPill({
         ) : null}
       </PopoverContent>
     </Popover>
-  )
-}
-
-/**
- * The first thing each person reads when captions come on (CALL-BUG-2): who
- * turned them on and where their own speech goes, before anything they say
- * is sent. It stays until they say they've read it; the pill keeps saying it
- * after that.
- */
-export function CaptionsNotice({
-  transcription,
-  onDismiss,
-  captioningMe,
-  onToggleMe,
-}: {
-  transcription: CallTranscription
-  onDismiss: () => void
-  captioningMe?: boolean
-  onToggleMe?: () => void
-}) {
-  return (
-    <div
-      role="status"
-      className="hub-pop-down pointer-events-auto w-full max-w-[440px] rounded-[14px] bg-[#1F2024] p-3 text-ui-sm text-[#EEEEF0] shadow-e3 ring-1 ring-white/[0.09]"
-      data-captions-notice=""
-    >
-      <p className="flex items-center gap-2 font-medium">
-        <Captions className="size-4 shrink-0 text-[#A8ABB1]" aria-hidden />
-        {transcription.by ? `${transcription.by} turned on captions` : "Captions are on"}
-      </p>
-      <p className="mt-1 text-[#A8ABB1] text-pretty">{captionsWhereText(transcription)}</p>
-      <div className="mt-2.5 flex flex-wrap justify-end gap-2">
-        {onToggleMe && captioningMe !== false ? (
-          <Button size="sm" variant="ghost" onClick={onToggleMe}>
-            Stop captioning me
-          </Button>
-        ) : null}
-        <Button size="sm" variant="secondary" onClick={onDismiss}>
-          Got it
-        </Button>
-      </div>
-    </div>
   )
 }
 

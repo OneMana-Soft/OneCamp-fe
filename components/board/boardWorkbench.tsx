@@ -15,6 +15,7 @@ import dynamic from "next/dynamic"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { AddWorkReads } from "@/components/board/addWorkReads"
+import type { FrameNotesSource } from "@/components/board/frameNotesReads"
 import BoardTools, { insertBoardTemplate } from "@/components/board/boardTools"
 import StickyTool from "@/components/board/stickyTool"
 import NotesBar, { FrameBar, Floating, HideExcalidrawPanel } from "@/components/board/notesBar"
@@ -28,6 +29,9 @@ import { isTeamPick, teamTemplateRef, templateElementsOf, type BoardPick } from 
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { getTemplate } from "@/services/marketplaceService"
 import { useToast } from "@/hooks/use-toast"
+import { useSceneReady } from "@/hooks/useSceneReady"
+import { changeCodeBlock, codeBlockOf, layCodeBlock, type CodeBlock } from "@/lib/board/codeBlocks"
+import { viewCentre } from "@/lib/board/viewport"
 import { app_board_path } from "@/types/paths"
 import { addCopies, fitNotesToFaces, fitTypedNote, loadConvert, type Convert, type SceneElement } from "@/components/board/boardOps"
 import { NoteTagChips } from "@/components/board/noteTagChips"
@@ -37,15 +41,20 @@ import { useBoardVoting } from "@/components/board/useBoardVoting"
 import { BoardHereNow } from "@/components/board/boardHereNow"
 import { BoardMap } from "@/components/board/boardMap"
 import { useBottomRow } from "@/components/board/bottomRow"
-import { BoardSideFrame, SIDE_PANELS, SidePanelShape } from "@/components/board/boardSidePanel"
+import { SIDE_PANELS } from "@/components/board/boardSidePanel"
+import { BoardSideFrame, SidePanelShape } from "@/components/board/boardSideFrame"
 import { lazyPanel } from "@/lib/lazy/lazyPanel"
+import DrawingTools from "@/components/board/drawingTools"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import { useCanProtect, useProtection } from "@/lib/board/protection"
 import { lazyChunk } from "@/lib/loadChunk"
 import { useMedia } from "@/context/MediaQueryContext"
+import type { Dispatch } from "@reduxjs/toolkit"
+import { star, starOf, unstar } from "@/lib/places/starring"
 
 const TemplatePicker = dynamic(() => import("@/components/board/templatePicker"), { ssr: false })
 const SaveBoardTemplate = dynamic(() => import("@/components/board/saveBoardTemplate"), { ssr: false })
+const CodeBlockDialog = dynamic(() => import("@/components/board/codeBlockDialog").then((m) => m.CodeBlockDialog), { ssr: false })
 const BoardExport = dynamic(() => import("@/components/board/boardExport"), { ssr: false })
 // The side panels, each its own chunk, drawn in their frame from the first frame (BoardSideFrame, V-195): the panel's
 // shape while its code comes, at 10 s the slow line with Try again, or a failure (lib/lazy/lazyPanel). Board options
@@ -73,11 +82,40 @@ const NO_TAGS: readonly string[] = []
 
 /**
  * A press in the page's chrome, for a tool here: a new `at` each time. "warm" is the page's Board options opening:
- * the side panels it lists fetch their code then, so a tap on one rarely waits (V-195).
+ * the side panels it lists fetch their code then, so a tap on one rarely waits (V-195). "code" makes a code block, or
+ * with an `id` edits that one (its Edit button on the canvas, miro-17). "star" and "unstar" are More's Star board
+ * (miro-46), here so the star's code stays off the route's first load.
  */
 export interface BoardCommand {
-  kind: "note" | "templates" | "frames" | "tagFilter" | "addWork" | "find" | "saveTemplate" | "export" | "openFile" | "warm"
+  kind: "note" | "templates" | "frames" | "tagFilter" | "addWork" | "find" | "saveTemplate" | "export" | "openFile" | "warm" | "code" | "star" | "unstar"
   at: number
+  id?: string
+}
+
+/**
+ * A code block's dialog over the board (miro-17): a new one is laid where the person is looking, an edited one changes
+ * in place. One whose block has gone (someone else deleted it) closes, saying so.
+ */
+function CodeBlockEditor({ api, id, onClose }: { api: ExcalidrawImperativeAPI; id: string | null; onClose: () => void }) {
+  const { toast } = useToast()
+  const [block] = React.useState(() => (id ? codeBlockOf(api.getSceneElements().find((e) => e.id === id) as never) : null))
+  const gone = id !== null && block === null
+  React.useEffect(() => {
+    if (!gone) return
+    toast({ title: "That code block is no longer on the board" })
+    onClose()
+  }, [gone, onClose, toast])
+  if (gone) return null
+  const save = (next: CodeBlock) => {
+    if (id) {
+      if (!changeCodeBlock(api, id, next)) toast({ title: "That code block is no longer on the board" })
+    } else {
+      const s = api.getAppState()
+      layCodeBlock(api, next, viewCentre({ ...s, zoom: s.zoom.value }), window.location.origin)
+    }
+    onClose()
+  }
+  return <CodeBlockDialog block={block} onSave={save} onClose={onClose} />
 }
 
 /** Lays a team's template on the board (miro-19 3), from its full read: copies, as one undo step. */
@@ -231,6 +269,8 @@ export default function BoardWorkbench({
   user,
   host = null,
   addWorkReads: WithAddWorkReads,
+  frameNotes,
+  dispatch,
 }: {
   api: ExcalidrawImperativeAPI | null
   provider: HocuspocusProvider
@@ -250,6 +290,10 @@ export default function BoardWorkbench({
   host?: HTMLElement | null
   /** Add from OneCamp's reads and states, from the board page's first load (components/board/addWorkReads). */
   addWorkReads?: React.ComponentType<{ children: (reads: AddWorkReads) => React.ReactNode }>
+  /** Presenter notes' read and write, for the Frames panel's rows (components/board/frameNotesReads). */
+  frameNotes?: FrameNotesSource
+  /** The page's store, for Star board (miro-46): the workbench itself renders with no store. */
+  dispatch?: Dispatch
 }) {
   const selection = useBoardSelection(api)
   // What's protected (miro-44): a protected selection gets no notes or frame bar (the server puts back any change to
@@ -303,6 +347,8 @@ export default function BoardWorkbench({
   const [found, setFound] = React.useState<ReadonlySet<string> | null>(null)
   const [veilHost, setVeilHost] = React.useState<HTMLElement | null>(null)
   const [saving, setSaving] = React.useState(false)
+  // A code block being made (id null) or edited (miro-17).
+  const [coding, setCoding] = React.useState<{ id: string | null } | null>(null)
   const [exporting, setExporting] = React.useState(false)
   const [noteNow, setNoteNow] = React.useState(0)
   const fileRef = React.useRef<HTMLInputElement>(null)
@@ -333,6 +379,19 @@ export default function BoardWorkbench({
     else if (command.kind === "export") setExporting(true)
     else if (command.kind === "openFile") fileRef.current?.click()
     else if (command.kind === "note") setNoteNow(command.at)
+    else if (command.kind === "code") setCoding({ id: command.id ?? null })
+  }, [command])
+  // Star board and Unstar board (miro-46), with the board's name as it is at the press: one star helper for every
+  // kind of place (lib/places/starring), in Starred at once and taken back if the server refuses.
+  React.useEffect(() => {
+    if ((command?.kind !== "star" && command?.kind !== "unstar") || !dispatch) return
+    const name = title.trim()
+    const place = starOf("board", boardId, name || "Untitled board", `${app_board_path}/${boardId}`)
+    const named = name ? `“${name}”` : "this board"
+    if (command.kind === "star") void star(dispatch, place, `Couldn't star ${named}`)
+    else void unstar(dispatch, boardId, place, `Couldn't remove ${named} from starred`)
+    // Once a press: the name and board then, not each change of them after.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command])
   // Board options opened: the side panels it lists fetch their code now (V-195). Find and Filter by tag are everyone's;
   // Frames and Add from OneCamp an editor's. A second warm of a panel whose code is in, or on its way, asks nothing.
@@ -345,18 +404,23 @@ export default function BoardWorkbench({
     if (WithAddWorkReads) WARM.addWork.warm()
   }, [command, editable, WithAddWorkReads])
 
+  // What new notes and templates are drawn in: clean while the board's style isn't known yet (TABLES-BOARDS-16).
+  const drawStyle = style ?? "clean"
   // A template from the picker: the library's drawn from its skeleton in the board's style, a team's copied as it was saved.
-  const applyTemplate = (a: ExcalidrawImperativeAPI, t: BoardPick) => (isTeamPick(t) ? layTeamTemplate(a, t.templateId) : insertBoardTemplate(a, t, style ?? undefined))
+  const applyTemplate = (a: ExcalidrawImperativeAPI, t: BoardPick) => (isTeamPick(t) ? layTeamTemplate(a, t.templateId) : insertBoardTemplate(a, t, drawStyle))
 
   // New shapes and words take the board's style; a style chosen by someone
-  // else arrives here too.
+  // else arrives here too. Only once Excalidraw has loaded its own scene: that
+  // load puts back its own defaults (the hand-drawn face, a sketched line), and
+  // a note's words are made in the canvas's face (TABLES-BOARDS-16).
+  const sceneReady = useSceneReady(api)
   React.useEffect(() => {
-    if (!api || !style) return
+    if (!api || !sceneReady) return
     api.updateScene({
-      appState: { currentItemRoughness: STYLE_ROUGHNESS[style], currentItemFontFamily: STYLE_FONT[style] } as never,
+      appState: { currentItemRoughness: STYLE_ROUGHNESS[drawStyle], currentItemFontFamily: STYLE_FONT[drawStyle] } as never,
       captureUpdate: CAPTURE.NEVER,
     })
-  }, [api, style])
+  }, [api, sceneReady, drawStyle])
 
   // ?template=<id> (a board made from a template on the boards list), and
   // ?frame=<id> or ?element=<id> (a link to a frame, an element or a group):
@@ -391,7 +455,7 @@ export default function BoardWorkbench({
         // One of the five, or any of the library (loaded for it).
         const own = BOARD_TEMPLATES.find((x) => x.id === template)
         void (own ? Promise.resolve(own) : import("@/lib/board/templateLibrary").then((m) => m.boardTemplate(template))).then((t) => {
-          if (t) void insertBoardTemplate(api, t, style ?? undefined)
+          if (t) void insertBoardTemplate(api, t, drawStyle)
         })
       }
     }
@@ -427,7 +491,7 @@ export default function BoardWorkbench({
   // The side panel open, in its frame (V-195): the frame rises at once, and the panel fills it once its code is in.
   const sidePanel =
     side === "frames" ? (
-      <FramesPanel api={api} provider={provider} boardId={boardId} editable={editable} onClose={closeSide} />
+      <FramesPanel api={api} provider={provider} boardId={boardId} editable={editable} frameNotes={frameNotes} onClose={closeSide} />
     ) : side === "find" ? (
       <FindPanel
         api={api}
@@ -465,13 +529,15 @@ export default function BoardWorkbench({
 
   return (
     <>
-      <BoardTools api={api} editable={editable} boardId={boardId} synced={synced} quiet={quiet || pickerOpen} onMoreTemplates={() => setPickerOpen(true)} style={style ?? undefined} />
+      <BoardTools api={api} editable={editable} boardId={boardId} synced={synced} quiet={quiet || pickerOpen} onMoreTemplates={() => setPickerOpen(true)} style={drawStyle} />
       {editable && (
-        <StickyTool api={api} selection={selection} style={style ?? "sketch"} noteNow={noteNow} onFrames={() => {
+        <StickyTool api={api} selection={selection} style={drawStyle} noteNow={noteNow} onFrames={() => {
             setSide("frames")
           }}
         />
       )}
+      {/* The highlighter beside the pen, and a held stroke made its shape (miro-10): an editor's. */}
+      <DrawingTools api={api} host={host} editable={editable} style={style ?? "clean"} />
       {/* One veil at a time: Find's while it dims the rest (V-271), else the tag filter's. Find draws its own into the
           host (its rules are in its chunk), here under the tag chips, which fade with it. */}
       <TagVeil api={api} tags={found ? NO_TAGS : filterTags} />
@@ -507,6 +573,7 @@ export default function BoardWorkbench({
         <TagFilterPill api={api} tags={filterTags} onOpen={() => setSide("tagFilter")} onClear={() => setFilterTags([])} />
       )}
       {saving && editable && <SaveBoardTemplate api={api} title={title} onClose={() => setSaving(false)} />}
+      {coding && editable && api && <CodeBlockEditor api={api} id={coding.id} onClose={() => setCoding(null)} />}
       {exporting && <BoardExport api={api} provider={provider} title={title} boardId={boardId} onClose={() => setExporting(false)} />}
       {editable && (
         <input

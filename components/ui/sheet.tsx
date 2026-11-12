@@ -7,6 +7,7 @@ import { X } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
+import { useReturnFocus } from "@/components/ui/returnFocus"
 
 const Sheet = SheetPrimitive.Root
 
@@ -76,30 +77,34 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", wide = false, className, children, ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <SheetPrimitive.Content
-      ref={ref}
-      data-side={side ?? "right"}
-      className={cn(sheetVariants({ side, wide }), className)}
-      {...props}
-    >
-      {children}
-      <SheetPrimitive.Close
-        className={cn(
-          // A 28px ghost icon button, on the 52px header's centre line.
-          "absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md",
-          "text-faint-foreground hover:text-foreground disabled:pointer-events-none",
-        )}
-        {...ix("icon")}
+>(({ side = "right", wide = false, className, children, onFocusCapture, onCloseAutoFocus, ...props }, ref) => {
+  const back = useReturnFocus({ onFocusCapture, onCloseAutoFocus })
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content
+        ref={ref}
+        data-side={side ?? "right"}
+        className={cn(sheetVariants({ side, wide }), className)}
+        {...back}
+        {...props}
       >
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </SheetPrimitive.Close>
-    </SheetPrimitive.Content>
-  </SheetPortal>
-))
+        {children}
+        <SheetPrimitive.Close
+          className={cn(
+            // A 28px ghost icon button, on the 52px header's centre line.
+            "absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md",
+            "text-faint-foreground hover:text-foreground disabled:pointer-events-none",
+          )}
+          {...ix("icon")}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </SheetPrimitive.Close>
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  )
+})
 SheetContent.displayName = SheetPrimitive.Content.displayName
 
 const SheetHeader = ({

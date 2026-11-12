@@ -146,6 +146,82 @@ describe("a row's comments", () => {
     await waitFor(() => expect(onTargetDone).toHaveBeenCalled())
   })
 
+  // The record's phone sheet pins Comment in its footer (TABLES-BOARDS-25): each press brings the row's box up, with the caret in it.
+  describe("at a press of a Comment outside (the record's phone sheet)", () => {
+    const box = () => document.querySelector("[data-row-comment-box] .ProseMirror")
+    // Each scroll asked of the comment box (jsdom lays nothing out).
+    let scrolls = 0
+    const scrollIntoView = Element.prototype.scrollIntoView
+    beforeEach(() => {
+      scrolls = 0
+      vi.mocked(api.listThreads).mockResolvedValue([])
+      Element.prototype.scrollIntoView = function (this: Element) {
+        if (this.matches("[data-row-comment-box]")) scrolls++
+      }
+    })
+    afterEach(() => {
+      Element.prototype.scrollIntoView = scrollIntoView
+    })
+    // The record's body mounts again for each row (key={row.id}); the record counts the presses.
+    const shown = () => {
+      const store = configureStore({ reducer: { threads: threadsSlice.reducer, users: userSlice.reducer } })
+      const at = (rowId: string, compose: number, target: string | null = null) => (
+        <Provider store={store}>
+          <TooltipProvider>
+            <RowComments key={rowId} rowId={rowId} fields={fields} target={target} onTargetDone={vi.fn()} compose={compose} />
+          </TooltipProvider>
+        </Provider>
+      )
+      const { rerender } = render(at("r1", 0))
+      return (rowId: string, compose: number, target: string | null = null) => rerender(at(rowId, compose, target))
+    }
+    const settled = () => new Promise((r) => setTimeout(r, 100))
+
+    it("brings its box into view and focus at each press, and neither as it mounts", async () => {
+      const at = shown()
+      await editor()
+      await settled()
+      expect(scrolls, "its box scrolled to as it mounted").toBe(0)
+      expect(document.activeElement === box(), "no focus before a press").toBe(false)
+      at("r1", 1)
+      await waitFor(() => expect(document.activeElement).toBe(box()))
+      // The focus takes no scroll of its own (preventScroll): the press brings the box into view.
+      expect(scrolls, "the box brought into view").toBe(1)
+      ;(document.activeElement as HTMLElement).blur()
+      at("r1", 2)
+      await waitFor(() => expect(document.activeElement).toBe(box()))
+      expect(scrolls).toBe(2)
+    })
+
+    // The record hands its comments only its own row's presses (RecordPanel); they come in their own chunk, after the
+    // sheet and its Comment: a press made before they were in is theirs as they mount (CR-260).
+    it("brings its box into view as it mounts with a press counted before it came in", async () => {
+      const at = shown()
+      await editor()
+      at("r2", 1)
+      await editor()
+      await settled()
+      expect(scrolls, "the box brought into view as it mounted").toBe(1)
+      // CR-261 F4: the caret too, though the editor comes in after the mount (immediatelyRender: false).
+      expect(document.activeElement, "the caret in the box it mounted with a press for").toBe(box())
+    })
+
+    it("lets a cell chosen since take over the caret it took as it mounted with a press", async () => {
+      const at = shown()
+      await editor()
+      at("r2", 1)
+      await editor()
+      await waitFor(() => expect(document.activeElement).toBe(box()))
+      at("r2", 1, "status")
+      await editor()
+      // The cell let go of: the row's box is back, and takes no caret of its own.
+      at("r2", 1)
+      await editor()
+      await settled()
+      expect(document.activeElement === box(), "the row's box, back after a cell, took the caret").toBe(false)
+    })
+  })
+
   it("lets go of the cell for the whole row", () => {
     vi.mocked(api.listThreads).mockResolvedValue([])
     const { onTargetDone } = show({ target: "status" })

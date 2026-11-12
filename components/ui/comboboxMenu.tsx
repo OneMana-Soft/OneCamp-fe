@@ -7,7 +7,8 @@ import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "@/lib/icons"
 import { ComboboxContext, FilterName } from "@/components/ui/combobox"
 import { MenuCheck, menuCheckState, type MenuChecked } from "@/components/ui/menuCheck"
-import { focusDialogItself } from "@/components/ui/overlayFocus"
+import { pinsSheetTop } from "@/components/ui/sheetPins"
+import { openFocus } from "@/components/ui/returnFocus"
 import { PickerSheet } from "@/components/ui/pickerSheet"
 import { PopoverContent } from "@/components/ui/popover"
 import { useSheetPanel } from "@/components/ui/sheetPanels"
@@ -83,8 +84,13 @@ interface ComboboxContentProps extends Omit<React.ComponentPropsWithoutRef<typeo
 /**
  * The menu: 256px, or a field's width where that is wider (a chip's menu
  * keeps its 256px, at the chip's start), never past the screen, and as tall
- * as the room under or over the field allows (its list scrolls). Under a
- * finger the filter waits to be tapped, so no keyboard rises over a short
+ * as the room under or over the field allows (its list scrolls), though a
+ * long menu keeps a floor: 20rem, or half the window less 3rem, which the
+ * side with more room always has. Radix measures the menu for its flip before
+ * it sets that room, so a menu held to the room below never collided: low on
+ * a page it opened there, three rows tall. Taller than that room, it collides,
+ * and Radix's flip opens it where there is more (DESIGN-BUILD-127 F4). Under
+ * a finger the filter waits to be tapped, so no keyboard rises over a short
  * list: the menu itself takes the focus. Inside a dialog, pass
  * portalled={false}, so the dialog's scroll lock lets the list scroll. On a
  * phone it is a panel of the sheet it is in, else a sheet of its own titled
@@ -118,6 +124,12 @@ const ComboboxContent = React.forwardRef<React.ElementRef<typeof PopoverContent>
       const body = (
         <div ref={ref} data-combobox-content="" aria-label={label} className="flex flex-col px-2 pb-2" {...marks}>
           {menu}
+          {/* The list's end (app/phone.css): held at the scroller's foot while rows
+              sit below, it draws the pinned footer's fade there, a cue that the
+              list goes on; scrolled to the end it sits under the last row, faded
+              out, and the row ends clear. The home-indicator strip is the
+              sheet's own (DrawerContent), so the list's end adds none. */}
+          <span aria-hidden="true" data-sheet-end="" className="pointer-events-none sticky bottom-0 -mx-2 block h-0" />
         </div>
       )
       if (inSheet) return host ? createPortal(body, host) : null
@@ -139,12 +151,9 @@ const ComboboxContent = React.forwardRef<React.ElementRef<typeof PopoverContent>
       collisionPadding={collisionPadding}
       aria-label={label}
       data-combobox-content=""
-      onOpenAutoFocus={(event) => {
-        onOpenAutoFocus?.(event)
-        if (!event.defaultPrevented && isTouchScreen()) focusDialogItself(event)
-      }}
+      onOpenAutoFocus={openFocus(onOpenAutoFocus)}
       className={cn(
-        "flex max-h-[min(26rem,var(--radix-popover-content-available-height))] w-64 max-w-[calc(100vw-1rem)] flex-col overflow-hidden p-1",
+        "flex max-h-[min(26rem,max(var(--radix-popover-content-available-height),min(20rem,50dvh_-_3rem)))] w-64 max-w-[calc(100vw-1rem)] flex-col overflow-hidden p-1",
         state?.field && "min-w-[var(--radix-popover-trigger-width)]",
         className,
       )}
@@ -171,7 +180,7 @@ const ComboboxInput = React.forwardRef<
   React.useEffect(() => tell?.(name), [tell, name])
   const sheet = React.useContext(ComboboxContext)?.sheet
   return (
-    <div cmdk-input-wrapper="" className={cn("mb-1 flex h-11 shrink-0 items-center gap-2 border-b border-line px-2 md:h-8", sheet && "sticky top-0 z-10 bg-pop")}>
+    <div cmdk-input-wrapper="" ref={sheet ? pinsSheetTop : undefined} className={cn("mb-1 flex h-11 shrink-0 items-center gap-2 border-b border-line px-2 md:h-8", sheet && "sticky top-0 z-10 bg-pop")}>
       <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
       <CommandPrimitive.Input
         ref={ref}

@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest"
 import { dayKey, formatDay, formatRange, formatTime, groupByDay, googleCalendarUrl, icsFor, slugify } from "./availability"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+// Its dates are written instants, never today's: the one pin keeps it so (app/testClock.test.ts).
+pinTestClock()
 
 describe("availability helpers", () => {
   it("puts a slot on the viewer's day", () => {
     // 20:00 UTC Monday is Tuesday morning in Tokyo.
     expect(dayKey("2026-10-05T20:00:00Z", "UTC")).toBe("2026-10-05")
     expect(dayKey("2026-10-05T20:00:00Z", "Asia/Tokyo")).toBe("2026-10-06")
+  })
+
+  it("reads a day the one way the clock does: a zone's own near midnight, a zone this runtime can't read on the device's (CR-B30 G1)", () => {
+    // 23:50 on 5 Nov in New York is 10:20 on the 6th in Kolkata; 00:10 on the 6th in Kolkata is 13:40 on the 5th in New York.
+    expect(dayKey("2026-11-06T04:50:00Z", "America/New_York")).toBe("2026-11-05")
+    expect(dayKey("2026-11-06T04:50:00Z", "Asia/Kolkata")).toBe("2026-11-06")
+    expect(dayKey(new Date("2026-11-05T18:40:00Z"), "Asia/Kolkata")).toBe("2026-11-06")
+    expect(dayKey(new Date("2026-11-05T18:40:00Z"), "America/New_York")).toBe("2026-11-05")
+    // A zone this runtime can't read is the device's own day, as clockTime and wallClock fall back, not a crash.
+    for (const iso of ["2026-11-06T04:50:00Z", "2026-11-05T18:40:00Z"]) {
+      const d = new Date(iso)
+      const device = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      expect(dayKey(iso, "Not/AZone")).toBe(device)
+    }
   })
 
   it("groups slots by day, in order", () => {

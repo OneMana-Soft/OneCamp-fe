@@ -18,6 +18,9 @@ import { displayNameOf } from "@/lib/personName"
 import { notesText, notesToSave } from "@/lib/calendar/notes"
 import { movedEnd } from "@/lib/calendar/spanMove"
 import { sameName } from "@/lib/utils/sameZone"
+import { filesOf, type EventFile } from "@/lib/calendar/eventFiles"
+import { atWall, wallOf } from "@/lib/utils/date/wallTime"
+import { dayKey } from "@/lib/calendar/availability"
 
 /** What an event is: a meeting, focus time, time off, time for one of your tasks (B1), or where you work that day (5d). */
 export type FormKind = "event" | "focus" | "out_of_office" | "task_block" | "working_location"
@@ -64,8 +67,10 @@ export interface EventFormValues {
   notes: string
   /** The notes as the calendar kept them when the form opened: rich text or plain, which a change keeps. */
   notesKept: string
-  /** One of the camp hues, or "" for its calendar's own colour. */
+  /** One of the camp hues, a colour of its own ("#rrggbb"), or "" for its calendar's own colour. */
   hue: string
+  /** The docs, boards and tasks it links (calendar head B), by reference. */
+  files: EventFile[]
   showAs: ShowAs
   visibility: Visibility
   guestsCanModify: boolean
@@ -74,6 +79,10 @@ export interface EventFormValues {
   emailOnAnswers: boolean
   /** The reader's own reminders, minutes before; null for the default's. */
   reminders: number[] | null
+  /** Those of them (or of the default's) that come by email, not as a pop-up. */
+  reminderEmail: number[]
+  /** The reader's default for it as the calendar listed it, shown while reminders is null; null for a new event's. */
+  reminderDefaults: number[] | null
   /** Out of office (head 5b): which invitations it declines for you, and the message they carry. */
   oooDecline: OOODecline
   oooMessage: string
@@ -116,6 +125,7 @@ export function newEventValues(zone: string, now: Date, at?: { start: Date; end?
     notes: "",
     notesKept: "",
     hue: "",
+    files: [],
     showAs: "busy",
     visibility: "default",
     guestsCanModify: false,
@@ -125,6 +135,8 @@ export function newEventValues(zone: string, now: Date, at?: { start: Date; end?
     oooDecline: "none",
     oooMessage: "",
     reminders: null,
+    reminderEmail: [],
+    reminderDefaults: null,
     syncToGoogle: false,
     calendarId: "",
   }
@@ -140,7 +152,7 @@ function dateOf(w: ApiWhen | undefined): Date | null {
 const kindOf = (k: string): FormKind => (k === "focus" || k === "out_of_office" || k === "task_block" || k === "working_location" ? k : "event")
 
 /** An event's values as the API gave it, with the reader's reminders (null for the default's). */
-export function eventValues(e: ApiEvent, reminders: number[] | null, zone: string): EventFormValues {
+export function eventValues(e: ApiEvent, reminders: number[] | null, zone: string, listed?: CalendarEventInterface): EventFormValues {
   const start = dateOf(e.start) ?? new Date()
   const endRaw = dateOf(e.end) ?? new Date(start.getTime() + 60 * 60 * 1000)
   // An all-day end date is the day after the last.
@@ -170,6 +182,7 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
     notes: notesText(e.notes),
     notesKept: e.notes ?? "",
     hue: e.hue ?? "",
+    files: filesOf(e),
     showAs: e.transparency === "transparent" ? "free" : "busy",
     visibility: e.visibility === "public" || e.visibility === "private" ? e.visibility : "default",
     guestsCanModify: !!e.guests_can_modify,
@@ -178,6 +191,7 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
     emailOnAnswers: !!e.email_on_answers,
     oooDecline: e.out_of_office?.decline === "new" || e.out_of_office?.decline === "all" ? e.out_of_office.decline : "none",
     oooMessage: e.out_of_office?.message ?? "",
+    ...(listed ? listedReminders(listed) : { reminderEmail: [], reminderDefaults: null }),
     reminders,
     syncToGoogle: false,
     calendarId: e.calendar_id ?? "",
@@ -187,6 +201,12 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
 /** The reader's own reminders on an event as the calendar lists it: null where they set none (the default's). */
 export function ownReminders(e: CalendarEventInterface): number[] | null {
   return e.event_reminders_default || !e.event_reminders ? null : e.event_reminders
+}
+
+/** The reader's reminders on a listed event, with those by email and the default's while they set none. Pure. */
+export function listedReminders(e: CalendarEventInterface): Pick<EventFormValues, "reminders" | "reminderEmail" | "reminderDefaults"> {
+  const reminders = ownReminders(e)
+  return { reminders, reminderEmail: e.event_reminders_email ?? [], reminderDefaults: reminders ? null : (e.event_reminders ?? null) }
 }
 
 /**
@@ -205,12 +225,13 @@ export function listedValues(e: CalendarEventInterface, zone: string): EventForm
     notes: notesText(e.event_description),
     notesKept: e.event_description ?? "",
     guests: (e.event_participants ?? []).map((p) => ({ uuid: p.user_uuid, email: "", name: displayNameOf(p), optional: false })),
-    reminders: ownReminders(e),
+    ...listedReminders(e),
   }
 }
 
 /** What stops a save, at its field, in the form's words. */
-export type FormProblem = { field: "title" | "end" | "task"; message: string }
+/** What stops a save, at its field; "calendar" is the server's refusal of the one picked (V-594), which names it. */
+export type FormProblem = { field: "title" | "end" | "task" | "calendar"; message: string; calendar?: string }
 
 /** Why the values can't be saved; null when they can. */
 export function formProblem(v: EventFormValues): FormProblem | null {
@@ -225,6 +246,16 @@ export function formProblem(v: EventFormValues): FormProblem | null {
   }
   if (v.end.getTime() <= v.start.getTime()) return { field: "end", message: "It has to end after it starts" }
   return null
+}
+
+/**
+ * What the form says, once a save was stopped (said): its own problem as it
+ * stands, else a calendar the server refused (409 calendar_read_only) while it
+ * is still the one picked; picking another puts it right. Pure.
+ */
+export function problemNow(v: EventFormValues, said: FormProblem | null | undefined): FormProblem | null {
+  if (!said) return null
+  return formProblem(v) ?? (said.field === "calendar" && said.calendar === v.calendarId ? said : null)
 }
 
 /** The times as the API takes them: dates for all day (the end the day after the last), or instants in their zones. */
@@ -272,7 +303,7 @@ const placeOf = (v: EventFormValues) => (v.kind === "working_location" ? v.title
 export const mayAddToGoogle = (v: EventFormValues) => !v.rule && v.kind !== "working_location"
 
 /** A new event, as the API takes it. */
-export function eventInput(v: EventFormValues): ApiEventInput {
+export function eventInput(v: EventFormValues): ApiEventInput & { files?: EventFile[] } {
   const { start, end } = whenOf(v)
   return {
     kind: v.kind,
@@ -284,6 +315,7 @@ export function eventInput(v: EventFormValues): ApiEventInput {
     attendees: meets(v) ? guestInputs(v.guests) : [],
     ...(v.rule && repeats(v) ? { recurrence: { rule: v.rule } } : {}),
     ...(v.hue ? { hue: v.hue } : {}),
+    ...(meets(v) && v.files.length ? { files: v.files } : {}),
     // A working location is never busy.
     transparency: v.showAs === "free" || v.kind === "working_location" ? "transparent" : "opaque",
     visibility: v.visibility,
@@ -355,7 +387,8 @@ export function patchChanges(p: ApiEventPatch): boolean {
 /** Whether the reader's reminders changed: they are saved through their own route. */
 export function remindersChanged(v: EventFormValues, was: EventFormValues): boolean {
   if (v.reminders === null || was.reminders === null) return v.reminders !== was.reminders
-  return v.reminders.length !== was.reminders.length || v.reminders.some((m, i) => m !== was.reminders![i])
+  const same = (a: number[], b: number[]) => a.length === b.length && a.every((m, i) => m === b[i])
+  return !same(v.reminders, was.reminders) || !same(v.reminderEmail ?? [], was.reminderEmail ?? [])
 }
 
 /** Days an all-day event spans, its last included. */
@@ -366,18 +399,35 @@ export function daysSpanned(v: EventFormValues): number {
 /**
  * Turns all day on or off, keeping the event where it was: its days become a
  * day's times (09:00–10:00 on the first, or the times it had), and its times
- * become their days.
+ * become their days. Days and times are its own zones' (V-642): 8 PM on a
+ * Friday in New York is a Friday, wherever it is read.
  */
 export function withAllDay(v: EventFormValues, on: boolean): EventFormValues {
   if (on === v.allDay) return v
   if (on) {
     const last = v.end.getTime() > v.start.getTime() ? new Date(v.end.getTime() - 1) : v.start
-    return { ...v, allDay: true, startDate: day(v.start), lastDate: day(last < v.start ? v.start : last) }
+    const [first, lastDay] = [dayKey(v.start, v.zone), dayKey(last, v.endZone || v.zone)]
+    return { ...v, allDay: true, startDate: first, lastDate: lastDay < first ? first : lastDay }
   }
   const first = parseISO(v.startDate)
-  const keepStart = new Date(first.getFullYear(), first.getMonth(), first.getDate(), v.start.getHours(), v.start.getMinutes())
+  const keepStart = atWall({ year: first.getFullYear(), month: first.getMonth(), day: first.getDate(), minutes: wallOf(v.start, v.zone).minutes }, v.zone)
   const length = Math.max(15 * 60_000, v.end.getTime() - v.start.getTime())
   return { ...v, allDay: false, start: keepStart, end: new Date(keepStart.getTime() + Math.min(length, 24 * 60 * 60_000)) }
+}
+
+/**
+ * Another zone for its times keeps them on the clock, as Google's form does
+ * (V-642): 7:30 AM in New York becomes 7:30 AM in London. An end kept in a
+ * zone of its own stays where it is.
+ */
+export function withZone(v: EventFormValues, zone: string): EventFormValues {
+  const kept = (at: Date) => atWall(wallOf(at, v.zone), zone)
+  return { ...v, zone, start: kept(v.start), end: v.endZone ? v.end : kept(v.end) }
+}
+
+/** Another zone for its end keeps the end on the clock: 1:30 PM in London becomes 1:30 PM in Los Angeles. */
+export function withEndZone(v: EventFormValues, endZone: string): EventFormValues {
+  return { ...v, endZone, end: atWall(wallOf(v.end, v.endZone || v.zone), endZone || v.zone) }
 }
 
 /** Moving the start keeps the length: the end moves with it. */

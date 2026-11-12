@@ -10,22 +10,22 @@ import { SheetCancel, SheetGroup } from "@/components/ui/sheet-menu"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 import { toast } from "@/hooks/use-toast"
-import { useFirstOpen } from "@/hooks/useFirstOpen"
+import { useLatch } from "@/hooks/useLatch"
 import { usePost } from "@/hooks/usePost"
 import { ix } from "@/lib/ui/interactive"
 import { cn } from "@/lib/utils/helpers/cn"
-import { reminderChoices, remindersLine, type ReminderChoice } from "@/lib/calendar/reminders"
+import { keepEmail, reminderChoices, remindersLine, type ReminderChoice } from "@/lib/calendar/reminders"
 import { setRemindersRequest } from "@/lib/calendar/eventsApi"
 import { seriesIdOf } from "@/lib/calendar/instanceId"
 import type { CalendarEventInterface, GetEventsResponse } from "@/types/calendar"
 
 /** The calendar's copy with the reader's reminders on every occurrence of an event. Pure. */
-export function withReminders(cur: GetEventsResponse | undefined, eventId: string, minutes: number[], isDefault: boolean): GetEventsResponse | undefined {
+export function withReminders(cur: GetEventsResponse | undefined, eventId: string, minutes: number[], isDefault: boolean, email: number[] = []): GetEventsResponse | undefined {
   if (!cur?.data) return cur
   const series = seriesIdOf(eventId)
   return {
     ...cur,
-    data: cur.data.map((e) => (seriesIdOf(e.event_uuid) === series && e.event_reminders ? { ...e, event_reminders: minutes, event_reminders_default: isDefault } : e)),
+    data: cur.data.map((e) => (seriesIdOf(e.event_uuid) === series && e.event_reminders ? { ...e, event_reminders: minutes, event_reminders_default: isDefault, event_reminders_email: email } : e)),
   }
 }
 
@@ -63,7 +63,7 @@ export function ReminderRow({
   const saved = event.event_reminders ?? []
   const [shown, setShown] = useState<number[]>(saved)
   const [sheet, setSheet] = useState(false)
-  const sheetDrawn = useFirstOpen(sheet)
+  const sheetDrawn = useLatch(sheet)
   const savedKey = saved.join(",")
   // What is saved, once it changes (a choice saved, the calendar read
   // again), shows: set as it draws, not after, so the row draws once.
@@ -75,10 +75,12 @@ export function ReminderRow({
 
   const choose = async (minutes: number[]) => {
     const before = shown
+    // A reminder kept keeps its way: by email stays by email.
+    const email = keepEmail(event.event_reminders_email, minutes)
     setShown(minutes)
-    if (mutateEvents) void mutateEvents((cur) => withReminders(cur, event.event_uuid, minutes, false), { revalidate: false })
+    if (mutateEvents) void mutateEvents((cur) => withReminders(cur, event.event_uuid, minutes, false, email), { revalidate: false })
     try {
-      await post.makeRequest(setRemindersRequest(event.event_uuid, minutes))
+      await post.makeRequest(setRemindersRequest(event.event_uuid, minutes, email))
       onSaved?.()
     } catch {
       setShown(before)

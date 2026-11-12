@@ -1,6 +1,7 @@
 "use client"
 import dynamic from "next/dynamic"
-import { useDeferredValue, useState } from "react"
+import { useDeferredValue } from "react"
+import { useLatch } from "@/hooks/useLatch"
 
 import {
     Bookmark,
@@ -57,6 +58,9 @@ import {
 import { WorkspaceName } from "@/hooks/useWorkspaceName"
 import { useSheetHandoff } from "@/components/drawers/sheetHandoff"
 import { tablesPath } from "@/lib/tables/route"
+import { placeRows, useRecentPlaces } from "@/lib/nav/placeRows"
+import { placeLook } from "@/components/navigationBar/desktop/desktopSideNavigationBar"
+import type { DesktopChildrenNavType } from "@/types/nav"
 
 interface ProfileDrawerProps {
     drawerOpenState: boolean
@@ -105,6 +109,31 @@ function DrawerSection({ label }: { label: string }) {
     )
 }
 
+/**
+ * Places under their label (miro-46): what you starred and the boards you
+ * opened lately, the sidebar's rows on a phone, which has no sidebar. A doc
+ * wears its glyph, anything else its kind's tile, as the Work group's own
+ * door to that kind does. None: no label and no rows.
+ */
+function PlaceItems({ label, rows, onOpen }: { label: string; rows: DesktopChildrenNavType[]; onOpen: (path: string) => void }) {
+    if (rows.length === 0) return null
+    return (
+        <>
+            <DrawerSection label={label} />
+            {rows.map((r) => (
+                <DrawerItem
+                    key={r.path}
+                    label={r.title}
+                    icon={r.icon}
+                    hue={r.icon ? destinationHue(r.path.split("/").slice(0, 3).join("/")) : undefined}
+                    leading={r.icon ? undefined : placeLook(r).glyph}
+                    onClick={() => onOpen(r.path)}
+                />
+            ))}
+        </>
+    )
+}
+
 export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDrawerProps) {
     const { logout } = useLogout()
     const router = useAppRouter()
@@ -117,11 +146,12 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     // (components/drawers/sheetHandoff).
     const { handoff, handTo, handBack, sheetOpen, onSheetOpenChange } = useSheetHandoff<"pause" | "invite">(() => setOpenState(false))
     // The pause sheet, mounted from its first open on, so it can animate away.
-    const [pauseUsed, setPauseUsed] = useState(false)
-    if (handoff === "pause" && !pauseUsed) setPauseUsed(true)
+    const pauseUsed = useLatch(handoff === "pause")
     const { pausedUntil, focusUntil } = usePauseNotifications()
     const focus = useFocusTime()
     const me = selfProfile.data?.data
+    const starred = placeRows(useSelector((state: RootState) => state.users?.userSidebar?.userStarred) || [], [])
+    const recentBoards = placeRows(useRecentPlaces("board"), [])
 
     // Your status text, as the rest of the app reads it: Redux's copy, and
     // nothing once it has expired (the server never says it did).
@@ -258,6 +288,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         hue={destinationHue(tablesPath())}
                         onClick={() => handleNavigate(tablesPath())}
                     />
+                    <PlaceItems label="Starred" rows={starred} onOpen={handleNavigate} />
+                    <PlaceItems label="Recent boards" rows={recentBoards} onOpen={handleNavigate} />
 
                     <DrawerSection label="Workspace" />
                     {/* Admin was reachable on a phone only through the org avatar in

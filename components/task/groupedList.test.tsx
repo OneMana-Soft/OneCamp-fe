@@ -66,19 +66,22 @@ describe("the grouped list (work.md W18, W19)", () => {
     expect(screen.queryByText("Medium")).toBeNull()
   })
 
-  // The select box joins while the row is pointed at, and leaves with the
+  // The Checkbox joins while the row is pointed at, and leaves with the
   // pointer; the priority picker is a plain button whose menu joins only when
-  // it opens (F-1 #2, components/ui/menuOnDemand).
+  // it opens (F-1 #2, components/ui/menuOnDemand). The light box that stands in
+  // for the Checkbox is hidden by CSS until the list holds a selection, which
+  // jsdom does not apply (e2e/taskListDraws.spec.ts reads the tree a browser builds).
   it("keeps a row's hover-only controls out of the tree until the row is reached, and lets them go after", () => {
     const { container } = renderList([t("1", "todo"), t("2", "todo")])
     const row = container.querySelector<HTMLElement>("[data-task-id='1']")!
-    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
+    const boxes = () => container.querySelectorAll("[role=checkbox]:not([data-row-box])")
+    expect(boxes()).toHaveLength(0)
     expect(screen.getByRole("button", { name: "Priority of Task 1" }).getAttribute("aria-expanded")).toBe("false")
     expect(screen.queryByRole("menu")).toBeNull()
     fireEvent.pointerEnter(row)
-    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(1)
+    expect(boxes()).toHaveLength(1)
     fireEvent.pointerLeave(row)
-    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
+    expect(boxes()).toHaveLength(0)
   })
 
   it("adds a task in the group its + belongs to", () => {

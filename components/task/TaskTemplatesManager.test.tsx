@@ -47,14 +47,14 @@ const KIM = { user_uuid: "u-kim", user_name: "Kim Lee" }
 const full = { id: "t1", project_id: "p", name: "Bug report", description: "What broke", default_for: BUG, shape: { name: "Bug: ", type: BUG, status: "Triage", assignee: KIM.user_uuid, description: "<h3>Steps</h3>" }, assignee_who: KIM } as TaskTemplate
 
 /** The page's client, answering the list and one template, and keeping what's posted. */
-function client(answer: TemplateList, template: TaskTemplate = full) {
+function client(answer: TemplateList, template: TaskTemplate = full, fields: unknown[] = []) {
   const posts: { path: string; body: unknown }[] = []
   const gets: string[] = []
   const http = {
     get: vi.fn(async (path: string) => {
       gets.push(path)
       if (/task-templates$/.test(path)) return { data: { data: answer } }
-      if (/\/fields$/.test(path)) return { data: { data: { fields: [], can_edit: true } } }
+      if (/\/fields$/.test(path)) return { data: { data: { fields, can_edit: true } } }
       if (path.startsWith("/project/memberWithAdminFlag/")) return { data: { data: { project_members: [SAM, KIM] } } }
       if (/\/statuses$/.test(path)) return { data: { data: { custom: [] } } }
       return { data: { data: template } }
@@ -92,6 +92,25 @@ describe("the task templates' manager (linear-09)", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save template" })))
     expect(posts).toEqual([{ path: "/project/p/task-templates/t1", body: expect.objectContaining({ name: "Bug intake", default_for: BUG, shape: expect.objectContaining({ status: "Triage", type: BUG, assignee: KIM.user_uuid, description: "<h3>Steps</h3>" }) }) }])
     await screen.findByRole("list", { name: "This project's templates" })
+  })
+
+  // V-698W: a field the server hides from its reader (a money field, to anyone not an admin of its project) is neither
+  // preset nor asked for here, and a value the template holds for it goes back as it came (keptOf keeps what it doesn't show).
+  it("presets and asks for no field the server hides from its reader, and keeps the template's value of it (V-698W)", async () => {
+    const fields = [
+      { id: "f1", project_id: "p", name: "Customer", type: "text", options: [], on_card: false, position: 0, filter_id: "field_f1" },
+      { id: "f9", project_id: "p", name: "Budget", type: "money", options: [], on_card: false, position: 1, filter_id: "field_f9", hidden: true },
+    ]
+    const priced = { ...full, shape: { ...full.shape, fields: { f9: 990000 } } } as TaskTemplate
+    const { http, posts } = client(list(), priced, fields)
+    render(<ProjectTaskTemplatesDialog http={http} projectId="p" onClose={() => {}} />)
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Bug report" }))
+    await screen.findByLabelText("Template name")
+    expect(await screen.findByRole("switch", { name: "Ask for Customer" })).toBeTruthy()
+    expect(screen.queryAllByText(/Budget/)).toHaveLength(0)
+    expect(screen.queryByRole("switch", { name: "Ask for Budget" })).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save template" })))
+    expect(posts[0]?.body).toMatchObject({ shape: { fields: { f9: 990000 } } })
   })
 
   // A type's glyph draws beside its name, so it is read once: "Bug", never "Bug Bug" (the e2e's options by name).

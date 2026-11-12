@@ -422,41 +422,58 @@ function groupOrderOf(col: Col, v: unknown, g: GroupRule): SortKey | null {
   return key ? utcMs(Number(key.slice(0, 4)), Number(key.slice(5, 7)), Number(key.slice(8, 10))) : null
 }
 
+/** A row's keys in a view's order: each sort's, the groups' first. */
+type OrderKeys = (SortKey | null)[]
+
+/**
+ * A view's rules as one row's test and the order of two (applyViewRules'
+ * own), or null when they neither filter nor sort. passes: the filters keep
+ * it. keysOf and order: its keys, and two rows' keys compared, blanks last
+ * either way, 0 for a tie; compare: two rows' (a live change places a row
+ * among those a view holds with it: lib/tables/liveRows RowOrder). Pure.
+ */
+export function viewOrder(fields: TableField[], rules: ViewRules, me: string | null = null) {
+  const { filters, sort, groups = [] } = fitRules(rules, fields)
+  // Groups lead the order, then the sorts.
+  const sorts: { field: string; dir: "asc" | "desc"; group?: GroupRule }[] = [...groups.map((g) => ({ ...g, group: g })), ...sort]
+  if (filters.length === 0 && sorts.length === 0) return null
+  const col = columns(fields)
+  const sortCols = sorts.map((s) => col(s.field))
+  const passes = (row: TableRow, values = parseRowValues(row)) => filters.length === 0 || passesAll(filters, rules.match, col, row, values, me)
+  const keysOf = (row: TableRow, values = parseRowValues(row)): OrderKeys =>
+    sortCols.map((c, k) => {
+      const g = sorts[k].group
+      return g ? groupOrderOf(c, cellOf(c, row, values), g) : sortKeyOf(c, cellOf(c, row, values))
+    })
+  const order = (x: OrderKeys, y: OrderKeys): number => {
+    for (let k = 0; k < sorts.length; k++) {
+      const a = x[k]
+      const b = y[k]
+      if ((a === null) !== (b === null)) return a === null ? 1 : -1
+      if (a === null || b === null) continue
+      const c = compareSortKeys(a, b)
+      if (c !== 0) return sorts[k].dir === "asc" ? c : -c
+    }
+    return 0
+  }
+  const compare = (a: TableRow, b: TableRow) => order(keysOf(a), keysOf(b))
+  return { filters: filters.length > 0, sorts: sorts.length > 0, passes, keysOf, order, compare }
+}
+
 /**
  * The rows the rules show, in the order they say. Filters and sorts on a
  * field that's gone are ignored; blanks sort last either way; rows that tie
  * keep their order. With no rules, the rows come back as they were given.
  */
 export function applyViewRules(rows: TableRow[], fields: TableField[], rules: ViewRules, me: string | null = null): TableRow[] {
-  const { filters, sort, groups = [] } = fitRules(rules, fields)
-  // Groups lead the order, then the sorts.
-  const sorts: { field: string; dir: "asc" | "desc"; group?: GroupRule }[] = [...groups.map((g) => ({ ...g, group: g })), ...sort]
-  if (filters.length === 0 && sorts.length === 0) return rows
-  const col = columns(fields)
+  const o = viewOrder(fields, rules, me)
+  if (!o) return rows
   let out = rows.map((row) => ({ row, values: parseRowValues(row) }))
-  if (filters.length > 0) out = out.filter(({ row, values }) => passesAll(filters, rules.match, col, row, values, me))
-  if (sorts.length > 0) {
+  if (o.filters) out = out.filter(({ row, values }) => o.passes(row, values))
+  if (o.sorts) {
     // Each row's keys are worked out once, not once a comparison.
-    const sortCols = sorts.map((s) => col(s.field))
-    const keyed = out.map((x, i) => ({
-      ...x,
-      i,
-      keys: sortCols.map((c, k) => {
-        const g = sorts[k].group
-        return g ? groupOrderOf(c, cellOf(c, x.row, x.values), g) : sortKeyOf(c, cellOf(c, x.row, x.values))
-      }),
-    }))
-    out = keyed.sort((x, y) => {
-      for (let k = 0; k < sorts.length; k++) {
-        const a = x.keys[k]
-        const b = y.keys[k]
-        if ((a === null) !== (b === null)) return a === null ? 1 : -1
-        if (a === null || b === null) continue
-        const c = compareSortKeys(a, b)
-        if (c !== 0) return sorts[k].dir === "asc" ? c : -c
-      }
-      return x.i - y.i
-    })
+    const keyed = out.map((x, i) => ({ ...x, i, keys: o.keysOf(x.row, x.values) }))
+    out = keyed.sort((x, y) => o.order(x.keys, y.keys) || x.i - y.i)
   }
   return out.map((x) => x.row)
 }

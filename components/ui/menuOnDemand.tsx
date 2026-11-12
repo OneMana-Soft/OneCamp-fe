@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { DropdownMenu, DropdownMenuTrigger, Press } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuTrigger, pressHandlers } from "@/components/ui/dropdown-menu"
 
 /** What the menu's content takes: focus on its first item when keys opened it, and back to the button after. */
 export interface OnDemandContentProps {
@@ -39,7 +39,20 @@ export function MenuOnDemand({ children, menu }: { children: Button; menu: (prop
     setOpen(next)
   }
 
+  const held = React.useRef(false)
   const own = children.props
+  // Opens as every menu does (Press): on the press, or on a phone on the tap's
+  // click, so the sheet that rises under the finger isn't chosen by its lift.
+  // Its handlers go on the button cloned here, after the button's own, as
+  // Press's Slot put them: Press, Slot and SlotClone were three components more in each task row.
+  const press = pressHandlers<HTMLButtonElement>(held, open, {
+    onPointerDown: (e) => {
+      viaKeys.current = false
+      if (e.defaultPrevented || e.button !== 0 || e.ctrlKey) return
+      if (!open) e.preventDefault()
+      set(!open)
+    },
+  })
   const child = React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
     ref: (el: HTMLButtonElement | null) => {
       button.current = el
@@ -48,7 +61,17 @@ export function MenuOnDemand({ children, menu }: { children: Button; menu: (prop
       else if (r) (r as React.MutableRefObject<HTMLButtonElement | null>).current = el
     },
     "aria-haspopup": "menu",
+    // The button's own wins, as over Press's Slot.
+    "aria-expanded": own["aria-expanded"] ?? open,
     "data-state": open ? "open" : "closed",
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      own.onPointerDown?.(e)
+      press.onPointerDown(e)
+    },
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
+      own.onClick?.(e)
+      press.onClick(e)
+    },
     onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => {
       own.onKeyDown?.(e)
       if (e.defaultPrevented || !["Enter", " ", "ArrowDown"].includes(e.key)) return
@@ -57,25 +80,9 @@ export function MenuOnDemand({ children, menu }: { children: Button; menu: (prop
       set(true)
     },
   })
-  // Opens as every menu does (Press): on the press, or on a phone on the tap's
-  // click, so the sheet that rises under the finger isn't chosen by its lift.
-  const trigger = (
-    <Press
-      aria-expanded={open}
-      onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => {
-        viaKeys.current = false
-        if (e.defaultPrevented || e.button !== 0 || e.ctrlKey) return
-        if (!open) e.preventDefault()
-        set(!open)
-      }}
-    >
-      {child}
-    </Press>
-  )
-
   return (
     <span className="relative inline-flex shrink-0">
-      {trigger}
+      {child}
       {mounted && (
         <DropdownMenu open={open} onOpenChange={set}>
           <DropdownMenuTrigger asChild>

@@ -156,7 +156,7 @@ export async function showReminder(notice: ReminderNotice, now: number = Date.no
     const res = await axiosInstance.get(`${GetEndpointUrl.GetEvent}/${encodeURIComponent(ref)}`, OWN_ERRORS)
     const event = res.data?.data as CalendarEventInterface | undefined
     if (!event) return
-    // Its own call (calendar B11), else the link in its notes.
+    // Its guest call (calendar B11), else the link in its notes, else its own room (gcal-15).
     const call = eventCallOf(event, window.location.origin)
     const link = call?.join
     const where = event.event_location?.trim() || undefined
@@ -168,7 +168,7 @@ export async function showReminder(notice: ReminderNotice, now: number = Date.no
       description: body(link && where === link ? undefined : where),
       action: link ? (
         <ToastAction asChild altText="Join the call">
-          <a href={link} {...(call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })} data-reminder-join="">
+          <a href={link} {...(call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })} data-reminder-join="" className="pointer-coarse:h-11">
             Join
           </a>
         </ToastAction>

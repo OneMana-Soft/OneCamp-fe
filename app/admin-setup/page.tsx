@@ -31,11 +31,14 @@ import {
   authControlXl,
   initialsOf,
 } from "@/components/auth/AuthShell"
-import { CampBand, FirstRunCamp, useHost, useReducedMotion } from "@/components/auth/CampArt"
-import { ThemeStep, TeamStep } from "@/components/auth/FirstRun"
+import { CampBand, useHost, useReducedMotion } from "@/components/auth/CampArt"
+import { FirstRunCamp } from "@/components/auth/CampHeroes"
 import { SpotError } from "@/components/ui/graphics/spots"
 import { celebrate } from "@/lib/celebrateSoon"
 import { hueFor } from "@/lib/campHue"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+import { PieceUnavailable } from "@/lib/lazy/pieceUnavailable"
+import { useHosting } from "@/lib/auth/useSignInFacts"
 
 /** How long the ignition plays before step 2 (the spec's ceiling is 1.4s). */
 const IGNITION_MS = 1300
@@ -43,6 +46,16 @@ const IGNITION_MS = 1300
 const IGNITION_REDUCED_MS = 140
 
 type Step = "account" | "igniting" | "theme" | "team"
+
+// Steps 2 and 3 are a chunk of their own: the account form doesn't use them,
+// and step 3 brings the invitations' client. It comes while the form is filled in.
+const steps = () => import("@/components/auth/FirstRun")
+const StepWait = () => <AuthPlaceholder label="Getting the next step" fields={2} />
+const StepFailed = ({ retry }: { retry: () => void }) => <PieceUnavailable what="the next step" retry={retry} />
+const themeStep = lazyPart(() => steps().then((m) => m.ThemeStep), { placeholder: StepWait, failed: StepFailed })
+const teamStep = lazyPart(() => steps().then((m) => m.TeamStep), { placeholder: StepWait, failed: StepFailed })
+const ThemeStep = themeStep.Part
+const TeamStep = teamStep.Part
 
 export default function AdminSetupPage() {
   const [email, setEmail] = useState("")
@@ -65,6 +78,7 @@ export default function AdminSetupPage() {
   const confirmRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const host = useHost()
+  const hosting = useHosting()
   const reduced = useReducedMotion()
 
   const [step, setStep] = useState<Step>("account")
@@ -89,6 +103,8 @@ export default function AdminSetupPage() {
         setUnreachable(false)
         setPinned(pinned)
         setIsChecking(false)
+        void themeStep.warm()
+        void teamStep.warm()
       }
     })
   }, [router, attempt])
@@ -162,13 +178,15 @@ export default function AdminSetupPage() {
   }
 
   const lit = step !== "account"
+  // Where it runs, as the trust line says it (SHELL-05): no claim until the server says.
+  const where = hosting === "cloud" ? "set up by OneMana" : hosting === "self" ? "on your server" : ""
   const camp = (
     <div ref={heroRef} className="grid flex-1">
       <FirstRunCamp
         lit={lit}
         instant={reduced}
         preview={preview}
-        caption={host ? `${host} · on your server` : "On your server"}
+        caption={hosting === "demo" ? "Shared demo" : [host, where].filter(Boolean).join(" · ")}
         people={people.map((p) => ({ key: p, hue: hueFor(p), initials: initialsOf(p) }))}
       />
     </div>

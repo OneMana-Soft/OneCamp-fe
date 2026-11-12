@@ -1,6 +1,7 @@
 "use client"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
+import { readableFields } from "@/components/task/hiddenField"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useLayoutOnce } from "@/components/task/useLayoutOnce"
 import {
@@ -12,7 +13,6 @@ import {
 } from "@tanstack/react-table"
 
 import { useSearchParams } from "next/navigation"
-import { useAppRouter } from "@/lib/navigation/appRouter"
 import { addressLater } from "@/lib/navigation/addressLater"
 import { useTabInAddress } from "@/components/task/tabInAddress"
 
@@ -24,9 +24,7 @@ import { useListDisplay, keepsFinished } from "@/hooks/useListDisplay"
 import { usePost } from "@/hooks/usePost"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import { useStableCallback } from "@/hooks/useStableCallback"
-import { PostEndpointUrl } from "@/services/endPoints"
-import { openUI } from "@/store/slice/uiSlice"
-import { Button } from "@/components/ui/button"
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import dynamic from "next/dynamic"
 
 const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog), { loading: () => null })
@@ -40,7 +38,6 @@ import { SERVER_FILTERS_HIDDEN, useProjectTaskColumn } from "@/hooks/useProjectT
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import {useDispatch, useSelector} from "react-redux";
@@ -49,9 +46,8 @@ import type {RootState} from "@/store/store";
 import type { TaskInfoInterface } from "@/types/task";
 import { accessOf, canEditTask } from "@/lib/work/access";
 import type { UserProfileInterface } from "@/types/user";
-import { EmptyState } from "@/components/ui/empty-state"
-import { SpotTasks } from "@/components/ui/graphics/spots"
-import { useProjectHue } from "@/lib/projectHue"
+import { NoProjectTasks } from "@/components/project/noProjectTasks"
+import { inReaderZone } from "@/lib/tasks/readerZone"
 
 interface ProjectTaskTableProps {
     projectId: string
@@ -80,8 +76,6 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
 }
 
 export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps) => {
-    const router = useAppRouter()
-    const projectHue = useProjectHue(projectId)
     const searchParams = useSearchParams()
     const dispatch = useDispatch()
 
@@ -118,6 +112,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     const pages = useTaskPages<ProjectInfoRawInterface>(
         projectId && apiQueryString ? `${GetEndpointUrl.GetProjectTaskList}/${projectId}?${apiQueryString}` : "",
         projectTasksOf,
+        inReaderZone(),
     )
 
     // Reset taskListVisibleInfo once per project, so a previous project's
@@ -140,11 +135,13 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     const { fields, isLoading: fieldsLoading, isError: fieldsFailed } = useProjectFields(projectId)
     const { nameOf } = usePeople(projectId, fields)
     const { columns } = useProjectTaskColumn(statusOpts, fields, nameOf)
-    // A saved view or a link can name a field since deleted: its filter goes,
-    // rather than narrowing the list to a field nobody can see.
+    // A saved view or a link can name a field since deleted, or one the server
+    // hides from this reader (V-698), which narrows nothing for them there: its
+    // filter goes, from the list's reads and its CSV, rather than narrowing the
+    // list to a field they can't see.
     useEffect(() => {
         if (fieldsLoading || fieldsFailed) return
-        const live = new Set(fields.map((f) => f.filter_id))
+        const live = new Set(readableFields(fields).map((f) => f.filter_id))
         setColumnFilters((prev) => {
             const next = prev.filter((f) => !f.id.startsWith("field_") || live.has(f.id))
             return next.length === prev.length ? prev : next
@@ -169,10 +166,10 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     })
 
     // What the reader may do (Work Access); everyone can move through them.
-    const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
+    const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data
     const project = pages.first?.data?.data
     const access = accessOf(project)
-    const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, me, project), [me, project])
+    const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, self?.user_uuid, project), [self, project])
     // The first rows reach the list through the store, an effect after the
     // answer: until they do, the skeleton stays (not a frame of "No tasks yet").
     const firstLoad = taskListState.length === 0 && (pages.loading || (pages.first?.data?.data.project_tasks?.length ?? 0) > 0)
@@ -271,17 +268,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                     reorder={reorder}
                     empty={
                         <WorkState>
-                            <EmptyState
-                                illustration={<SpotTasks hue={projectHue} />}
-                                title="No tasks yet"
-                                description="Make the first one, or bring them in from Linear, Jira, Asana or Trello."
-                                action={
-                                    <div className="flex items-center gap-2">
-                                        {access.create_tasks && <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button>}
-                                        <Button size="sm" variant="secondary" onClick={() => router.push("/app/admin?tab=import")}>Import</Button>
-                                    </div>
-                                }
-                            />
+                            <NoProjectTasks projectId={projectId} canCreate={access.create_tasks} admin={!!self?.user_is_admin} />
                         </WorkState>
                     }
                 />

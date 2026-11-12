@@ -32,6 +32,9 @@ describe("a team's board template, as a list carries it", () => {
     expect(listedBoard({ name: "Retro", payload: listedPayload }).preview).toHaveLength(5)
     expect(listedBoard({ name: "Retro", payload: "not json" })).toEqual({ title: "Retro", count: 0, preview: [] })
     expect(listedBoard({ name: "Retro", payload: JSON.stringify({ preview: [{ type: "rectangle", x: "a" }] }) }).preview).toEqual([])
+    // A crafted element is laid nowhere (V-547), so the drawing of the template shows none.
+    const crafted = JSON.stringify({ preview: [{ type: "iframe", x: 0, y: 0, w: 9, h: 9 }, { type: "magicframe", x: 0, y: 0, w: 9, h: 9 }, { type: "ellipse", x: 0, y: 0, w: 9, h: 9 }] })
+    expect(listedBoard({ name: "Retro", payload: crafted }).preview.map((s) => s.type)).toEqual(["ellipse"])
   })
 
   it("draws from its top left: frames, notes in their colours, shapes, words and arrows", () => {

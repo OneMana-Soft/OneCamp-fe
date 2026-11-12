@@ -279,7 +279,7 @@ for (const theme of ["light", "dark"] as const) {
       // Notes kept as rich text read as text; the default reminder says so after its value.
       const notes = form.getByRole("textbox", { name: "Notes" })
       await expect(notes).toHaveValue("Walk the checklist, then decide go or no-go.")
-      await expect(form.getByRole("combobox", { name: "Reminder 1" })).toHaveText("10 minutes before · your default")
+      await expect(form.getByRole("combobox", { name: "Reminder 1", exact: true })).toHaveText("10 minutes before · your default")
       await expect(form.getByRole("combobox", { name: "Show as" })).toHaveText("Busy")
       await shot(page, "panel-edit", theme)
       // A change goes back as rich text, as the notes were kept.
@@ -535,7 +535,7 @@ for (const theme of ["light", "dark"] as const) {
         await expect(title).toHaveAttribute("placeholder", "Where you're working")
         // Where you are, not a meeting: no place of its own and no reminders.
         await expect(form.getByRole("textbox", { name: "Place" })).toHaveCount(0)
-        await expect(form.getByRole("combobox", { name: "Reminder 1" })).toHaveCount(0)
+        await expect(form.getByRole("combobox", { name: "Reminder 1", exact: true })).toHaveCount(0)
         // Empty, it says what's missing in the server's words, and makes nothing.
         await press(form.getByRole("button", { name: "Create event" }))
         await expect(form.getByRole("alert")).toHaveText("Say where you're working")

@@ -19,7 +19,7 @@ const AUDIT_TAB_OTHERS = {
   "/admin/audit-log": { msg: "ok", data: { entries: [], categories: [], initiators: [] } },
   "/admin/audit-log/receipts": { msg: "ok", data: [] },
   "/admin/retention": { msg: "ok", data: { window_days: 0, keeps_everything: true, minimum_days_floor: 190 } },
-  "/admin/seats": { msg: "ok", data: { used: 2, limit: 25, locked: [] } },
+  "/admin/plan": { msg: "ok", data: { plan: "free", used: 2, limit: 25, free_plan: true, locked: [], controls: [] } },
 }
 const RAVI = { user_uuid: "8c1f4b2e-0d3a-4f5e-9b6c-7a8d9e0f1a2b", user_name: "Ravi Iyer", user_email_id: "ravi@example.com" }
 const RULE = { kind: "calendar", label: "calendar events", help: "Events that ended this many days ago are removed for good.", days: 0, min: 0, max: 3650 }

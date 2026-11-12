@@ -114,6 +114,21 @@ describe("a custom end for a pause", () => {
     expect(screen.getByRole("group", { name: "Pause until" }).querySelector("[aria-describedby]")?.getAttribute("aria-describedby")).toBe(why.id)
   })
 
+  // H3: the end in words, in the server's week and its own words.
+  it("pauses until a time in words, and keeps to the server's week", () => {
+    render(<PauseNotificationsDialog open onOpenChange={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Custom…" }))
+    const box = screen.getByRole("textbox", { name: "When" })
+    expect(document.activeElement).toBe(box)
+    fireEvent.change(box, { target: { value: "in 2 weeks" } })
+    expect(screen.getByText("Pick a time within the next 7 days.")).toBeTruthy()
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(pause).not.toHaveBeenCalled()
+    fireEvent.change(box, { target: { value: "monday 9" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(pause).toHaveBeenCalledWith(new Date(2026, 9, 19, 9, 0))
+  })
+
   it("holds a moment to a minute ahead and a week at most, as the server does", () => {
     const now = new Date(2026, 9, 15, 10, 0).getTime()
     expect(pauseUntilProblem(null, now)).toBe("Pick a date and time.")

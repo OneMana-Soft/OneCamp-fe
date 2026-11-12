@@ -9,6 +9,7 @@
 
 import type { CopyableElement } from "./copyElements"
 import { noteColourOfFill } from "./notes"
+import { isBoardElement } from "./elementTypes"
 import type { PreviewShapes } from "./previewShapes"
 import type { BoardTemplate } from "./templates"
 
@@ -58,11 +59,14 @@ function parse(payload: string): Record<string, unknown> {
   }
 }
 
-/** A listed board template's payload, read safely: shapes it can't draw are left out. */
+/**
+ * A listed board template's payload, read safely: shapes it can't draw are left out, and so is one of a type a board
+ * doesn't draw (./elementTypes, V-547), which laying the template leaves out too.
+ */
 export function listedBoard(t: Pick<TemplateRow, "name" | "payload">): ListedBoard {
   const p = parse(t.payload)
   const preview = (Array.isArray(p.preview) ? p.preview : []).filter(
-    (s): s is ListedShape => !!s && typeof s.type === "string" && isNum(s.x) && isNum(s.y) && isNum(s.w) && isNum(s.h),
+    (s): s is ListedShape => isBoardElement(s) && isNum(s.x) && isNum(s.y) && isNum(s.w) && isNum(s.h),
   )
   return {
     title: typeof p.title === "string" && p.title.trim() ? p.title.trim() : t.name,

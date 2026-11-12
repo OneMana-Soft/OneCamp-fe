@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { getMarkRange, useEditorState, type Editor } from "@tiptap/react"
+import { useLatch } from "@/hooks/useLatch"
 
 import { Check, ChevronDown, Link } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
@@ -235,10 +236,7 @@ export function SelectionBar({ editor, context, onAIClick, onComment, hide }: Se
   const actionsIn = (group: string): ShownAction[] => groupsNow.find((g) => g.group === group)?.actions ?? []
 
   // Once something has been selected, the shell stays (and is loaded).
-  const [selected, setSelected] = React.useState(false)
-  React.useEffect(() => {
-    if (on) setSelected(true)
-  }, [on])
+  const selected = useLatch(!!on)
   if (!selected) return null
 
   return (

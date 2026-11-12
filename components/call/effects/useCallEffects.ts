@@ -10,15 +10,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ParticipantEvent, Track, type LocalAudioTrack, type LocalTrackPublication, type LocalVideoTrack, type Room } from "livekit-client"
-import { NO_EFFECTS, readEffects, writeEffects, type Background, type CallEffects, type NoiseLevel } from "@/lib/calls/processors/effects"
+import { NO_EFFECTS, cameraOn, lookOf, readEffects, sameLook, settersFor, writeEffects, type Background, type CallEffects, type NoiseLevel, type TouchUp } from "@/lib/calls/processors/effects"
 import type { Runner, RunnerContext } from "./effectsRunner"
 
 export interface CallEffectsControl {
   effects: CallEffects
   setBackground: (b: Background) => void
   setNoise: (n: NoiseLevel) => void
-  /** Which effect is being put on now. */
-  busy: "background" | "noise" | null
+  setTouchUp: (t: TouchUp) => void
+  setLowLight: (on: boolean) => void
+  /** Which effect is being put on now: the camera's look, or the microphone's. */
+  busy: "camera" | "noise" | null
   /** Whether the CPU watch has made the effects lighter, until the person chooses again. */
   lightened?: boolean
 }
@@ -27,7 +29,7 @@ const cameraOf = (room: Room) => room.localParticipant.getTrackPublication?.(Tra
 const micOf = (room: Room) => room.localParticipant.getTrackPublication?.(Track.Source.Microphone)?.track as LocalAudioTrack | undefined
 
 /** Whether a choice has anything for the runner to do. Pure. */
-export const anyEffect = (e: CallEffects) => e.background.kind !== "none" || e.noise !== "standard"
+export const anyEffect = (e: CallEffects) => cameraOn(lookOf(e)) || e.noise !== "standard"
 
 export function useCallEffects(room: Room): CallEffectsControl {
   const [effects, setEffects] = useState<CallEffects>(() => (typeof window === "undefined" ? NO_EFFECTS : readEffects()))
@@ -36,7 +38,7 @@ export function useCallEffects(room: Room): CallEffectsControl {
   const want = useRef(effects)
   want.current = effects
 
-  const choose = useRef<RunnerContext["choose"]>({ background: () => undefined, noise: () => undefined })
+  const choose = useRef<RunnerContext["choose"]>(() => undefined)
   const runner = useRef<Promise<Runner> | null>(null)
   const run = useCallback((): Promise<Runner> => {
     runner.current ??= import("./effectsRunner").then((m) =>
@@ -45,7 +47,7 @@ export function useCallEffects(room: Room): CallEffectsControl {
         want: () => want.current,
         fellBack: (e) => setEffects((cur) => ({ ...cur, ...e })),
         busy: setBusy,
-        choose: { background: (b) => choose.current.background(b), noise: (n) => choose.current.noise(n) },
+        choose: (e) => choose.current(e),
         lightened: () => setLightened(true),
       }),
     )
@@ -59,7 +61,7 @@ export function useCallEffects(room: Room): CallEffectsControl {
     const lp = room.localParticipant
     const onPublished = (pub: LocalTrackPublication) => {
       if (!pub.track || (!anyEffect(want.current) && !runner.current)) return
-      if (pub.source === Track.Source.Camera) void run().then((r) => r.background(pub.track as LocalVideoTrack, want.current.background))
+      if (pub.source === Track.Source.Camera) void run().then((r) => r.camera(pub.track as LocalVideoTrack, lookOf(want.current)))
       if (pub.source === Track.Source.Microphone) void run().then((r) => r.noise(pub.track as LocalAudioTrack, want.current.noise))
     }
     lp.on(ParticipantEvent.LocalTrackPublished, onPublished)
@@ -69,37 +71,29 @@ export function useCallEffects(room: Room): CallEffectsControl {
     }
   }, [room, run])
 
-  const setBackground = useCallback(
-    (b: Background) => {
+  // A choice, from the panel or the strain watch: remembered, and put on the
+  // live camera or microphone where it changes what they carry.
+  const change = useCallback(
+    (part: Partial<CallEffects>) => {
       setLightened(false)
-      setEffects((cur) => {
-        const next = { ...cur, background: b }
-        writeEffects(next)
-        return next
-      })
+      const was = want.current
+      const next = { ...was, ...part }
+      want.current = next
+      writeEffects(next)
+      setEffects(next)
       const camera = cameraOf(room)
-      if (camera && (b.kind !== "none" || runner.current)) void run().then((r) => r.background(camera, b))
-    },
-    [room, run],
-  )
-
-  const setNoise = useCallback(
-    (n: NoiseLevel) => {
-      setLightened(false)
-      setEffects((cur) => {
-        const next = { ...cur, noise: n }
-        writeEffects(next)
-        return next
-      })
+      const look = lookOf(next)
+      if (camera && !sameLook(lookOf(was), look) && (cameraOn(look) || runner.current)) void run().then((r) => r.camera(camera, look))
       const mic = micOf(room)
-      if (mic && (n !== "standard" || runner.current)) void run().then((r) => r.noise(mic, n))
+      if (mic && was.noise !== next.noise && (next.noise !== "standard" || runner.current)) void run().then((r) => r.noise(mic, next.noise))
     },
     [room, run],
   )
-  choose.current = { background: setBackground, noise: setNoise }
+  choose.current = change
+  const set = useMemo(() => settersFor(change), [change])
 
   // The strain watch, while something heavy is on.
-  const heavy = effects.background.kind !== "none" || effects.noise === "strong"
+  const heavy = cameraOn(lookOf(effects)) || effects.noise === "strong"
   useEffect(() => {
     if (!heavy) return
     let stop: (() => void) | null = null
@@ -113,5 +107,5 @@ export function useCallEffects(room: Room): CallEffectsControl {
     }
   }, [heavy, run])
 
-  return useMemo(() => ({ effects, setBackground, setNoise, busy, lightened }), [effects, setBackground, setNoise, busy, lightened])
+  return useMemo(() => ({ effects, ...set, busy, lightened }), [effects, set, busy, lightened])
 }

@@ -36,9 +36,10 @@ export function useScheduledMessages(target?: string) {
   const post = usePost()
   const { toast } = useToast()
 
+  // One toast for what was done, in its own words: the request says only what went wrong (a "Done" under it was a second toast).
   const act = React.useCallback(
     async (endpoint: string, payload: Record<string, unknown>, done: string) => {
-      const res = await post.makeRequest<Record<string, unknown>, unknown>({ apiEndpoint: endpoint, payload, showToast: true }).catch(() => undefined)
+      const res = await post.makeRequest<Record<string, unknown>, unknown>({ apiEndpoint: endpoint, payload, showErrorToast: true }).catch(() => undefined)
       refreshAll()
       if (res !== undefined) toast({ title: done })
       return res !== undefined
@@ -66,7 +67,7 @@ export function useScheduleMessage() {
         .makeRequest<{ kind: ScheduleKind; body: Record<string, unknown>; send_at: string }, unknown>({
           apiEndpoint: ChatPost.ScheduleMessage,
           payload: { kind, body, send_at: at.toISOString() },
-          showToast: true,
+          showErrorToast: true,
         })
         .catch(() => undefined)
       if (res === undefined) return false

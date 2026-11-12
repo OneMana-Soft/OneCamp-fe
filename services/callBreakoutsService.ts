@@ -7,7 +7,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { publicCall, sendFailedText } from "@/services/publicApi"
 import type { Asker } from "@/components/livekit/handsRunner"
-import { actInCall } from "@/services/callService"
+import { actInCall } from "@/services/callControlService"
 
 /** A room's token, or why there's none, in the server's words. */
 export type RoomTokenAnswer = { ok: true; token: string; n: number; name: string } | { ok: false; msg: string }

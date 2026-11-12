@@ -139,7 +139,8 @@ describe("integrations as connection cards", () => {
     const section = document.getElementById("integrations-oauth") as HTMLElement
     expect(section).toBeTruthy()
     const cards = section.querySelectorAll("[data-connection-card]")
-    expect(cards).toHaveLength(2)
+    // Google, GitHub and the Microsoft app Outlook Calendar connects through (calendar B7).
+    expect(cards).toHaveLength(3)
     for (const c of Array.from(cards)) {
       expect(c.querySelector("header .cx-mark")).toBeTruthy()
       expect(c.querySelector("header [data-state-word]")).toBeTruthy()

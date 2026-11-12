@@ -61,7 +61,7 @@ function ConversationComposer({ conversation, handleSend, placeholder, phone, au
     // A phone's sheet: as tall as what it holds, or pulled up to fill the screen (PhoneComposerDrawer).
     const [expanded, setExpanded] = useState(false)
     // Undo takes back a schedule (C44).
-    const undoSchedule = useUndoSchedule(scheduleSend?.target)
+    const chipSchedule = useUndoSchedule(scheduleSend?.target)
 
     // The same functions for the life of the box, so the editor's action row
     // (memoised in textInput) keeps its buttons as the box redraws.
@@ -106,7 +106,7 @@ function ConversationComposer({ conversation, handleSend, placeholder, phone, au
             onSchedule={scheduleSend?.schedule}
             editorClassName="focus:outline-none"
             onChange={onChange}
-            onUndoSchedule={undoSchedule}
+            chipSchedule={chipSchedule}
         >
             {variant === "chat" && <BoxFiles conversation={conversation} draft={draft} />}
         </MinimalTiptapTextInput>

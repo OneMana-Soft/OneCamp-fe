@@ -13,7 +13,8 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
  *
  * Colour is a noun: a chip carries identity only as a 6px dot (`dot`, a
  * camp hue), and a tint only when it means something (`tone`: "Due today"
- * in sun, "Overdue" in danger). `onRemove` adds the × of an active filter.
+ * in sun, "Overdue" in danger, the one picked in brand). `onRemove` adds the
+ * × of an active filter. One choice of a few is a row of these (ChipChoice).
  */
 
 export function Chip({

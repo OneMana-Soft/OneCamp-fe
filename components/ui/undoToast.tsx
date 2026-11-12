@@ -20,16 +20,48 @@ async function attempt(say: typeof toast, undo: () => unknown, onDone?: () => vo
     const r = await undo()
     say(r === false ? { title: "Couldn't undo that", description: "Its row says why.", variant: "destructive" } : (noteOf?.(r) ?? { title: "Undone" }))
   } catch (e) {
-    const later = apiErrorStatus(e) === 503
-    say({
-      title: later ? "Undo didn't finish" : "Couldn't undo that",
-      description: apiErrorMessage(e, "Try again in a moment."),
-      variant: "destructive",
-      action: later ? <ToastAction altText="Retry" onClick={() => attempt(say, undo, onDone, noteOf)}>Retry</ToastAction> : undefined,
-    })
+    const description = apiErrorMessage(e, "Try again in a moment.")
+    if (apiErrorStatus(e) === 503) sayRetry(say, "Undo didn't finish", description, () => attempt(say, undo, onDone, noteOf))
+    else say({ title: "Couldn't undo that", description, variant: "destructive" })
   } finally {
     onDone?.()
   }
+}
+
+// A retry-later answer's toast (503: nothing was lost, and another go may
+// work): Retry has the same go again, only when pressed. One that `stays` has
+// no timer: it goes with its Retry or its x (V-617). Pressed from the keyboard,
+// Retry hands the focus back to where it was as the toast came, never to the
+// page (DESIGN-BUILD-129's F2); a pointer's press moves none.
+function sayRetry(say: typeof toast, title: string, description: string, retry: () => unknown, stays?: boolean) {
+  const from = document.activeElement
+  return say({
+    title,
+    description,
+    variant: "destructive",
+    duration: stays ? Infinity : undefined,
+    action: (
+      <ToastAction
+        altText="Retry"
+        onClick={(e) => {
+          if (!e.detail && from instanceof HTMLElement) from.focus()
+          void retry()
+        }}
+      >
+        Retry
+      </ToastAction>
+    ),
+  })
+}
+
+/**
+ * A write the server asked to have again later, offered back with Retry (a
+ * table cell's save kept as unsaved, V-583; a range write, V-617), its toast
+ * handed back. One that `stays` holds work nothing else on screen shows (a
+ * paste's new rows): it waits for the person, with no timer.
+ */
+export function offerRetry(title: string, description: string, retry: () => unknown, stays?: boolean) {
+  return sayRetry(toast, title, description, retry, stays)
 }
 
 // action names what Undo takes back when the title alone doesn't ("Undo fill").

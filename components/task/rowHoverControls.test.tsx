@@ -16,7 +16,8 @@ pinTestClock()
 // pointed at and never left, so a list scrolled under the pointer kept a menu
 // in every row it passed (8,380 renders, 1,024 ms of long tasks per scroll).
 // They are there only while the row is pointed at or focused, or its menu is
-// open. Each mounted menu is counted.
+// open. Each mounted menu is counted. The select box counted is the Checkbox:
+// the light box in its place is hidden by CSS until the list holds a selection.
 
 const live = vi.hoisted(() => ({ menus: 0 }))
 vi.mock("@/components/ui/dropdown-menu", async (orig) => {
@@ -95,11 +96,11 @@ describe("a row's hover controls", () => {
     const rows = [...container.querySelectorAll<HTMLElement>("[data-task-id]")]
     fireEvent.scroll(window)
     for (const row of rows) fireEvent.pointerEnter(row)
-    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
+    expect(container.querySelectorAll("[role=checkbox]:not([data-row-box])")).toHaveLength(0)
     // The scroll settles; the pointer moves on a row.
     await new Promise((r) => setTimeout(r, 200))
     fireEvent.pointerMove(rows[2])
-    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(1)
+    expect(container.querySelectorAll("[role=checkbox]:not([data-row-box])")).toHaveLength(1)
   })
 
   it("stay out while a drag carries the pointer across the rows", () => {
@@ -111,7 +112,7 @@ describe("a row's hover controls", () => {
     document.documentElement.setAttribute("data-dragging", "true")
     try {
       for (const row of container.querySelectorAll<HTMLElement>("[data-task-id]")) fireEvent.pointerEnter(row)
-      expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
+      expect(container.querySelectorAll("[role=checkbox]:not([data-row-box])")).toHaveLength(0)
     } finally {
       document.documentElement.removeAttribute("data-dragging")
     }

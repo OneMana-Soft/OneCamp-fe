@@ -7,6 +7,7 @@
 import { createContext, useContext } from "react"
 import { Check } from "@/lib/icons"
 import { optionOf, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
+import { fieldHidden } from "@/components/task/hiddenField"
 import { FieldValueView, OptionPill } from "@/components/task/fieldValue"
 
 /** How many of a field's choices a card shows before "+N". */
@@ -16,10 +17,12 @@ const CARD_OPTIONS = 2
 export const CardFieldsContext = createContext<{ fields: TaskField[]; nameOf?: (id: string) => string | undefined }>({ fields: [] })
 
 /** A card's values of the fields its board shows: a choice as its pill, a
- * ticked box as its name, anything else after its name. */
+ * ticked box as its name, anything else after its name. A card draws only
+ * values, so a field the server hides from its reader (V-698) isn't drawn,
+ * even with a value the device kept from before. */
 export function CardFields({ values }: { values?: FieldValues }) {
   const { fields, nameOf } = useContext(CardFieldsContext)
-  const shown = fields.filter((f) => f.on_card && hasValue(values?.[f.id]))
+  const shown = fields.filter((f) => f.on_card && !fieldHidden(f) && hasValue(values?.[f.id]))
   if (shown.length === 0) return null
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-2xs text-muted-foreground">

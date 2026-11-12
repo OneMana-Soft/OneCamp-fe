@@ -4,6 +4,7 @@ import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import { ProjectAttachmentList } from "@/components/project/projectAttachmentList";
 import { ProjectTaskList } from "@/components/project/projectTaskList";
 import { LinkedItemsSection } from "@/components/entityLink/LinkedItemsSection";
+import { ProjectBoardsLink } from "@/components/project/projectBoardsLink";
 
 /**
  * Tab body for `/app/project/[id]` mobile. One instance per tab so each
@@ -13,9 +14,13 @@ import { LinkedItemsSection } from "@/components/entityLink/LinkedItemsSection";
 export const ProjectListTabContent = ({
     selectedTab,
     projectId,
+    canLink = false,
 }: {
     selectedTab: string
     projectId: string
+    /** May link docs and boards: the project's Work Access add_files, as on a
+     *  computer (the server checks again). Not while that is unknown. */
+    canLink?: boolean
 }) => {
     const [inputValue, setInputValue] = useState("")
     const [searchQuery, setSearchQuery] = useState("")
@@ -62,7 +67,12 @@ export const ProjectListTabContent = ({
                     <div className="flex flex-col">
                         <ProjectAttachmentList searchQuery={searchQuery} projectId={projectId} />
                         <div className="px-3 pb-3">
-                            <LinkedItemsSection sourceType="project" sourceUUID={projectId} canEdit={true} />
+                            <LinkedItemsSection
+                                sourceType="project"
+                                sourceUUID={projectId}
+                                canEdit={canLink}
+                                aside={({ boards }) => <ProjectBoardsLink projectId={projectId} boards={boards.length} />}
+                            />
                         </div>
                     </div>
                 )}

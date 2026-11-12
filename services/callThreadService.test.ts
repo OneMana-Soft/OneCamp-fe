@@ -53,6 +53,18 @@ describe("a member's chat", () => {
     expect(await readCallThread({ sessionId: "s1" })).toEqual({ kind: "unreachable" })
   })
 
+  // An answer that isn't a chat (no post to open it with, its replies not a list: a server from before the chat, a
+  // proxy's page) passes as a trouble: the panel says it is retrying, and the call it sits in never breaks.
+  it("reads an answer that isn't a chat as a trouble that passes, never a chat to draw", async () => {
+    for (const data of [{ messages: [] }, { ...thread, post: null }, { ...thread, post: { id: "p1" } }, { ...thread, replies: "none" }, { ...thread, replies: [{ id: "r1" }] }, "<html>", []]) {
+      get.mockResolvedValueOnce({ status: 200, data: { data } })
+      expect(await readCallThread({ sessionId: "s1" }), JSON.stringify(data)).toEqual({ kind: "unreachable" })
+    }
+    // No replies yet may come as null (a Go nil slice): still the chat, with none.
+    get.mockResolvedValueOnce({ status: 200, data: { data: { ...thread, replies: null } } })
+    expect(await readCallThread({ sessionId: "s1" })).toEqual({ kind: "thread", thread: { ...thread, replies: null } })
+  })
+
   it("writes plain text, and says why a write was refused in the server's words", async () => {
     post.mockResolvedValueOnce({ status: 200, data: { msg: "Sent" } })
     expect(await writeInCallThread({ sessionId: "s1" }, "hi")).toEqual({ ok: true })
@@ -86,6 +98,11 @@ describe("a guest's chat", () => {
     expect(await readCallThread({ callToken: "tok" })).toEqual({ kind: "refused" })
     fetchMock.mockResolvedValueOnce(answer(429, { msg: "Too many" }))
     expect(await readCallThread({ callToken: "tok" })).toEqual({ kind: "busy" })
+  })
+
+  it("reads an answer that isn't a chat as a trouble that passes", async () => {
+    fetchMock.mockResolvedValueOnce(answer(200, { data: { messages: [] } }))
+    expect(await readCallThread({ callToken: "tok" })).toEqual({ kind: "unreachable" })
   })
 
   it("writes by the call token and passes on why not", async () => {

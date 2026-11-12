@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { finger, flingEnded } from "../finger"
 import { SAM } from "../stubbedApp"
-import { TableServer } from "./tableServer"
+import { afterOf, TableServer } from "./tableServer"
 
 const SHOTS = process.env.SHOTS_DIR
 
@@ -134,8 +134,8 @@ test.describe("a view the server answers in windows", () => {
   const savedRules = (server: TableServer, baseURL: string, rules: object) => ({
     storageState: { cookies: [], origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: `onecamp:tableView:${server.id}`, value: JSON.stringify(rules) }] }] },
   })
-  /** Each window read: its cursor ("" for the first), or "@" and the place a jump read it at (airtable-04). */
-  const windowsRead = (server: TableServer) => server.queries.filter((q) => !q.count).map((q) => (q.at ? `@${q.at}` : (q.cursor ?? "")))
+  /** Each window read: after the row its cursor names ("" for the first), or "@" and the place a jump read it at (airtable-04). */
+  const windowsRead = (server: TableServer) => server.queries.filter((q) => !q.count).map((q) => (q.at ? `@${q.at}` : afterOf(q.cursor)))
   /** The place a far jump read its window at: the second read, "@" and a place. */
   const jumpedTo = (server: TableServer) => Number(/^@(\d+)$/.exec(windowsRead(server)[1] ?? "")?.[1] ?? NaN)
   /**
@@ -173,8 +173,8 @@ test.describe("a view the server answers in windows", () => {
     const at = jumpedTo(server)
     expect(at).toBeGreaterThan(2500)
     expect(at).toBeLessThan(3000)
-    // Then on by its cursor, once, for the places just past that window.
-    await expect.poll(() => windowsRead(server)).toEqual(["", `@${at}`, String(at + 500)])
+    // Then on by its cursor (after its last row), once, for the places just past that window.
+    await expect.poll(() => windowsRead(server)).toEqual(["", `@${at}`, `after ${at + 499}`])
     // Each row in its place: the 3,001st of the view.
     await expect(page.getByRole("row", { name: / Line 3000 / })).toHaveAttribute("aria-rowindex", "3002")
     await sam.close()

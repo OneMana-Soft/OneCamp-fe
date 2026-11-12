@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, beforeAll } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { hueFor } from "@/lib/campHue"
 import type { TableBundle, TableRow } from "@/services/tableService"
@@ -83,6 +83,7 @@ vi.mock("@/lib/tables/applyRules", async (importOriginal) => ({
 vi.mock("@/components/table/DataTableGrid", async () => ({
   SelectionPart: { prefetch: () => Promise.resolve() },
   TableKeysPart: (await import("@/lib/lazy/lazyView")).lazyView(() => import("@/lib/tables/tableKeys")),
+  GroupPart: (await import("@/lib/lazy/lazyView")).lazyView(() => import("@/components/table/groups/GroupHeaders")),
   DataTableGrid: ({ rows, count, tail, empty, onNearEnd }: { rows: TableRow[]; count?: number; tail?: number; empty?: ReactNode; onNearEnd?: () => void }) => (
     <div data-testid="grid" data-count={count} data-tail={tail} data-first={rows[0]?.id} data-last={rows.at(-1)?.id}>
       {(count ?? rows.length) ? `${rows.length} rows` : empty}
@@ -122,7 +123,7 @@ import TableDetailPage from "./page"
 import { Toaster } from "@/components/ui/toaster"
 import { loadColumnMenus } from "@/components/table/ColumnMenu"
 import { cellPickers } from "@/components/table/cellPickerPart"
-import { loadTablePageParts } from "@/components/table/lazyParts"
+import { loadTablePageParts, RecordPart } from "@/components/table/lazyParts"
 import { TableKeysPart } from "@/components/table/DataTableGrid"
 
 // The column menus, the cell pickers and the page's views, record and dialogs are chunks of their own
@@ -731,5 +732,48 @@ describe("a table's undo and redo keys", () => {
     render(<TableDetailPage />)
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Table name" }), { key: "z", metaKey: true })
     expect(undoChange).not.toHaveBeenCalled()
+  })
+})
+
+// The phone pair (12 Nov): what is a tap or a key away (a row's record, the find bar, the menus' insides) is warmed
+// once the view is drawn, not as soon as the table is read: on a phone the list's own chunk, or the rules its rows
+// wait for, could still be on their way, and these went ahead of them.
+describe("what is a tap away", () => {
+  const drawn = { list: () => document.querySelector("[data-table-list]"), gallery: () => screen.queryByTestId("gallery") }
+  it.each(["list", "gallery"] as const)("in the %s, is warmed once the view is drawn and the page is idle, never while it is its skeleton", (view) => {
+    const idle = new Map<number, IdleRequestCallback>()
+    let asked = 0
+    const was = { ask: window.requestIdleCallback, drop: window.cancelIdleCallback }
+    window.requestIdleCallback = (run) => (idle.set(++asked, run), asked)
+    window.cancelIdleCallback = (id) => void idle.delete(id)
+    const runIdle = () =>
+      act(() => {
+        const due = [...idle.values()]
+        idle.clear()
+        due.forEach((run) => run({ didTimeout: false, timeRemaining: () => 50 }))
+      })
+    const warmRecord = vi.spyOn(RecordPart, "prefetch")
+    try {
+      // A view whose filter names me, with the profile on its way: it waits for its rules, as its skeleton.
+      profile = { isLoading: true }
+      window.history.replaceState(null, "", `/app/tables/${TABLE_ID}?view=${view}`)
+      fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+      saved = { sort: [], filters: [{ field: "item", op: "contains", value: "@me" }] as ViewRules["filters"], match: "all" }
+      const { rerender } = render(<TableDetailPage />)
+      runIdle()
+      expect(drawn[view](), "the view waits for its rules").toBeNull()
+      expect(warmRecord, "the record's chunk, before the view is drawn").not.toHaveBeenCalled()
+      profile = SIGNED_IN
+      rerender(<TableDetailPage />)
+      expect(drawn[view](), "the view, drawn").toBeTruthy()
+      expect(warmRecord, "the record's chunk, before the page is idle").not.toHaveBeenCalled()
+      runIdle()
+      expect(warmRecord, "the record's chunk, once the view is drawn and the page idle").toHaveBeenCalled()
+    } finally {
+      cleanup()
+      warmRecord.mockRestore()
+      window.requestIdleCallback = was.ask
+      window.cancelIdleCallback = was.drop
+    }
   })
 })

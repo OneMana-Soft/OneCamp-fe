@@ -1,3 +1,4 @@
+import { expectJBurstDrawsNoRow } from "@/lib/testing/keysBurst"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { BacklogAnswer, BacklogData } from "@/lib/work/backlog"
@@ -15,6 +16,12 @@ vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ opti
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
 let mobile = false
+// The keys' store, as the backlog's KeyboardList makes it: the J burst reads its highlight.
+const made = vi.hoisted(() => ({ stores: [] as import("@/lib/listSelection").SelectionStore[] }))
+vi.mock("@/lib/listSelection", async (orig) => {
+  const real = await orig<typeof import("@/lib/listSelection")>()
+  return { ...real, createSelectionStore: () => (made.stores.push(real.createSelectionStore()), made.stores[made.stores.length - 1]) }
+})
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: mobile, isDesktop: !mobile }) }))
 // The keys read the app's split view and its task panel (hooks/useListKeyboard).
 const app = { getState: () => ({ split: { active: -1 }, rightPanel: { rightPanelState: { isOpen: false, data: {} } } }), subscribe: () => () => {} }
@@ -322,5 +329,14 @@ describe("the backlog's cycle schedule", () => {
     expect(api.stopSchedule).not.toHaveBeenCalled()
     await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Stop" })))
     expect(api.stopSchedule).toHaveBeenCalledWith("p")
+  })
+})
+
+describe("the J key path on the backlog", () => {
+  it("a burst of J draws no row and lights one, the store's", () => {
+    answer = backlog()
+    const { container } = render(<ProjectBacklog projectId="p" />)
+    act(() => container.querySelector<HTMLElement>("[data-task-id]")!.focus())
+    expectJBurstDrawsNoRow({ container, store: () => made.stores[made.stores.length - 1] ?? null, rows: ["DraggableRow"], presses: 2 })
   })
 })

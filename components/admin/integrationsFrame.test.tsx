@@ -169,7 +169,8 @@ describe("the sign-in providers", () => {
     })
     render(<OAuthConfigCard />)
     await waitFor(() => expect(word(/^Set up/)).toBe("success"))
-    expect(word("Not set up")).toBe("neutral")
+    // GitHub, and the Microsoft app this server never set (calendar B7).
+    expect(screen.getAllByText("Not set up").map((n) => n.closest("[data-state-word]")?.getAttribute("data-state-word"))).toEqual(["neutral", "neutral"])
   })
 
   it("say a failed read in the compact form, with the server's reason", async () => {

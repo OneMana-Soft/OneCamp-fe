@@ -1,6 +1,9 @@
+import { SelectionProbe, expectJBurstDrawsNoRow } from "@/lib/testing/keysBurst"
+import type { SelectionStore } from "@/lib/listSelection"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
+import { SWRConfig, type Cache } from "swr"
 import { configureStore } from "@reduxjs/toolkit"
 import splitSlice from "@/store/slice/splitSlice"
 import desktopRightPanelSlice, { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
@@ -37,8 +40,7 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: fal
 const prefetched: string[] = []
 vi.mock("@/hooks/useFetch", () => ({ useFetch: (url: string) => (url && prefetched.push(url), { data: undefined }) }))
 
-const { KeyboardList, TaskTableRow, HOVER_INTENT_MS } = await import("./KeyboardList")
-const { useRowState } = await import("@/hooks/useListSelection")
+const { KeyboardList, TaskTableRow, HOVER_INTENT_MS, KEY_REST_MS } = await import("./KeyboardList")
 
 // The selection bar is a chunk of its own (next/dynamic in KeyboardList), and
 // its pickers are a large module graph. Loaded first here, its transform has
@@ -49,11 +51,10 @@ beforeAll(async () => {
   await import("@/components/task/BulkTaskBar")
 })
 
-/** A card as a board draws one, reduced to what the keys need. */
+/** A card as a board draws one, reduced to what the keys need: the keys paint its highlight (hooks/useListKeyboard). */
 function Card({ t }: { t: TaskInfoInterface }) {
-  const { highlighted } = useRowState(t.task_uuid)
   return (
-    <div data-task-id={t.task_uuid} tabIndex={0} data-highlighted={highlighted || undefined}>
+    <div data-task-id={t.task_uuid} tabIndex={0}>
       {t.task_name}
     </div>
   )
@@ -62,15 +63,16 @@ function Card({ t }: { t: TaskInfoInterface }) {
 const task = (id: string, name: string) => ({ task_uuid: id, task_name: name, task_status: "todo", task_priority: "low", task_label: "" }) as TaskInfoInterface
 const TASKS = [task("t1", "Write the copy"), task("t2", "Pick the hero"), task("t3", "Book the retro")]
 
-function renderList(canEdit: (t: TaskInfoInterface) => boolean = () => true) {
+function renderList(canEdit: (t: TaskInfoInterface) => boolean = () => true, cache?: Map<string, unknown>, tasks: TaskInfoInterface[] = TASKS) {
   const store = configureStore({ reducer: { split: splitSlice.reducer, rightPanel: desktopRightPanelSlice.reducer } })
   render(
+    <SWRConfig value={cache ? { provider: () => cache as Cache } : {}}>
     <Provider store={store}>
       <div data-split-view="-1">
-        <KeyboardList tasks={TASKS} canEdit={canEdit} listProjectId="p1" statusOptions={BUILT_IN_STATUSES}>
+        <KeyboardList tasks={tasks} canEdit={canEdit} listProjectId="p1" statusOptions={BUILT_IN_STATUSES}>
           <table>
             <tbody>
-              {TASKS.map((t) => (
+              {tasks.map((t) => (
                 <TaskTableRow key={t.task_uuid} id={t.task_uuid}>
                   <td>{t.task_name}</td>
                 </TaskTableRow>
@@ -80,7 +82,8 @@ function renderList(canEdit: (t: TaskInfoInterface) => boolean = () => true) {
           <input aria-label="Search" />
         </KeyboardList>
       </div>
-    </Provider>,
+    </Provider>
+    </SWRConfig>,
   )
   return store
 }
@@ -96,6 +99,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   disarmGo()
+  // A test that fails under fake timers leaves none to the next.
+  vi.useRealTimers()
 })
 
 describe("a task list from the keyboard", () => {
@@ -191,6 +196,28 @@ describe("a task list from the keyboard", () => {
     expect(screen.getByRole("toolbar", { name: "1 task selected" })).toBeInTheDocument()
   })
 
+  // F1 of 3ef857030: No priority read as a disabled row here. The bar's list
+  // draws the shared priority word, so it takes its rows' ink; its empty bars mark it none.
+  it("lists No priority in the other priorities' ink", async () => {
+    renderList()
+    press("j")
+    press("p")
+    await screen.findByPlaceholderText("Set priority…")
+    const word = (name: string) => screen.getByRole("option", { name: new RegExp(`^${name}$`) }).querySelector("[data-priority-level] > span")!
+    for (const p of ["Urgent", "High", "Medium", "Low"]) expect(word("No priority").className).toBe(word(p).className)
+  })
+
+  // B63 T1 U23 of 3ef857030: a list's rows don't carry their project's rule; the bar names it from the page's own read.
+  it("names the list project's rule for the tasks the reader can't change", async () => {
+    const project = { project_uuid: "p1", project_name: "Website", project_access: { role: "member", view: true, comment: true, create_tasks: true, edit_tasks: "assigned", delete_tasks: "own", log_time: true, post_updates: true, add_files: true, manage: false, manage_people: false, archive: false } }
+    renderList((t) => t.task_uuid !== "t1", new Map([["/project/info/p1", { data: { data: project } }]]))
+    press("j")
+    press("x")
+    const bar = await screen.findByRole("toolbar", { name: "1 task selected" })
+    expect(bar.textContent).toContain("You can't change these tasks")
+    expect(bar.textContent).toContain("In Website you change only tasks assigned to you.")
+  })
+
   it("stands aside while typing, and while G waits for its letter", () => {
     renderList()
     const search = screen.getByLabelText("Search")
@@ -279,16 +306,50 @@ describe("the bar's pickers", () => {
 })
 
 describe("loading a task before it's opened", () => {
-  it("fetches the task the keys move to, and the one the pointer rests on", async () => {
+  // A pass of the keys fetched each task it passed (38 requests in 20 J, FLUIDITY-24), and their answers drew the list
+  // again: the keys' place loads as the pointer's does, once it rests; Enter opens it and loads it at once.
+  it("fetches the task the keys rest on, not each one a burst passes; Enter right after a burst fetches its task at once", async () => {
     vi.useFakeTimers()
     prefetched.length = 0
-    renderList()
-    act(() => void fireEvent.keyDown(document.body, { key: "j" }))
-    expect(prefetched.some((u) => u.endsWith("/t1"))).toBe(true)
+    const store = renderList()
+    const tasksFetched = () => [...new Set(prefetched.filter((u) => /\/t[0-9]+$/.test(u)))]
+    for (let i = 0; i < 3; i++) {
+      act(() => void fireEvent.keyDown(document.body, { key: "j" }))
+      act(() => vi.advanceTimersByTime(50))
+    }
+    expect(tasksFetched(), "a burst fetches nothing").toEqual([])
+    act(() => vi.advanceTimersByTime(KEY_REST_MS))
+    expect(tasksFetched().map((u) => u.split("/").pop()), "the task the keys rest on").toEqual(["t3"])
+    prefetched.length = 0
+    act(() => void fireEvent.keyDown(document.body, { key: "k" }))
+    act(() => void fireEvent.keyDown(document.body, { key: "k" }))
+    act(() => void fireEvent.keyDown(document.body, { key: "Enter" }))
+    expect(store.getState().rightPanel.rightPanelState.data.taskUUID).toBe("t1")
+    expect(tasksFetched().map((u) => u.split("/").pop()), "the opened task, with no wait").toEqual(["t1"])
     const other = document.querySelector('[data-task-id="t2"]')!
     act(() => void fireEvent.pointerOver(other))
     act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
     expect(prefetched.some((u) => u.endsWith("/t2"))).toBe(true)
+    vi.useRealTimers()
+  })
+  // The fluidity harness waits 80 ms after each J lands, and a J takes up to ~40 ms to land: under the pointer's
+  // 90 ms the keys rested after 19 of 20 presses (38 requests, FLUIDITY-24 names run). The keys rest when they
+  // stop, not between two presses of a quick hand.
+  it("a burst of 20 J at 80 ms apart fetches at most 2 tasks; the pointer still rests at its own HOVER_INTENT_MS", () => {
+    const landed = 40
+    vi.useFakeTimers()
+    prefetched.length = 0
+    const many = Array.from({ length: 24 }, (_, i) => task(`t${i + 1}`, `Task number ${i + 1}`))
+    renderList(() => true, undefined, many)
+    const tasksFetched = () => [...new Set(prefetched.filter((u) => /\/t[0-9]+$/.test(u)))]
+    for (let i = 0; i < 20; i++) {
+      act(() => void fireEvent.keyDown(document.body, { key: "j" }))
+      act(() => vi.advanceTimersByTime(landed + 80))
+    }
+    act(() => vi.advanceTimersByTime(KEY_REST_MS))
+    expect(tasksFetched().length, `tasks fetched: ${tasksFetched().join(" ")}`).toBeLessThanOrEqual(2)
+    expect(tasksFetched().at(-1), "the task the keys stopped on").toMatch(/\/t20$/)
+    expect(HOVER_INTENT_MS, "the pointer's rest is shorter than the keys'").toBeLessThan(KEY_REST_MS)
     vi.useRealTimers()
   })
 })
@@ -430,5 +491,32 @@ describe("the selection in the palette (linear-28)", () => {
 
     // Each read under the key the bar's own picker reads, so the two agree.
     expect(readInto.mock.calls.map((c) => c[1]).sort()).toEqual([`${ProjectsGet.GetProjectMemberInfo}/p1`, milestonesPath("p1"), projectTagsKey("p1")].sort())
+  })
+})
+
+describe("the J key path on the table", () => {
+  it("a burst of J draws no row and lights one, the store's", () => {
+    const into = { store: null as SelectionStore | null }
+    const store = configureStore({ reducer: { split: splitSlice.reducer, rightPanel: desktopRightPanelSlice.reducer } })
+    const { container } = render(
+      <Provider store={store}>
+        <div data-split-view="-1">
+          <KeyboardList tasks={TASKS} canEdit={() => true} listProjectId="p1" statusOptions={BUILT_IN_STATUSES}>
+            <SelectionProbe into={into} />
+            <table>
+              <tbody>
+                {TASKS.map((t) => (
+                  <TaskTableRow key={t.task_uuid} id={t.task_uuid}>
+                    <td>{t.task_name}</td>
+                  </TaskTableRow>
+                ))}
+              </tbody>
+            </table>
+          </KeyboardList>
+        </div>
+      </Provider>,
+    )
+    act(() => row("Write the copy").focus())
+    expectJBurstDrawsNoRow({ container, store: () => into.store, rows: ["TaskTableRow"], presses: 2 })
   })
 })

@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { OWN_HUE, otherHue } from "@/components/calendar/calendarTones"
 
 // What the calendar asks the server for, by URL, and what each answers.
 const asked: string[] = []
@@ -7,6 +8,10 @@ let connected = false
 let account = ""
 // Where the person's sync with Google stands (calendar C9), as /calendar/sync/google answers.
 let syncState: string | undefined
+// And Outlook's (B7), as /calendar/sync/microsoft answers: read whether or not it's linked.
+let outlookState: string | undefined
+// Whether the person linked their own Outlook, as GET /connectors says (read once Outlook is available).
+let outlookLinked = false
 let loading = false
 let failing = false
 // The calendars beside yours: one listed, and their events' read failing (F2).
@@ -47,6 +52,8 @@ vi.mock("@/hooks/useFetch", () => ({
     if (url.startsWith("/calendar/repeats")) return NO_REPEATS
     if (url.includes("bookingPages")) return { data: { data: [{}, {}] }, isLoading: false, mutate: vi.fn() }
     if (url.includes("/calendar/sync/google")) return { data: syncState ? { data: { state: syncState } } : undefined, isLoading: false, mutate: vi.fn() }
+    if (url === "/connectors") return { data: { data: { connectors: [{ id: "microsoft_calendar", connected: outlookLinked }] } }, isLoading: false, mutate: vi.fn() }
+    if (url.includes("/calendar/sync/microsoft")) return { data: { data: { state: outlookState ?? "none", available: !!outlookState } }, isLoading: false, mutate: vi.fn() }
     return { data: { data: { isConnected: connected, accountEmail: account } }, isLoading: false, mutate: vi.fn(async () => ({ data: { isConnected: connected, accountEmail: account } })) }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
@@ -62,7 +69,8 @@ vi.mock("@/hooks/useAssignedTasks", () => ({
 const makeRequest = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 const toast = vi.fn()
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
+// The shared Undo toast (components/ui/undoToast) says through the app's own toast, not the hook's.
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast: (...t: unknown[]) => toast(...t) }))
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: mobile, isDesktop: !mobile }) }))
@@ -72,6 +80,8 @@ let panel = { isOpen: false, data: { eventUUID: "" } }
 vi.mock("react-redux", () => ({ useDispatch: () => dispatch, useSelector: (pick: (s: unknown) => unknown) => pick({ rightPanel: { rightPanelState: panel } }) }))
 const copy = vi.fn()
 vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy }), copyToClipboard: copy }))
+// The calendar's Trash, a chunk of its own (components/calendar/calendarTrash.test.tsx has its sheet).
+vi.mock("@/components/calendar/calendarTrash", () => ({ CalendarTrash: () => <p>The Trash, open</p> }))
 const push = vi.fn()
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), useSearchParams: () => new URLSearchParams(window.location.search) }))
 // The full dialog: whether it is open, and what it opened with.
@@ -86,7 +96,7 @@ vi.mock("@/components/calendar/createCalendarEventDialog", () => ({
 import { CalendarApp, periodTitle, periodTitles } from "./calendarApp"
 import { CALENDAR_KEYS, type CalendarCommand } from "@/lib/calendar/keys"
 import { choose } from "@/lib/calendar/choices"
-import { deleteEventConfirm, deleteEventRequest } from "@/lib/calendar/confirmDelete"
+import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
 import { installPointerEvent } from "@/lib/testing/pointerEvent"
 import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
 
@@ -96,7 +106,7 @@ pinTestClock()
 // The surfaces the calendar loads on first use, loaded once for the file:
 // a first dynamic import can take more than a second on a busy machine.
 beforeAll(async () => {
-  await Promise.all([import("./calendarsPopover"), import("./goToDate"), import("./eventMenu"), import("./eventPopover"), import("./scopePromptDialog"), import("./seriesChanges")])
+  await Promise.all([import("./calendarsPopover"), import("./goToDate"), import("./eventMenu"), import("./eventPopover"), import("./scopePromptDialog"), import("./seriesChanges"), import("./tellGuestsDialog"), import("./undoToast"), import("@/components/ui/undoToast")])
 })
 
 beforeEach(() => {
@@ -116,6 +126,8 @@ afterEach(() => {
   connected = false
   account = ""
   syncState = undefined
+  outlookState = undefined
+  outlookLinked = false
   toast.mockReset()
   loading = false
   failing = false
@@ -189,6 +201,26 @@ describe("the calendar", () => {
     const drop = refetch.mock.calls.find((c) => typeof c[0] === "function")
     expect(drop?.[0]({ data: [{ event_uuid: "gcal-1" }, { event_uuid: "e1" }] })).toEqual({ data: [{ event_uuid: "e1" }] })
     expect(drop?.[1]).toEqual({ revalidate: true })
+  })
+
+  // B7: the confirm a panel row asks (Disconnect Google or Outlook, Remove calendar) is an alertdialog in a portal of
+  // its own, which takes the focus and the press. The panel stays behind it, so it shows what the confirmed step did
+  // (Connect is back), as an event card does (overlayFocus.stayBehindConfirm); anywhere else still closes it.
+  it("keeps the Calendars panel open behind the confirm one of its rows asks", async () => {
+    connected = true
+    render(<CalendarApp />)
+    fireEvent.click(screen.getByRole("button", { name: /Calendars/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect Google Calendar" }))
+    const ask = document.body.appendChild(document.createElement("div"))
+    ask.setAttribute("role", "alertdialog")
+    const yes = ask.appendChild(document.createElement("button"))
+    act(() => yes.focus())
+    fireEvent.pointerDown(yes)
+    await act(async () => {})
+    expect(screen.getByRole("checkbox", { name: "Personal" })).toBeTruthy()
+    ask.remove()
+    act(() => screen.getByRole("button", { name: "Month" }).focus())
+    await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Personal" })).toBeNull())
   })
 
   it("has one primary action, New event", () => {
@@ -452,19 +484,60 @@ describe("linking Google Calendar", () => {
     syncState = "broken"
     render(<CalendarApp />)
     const button = screen.getByRole("button", { name: "Calendars, Google needs connecting again" })
-    expect(button.querySelector("[data-google-broken]")).toBeTruthy()
+    expect(button.querySelector("[data-sync-broken]")).toBeTruthy()
   })
 
-  it("leaves the Calendars button plain while the sync is in step, or Google isn't connected", () => {
+  // B7: Outlook's link breaks the same way, and the same dot and words say so.
+  it("marks the closed Calendars button while Outlook, or both, need connecting again", () => {
+    outlookState = "broken"
+    outlookLinked = true
+    const { unmount } = render(<CalendarApp />)
+    expect(screen.getByRole("button", { name: "Calendars, Outlook needs connecting again" }).querySelector("[data-sync-broken]")).toBeTruthy()
+    unmount()
+    connected = true
+    syncState = "broken"
+    render(<CalendarApp />)
+    expect(screen.getByRole("button", { name: "Calendars, Google and Outlook need connecting again" }).querySelector("[data-sync-broken]")).toBeTruthy()
+  })
+
+  // CR-B22 F1: a person's own Disconnect leaves Outlook's sync "broken" (the next sweep finds no token), and
+  // nothing is to be connected again: only a linked provider's broken link is said. A token Microsoft revoked
+  // keeps its connector row, so that one still says so (above).
+  it("says nothing of Outlook's broken sync once the person disconnected it", () => {
+    outlookState = "broken"
+    outlookLinked = false
+    render(<CalendarApp />)
+    const button = screen.getByRole("button", { name: "Calendars" })
+    expect(button.querySelector("[data-sync-broken]")).toBeNull()
+  })
+
+  it("leaves the Calendars button plain while each sync is in step, or Google isn't connected", () => {
     syncState = "broken"
     const { unmount } = render(<CalendarApp />)
-    expect(screen.getByRole("button", { name: "Calendars" }).querySelector("[data-google-broken]")).toBeNull()
+    expect(screen.getByRole("button", { name: "Calendars" }).querySelector("[data-sync-broken]")).toBeNull()
     expect(asked.some((u) => u.includes("/calendar/sync/google"))).toBe(false)
     unmount()
     connected = true
     syncState = "synced"
+    outlookState = "synced"
     render(<CalendarApp />)
-    expect(screen.getByRole("button", { name: "Calendars" }).querySelector("[data-google-broken]")).toBeNull()
+    expect(screen.getByRole("button", { name: "Calendars" }).querySelector("[data-sync-broken]")).toBeNull()
+  })
+
+  // DESIGN-BUILD-118 F2: the closed button's colours are those the grid draws: your own, and Google's
+  // events in Google's. Outlook's move brings calendars of your own, each in its own hue under My calendars,
+  // so Outlook has no dot of its own (otherHue("microsoft") was Google's dusk, a colour no calendar on show used).
+  it("draws your own dot and Google's, and no second dot of the same hue once Outlook is linked too", () => {
+    const dots = () => [...screen.getByRole("button", { name: "Calendars" }).querySelectorAll("[data-calendar-dots] [data-hue]")].map((d) => d.getAttribute("data-hue"))
+    const { unmount } = render(<CalendarApp />)
+    expect(dots()).toEqual([OWN_HUE])
+    unmount()
+    connected = true
+    outlookState = "synced"
+    outlookLinked = true
+    render(<CalendarApp />)
+    expect(dots()).toEqual([OWN_HUE, otherHue("google")])
+    expect(new Set(dots()).size).toBe(dots().length)
   })
 
   it("says which Google account is connected", async () => {
@@ -579,6 +652,25 @@ describe("the calendar's address", () => {
     expect(window.location.search).toBe("?date=2026-10-13")
   })
 
+  // CAL-40: a delete's Open Trash from the event's panel or page (lib/calendar/deleteEvent trashRoute).
+  it("opens its Trash when the address asks, and takes the ask out of the address", async () => {
+    window.history.replaceState({}, "", "/app/calendar?date=2026-10-13&trash=1&view=day")
+    render(<CalendarApp />)
+    expect(await screen.findByText("The Trash, open")).toBeTruthy()
+    expect(window.location.search).toBe("?date=2026-10-13&view=day")
+  })
+
+  // CR-250 F5: the panel's Open Trash pushes ?trash=1 while the calendar is already open beside it.
+  it("opens its Trash when the address asks while it is open, and takes the ask out again", async () => {
+    window.history.replaceState({}, "", "/app/calendar?date=2026-10-13&view=day")
+    const { rerender } = render(<CalendarApp />)
+    expect(screen.queryByText("The Trash, open")).toBeNull()
+    window.history.replaceState({}, "", "/app/calendar?date=2026-10-13&view=day&trash=1")
+    rerender(<CalendarApp />)
+    expect(await screen.findByText("The Trash, open")).toBeTruthy()
+    expect(window.location.search).toBe("?date=2026-10-13&view=day")
+  })
+
   it("goes where a link or Back takes its address", () => {
     on13Oct()
     const { rerender } = render(<CalendarApp />)
@@ -606,12 +698,15 @@ describe("the calendar's keys", () => {
   const opened = (uuid: string) => ({ type: "rightPanel/openRightPanel", payload: { eventUUID: uuid } })
   const pressed = (name: string) => screen.getByRole("button", { name, pressed: true })
   const nineOClock = () => iso(now.getDate(), 9)
+  // A move sends once its own chunk is in (seriesChanges): moved when its toast says so.
   const moveStandup = async () => {
     makeRequest.mockResolvedValue({})
     dragFirstEventTwoHours()
-    await act(async () => {})
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Moved “Standup”" })))
     makeRequest.mockClear()
   }
+  // The old stores' question before a delete (lib/calendar/confirmDelete): it never says it can't be undone (CAL-40).
+  const asksToDelete = expect.objectContaining({ title: "Delete “Standup”?", description: "It's removed from everyone's calendar.", destructive: true })
 
   const does: Record<CalendarCommand, (chord: string) => void | Promise<void>> = {
     next: (k) => {
@@ -674,12 +769,12 @@ describe("the calendar's keys", () => {
     },
     delete: async (k) => {
       press(k, standupBlock())
-      await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ ...deleteEventConfirm({}), destructive: true })))
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith(asksToDelete))
     },
     undo: async (k) => {
       await moveStandup()
       press(k)
-      expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ startTime: nineOClock() }) }))
+      await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ startTime: nineOClock() }) })))
     },
     refresh: (k) => {
       press(k)
@@ -701,7 +796,16 @@ describe("the calendar's keys", () => {
           expect(chord).toMatch(/^Alt-/)
           makeRequest.mockResolvedValue({})
           render(<CalendarApp />)
-          press(chord, standupBlock())
+          // A burst of them goes a second after the last (D-1).
+          vi.useRealTimers()
+          vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], now: TEST_TODAY })
+          try {
+            press(chord, standupBlock())
+            act(() => void vi.advanceTimersByTime(1000))
+          } finally {
+            vi.useRealTimers()
+            vi.setSystemTime(TEST_TODAY)
+          }
           await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ title: "Standup" }) })))
           const { startTime, endTime } = makeRequest.mock.calls[0][0].payload
           const [k, mins] = [keyOf(chord), (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 60_000]
@@ -844,7 +948,7 @@ describe("an event's menu", () => {
     choose(await menuOn(block()), "Open")
     expect(dispatch).toHaveBeenCalledWith({ type: "rightPanel/openRightPanel", payload: { eventUUID: "e1" } })
     choose(await menuOn(block()), "Delete")
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ ...deleteEventConfirm({}), destructive: true })))
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Delete “Standup”?", destructive: true })))
   })
 
   it("duplicates it into the full dialog without its call link", async () => {
@@ -852,6 +956,19 @@ describe("an event's menu", () => {
     render(<CalendarApp />)
     choose(await menuOn(block()), "Duplicate")
     await waitFor(() => expect(dialog).toMatchObject({ open: true, initial: { title: "Standup", description: "Daily check-in" } }))
+  })
+
+  // Calendar head B (gcal-1a): a copy keeps its own colour, and the files the copier may open; the rest it says.
+  it("duplicates its own colour and the files you can open, and says which it left off", async () => {
+    events = [{ ...standup(), event_calendar_id: "cal-sam", event_hue: "#1a73e8" }]
+    const files = [{ kind: "doc", uuid: "d-brief" }, { kind: "board", uuid: "b-plan" }]
+    makeRequest.mockImplementation(async (req: { method?: string; payload?: { refs?: Array<{ kind: string; id: string }> } }) =>
+      req.method === "GET" ? { id: "e1", files } : (req.payload?.refs ?? []).map((r) => ({ ...r, access: r.id === "d-brief" ? "ok" : "none" })),
+    )
+    render(<CalendarApp />)
+    choose(await menuOn(block()), "Duplicate")
+    await waitFor(() => expect(dialog).toMatchObject({ open: true, initial: { title: "Standup", hue: "#1a73e8", files: [{ kind: "doc", uuid: "d-brief" }] } }))
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Copied without 1 file", description: "You can't open it, so the copy leaves it off." }))
   })
 
   it("copies the event's link", async () => {
@@ -958,8 +1075,10 @@ describe("an instance of a repeating event", () => {
   it("moves nothing when the question is closed", async () => {
     render(<CalendarApp />)
     dragFirstEventTwoHours()
+    // Asked once the move's chunk is in: found outside act, which holds React's renders till it ends.
+    const cancel = await screen.findByRole("button", { name: "Cancel" })
     await act(async () => {
-      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
+      fireEvent.click(cancel)
     })
     expect(makeRequest).not.toHaveBeenCalled()
   })
@@ -1116,5 +1235,198 @@ describe("block time from a slot", () => {
     const { payload } = makeRequest.mock.calls.find(([r]) => r.method === "POST")![0]
     expect(payload).toMatchObject({ kind: "task_block", task_uuid: "t9", title: "" })
     expect(new Date(payload.start.at).getHours()).toBe(14)
+  })
+})
+
+// CAL-11, CAL-40 (UX-CALPLAN H1): on the one store, a move or a delete on the
+// grid asks what the Event Form asks before guests hear of it (D-CAL-5),
+// sends an event's times alone at the version it read, and a delete goes to
+// the Trash with Undo, never "This can't be undone".
+describe("moves and deletes on the one store", () => {
+  const meeting = () => ({ ...standup(), event_title: "Design review", event_guests: [{ email: "alex@example.com", role: "required", response: "needs_action" }] })
+  const nineOClock = () => iso(now.getDate(), 9)
+  const block = () => document.querySelector<HTMLElement>('[data-calendar] [data-event-uuid="e1"]')!
+  /** The calendar's own API: the event at sequence 3; every write done. */
+  const server = () => makeRequest.mockImplementation(async (req: { method?: string }) => (req.method === "GET" ? { id: "e1", sequence: 3, all_day: false } : {}))
+  const sentWith = (method: string) => makeRequest.mock.calls.map(([r]) => r).filter((r) => r.method === method)
+  const tellGuests = () => screen.findByRole("dialog", { name: "Send an update to your guests?" })
+  beforeEach(() => {
+    repeatsOn = true
+  })
+  afterEach(() => {
+    repeatsOn = false
+  })
+
+  it("a drag of a meeting with guests asks Tell guests? and sends notify none on Don't send", async () => {
+    events = [meeting()]
+    server()
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    const ask = await tellGuests()
+    expect(makeRequest).not.toHaveBeenCalled()
+    await act(async () => void fireEvent.click(within(ask).getByRole("button", { name: "Don't send" })))
+    await waitFor(() => expect(sentWith("PATCH")).toHaveLength(1))
+    expect(sentWith("PATCH")[0].payload).toMatchObject({ notify: "none" })
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Moved “Design review”", description: expect.stringMatching(/Guests weren't emailed\.$/) })))
+  })
+
+  it("a drag patches only the new times, at the version it read", async () => {
+    server()
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    await waitFor(() => expect(sentWith("PATCH")).toHaveLength(1))
+    // Nobody else is on it: nobody to ask about.
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(sentWith("PATCH")[0]).toMatchObject({ apiEndpoint: "/calendar/events", appendToUrl: "/e1" })
+    expect(sentWith("PATCH")[0].payload).toEqual({ sequence: 3, start: { at: iso(now.getDate(), 11), zone: expect.any(String) }, end: { at: iso(now.getDate(), 12) } })
+    expect(makeRequest.mock.calls.some(([r]) => String(r.apiEndpoint).startsWith("/event/updateEvent"))).toBe(false)
+  })
+
+  it("closing Tell guests puts the block back and sends nothing", async () => {
+    events = [meeting()]
+    server()
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    await tellGuests()
+    await act(async () => void fireEvent.keyDown(document.activeElement!, { key: "Escape" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await act(async () => {})
+    expect(makeRequest).not.toHaveBeenCalled()
+    // Drawn where it was dropped while asked, as Google's grid does, and put back as the question closed.
+    const drawn = refetch.mock.calls.filter(([f]) => typeof f === "function").map(([f]) => f({ data: [meeting()] }).data[0].event_start_time)
+    expect(drawn).toEqual([iso(now.getDate(), 11), nineOClock()])
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it("Undo of a move sends with the move's choice and asks nothing", async () => {
+    events = [meeting()]
+    server()
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    const ask = await tellGuests()
+    await act(async () => void fireEvent.click(within(ask).getByRole("button", { name: "Don't send" })))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Moved “Design review”" })))
+    act(() => void fireEvent.keyDown(window, { key: "z" }))
+    await waitFor(() => expect(sentWith("PATCH")).toHaveLength(2))
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(sentWith("PATCH")[1].payload).toMatchObject({ notify: "none", start: { at: nineOClock() } })
+  })
+
+  it("on the old stores a drag still posts /event/updateEvent", async () => {
+    repeatsOn = false
+    events = [meeting()]
+    makeRequest.mockResolvedValue({})
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ apiEndpoint: "/event/updateEvent/e1", payload: expect.objectContaining({ startTime: iso(now.getDate(), 11) }) })))
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  // D-1: asking on every 15-minute nudge would make the keys unusable.
+  it("draws a burst of Alt and the arrows at once, and sends it, asking once, a second after the last", async () => {
+    events = [meeting()]
+    server()
+    const { rerender } = render(<CalendarApp />)
+    vi.useRealTimers()
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], now: TEST_TODAY })
+    try {
+      block().focus()
+      for (let i = 0; i < 3; i++) act(() => void fireEvent.keyDown(block(), { key: "ArrowDown", altKey: true }))
+      // Drawn where the keys put it, at once.
+      const drawn = refetch.mock.calls.filter(([f]) => typeof f === "function")
+      expect(drawn).toHaveLength(3)
+      events = drawn[2][0]({ data: events }).data
+      expect(events![0]).toMatchObject({ event_start_time: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 15).toISOString() })
+      // The calendar's copy as drawn: the burst still asks, from where the event was.
+      rerender(<CalendarApp />)
+      act(() => void vi.advanceTimersByTime(999))
+      expect(makeRequest).not.toHaveBeenCalled()
+      act(() => void vi.advanceTimersByTime(1))
+    } finally {
+      vi.useRealTimers()
+      vi.setSystemTime(TEST_TODAY)
+    }
+    const ask = await tellGuests()
+    await act(async () => void fireEvent.click(within(ask).getByRole("button", { name: "Send" })))
+    await waitFor(() => expect(sentWith("PATCH")).toHaveLength(1))
+    expect(sentWith("PATCH")[0].payload).not.toHaveProperty("notify")
+    expect(screen.queryAllByRole("dialog")).toHaveLength(0)
+  })
+
+  // CR-250 F6: a burst's second is the calendar's own; leaving it, or Z, ends the wait.
+  describe("a burst still waiting", () => {
+    const quarterPast = () => new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 15).toISOString()
+    const drawnAt = () => refetch.mock.calls.filter(([f]) => typeof f === "function").map(([f]) => f({ data: [standup()] }).data[0].event_start_time)
+    /** Alt and the down arrow once on the plain Standup, then `then`, inside the second: its timer never fires. */
+    const nudgeThen = (then: () => void) => {
+      vi.useRealTimers()
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], now: TEST_TODAY })
+      try {
+        block().focus()
+        act(() => void fireEvent.keyDown(block(), { key: "ArrowDown", altKey: true }))
+        expect(drawnAt()).toEqual([quarterPast()])
+        then()
+      } finally {
+        vi.useRealTimers()
+        vi.setSystemTime(TEST_TODAY)
+      }
+    }
+
+    it("is sent as the calendar is left, asking nothing", async () => {
+      server()
+      const { unmount } = render(<CalendarApp />)
+      nudgeThen(() => {
+        expect(makeRequest).not.toHaveBeenCalled()
+        unmount()
+      })
+      await waitFor(() => expect(sentWith("PATCH")).toHaveLength(1))
+      expect(sentWith("PATCH")[0].payload).toMatchObject({ sequence: 3, start: { at: quarterPast() } })
+      expect(confirm).not.toHaveBeenCalled()
+    })
+
+    it("is put back by Z where it was, and never sent", async () => {
+      server()
+      render(<CalendarApp />)
+      nudgeThen(() => {
+        act(() => void fireEvent.keyDown(window, { key: "z" }))
+        expect(drawnAt()).toEqual([quarterPast(), nineOClock()])
+        act(() => void vi.advanceTimersByTime(1000))
+      })
+      await act(() => new Promise((done) => setTimeout(done, 100)))
+      expect(makeRequest).not.toHaveBeenCalled()
+      expect(drawnAt()).toEqual([quarterPast(), nineOClock()])
+    })
+  })
+
+  it("Delete on an event without guests deletes at once, and Undo restores it", async () => {
+    server()
+    render(<CalendarApp />)
+    block().focus()
+    act(() => void fireEvent.keyDown(block(), { key: "Delete" }))
+    await waitFor(() => expect(sentWith("DELETE")).toEqual([expect.objectContaining({ apiEndpoint: "/calendar/events", appendToUrl: "/e1?scope=all" })]))
+    expect(confirm).not.toHaveBeenCalled()
+    const drop = refetch.mock.calls.find(([f]) => typeof f === "function")![0]
+    expect(drop({ data: [standup()] })).toEqual({ data: [] })
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Deleted “Standup”" })))
+    const deleted = toast.mock.calls.find(([t]) => t.title === "Deleted “Standup”")![0]
+    expect(`${deleted.description ?? ""}`).not.toMatch(/can't be undone/)
+    await act(async () => {
+      await deleted.action.props.onClick()
+    })
+    expect(sentWith("POST")).toEqual([expect.objectContaining({ apiEndpoint: "/calendar/events", appendToUrl: "/e1/restore" })])
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Undone" }))
+  })
+
+  it("Delete on a meeting with guests asks Tell your guests it's cancelled? and sends notify=none on Don't send", async () => {
+    events = [meeting()]
+    server()
+    render(<CalendarApp />)
+    block().focus()
+    act(() => void fireEvent.keyDown(block(), { key: "Delete" }))
+    const ask = await screen.findByRole("dialog", { name: "Tell your guests it's cancelled?" })
+    expect(makeRequest).not.toHaveBeenCalled()
+    await act(async () => void fireEvent.click(within(ask).getByRole("button", { name: "Don't send" })))
+    await waitFor(() => expect(sentWith("DELETE")).toEqual([expect.objectContaining({ appendToUrl: "/e1?scope=all&notify=none" })]))
+    expect(confirm).not.toHaveBeenCalled()
   })
 })

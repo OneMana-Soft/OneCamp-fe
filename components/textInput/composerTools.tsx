@@ -22,12 +22,15 @@ import { openUI } from "@/store/slice/uiSlice"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { formatSendAt } from "@/lib/messages/schedulePresets"
 import { useModKey } from "@/hooks/useModKey"
+import { useLatch } from "@/hooks/useLatch"
 import { ACTION_TIP_ABOVE, ACTION_TIP_ABOVE_END } from "@/components/MessageDesktopHover/actionTip"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { clockTime } from "@/lib/utils/date/clock"
+import type { ChipSchedule } from "@/components/textInput/useUndoSchedule"
 
 const ClipRecorder = dynamic(() => import("@/components/clips/ClipRecorder"), { ssr: false })
 // Send later's own moment, Schedule send's (the server's window, and why not): loaded when Custom time… is chosen.
-const CustomSendTime = dynamic(() => import("@/components/messages/scheduleSendButton").then((m) => m.CustomSendTime), { ssr: false, loading: () => <div className="h-[156px] md:h-[132px]" /> })
+const CustomSendTime = dynamic(() => import("@/components/messages/scheduleSendButton").then((m) => m.CustomSendTime), { ssr: false, loading: () => <div className="h-[256px] md:h-[220px]" /> })
 
 /** A tool in the composer's row (design v3 chat, C38): 28px, the icon 16px in ink-3. */
 export const COMPOSER_TOOL =
@@ -67,9 +70,14 @@ export const ComposerPlusMenu = React.memo(function ComposerPlusMenu({
     dictateLabel,
     agents,
     onDraftWithAI,
+    onSendLater,
+    nothingToSend,
     triggerClassName,
 }: {
     editor: Editor
+    /** The phone's Send later sheet (V-711): off, as Send is, with nothing to send. */
+    onSendLater?: () => void
+    nothingToSend?: boolean
     onUpload?: () => void
     onRecordClip?: () => void
     onDictate?: () => void
@@ -89,7 +97,12 @@ export const ComposerPlusMenu = React.memo(function ComposerPlusMenu({
                     <Plus aria-hidden="true" />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" sideOffset={8} className="pop-surface w-60 p-1">
+            <DropdownMenuContent
+                side="top"
+                align="start"
+                sideOffset={8}
+                className="pop-surface w-60 p-1"
+            >
                 {onUpload && (
                     <DropdownMenuItem onSelect={onUpload}>
                         <MenuTile><Upload /></MenuTile> Upload a file
@@ -112,6 +125,11 @@ export const ComposerPlusMenu = React.memo(function ComposerPlusMenu({
                 <DropdownMenuItem onSelect={() => editor.chain().focus().clearContent().insertContent(pollStarter(editor.getText())).run()}>
                     <MenuTile hue="sun"><BarChart3 /></MenuTile> Create a poll
                 </DropdownMenuItem>
+                {onSendLater && (
+                    <DropdownMenuItem disabled={nothingToSend} onSelect={() => onSendLater()}>
+                        <MenuTile hue="lake"><Clock /></MenuTile> Send later
+                    </DropdownMenuItem>
+                )}
                 {((agents && agents.length > 0) || onDraftWithAI) && <DropdownMenuSeparator />}
                 {agents?.map((a) => (
                     <DropdownMenuItem key={a.id} onSelect={() => insertMention(editor, a)}>
@@ -352,10 +370,7 @@ export function DictationStrip({ dictation }: { dictation: Dictation }) {
 
 /** The clip recorder, loaded the first time it is asked for. */
 export function ClipRecorderHost({ open, onOpenChange, onRecorded }: { open: boolean; onOpenChange: (o: boolean) => void; onRecorded: (file: File) => void }) {
-    const [wanted, setWanted] = React.useState(open)
-    React.useEffect(() => {
-        if (open) setWanted(true)
-    }, [open])
+    const wanted = useLatch(open)
     if (!wanted) return null
     return <ClipRecorder open={open} onOpenChange={onOpenChange} onAttach={onRecorded} />
 }
@@ -414,6 +429,111 @@ function whenLabel(at: Date, now: Date): string {
 }
 
 /**
+ * Send later's menu (C44): the presets, and Custom time… swapping its content
+ * for the time field, no second popover. Over Send's chevron on a computer;
+ * the phone's sheet from a long-press on Send or "+" (V-711), where Custom
+ * time's Schedule is pinned at the sheet's foot under the field (app/overlay.css,
+ * its marks written here: first-load code).
+ */
+export function SendLaterMenu({
+    open,
+    onOpenChange,
+    onSchedule,
+    onCloseAutoFocus,
+    focusAfter,
+    children,
+}: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onSchedule: (at: Date) => void
+    /** Where the focus goes as it closes, for a trigger that takes none (the phone's). */
+    onCloseAutoFocus?: (e: Event) => void
+    /** Where the focus goes once a time went: the box, as Send and its chevron hide with the words (V-774). */
+    focusAfter?: () => void
+    children: React.ReactNode
+}) {
+    const [custom, setCustom] = React.useState(false)
+    const pinned = useSheetMode() && custom
+    const labelId = React.useId()
+    const now = new Date()
+    const change = (o: boolean) => {
+        onOpenChange(o)
+        if (!o) setCustom(false)
+    }
+    const went = React.useRef(false)
+    const pick = (at: Date) => {
+        went.current = true
+        onSchedule(at)
+    }
+    const closeFocus = (e: Event) => {
+        const after = went.current ? focusAfter : undefined
+        went.current = false
+        if (!after) return onCloseAutoFocus?.(e)
+        e.preventDefault()
+        after()
+    }
+    return (
+        <DropdownMenu open={open} onOpenChange={change} modal={false}>
+            <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+            <DropdownMenuContent
+                side="top"
+                align="end"
+                sideOffset={8}
+                aria-labelledby={labelId}
+                onCloseAutoFocus={closeFocus}
+                data-overlay-holds-body={pinned ? "" : undefined}
+                data-overlay-holds-footer={pinned ? "" : undefined}
+                className="pop-surface w-72 p-1"
+            >
+                <DropdownMenuLabel id={labelId} className="px-2 pb-1 pt-1.5 text-meta font-medium text-ink-3">Send later</DropdownMenuLabel>
+                {!custom ? (
+                    <>
+                        {sendLaterChoices(now).map((c) => (
+                            <DropdownMenuItem key={c.key} onSelect={() => pick(c.at)}>
+                                {c.label}
+                                <DropdownMenuShortcut className="whitespace-nowrap tabular-nums">{laterTimeLabel(c, now)}</DropdownMenuShortcut>
+                            </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onSelect={(e) => {
+                                e.preventDefault()
+                                setCustom(true)
+                            }}
+                        >
+                            <Clock className="text-ink-3" aria-hidden="true" /> Custom time…
+                        </DropdownMenuItem>
+                    </>
+                ) : (
+                    // Its keys are its own: the menu would take Tab, and the
+                    // letters typed into a day or a time for its type-ahead.
+                    <div data-overlay-column={pinned ? "" : undefined} className={cn("px-2 pt-1 animate-fade-in", !pinned && "pb-2")} onKeyDown={(e) => e.stopPropagation()}>
+                        <CustomSendTime pinned={pinned} leadMs={2 * 60 * 60 * 1000} onPick={(at) => { pick(at); change(false) }} />
+                    </div>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
+/**
+ * A box's Send later, and the chip it leaves (C44) only when the schedule
+ * went: a refused one says why in its toast, the words staying in the box.
+ * The computer's box and the phone's share it.
+ */
+export function useSendLater(onSchedule?: (at: Date) => Promise<unknown> | unknown) {
+    const [scheduled, setScheduled] = React.useState<Date | null>(null)
+    const schedule = React.useCallback(
+        async (at: Date) => {
+            if ((await onSchedule?.(at)) !== false) setScheduled(at)
+        },
+        [onSchedule],
+    )
+    const done = React.useCallback(() => setScheduled(null), [])
+    return { scheduled, schedule: onSchedule ? schedule : undefined, done }
+}
+
+/**
  * Send (C39): a split button, the 28px square joined to a 20px chevron that
  * opens Send later. Empty, it is the press overlay with an ink-3 arrow and no
  * chevron (its width kept, so nothing shifts when it appears). Ready, the
@@ -426,18 +546,19 @@ export const SendSplit = React.memo(function SendSplit({
     label,
     onSend,
     onSchedule,
+    focusAfter,
 }: {
     nothingToSend: boolean
     disabled?: boolean
     label: string
     onSend: () => void
     onSchedule?: (at: Date) => void
+    /** The box, which takes the focus once a time went (the chevron hides with the words). */
+    focusAfter?: () => void
 }) {
     const arrow = React.useRef<SVGSVGElement>(null)
     const [open, setOpen] = React.useState(false)
-    const [custom, setCustom] = React.useState(false)
     const ready = !nothingToSend && !disabled
-    const now = new Date()
     const send = () => {
         if (ready && arrow.current && !prefersReducedMotion() && typeof arrow.current.animate === "function") {
             arrow.current.animate([{ translate: "0 0" }, { translate: "0 -3px", offset: 0.4 }, { translate: "0 0" }], { duration: 160, easing: "cubic-bezier(0.3, 1.35, 0.5, 1)" })
@@ -463,54 +584,23 @@ export const SendSplit = React.memo(function SendSplit({
                 <ArrowUp ref={arrow} className="size-4" aria-hidden="true" />
             </button>
             {onSchedule && (
-                <DropdownMenu open={open} onOpenChange={(o) => { setOpen(o); if (!o) setCustom(false) }} modal={false}>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            type="button"
-                            aria-label="Send later"
-                            data-tip="Send later"
-                            tabIndex={ready ? 0 : -1}
-                            aria-hidden={!ready || undefined}
-                            className={cn(
-                                ACTION_TIP_ABOVE_END,
-                                "flex h-7 w-5 items-center justify-center rounded-r-md border-l border-[color-mix(in_oklab,var(--brand)_70%,black)] bg-brand text-brand-foreground shadow-primary transition-[opacity,translate] duration-[140ms] ease-out hover:bg-[color-mix(in_oklab,var(--brand)_92%,black)]",
-                                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                                ready ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-1 opacity-0",
-                            )}
-                        >
-                            <ChevronDown className="size-3.5" aria-hidden="true" />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="top" align="end" sideOffset={8} className="pop-surface w-72 p-1">
-                        <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-meta font-medium text-ink-3">Send later</DropdownMenuLabel>
-                        {!custom ? (
-                            <>
-                                {sendLaterChoices(now).map((c) => (
-                                    <DropdownMenuItem key={c.key} onSelect={() => onSchedule(c.at)}>
-                                        {c.label}
-                                        <DropdownMenuShortcut className="whitespace-nowrap tabular-nums">{laterTimeLabel(c, now)}</DropdownMenuShortcut>
-                                    </DropdownMenuItem>
-                                ))}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onSelect={(e) => {
-                                        e.preventDefault()
-                                        setCustom(true)
-                                    }}
-                                >
-                                    <Clock className="text-ink-3" aria-hidden="true" /> Custom time…
-                                </DropdownMenuItem>
-                            </>
-                        ) : (
-                            // Custom time swaps the menu's content, no second popover. Its
-                            // keys are its own: the menu would take Tab, and the letters
-                            // typed into a day or a time for its type-ahead.
-                            <div className="px-2 pb-2 pt-1 animate-fade-in" onKeyDown={(e) => e.stopPropagation()}>
-                                <CustomSendTime leadMs={2 * 60 * 60 * 1000} onPick={(at) => { onSchedule(at); setOpen(false) }} />
-                            </div>
+                <SendLaterMenu open={open} onOpenChange={setOpen} onSchedule={onSchedule} focusAfter={focusAfter}>
+                    <button
+                        type="button"
+                        aria-label="Send later"
+                        data-tip="Send later"
+                        tabIndex={ready ? 0 : -1}
+                        aria-hidden={!ready || undefined}
+                        className={cn(
+                            ACTION_TIP_ABOVE_END,
+                            "flex h-7 w-5 items-center justify-center rounded-r-md border-l border-[color-mix(in_oklab,var(--brand)_70%,black)] bg-brand text-brand-foreground shadow-primary transition-[opacity,translate] duration-[140ms] ease-out hover:bg-[color-mix(in_oklab,var(--brand)_92%,black)]",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                            ready ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-1 opacity-0",
                         )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    >
+                        <ChevronDown className="size-3.5" aria-hidden="true" />
+                    </button>
+                </SendLaterMenu>
             )}
         </div>
     )
@@ -520,21 +610,28 @@ export const SendSplit = React.memo(function SendSplit({
  * After scheduling (C44): a chip rises from Send to the composer's top-left,
  * "Scheduled for tomorrow at 09:00 · Undo", for 6 s, in the toast's words
  * (formatSendAt): it said "Tomorrow 09:00" (QA F-39). Its clock turns once as
- * it lands, the playful moment of send-later.
+ * it lands, the playful moment of send-later. It leaves sooner once its
+ * message, seen in the queue, has left it (V-711 F2).
  */
-export function ScheduledChip({ at, onUndo, onDone }: { at: Date; onUndo?: () => void; onDone: () => void }) {
+export function ScheduledChip({ at, schedule, onDone }: { at: Date; schedule?: ChipSchedule; onDone: () => void }) {
     React.useEffect(() => {
         const t = window.setTimeout(onDone, 6000)
         return () => window.clearTimeout(t)
     }, [onDone])
+    const queued = schedule?.queued(at)
+    const seen = React.useRef(false)
+    React.useEffect(() => {
+        if (queued) seen.current = true
+        else if (seen.current) onDone()
+    }, [queued, onDone])
     return (
         <div role="status" data-scheduled-chip="" className="mb-2 inline-flex h-6 items-center gap-1.5 rounded-xl bg-sunken px-2.5 text-meta text-ink-2 animate-pill-in">
             <Clock className="size-3 motion-safe:animate-clock-once" aria-hidden="true" />
             Scheduled for {formatSendAt(at)}
-            {onUndo && (
+            {schedule && (
                 <>
                     <span aria-hidden="true">·</span>
-                    <button type="button" onClick={() => { onUndo(); onDone() }} className="rounded-sm font-medium text-brand-text hover:underline focus-visible:outline-2 focus-visible:outline-ring">
+                    <button type="button" onClick={() => { schedule.undo(at); onDone() }} className="rounded-sm font-medium text-brand-text hover:underline focus-visible:outline-2 focus-visible:outline-ring">
                         Undo
                     </button>
                 </>

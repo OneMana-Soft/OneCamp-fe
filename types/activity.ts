@@ -32,6 +32,8 @@ export interface UnifiedActivityItem {
     id?: string;
     time: string;
     priority?: "high" | "normal" | "low";
+    /** Counted on the Inbox badge (business/Activity unreadInInbox): its dot. */
+    unread?: boolean;
     mention?: MentionInfoInterface;
     comment?: CommentInfoInterface;
     reaction?: ReactionActivity;

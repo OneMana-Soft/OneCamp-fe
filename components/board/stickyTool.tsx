@@ -12,7 +12,8 @@
 //  - Frame: the sizes a frame starts at (16:9, A4, phone…), or draw one (F).
 //
 // The phone has no tool bar of ours yet (W-9): its "Add a note" button (the
-// page's cluster) puts a note in the middle of the view, typing.
+// page's cluster) puts a note in the middle of the view, typing, and its frame
+// sizes are the Frames panel's Add a frame (framePresets, one list for both).
 
 import * as React from "react"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
@@ -35,8 +36,8 @@ import {
   type NoteColourId,
 } from "@/lib/board/notes"
 import { nextNoteSpot, noteGrid, notesFromText } from "@/lib/board/sticky"
-import { FRAME_PRESETS, nextFrameName } from "@/lib/board/frames"
-import { addFrame, addNotes, frameElement, selectAndEdit, viewMiddle, type SceneElement } from "@/components/board/boardOps"
+import { addNotes, addPresetFrame, selectAndEdit, viewMiddle, type SceneElement } from "@/components/board/boardOps"
+import { FrameGlyph, FramePresetList } from "@/components/board/framePresets"
 import { newElementId } from "@/lib/board/ids"
 import { onEscape } from "@/lib/keys/onEscape"
 import type { BoardSelection } from "@/components/board/boardWorkbench"
@@ -66,15 +67,6 @@ export function NoteGlyph({ colour, className }: { colour: NoteColourId; classNa
       <path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v6.2L9.7 13.5H3.5a1 1 0 0 1-1-1z" fill={c.fill} stroke={c.edge} strokeWidth="1.1" />
       <path d="M9.7 13.5v-2.8a1 1 0 0 1 1-1h2.8" fill="none" stroke={c.edge} strokeWidth="1.1" />
       <path d="M5 6.2h5M5 8.4h3.2" stroke={c.ink} strokeWidth="1.1" strokeLinecap="round" opacity=".7" />
-    </svg>
-  )
-}
-
-/** A frame's glyph: corners only, the way Excalidraw draws a frame's edge. */
-function FrameGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <path d="M2.5 5.5v-3h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3" />
     </svg>
   )
 }
@@ -142,13 +134,17 @@ export default function StickyTool({
   const latest = React.useRef({ colour, style, selection })
   latest.current = { colour, style, selection }
 
-  /** Puts a note centred on a scene point and starts typing in it. */
+  /**
+   * Puts a note centred on a scene point, in the frame under that point if there is one, wholly inside it (the frame
+   * grown if it must be: addNotes picks it), and starts typing in it.
+   */
   const place = React.useCallback(
-    async (at: { x: number; y: number }, o: { colour?: NoteColourId; size?: keyof typeof NOTE_SIZES; frameId?: string | null } = {}) => {
+    async (at: { x: number; y: number }, o: { colour?: NoteColourId; size?: keyof typeof NOTE_SIZES } = {}) => {
       const size = o.size ?? "m"
       const side = NOTE_SIZES[size]
       const id = newElementId("note")
-      await addNotes(api, [noteSkeleton({ id, x: at.x - side / 2, y: at.y - side / 2, colour: o.colour ?? latest.current.colour, size, style: latest.current.style })], { frameId: o.frameId })
+      const note = noteSkeleton({ id, x: at.x - side / 2, y: at.y - side / 2, colour: o.colour ?? latest.current.colour, size, style: latest.current.style })
+      await addNotes(api, [note])
       selectAndEdit(api, [id], excalidrawContainer())
     },
     [api],
@@ -212,12 +208,7 @@ export default function StickyTool({
       if (!from) return
       const taken = all.filter((e) => e.type !== "text" && e.type !== "frame" && e.type !== "arrow" && e.type !== "line")
       const spot = nextNoteSpot(from, taken, direction, from.width)
-      const frame = from.frameId ? all.find((e) => e.id === from.frameId) : undefined
-      const inside = frame && spot.x >= frame.x && spot.y >= frame.y && spot.x + from.width <= frame.x + frame.width && spot.y + from.height <= frame.y + frame.height
-      await place(
-        { x: spot.x + from.width / 2, y: spot.y + from.height / 2 },
-        { colour: noteColourOf(from) ?? latest.current.colour, size: noteSizeOf(from.width), frameId: inside ? frame!.id : null },
-      )
+      await place({ x: spot.x + from.width / 2, y: spot.y + from.height / 2 }, { colour: noteColourOf(from) ?? latest.current.colour, size: noteSizeOf(from.width) })
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return
@@ -275,17 +266,6 @@ export default function StickyTool({
     return () => window.removeEventListener("paste", onPaste, true)
   }, [api])
 
-  // ---- frames at a size --------------------------------------------------
-  const addPresetFrame = (presetId: string) => {
-    const p = FRAME_PRESETS.find((f) => f.id === presetId)
-    if (!p) return
-    const mid = viewMiddle(api)
-    const names = (api.getSceneElements() as unknown as SceneElement[]).filter((e) => e.type === "frame").map((e) => e.name)
-    const frame = frameElement({ id: newElementId("frame"), x: Math.round(mid.x - p.width / 2), y: Math.round(mid.y - p.height / 2), width: p.width, height: p.height, name: nextFrameName(names), preset: p.id })
-    addFrame(api, frame)
-    api.scrollToContent([frame] as never, { fitToContent: true, animate: true })
-  }
-
   return (
     <>
       {armed && (
@@ -340,27 +320,7 @@ export default function StickyTool({
             </PopoverTrigger>
             <PopoverContent side="top" align="start" sideOffset={10} className="content-float w-64 rounded-xl bg-pop p-1.5 shadow-e3" data-frame-presets="">
               <p className="px-2 pb-1 pt-1.5 text-meta font-medium text-ink-3">Add a frame</p>
-              <ul className="grid gap-px">
-                {FRAME_PRESETS.map((p) => {
-                  const w = 18
-                  const h = Math.round((p.height / p.width) * w)
-                  return (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onClick={() => addPresetFrame(p.id)}
-                        className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-                      >
-                        <span aria-hidden="true" className="flex w-6 justify-center">
-                          <span className="block rounded-[2px] border border-line-3 bg-sunken" style={{ width: h > 22 ? Math.round((w * 22) / h) : w, height: Math.min(h, 22) }} />
-                        </span>
-                        <span className="flex-1">{p.label}</span>
-                        <span className="text-meta text-ink-3">{p.hint}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <FramePresetList onPick={(id) => void addPresetFrame(api, id)} />
               <div className="mt-1 border-t border-line pt-1">
                 <button
                   type="button"

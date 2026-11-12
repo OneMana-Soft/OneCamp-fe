@@ -7,9 +7,11 @@ vi.mock("@/lib/ui/announce", () => ({ announce: (t: string) => announce(t) }))
 import { useCallAnnouncements, type AnnouncedCall } from "./useCallAnnouncements"
 
 // meet-18 (D-CL-13): the call says each change once, to a screen reader:
-// joins and leaves, hands up with their place and down, someone waiting to join, and
-// recording or captions stopping (their starts are their pills'). Several
-// within a moment are said as one, and one sentence never cuts another off.
+// joins and leaves, hands up with their place and down, someone waiting to join,
+// who started recording (UX-CALLS-H1: a pill's live region mounts with its
+// words, which most screen readers miss), and recording or captions stopping
+// (a captions start is its notice's). Several within a moment are said as one,
+// and one sentence never cuts another off.
 
 const person = (identity: string, name: string, o: { you?: boolean; hand?: number | null } = {}) => ({ identity, name, you: !!o.you, hand: o.hand ?? null })
 const sam = person("sam", "Sam Rivera", { you: true })
@@ -78,14 +80,21 @@ describe("what the call says", () => {
     expect(said()).toEqual(["Gia Rossi is waiting to join", "2 people are waiting to join"])
   })
 
-  it("says recording and captions stopping, and leaves their starts to their pills", () => {
+  // On purpose (UX-CALLS-H1): a recording's start was left to its pill, and
+  // the pill's live region mounts with its words, which most screen readers
+  // miss. Who started it is said now; a captions start is still its notice's.
+  it("a screen reader hears who started recording, and recording and captions stopping", () => {
     const { rerender } = renderHook((c: AnnouncedCall) => useCallAnnouncements(c), { initialProps: base })
-    rerender({ ...base, recording: true, captions: true })
+    rerender({ ...base, recording: true, recordingBy: "Maya Chen", captions: true })
     vi.advanceTimersByTime(3_000)
-    expect(said()).toEqual([])
+    expect(said()).toEqual(["Maya Chen started recording"])
     rerender({ ...base, recording: false, captions: false })
     vi.advanceTimersByTime(5_000)
-    expect(said()).toEqual(["Recording stopped", "Captions are off"])
+    expect(said()).toEqual(["Maya Chen started recording", "Recording stopped", "Captions are off"])
+    // A server that doesn't say who: that it started.
+    rerender({ ...base, recording: true })
+    vi.advanceTimersByTime(2_000)
+    expect(said().at(-1)).toBe("Recording started")
   })
 
   it("leaves a moment between two sentences, so one never cuts the other off", () => {

@@ -125,6 +125,41 @@ describe("links to items the reader can't open", () => {
   })
 })
 
+// A link field links the one kind it's for: the workspace search finds docs,
+// tasks and projects alike, and the field offers only its own kind's hits.
+describe("a link field's search", () => {
+  const FOUND = {
+    page: [
+      { type: "doc", doc: { doc_uuid: "d1", doc_title: "Launch brief" } },
+      { type: "task", task: { task_id: "t1", task_name: "Launch checklist" } },
+      { type: "project", project: { project_id: "p1", project_name: "Launch plan" } },
+    ],
+  }
+  afterEach(() => search.mockReset())
+
+  const offered = async (target: "task" | "doc", placeholder: string) => {
+    search.mockResolvedValue(FOUND)
+    render(<RelationCell value={[]} target={target} onCommit={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Add a link" }))
+    fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value: "launch" } })
+    const options = await screen.findAllByRole("option")
+    expect(search).toHaveBeenCalledWith("launch")
+    return options.map((o) => o.textContent)
+  }
+
+  it("offers a field for tasks the task it finds, not the doc or the project beside it", async () => {
+    const names = await offered("task", "Search tasks")
+    expect(names).toHaveLength(1)
+    expect(names[0]).toContain("Launch checklist")
+  })
+
+  it("offers a field for docs the doc it finds, not the task or the project beside it", async () => {
+    const names = await offered("doc", "Search docs")
+    expect(names).toHaveLength(1)
+    expect(names[0]).toContain("Launch brief")
+  })
+})
+
 // QA PTC-16 (14 Oct): a row's links wrapped onto a second line and stretched
 // a 40 px grid row to 57. A grid row holds a line of two, then "+N", as a
 // multi-select's cell does.

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 // "Invitation sent" used to mean only that a sending key was set. Both invite
 // dialogs now say what the email provider answered: sent, or why not, with the
@@ -9,7 +9,8 @@ const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 const invite = vi.fn()
 vi.mock("@/services/invitationService", () => ({ invite }))
-vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ email_enabled: true }) }))
+const server = { email_enabled: true }
+vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => server }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, mutate: async () => undefined }) }))
 
 const { MemberInviteDialog } = await import("./MemberInviteDialog")
@@ -22,6 +23,7 @@ afterEach(() => {
   cleanup()
   invite.mockReset()
   toast.mockReset()
+  server.email_enabled = true
 })
 
 describe("what an invitation says about its email", () => {
@@ -66,6 +68,14 @@ describe.each(dialogs)("%s", (_, open) => {
     )
     expect(screen.queryByRole("heading", { name: "Email sent" })).toBeNull()
   })
+
+  it("with email off, offers to create, not send, and promises a link, not an email", () => {
+    server.email_enabled = false
+    open()
+    expect(screen.getByRole("dialog").textContent).toContain("This server can't send email yet, so you'll get a link to share with each person yourself.")
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "ana@example.com" } })
+    expect(screen.getByRole("button", { name: "Create invitation" })).toBeTruthy()
+  })
 })
 
 describe("an invitation whose email couldn't go", () => {
@@ -79,17 +89,19 @@ describe("an invitation whose email couldn't go", () => {
 })
 
 // Design v3 (E6): the admin's dialog knows the plan's seats, and says before
-// sending when the addresses would not fit, with the field ringed in sun.
+// sending when the addresses would not fit, with the field ringed in sun. The
+// plan is /admin/plan's one answer, and the line is the shared limit note's
+// (ADMIN-02), so both changed here on purpose.
 describe("the admin's dialog on a full free plan", () => {
   it("rings the field and says how many won't fit", async () => {
     const seatsFetch = await import("@/hooks/useFetch")
     vi.spyOn(seatsFetch, "useFetch").mockImplementation(((url: string) =>
-      url.startsWith("/admin/seats")
-        ? { data: { data: { used: 23, limit: 25 } }, mutate: async () => undefined }
+      url.startsWith("/admin/plan")
+        ? { data: { data: { plan: "free", used: 23, limit: 25 } }, mutate: async () => undefined }
         : { data: { data: [] }, mutate: async () => undefined }) as never)
     render(<AddInvitationDialog open onOpenChange={vi.fn()} onSuccess={() => {}} />)
     fireEvent.paste(screen.getByLabelText(/email address/i), { clipboardData: { getData: () => "a@example.com b@example.com c@example.com" } })
     expect(document.querySelector("[data-chip-field]")?.getAttribute("data-over")).toBe("true")
-    expect(document.querySelector("[data-seat-line]")?.textContent).toContain("2 places left on the free plan. 1 of these won't fit.")
+    await waitFor(() => expect(document.querySelector("[data-seat-limit-note] [role=status]")?.textContent).toContain("2 places left on the free plan. 1 of these won't fit."))
   })
 })

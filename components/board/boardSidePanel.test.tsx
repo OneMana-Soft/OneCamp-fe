@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { putOnScreen, SCREENS } from "@/lib/testing/screens"
 import { BoardSidePanel } from "./boardSidePanel"
+import { BoardSideFrame } from "./boardSideFrame"
 
 // The board's side panel (Frames, Filter by tag): one shell, its actions pinned under its one scroller.
 
@@ -63,5 +64,22 @@ describe("the board's side panel", () => {
     const foot = sheet.querySelector("[data-sheet-footer]")!
     expect(foot.textContent).toBe("Select these (sheet)")
     expect(sheet.querySelector("[data-sheet-body]")?.contains(foot)).toBe(false)
+  })
+  it("sets its frame's sheet height while it holds more: the height it asks for, then the frame's own again (miro-11 F1)", () => {
+    off = putOnScreen(SCREENS["a phone in portrait"])
+    const panel = (detent?: "medium") => (
+      <BoardSideFrame name="Frames" closeLabel="Close frames" onClose={vi.fn()} data-frames-panel="">
+        <BoardSidePanel name="Frames" closeLabel="Close frames" detent={detent} footer={actions} onClose={vi.fn()} data-frames-panel="">
+          <ul aria-label="Rows" />
+        </BoardSidePanel>
+      </BoardSideFrame>
+    )
+    const { rerender } = render(panel())
+    const sheet = () => document.querySelector("[data-frames-panel][data-v3-sheet]")!
+    expect(sheet().getAttribute("data-detent")).toBe("half")
+    rerender(panel("medium"))
+    expect(sheet().getAttribute("data-detent")).toBe("medium")
+    rerender(panel())
+    expect(sheet().getAttribute("data-detent")).toBe("half")
   })
 })

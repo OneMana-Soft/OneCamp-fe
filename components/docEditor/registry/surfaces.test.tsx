@@ -51,7 +51,8 @@ const shown = (surface: Surface, c: ActionContext, order: string[] = []) =>
 describe('the More menu, from the registry', () => {
   it("holds today's items, in their groups and order", () => {
     expect(shown('more', ctx({ desktop: true }), MORE_GROUPS)).toEqual([
-      ['view', ['Save for later', 'Focus mode', 'Full width', 'Find in doc']],
+      // Remind me… (linear-45 #1): Later's picker, for this doc.
+      ['view', ['Save for later', 'Remind me…', 'Focus mode', 'Full width', 'Find in doc']],
       // B5's Save as template (components/docTemplates/register.ts); C5's
       // Suggestions (minimal-tiptap/extensions/suggest-mode/contributions.ts).
       ['doc', ['Version history', 'Viewed by', ...docAi('AI activity'), 'Suggestions', 'Save as template']],
@@ -66,8 +67,8 @@ describe('the More menu, from the registry', () => {
   it("says what is on: Leave focus mode, Saved for later, Full width's check", () => {
     const groups = actionGroupsFor('more', ctx({ desktop: true, focusMode: true, saved: true, fullWidth: true }), MORE_GROUPS)
     const view = groups.find((g) => g.group === 'view')!.actions
-    expect(view.map((a) => a.label)).toEqual(['Saved for later', 'Leave focus mode', 'Full width', 'Find in doc'])
-    expect(view.map((a) => a.checked)).toEqual([true, undefined, true, undefined])
+    expect(view.map((a) => a.label)).toEqual(['Saved for later', 'Remind me…', 'Leave focus mode', 'Full width', 'Find in doc'])
+    expect(view.map((a) => a.checked)).toEqual([true, undefined, undefined, true, undefined])
   })
 
   it("leaves out what a reader can't do, and Full width on a phone", () => {
@@ -83,7 +84,7 @@ describe('the More menu, from the registry', () => {
     c.bus.on('openPanel', ({ kind }) => asked.push(`panel:${kind}`))
     c.bus.on('openDialog', ({ id }) => asked.push(`dialog:${id}`))
     for (const g of actionGroupsFor('more', c, MORE_GROUPS)) for (const a of g.actions) if (!/Export|Copy|Find/.test(a.label)) void a.run()
-    expect(asked).toEqual(['saved', 'focusMode', 'fullWidth', 'dialog:doc.history', 'panel:viewers', ...docAi('dialog:ai.activity'), 'panel:suggestions', 'dialog:doc.saveAsTemplate', 'shortcuts'])
+    expect(asked).toEqual(['saved', 'dialog:doc.remindMe', 'focusMode', 'fullWidth', 'dialog:doc.history', 'panel:viewers', ...docAi('dialog:ai.activity'), 'panel:suggestions', 'dialog:doc.saveAsTemplate', 'shortcuts'])
   })
 })
 
@@ -97,7 +98,7 @@ describe("the phone's doc sheet", () => {
       // Suggest changes is the header's Editing/Suggesting switch, which a phone doesn't draw (C5).
       ['doc', ['Edit doc title', 'Share', 'Comments', 'Version history', 'Viewed by', ...docAi('Ask AI about this doc', 'AI activity'), 'Notifications', 'Suggestions', 'Suggest changes', 'Save as template']],
       // B3's find, for a phone with no ⌘F.
-      ['view', ['Save for later', 'Focus mode', 'Find in doc']],
+      ['view', ['Save for later', 'Remind me…', 'Focus mode', 'Find in doc']],
       ['export', ['Export as Markdown', 'Export as HTML', 'Export as PDF', 'Export as Word']],
       ['import', ['Import files…']],
       ['share', ['Copy link']],

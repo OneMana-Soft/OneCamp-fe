@@ -11,4 +11,7 @@
 export const PHONE_DOCK = {
   facilitation: "bottom-[8.5rem]",
   selection: "bottom-[11.75rem]",
+  // A board's slides (boardSlides): one bar above the facilitation bar, and one more while something is selected.
+  slides: "bottom-[11.75rem]",
+  slidesOverSelection: "bottom-[15rem]",
 } as const

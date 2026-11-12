@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { useState } from "react"
+import { useReturnFocus } from "@/components/ui/returnFocus"
+import { watchInputModality } from "@/lib/ui/inputModality"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Provider } from "react-redux"
 
@@ -61,6 +64,7 @@ const { default: store } = await import("@/store/store")
 const { TooltipProvider } = await import("@/components/ui/tooltip")
 const { default: ChannelDetailsSheet } = await import("./channelDetailsSheet")
 const { openChannelDetails } = await import("./openChannelDetails")
+const { UnifiedUIManager } = await import("@/components/ui/UnifiedUIManager")
 
 function sheet() {
   return render(
@@ -328,5 +332,63 @@ describe("Esc in a new name", () => {
     expect(onOpenChange).not.toHaveBeenCalled()
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})
+
+describe("a channel's details's close focus (V-829)", () => {
+  // Lazy (UnifiedUIManager's dynamic import), so the shared rule's handlers
+  // come as props from the eager manager, as the palette's do: opened by a key
+  // from a button, Escape gives the focus back to that button.
+  function Opened() {
+    const [open, setOpen] = useState(false)
+    const back = useReturnFocus()
+    return (
+      <Provider store={store}>
+        <TooltipProvider>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open details
+          </button>
+          <ChannelDetailsSheet channelId="c1" open={open} onOpenChange={setOpen} {...back} />
+        </TooltipProvider>
+      </Provider>
+    )
+  }
+
+  it("gives the focus back to what opened it on Escape", async () => {
+    render(<Opened />)
+    watchInputModality()
+    const opener = screen.getByRole("button", { name: "Open details" })
+    opener.focus()
+    fireEvent.keyDown(opener, { key: "Enter" })
+    fireEvent.click(opener)
+    const dialog = await screen.findByRole("dialog")
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(opener))
+  })
+
+  it("gives the focus back on Escape when the shell's manager draws it, with the manager's own handlers", async () => {
+    render(
+      <Provider store={store}>
+        <TooltipProvider>
+          <button type="button" onClick={() => store.dispatch(openChannelDetails("c1"))}>
+            Open details
+          </button>
+          <UnifiedUIManager />
+        </TooltipProvider>
+      </Provider>,
+    )
+    watchInputModality()
+    const opener = screen.getByRole("button", { name: "Open details" })
+    opener.focus()
+    fireEvent.keyDown(opener, { key: "Enter" })
+    fireEvent.click(opener)
+    const dialog = await screen.findByRole("dialog")
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(store.getState().ui.channelDetails.isOpen).toBe(false)
+    await waitFor(() => expect(document.activeElement).toBe(opener))
   })
 })

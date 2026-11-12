@@ -3,7 +3,8 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import * as React from "react"
 import { putOnScreen, SCREENS } from "@/lib/testing/screens"
 import { lazyPanel } from "@/lib/lazy/lazyPanel"
-import { BoardSideFrame, BoardSidePanel, SIDE_PANELS, SidePanelShape } from "./boardSidePanel"
+import { BoardSidePanel, SIDE_PANELS } from "./boardSidePanel"
+import { BoardSideFrame, SidePanelShape } from "./boardSideFrame"
 
 // V-195 (DB-71's MUST): a board's side panel is a chunk of its own, and while that chunk came the board showed
 // nothing: a phone that lost it saw the menu close and no sheet for 30 s, with no way to try again. Now the workbench

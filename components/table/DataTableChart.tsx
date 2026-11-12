@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import {
     Select,
     SelectContent,
@@ -10,201 +11,226 @@ import {
 } from "@/components/ui/select"
 import SvgChart from "@/components/charts/SvgChart"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { hueFor } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import { TableToolbar, TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
-import { aggregateTable, isNumeric, type AggregateOp, type AggregateResult, type TableField } from "@/services/tableService"
+import { aggregateTable, isNumeric, queryRows, type AggregateOp, type TableField, type TableRow } from "@/services/tableService"
+import { OWN_ERRORS } from "@/lib/http/ownErrors"
 import { partialNote } from "@/lib/tables/chartNote"
-import { saysWriteFailure } from "@/lib/http/writeSaid"
+import { unprocessableReason, workingOutOf, type WorkingOut } from "@/lib/tables/unprocessable"
+import { CHART_BARS, CHART_OPS, CHART_TYPES, chartBars, chartSpec, measureWords, readChartLook, type ChartLook, type ChartRules, type ChartType } from "@/lib/tables/chartLook"
+import type { RowQueryAnswers } from "@/lib/tables/query"
+import type { ViewRules } from "@/lib/tables/viewRules"
 
-// DataTableChart — a Notion-style "chart view" for a table. The user picks a
-// column to group by, an aggregation (count / sum / avg / min / max) and a chart
-// type; the grouped result is computed server-side (permission-scoped, bounded)
-// by the SAME engine the AI query_table tool uses, and drawn with the SAME
-// dependency-free SvgChart renderer used in AI messages. No row data is pulled
-// to the client — only the aggregated buckets — so it stays fast on big tables.
+// DataTableChart: a table's chart view (TABLES-BOARDS-11). Its numbers are the
+// view's: the grid's own query (POST /tables/{id}/query) with the view's
+// filter, its rows grouped by the chart's field and the measure as each
+// group's summary (lib/tables/chartLook), so it counts only what its reader
+// may read, as the grid does. A filter the server can't take yet falls back
+// to /aggregate over every row (the engine the AI's query_table uses), and
+// says so. Only the groups come to the browser, never the rows. Its look
+// (kind, grouping, measure) is the view's (display.chart): everyone who opens
+// the view sees the same chart, and a change is the reader's own until they
+// save the view. Drawn with the app's one SvgChart, in its hue order.
 
-const CHART_TYPES = ["bar", "line", "area", "pie"] as const
-type ChartType = (typeof CHART_TYPES)[number]
-
-const AGG_OPS: AggregateOp[] = ["count", "sum", "avg", "min", "max"]
-
-// Types whose cells are numeric enough to sum/average.
+const TYPE_WORDS: Record<ChartType, string> = { bar: "Bar", line: "Line", area: "Area", pie: "Pie" }
+const OP_WORDS: Record<AggregateOp, string> = { count: "Count of rows", sum: "Sum", avg: "Average", min: "Lowest", max: "Highest" }
+// The server is still working out a formula or a rollup the chart reads: it asks again after this long.
+const WORKING_AGAIN_MS = 3000
+// A count past the server's budget (business/RowQuery SummaryBudget, V-48) answers without its groups: said, with Try again.
+const LEFT_OUT = "Grouped this way, the rows take too long to count right now. Try again in a moment, or filter the view to fewer rows."
 
 interface DataTableChartProps {
     tableId: string
     fields: TableField[]
-    // A value that changes whenever the table's rows change (add/edit/delete),
-    // so the chart re-aggregates and stays live instead of going stale. The
-    // parent derives it from the bundle it already revalidates over MQTT.
-    dataVersion?: string
+    /** The view's rules: the chart counts the rows its filter keeps. */
+    rules: ViewRules
+    /** What the table's cell index answers (the bundle's row_query): the chart asks the server only that. */
+    answers?: RowQueryAnswers | null
+    /** The grid's own query and the grouped list's group names, from the page (chartLook ChartRules); null while they load. */
+    using: ChartRules | null
+    /** The look the view keeps (display.chart), and its change; without onLook the chart keeps its own. */
+    look?: unknown
+    onLook?: (look: ChartLook) => void
+    /** Clears the view's filters, from "No rows match". */
+    onClear?: () => void
+    /** The rows the page holds and their count: when a row is added, changed or deleted, the chart reads its numbers again. */
+    rows?: TableRow[]
+    total?: number | null
 }
 
-// Persisted (per-table) chart config so the view is remembered across tab
-// switches and reloads — a table's chart is a standing view, not a throwaway.
-interface ChartConfig {
-    chartType: ChartType
-    groupBy: string
-    op: AggregateOp
-    valueField: string
-}
-
-const configKey = (tableId: string) => `onecamp:tableChart:${tableId}`
-
-// loadConfig reads the saved config, VALIDATING that any referenced column
-// still exists (a column may have been deleted since it was saved) and falling
-// back to sensible defaults otherwise. Never throws; SSR-safe.
-function loadConfig(tableId: string, fields: TableField[], numericFields: TableField[]): ChartConfig {
-    // Grouped by what groups rows (a select, a person, a date), not one bar a row.
-    const byPosition = [...fields].sort((a, b) => a.position - b.position)
-    const groups = byPosition.find((f) => ["status", "select", "multi_select", "people", "person", "date"].includes(f.type))
-    const fallback: ChartConfig = {
-        chartType: "bar",
-        groupBy: (groups ?? byPosition[0])?.id ?? "",
-        op: "count",
-        valueField: numericFields[0]?.id ?? "",
-    }
-    if (typeof window === "undefined") return fallback
+// The look this browser kept before views kept it: read once, then forgotten.
+const oldKey = (tableId: string) => `onecamp:tableChart:${tableId}`
+function takeOldLook(tableId: string): unknown {
     try {
-        const raw = window.localStorage.getItem(configKey(tableId))
-        if (!raw) return fallback
-        const saved = JSON.parse(raw) as Partial<ChartConfig>
-        const fieldIds = new Set(fields.map((f) => f.id))
-        const numericIds = new Set(numericFields.map((f) => f.id))
-        return {
-            chartType: CHART_TYPES.includes(saved.chartType as ChartType)
-                ? (saved.chartType as ChartType)
-                : fallback.chartType,
-            groupBy: saved.groupBy && fieldIds.has(saved.groupBy) ? saved.groupBy : fallback.groupBy,
-            op: AGG_OPS.includes(saved.op as AggregateOp) ? (saved.op as AggregateOp) : fallback.op,
-            valueField:
-                saved.valueField && numericIds.has(saved.valueField)
-                    ? saved.valueField
-                    : fallback.valueField,
-        }
+        const raw = window.localStorage.getItem(oldKey(tableId))
+        if (!raw) return null
+        window.localStorage.removeItem(oldKey(tableId))
+        const old = JSON.parse(raw) as { chartType?: unknown; groupBy?: unknown; op?: unknown; valueField?: unknown }
+        return { type: old.chartType, groupBy: old.groupBy, op: old.op, valueField: old.valueField }
     } catch {
-        return fallback
+        return null
     }
 }
 
-export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartProps) {
-    const numericFields = React.useMemo(
-        // A formula or a rollup that gives a number adds up like a number field.
-        () => fields.filter(isNumeric),
-        [fields],
-    )
+/** What the chart drew from: its bars, the notes on them, and whether they are every row's (a filter the server can't take). */
+interface Drawn {
+    labels: string[]
+    values: number[]
+    note: string | null
+    everyRow: boolean
+}
 
-    const initial = React.useMemo(
-        () => loadConfig(tableId, fields, numericFields),
-        // Only compute once per table/field-set; user edits drive state afterward.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [tableId],
-    )
+/** Why a read gave nothing to draw: a failure (Try again), the server's refusal in its words, or a fill it's still working out. */
+type Failed = { kind: "failed"; why?: string } | { kind: "refused"; why: string } | { kind: "working"; working: WorkingOut }
 
-    const [chartType, setChartType] = React.useState<ChartType>(initial.chartType)
-    const [groupBy, setGroupBy] = React.useState<string>(initial.groupBy)
-    const [op, setOp] = React.useState<AggregateOp>(initial.op)
-    const [valueField, setValueField] = React.useState<string>(initial.valueField)
-
-    // Persist the config whenever it changes so the chart is remembered.
+export function DataTableChart({ tableId, fields, rules, answers, using, look: kept, onLook, onClear, rows, total }: DataTableChartProps) {
+    const numericFields = React.useMemo(() => fields.filter(isNumeric), [fields])
+    // The view's look when the page keeps it (onLook); a chart on its own keeps its choices itself.
+    const [own, setOwn] = React.useState<unknown>(null)
+    const controlled = !!onLook
+    const look = React.useMemo(() => readChartLook(controlled ? kept : own, fields), [controlled, kept, own, fields])
     React.useEffect(() => {
-        if (typeof window === "undefined") return
-        try {
-            const cfg: ChartConfig = { chartType, groupBy, op, valueField }
-            window.localStorage.setItem(configKey(tableId), JSON.stringify(cfg))
-        } catch {
-            // ignore quota / privacy-mode errors — persistence is best-effort.
-        }
-    }, [tableId, chartType, groupBy, op, valueField])
-    const [result, setResult] = React.useState<AggregateResult | null>(null)
+        // Once, as the chart opens: a look this browser kept moves into a view that keeps none.
+        const old = takeOldLook(tableId)
+        if (old == null || kept != null) return
+        if (onLook) onLook(readChartLook(old, fields))
+        else setOwn(old)
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the chart opens
+    }, [])
+    const change = (patch: Partial<ChartLook>) => {
+        const next = { ...look, ...patch }
+        if (onLook) onLook(next)
+        else setOwn(next)
+    }
+    const { type: chartType, groupBy, op, valueField } = look
+    const needsValue = op !== "count"
+    const filtered = rules.filters.length > 0
+
+    const [drawn, setDrawn] = React.useState<Drawn | null>(null)
     const [loading, setLoading] = React.useState(false)
-    const [error, setError] = React.useState("")
-    // Try again re-runs the same aggregation.
+    const [failed, setFailed] = React.useState<Failed | null>(null)
+    // The last numbers, kept while the browser is offline.
+    const [stale, setStale] = React.useState(false)
+    // Try again (and a fill still being worked out) reads again.
     const [attempt, setAttempt] = React.useState(0)
 
-    const needsValue = op !== "count"
-
+    const ruleKey = JSON.stringify(rules)
+    // The rows' cheap signature: their count and their latest change.
+    const dataVersion = React.useMemo(() => {
+        let latest = ""
+        for (const r of rows ?? []) if (r.updated_at > latest) latest = r.updated_at
+        return `${total ?? rows?.length ?? 0}:${latest}`
+    }, [rows, total])
     React.useEffect(() => {
         if (!groupBy) return
         if (needsValue && !valueField) return
         let cancelled = false
+        let again: ReturnType<typeof setTimeout> | undefined
+        const stop = new AbortController()
+        if (!using) return
+        const spec = chartSpec(using, rules, look, fields, answers)
         setLoading(true)
-        setError("")
-        aggregateTable(tableId, {
-            group_by: groupBy,
-            aggregate: op,
-            value_field: needsValue ? valueField : undefined,
-            limit: 50,
-        })
-            .then((r) => {
+        const read: Promise<Drawn | null> = spec
+            ? queryRows(tableId, { spec, n: 1, count: true }, stop.signal).then((w) => {
+                  // A view of no rows has no groups; a count that left them out isn't an answer.
+                  if (!w.groups && w.total !== 0) throw new Error(LEFT_OUT)
+                  const bars = chartBars(using, w.groups ?? [], look, fields)
+                  const rest = bars.others
+                  const note = rest === 0 ? null : bars.labels.length > CHART_BARS ? `The top ${CHART_BARS} groups, and the other ${rest} as Other.` : `Showing the top ${CHART_BARS} of ${CHART_BARS + rest} groups.`
+                  return { labels: bars.labels, values: bars.values, note, everyRow: false }
+              })
+            : aggregateTable(tableId, { group_by: groupBy, aggregate: op, value_field: needsValue ? valueField : undefined, limit: CHART_BARS }, OWN_ERRORS).then((r) =>
+                  // An answer without its buckets is a failure, never a table with nothing to chart.
+                  Array.isArray(r?.buckets)
+                      ? { labels: r.buckets.map((b) => b.label), values: r.buckets.map((b) => b.value), note: partialNote(r), everyRow: filtered }
+                      : null,
+              )
+        read
+            .then((d) => {
                 if (cancelled) return
-                // An answer without its buckets is a failure, never a table with nothing to chart.
-                if (Array.isArray(r?.buckets)) setResult(r)
-                else setError("Couldn't build that chart.")
+                setStale(false)
+                setFailed(d ? null : { kind: "failed" })
+                if (d) setDrawn(d)
             })
-            .catch((error) => {
-                saysWriteFailure(error)
-                if (!cancelled) setError("Couldn't build that chart. Try a different column.")
+            .catch((e) => {
+                if (cancelled) return
+                const working = workingOutOf(e)
+                const why = working ? undefined : unprocessableReason(e)
+                // Offline: the numbers drawn stay, said to be the last ones (with none, the failure says it).
+                const offline = !working && !why && typeof navigator !== "undefined" && !navigator.onLine
+                setStale(offline)
+                setFailed(offline ? null : working ? { kind: "working", working } : why ? { kind: "refused", why } : { kind: "failed", why: e instanceof Error && e.message === LEFT_OUT ? LEFT_OUT : undefined })
+                if (working) again = setTimeout(() => setAttempt((n) => n + 1), WORKING_AGAIN_MS)
             })
             .finally(() => {
                 if (!cancelled) setLoading(false)
             })
         return () => {
             cancelled = true
+            stop.abort()
+            clearTimeout(again)
         }
-        // dataVersion re-runs the aggregation when the table's rows change.
-    }, [tableId, groupBy, op, valueField, needsValue, dataVersion, attempt])
+        // dataVersion reads the numbers again when the table's rows change; rules by what they hold.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- look by its parts, rules by ruleKey
+    }, [tableId, groupBy, op, valueField, needsValue, ruleKey, answers?.indexed, answers?.sorts_text, dataVersion, attempt, fields, using])
 
+    const groupField = fields.find((f) => f.id === groupBy)
+    const measure = measureWords(op, fields.find((f) => f.id === valueField))
     const chart: NormalizedChart | null = React.useMemo(() => {
-        if (!result || result.buckets.length === 0) return null
-        const metric =
-            op === "count" ? "count" : `${op}${result.value_field ? ` of ${result.value_field}` : ""}`
+        if (!drawn || drawn.labels.length === 0) return null
         return normalizeChartSpec({
             type: chartType,
-            title: "",
-            labels: result.buckets.map((b) => b.label),
-            series: [{ name: metric, values: result.buckets.map((b) => b.value) }],
+            // What it counts, over what: its caption, and its picture's name to a screen reader.
+            title: groupField ? `${measure} by ${groupField.name}` : measure,
+            labels: drawn.labels,
+            series: [{ name: measure, values: drawn.values }],
         })
-    }, [result, chartType, op])
-    const note = result ? partialNote(result) : null
+    }, [drawn, chartType, measure, groupField])
+    // The drawing's box, as state: the bar values' layer measures in it once it is in the page.
+    const [drawing, setDrawing] = React.useState<HTMLDivElement | null>(null)
 
     if (fields.length === 0) {
         return (
             <>
                 <TableToolbar />
-                <EmptyState className="py-10" headingLevel={3} title="Nothing to chart yet" description="Add a column to this table to chart it." />
+                <EmptyState className="py-10" headingLevel={3} title="Nothing to chart yet" description="Add a field to this table to chart it." />
             </>
         )
     }
 
-    const trigger = "h-7 w-auto min-w-0 gap-1.5 px-2 text-xs"
+    const notes = [
+        drawn?.everyRow ? "Showing every row: this view's filters can't apply to a chart yet." : null,
+        drawn?.note ?? null,
+        stale ? "Offline · showing the last numbers" : null,
+    ].filter((n): n is string => !!n)
+    // At the toolbar's height, with a finger's 44px under touch (app/phone.css F3); a phone opens each as a sheet.
+    const trigger = "h-7 w-auto min-w-0 gap-1.5 px-2 text-meta"
     return (
         <>
-            {/* The chart's choices sit in the toolbar row every view of the
-                table has, at its height: they were labelled selects in a row
-                of their own, about 52px, where the other views had Sort and
-                Filter. Each keeps its name, inside the control. */}
+            {/* The chart's choices: a row under the view's rules, at the toolbar's height. */}
             <TableToolbar>
-                <Select value={chartType} onValueChange={(v) => setChartType(v as ChartType)}>
-                    <SelectTrigger dense className={cn(trigger, "capitalize")} aria-label="Chart">
+                <Select value={chartType} onValueChange={(v) => change({ type: v as ChartType })}>
+                    <SelectTrigger dense data-touch-target="" className={trigger} aria-label="Chart">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {CHART_TYPES.map((t) => (
-                            <SelectItem key={t} value={t} className="capitalize">
-                                {t}
+                            <SelectItem key={t} value={t}>
+                                {TYPE_WORDS[t]}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
 
-                <Select value={groupBy} onValueChange={setGroupBy}>
-                    <SelectTrigger dense className={trigger} aria-label="Group by">
-                        <span className="text-muted-foreground">Group by</span>
-                        <SelectValue placeholder="Column" />
+                <Select value={groupBy} onValueChange={(v) => change({ groupBy: v })}>
+                    <SelectTrigger dense data-touch-target="" className={trigger} aria-label="Group by">
+                        <span className="text-ink-3">Group by</span>
+                        <SelectValue placeholder="Field" />
                     </SelectTrigger>
                     <SelectContent>
                         {fields.map((f) => (
@@ -215,30 +241,28 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                     </SelectContent>
                 </Select>
 
-                <Select value={op} onValueChange={(v) => setOp(v as AggregateOp)}>
-                    <SelectTrigger dense className={cn(trigger, "capitalize")} aria-label="Measure">
+                <Select value={op} onValueChange={(v) => change({ op: v as AggregateOp })}>
+                    <SelectTrigger dense data-touch-target="" className={trigger} aria-label="Measure">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        {AGG_OPS.map((o) => (
-                            <SelectItem key={o} value={o} className="capitalize">
-                                {o}
+                        {CHART_OPS.map((o) => (
+                            <SelectItem key={o} value={o}>
+                                {OP_WORDS[o]}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
 
                 {needsValue && (
-                    <Select value={valueField} onValueChange={setValueField}>
-                        <SelectTrigger dense className={trigger} aria-label="Of column">
-                            <span className="text-muted-foreground">of</span>
-                            <SelectValue placeholder="Number column" />
+                    <Select value={valueField} onValueChange={(v) => change({ valueField: v })}>
+                        <SelectTrigger dense data-touch-target="" className={trigger} aria-label="Of field">
+                            <span className="text-ink-3">of</span>
+                            <SelectValue placeholder="Number field" />
                         </SelectTrigger>
                         <SelectContent>
                             {numericFields.length === 0 ? (
-                                <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                    No number columns
-                                </div>
+                                <div className="px-2 py-1.5 text-meta text-ink-3">No number fields</div>
                             ) : (
                                 numericFields.map((f) => (
                                     <SelectItem key={f.id} value={f.id}>
@@ -253,27 +277,36 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
 
             <div className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-chart="">
                 <div className="min-h-[18rem]">
-                    {loading ? (
-                        <ChartSkeleton />
-                    ) : error ? (
+                    {needsValue && numericFields.length === 0 ? (
+                        <EmptyState className="py-10" headingLevel={3} title={`${OP_WORDS[op]} needs a number field`} description="Add one, or switch the measure to Count of rows." />
+                    ) : failed?.kind === "working" ? (
+                        <TableViewState kind="working" words={failed.working.words} done={failed.working.done} total={failed.working.total} />
+                    ) : failed?.kind === "refused" ? (
+                        <TableViewState kind="refused" why={failed.why} />
+                    ) : failed?.why ? (
+                        <ErrorState compact subject="this chart" detail={failed.why} onRetry={() => setAttempt((n) => n + 1)} retrying={loading} />
+                    ) : failed || (stale && !drawn) ? (
                         // A failed read, or an answer with nothing to draw from: the shared state, with Try again.
-                        <LoadFailureState kind="failed" noun="chart" onRetry={() => setAttempt((n) => n + 1)} />
-                    ) : needsValue && numericFields.length === 0 ? (
-                        <EmptyState
-                            className="py-10"
-                            headingLevel={3}
-                            title={`"${op}" needs a number column`}
-                            description="Add one, or switch the measure to count."
-                        />
+                        <LoadFailureState kind="failed" noun="chart" onRetry={() => setAttempt((n) => n + 1)} retrying={loading} />
+                    ) : loading && !drawn ? (
+                        <ChartSkeleton />
                     ) : chart ? (
-                        <>
-                            {/* In the app's one chart order, as every chart is; on
-                                the frame's ground, without a second border. */}
+                        <div ref={setDrawing} aria-busy={loading || undefined}>
+                            {/* In the app's one chart order, as every chart is; on the frame's ground, without a second border. */}
                             <SvgChart chart={chart} className="my-0" />
-                            {note && <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p>}
-                        </>
-                    ) : (
+                            <BarValues host={drawing} values={chart.series[0]?.values ?? []} />
+                            {notes.map((n) => (
+                                <p key={n} role="status" className="mt-2 text-center text-meta text-ink-3">
+                                    {n}
+                                </p>
+                            ))}
+                        </div>
+                    ) : drawn && filtered && !drawn.everyRow ? (
+                        <TableViewState kind="no-match" onClear={onClear ?? (() => {})} />
+                    ) : drawn ? (
                         <TableViewState kind="nothing-to-chart" hue={hueFor(tableId)} />
+                    ) : (
+                        <ChartSkeleton />
                     )}
                 </div>
             </div>
@@ -289,5 +322,114 @@ function ChartSkeleton() {
                 <Skeleton key={i} className="w-full max-w-12 rounded-b-none" style={{ height: `${h}%` }} />
             ))}
         </div>
+    )
+}
+
+// A band holds a bar's number (about four characters) from this many pixels.
+const VALUE_ROOM = 26
+interface BarMark {
+    x: number
+    y: number
+    text: string
+    /** False while its bar still grows in (SvgChart's first reveal of a chart): the value waits to land with it. */
+    landed: boolean
+}
+
+/**
+ * A bar's grow still to run: its own CSS animation (SvgChart's chart-bar-grow, after the bar's stagger) not done yet, as the
+ * browser runs it, so a value keeps its bar's time and never a copy of it. A hover's fill change is a transition, not a grow.
+ */
+function growing(bar: Element): Animation[] {
+    return typeof bar.getAnimations === "function" ? bar.getAnimations().filter((a) => "animationName" in a && a.playState === "running") : []
+}
+
+/**
+ * Each bar's value over it (under it, below zero), for the eye: the bar's name already says it to a screen reader.
+ * Drawn from the table chart's own chunk over the app's one SvgChart, which chat, reports and dashboards share and
+ * which stays as it is: from what it writes already, each band's target (its slot), each bar's box and its name,
+ * whose number is the chart's own words for it ("Sum of Amount · Q4: 1.2k").
+ */
+function barMarks(svg: SVGSVGElement, values: number[], grows: Animation[]): BarMark[] {
+    const marks: BarMark[] = []
+    svg.querySelectorAll<SVGGElement>("g[data-bar-group]").forEach((group) => {
+        const i = Number(group.getAttribute("data-bar-group"))
+        const band = svg.querySelector(`rect[data-band-target="${i}"]`)
+        const bar = group.querySelector<SVGGraphicsElement>("path[data-bar]")
+        const room = Number(band?.getAttribute("width"))
+        if (!band || !bar || !(room >= VALUE_ROOM)) return
+        const box = bar.getBBox()
+        const name = bar.getAttribute("aria-label") ?? ""
+        const grow = growing(bar)
+        grows.push(...grow)
+        marks.push({
+            x: Number(band.getAttribute("x")) + room / 2,
+            y: (values[i] ?? 0) < 0 ? box.y + box.height + 14 : box.y - 6,
+            text: name.slice(name.lastIndexOf(": ") + 2),
+            landed: grow.length === 0,
+        })
+    })
+    return marks
+}
+
+/**
+ * Writes barMarks into the chart drawn inside `host`, and again whenever its bars are drawn anew (a resize, new numbers). On a
+ * chart's first reveal each value lands with its bar: unseen while the bar grows, faded in as its grow ends; with no grow (a
+ * chart seen before this session, or reduced motion) it is there at once.
+ */
+function BarValues({ host, values }: { host: HTMLDivElement | null; values: number[] }) {
+    const [drawn, setDrawn] = React.useState<{ svg: SVGSVGElement; marks: BarMark[]; key: string } | null>(null)
+    React.useLayoutEffect(() => {
+        if (!host) return
+        let frame = 0
+        let live = true
+        const again = () => {
+            if (live && !frame) frame = requestAnimationFrame(measure)
+        }
+        // Each grow is waited on once: measured again as it ends, or is cut short.
+        const waited = new WeakSet<Animation>()
+        const measure = () => {
+            frame = 0
+            const bar = host.querySelector<SVGGraphicsElement>("path[data-bar]")
+            const svg = bar?.closest("svg")
+            const grows: Animation[] = []
+            const marks = bar && svg && typeof bar.getBBox === "function" ? barMarks(svg, values, grows) : []
+            for (const g of grows) {
+                if (waited.has(g)) continue
+                waited.add(g)
+                g.finished.then(again, again)
+            }
+            const key = JSON.stringify(marks)
+            setDrawn((was) => (svg && marks.length ? (was?.svg === svg && was.key === key ? was : { svg, marks, key }) : null))
+        }
+        measure()
+        // SvgChart learns its width after it mounts, and redraws on every resize: follow its bars, once a frame; and its
+        // first reveal gives a bar the grow class a render after it is drawn.
+        const watch = new MutationObserver(again)
+        watch.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["d", "width", "aria-label", "class"] })
+        return () => {
+            live = false
+            watch.disconnect()
+            cancelAnimationFrame(frame)
+        }
+    }, [host, values])
+    if (!drawn) return null
+    return createPortal(
+        drawn.marks.map((m, i) => (
+            // Unseen at once while its bar grows; faded in, in the app's own time for it, as the bar lands.
+            <text
+                key={i}
+                data-bar-value=""
+                x={m.x}
+                y={m.y}
+                textAnchor="middle"
+                fontSize={11}
+                className={cn("fill-ink-2 tabular-nums", m.landed && "transition-opacity")}
+                style={m.landed ? undefined : { opacity: 0 }}
+                aria-hidden="true"
+            >
+                {m.text}
+            </text>
+        )),
+        drawn.svg,
     )
 }

@@ -61,7 +61,8 @@ export interface ProjectForm {
   description: string
   fields: FormField[]
   title_field: string
-  priority: FormPriority
+  /** Its tasks' priority, or none (""), a new form's until one is picked (PROJECTS-14). */
+  priority: FormPriority | ""
   active: boolean
   /** What a visitor reads once it's sent; empty for the app's own words. */
   confirmation?: string
@@ -143,7 +144,7 @@ export const blankForm = (): ProjectForm => ({
     { id: "q3", label: "Details", type: "long_text", required: false },
   ],
   title_field: "q1",
-  priority: "medium",
+  priority: "",
   active: true,
   confirmation: "",
 })

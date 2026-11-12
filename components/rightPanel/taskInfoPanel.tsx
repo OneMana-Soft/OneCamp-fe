@@ -7,6 +7,7 @@ import { PartRetry } from "@/components/ui/part-retry"
 import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import type { TaskCycleField as CycleField } from "@/components/task/taskCycleField"
 import type { TaskMilestoneField as MilestoneField } from "@/components/task/taskMilestoneField"
+import type { TaskReleaseField as ReleaseField } from "@/components/task/taskReleaseField"
 import type ApprovalCard from "@/components/work/approvals/TaskApprovalCard"
 
 type TagPickerProps = { projectId: string | undefined; label: string; canEdit: boolean; onChange: (label: string) => void }
@@ -70,6 +71,7 @@ import {usePost} from "@/hooks/usePost"
 import { useFeature, FEATURE_GITHUB } from "@/hooks/useClientConfig";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
+import axiosInstance from "@/lib/axiosInstance"
 import { useMessageCatchUp } from "@/hooks/useMessageCatchUp"
 import { accessHeldBack, accessOf, canCommentTask, canEditTask } from "@/lib/work/access"
 import { canDeleteTask } from "@/lib/work/canDelete"
@@ -78,8 +80,9 @@ import {useToast} from "@/hooks/use-toast"
 import type { CreateTaskCommentInterface, CreateTaskInterface, NewSubTaskDraft, RemoveTaskAttachmentInterface, TaskInfoInterface, TaskInfoRawInterface } from "@/types/task"
 import {useUploadFile} from "@/hooks/useUploadFile"
 import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader"
+import { inReaderZone } from "@/lib/tasks/readerZone"
 import { TaskTypeField } from "@/components/task/TaskTypeField"
-import { HIDDEN_TASK_NAME } from "@/lib/work/hiddenTask"
+import { HIDDEN_TASK_NAME, isTaskThere } from "@/lib/work/hiddenTask"
 import { useTaskPlace } from "@/lib/work/taskSequence"
 import type { TaskWorkType } from "@/types/task"
 import {openUI} from "@/store/slice/uiSlice"
@@ -93,8 +96,11 @@ const cycleCode = () => import("@/components/task/taskCycleField")
 const milestoneCode = () => import("@/components/task/taskMilestoneField")
 const cycleField = lazyPart<ComponentProps<typeof CycleField>>(() => cycleCode().then((m) => m.TaskCycleField))
 const milestoneField = lazyPart<ComponentProps<typeof MilestoneField>>(() => milestoneCode().then((m) => m.TaskMilestoneField))
+// The Release row (jira-04) too: shown once the task's releases are read.
+const releaseField = lazyPart<ComponentProps<typeof ReleaseField>>(() => import("@/components/task/taskReleaseField").then((m) => m.TaskReleaseField))
 const TaskCycleField = cycleField.Part
 const TaskMilestoneField = milestoneField.Part
+const TaskReleaseField = releaseField.Part
 import {TaskTimeSection} from "@/components/task/taskTimeSection"
 import { TaskEstimateField } from "@/components/task/taskEstimateField"
 import { TaskFieldsSection } from "@/components/task/taskFieldsSection"
@@ -116,6 +122,9 @@ import {SubtasksSection} from "@/components/task/subtasksSection"
 import {TaskDescription} from "@/components/task/taskDescription"
 import {TaskPanelSkeleton} from "@/components/task/taskPanelSkeleton"
 import {TaskDependencies} from "@/components/task/TaskDependencies"
+import { TaskLinks } from "@/components/task/TaskLinks"
+import { TaskEpicField } from "@/components/task/taskEpicField"
+import { isEpic, isSubTask } from "@/lib/work/hierarchy"
 import { useAppRouter } from "@/lib/navigation/appRouter"
 import {app_my_task_path, app_task_path} from "@/types/paths"
 import {useMedia} from "@/context/MediaQueryContext"
@@ -183,7 +192,7 @@ const ProjectStatusesDialog = lazyPiece(() => import("@/components/project/Proje
  * when it opens (taskParts.test).
  */
 export const warmTaskParts = () =>
-    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), approvalCard.warm(), TaskVisibilityRow.warm()])
+    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), releaseField.warm(), approvalCard.warm(), TaskVisibilityRow.warm()])
 
 /** The palette's actions on the open task (linear-28): a chunk of their own, fetched once (the browser keeps it). */
 const loadTaskActions = () => import("@/lib/work/taskPaletteEntries")
@@ -237,7 +246,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         refreshInterval: isMqttHealthy ? 5 * 60 * 1000 : 60 * 1000,
         refreshWhenHidden: false,
         refreshWhenOffline: false,
-    }, { params: { include: PANEL_INCLUDE } })
+    }, inReaderZone({ params: { include: PANEL_INCLUDE } }))
     // Its comments and changes come on the project's topic, which goes live
     // with the connection's other topics once the broker answers them: read
     // before then, the task is read again, as an open conversation is (F5).
@@ -345,6 +354,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     const aiTeammates = useFetch<{ data: UserProfileDataInterface[] }>(GetEndpointUrl.GetDMableAITargets).data?.data
 
     const parentTask = useMemo(() => taskInfo.data?.data.task_parent_task, [taskInfo.data?.data.task_parent_task])
+    // Where it sits (J-H): an epic's tasks are top-level work; a subtask is under a task that is no epic.
+    const subTask = isSubTask(parentTask)
+    const epicTask = isEpic(taskInfo.data?.data)
     // Where it sits in the list or board it was opened from, for previous
     // and next (STEP4 #8); J and K there are the list's own keys.
     const place = useTaskPlace(taskUUID)
@@ -447,7 +459,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     const updateTaskPriority = useCallback(
         (priority: string) => {
             const projectUUID = taskInfo.data?.data.task_project.project_uuid
-            if (!priority || !projectUUID) return Promise.resolve()
+            if (!projectUUID) return Promise.resolve()
 
             return post
                 .makeRequest<CreateTaskInterface>({
@@ -1108,7 +1120,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     scrolled={scrolled}
                     onPage={onPage}
                     deleted={taskIsDeleted}
-                    parent={parentTask?.task_uuid ? (parentTask.task_hidden ? { name: HIDDEN_TASK_NAME } : { name: parentTask.task_name, onOpen: () => handleChangeTask(parentTask.task_uuid) }) : undefined}
+                    parent={parentTask && isTaskThere(parentTask) ? (parentTask.task_hidden ? { name: HIDDEN_TASK_NAME } : { name: parentTask.task_name, onOpen: () => handleChangeTask(parentTask.task_uuid) }) : undefined}
                     taskKey={taskInfo.data?.data.task_key}
                     place={place}
                     onOpenTask={handleChangeTask}
@@ -1207,6 +1219,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             onChanged={showType}
                         />
                     )}
+                    {projectUUID && !epicTask && !subTask && (
+                        <TaskEpicField taskUUID={taskUUID} projectUUID={projectUUID} epic={parentTask && isEpic(parentTask) ? parentTask : null} canEdit={canEdit && !taskIsDeleted} />
+                    )}
 
                     <TaskAssigneePicker
                         isAdmin={canEdit}
@@ -1272,10 +1287,11 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         <TaskRepeatField
                             taskUUID={taskUUID}
                             isAdmin={canEdit}
-                            isSubtask={!!taskInfo.data?.data.task_parent_task?.task_uuid}
+                            isSubtask={subTask}
                             dueDate={dueDate}
                         />
                         <TaskCycleField taskUUID={taskUUID} projectId={projectUUID} isAdmin={canEdit} />
+                        <TaskReleaseField taskUUID={taskUUID} projectId={projectUUID} http={axiosInstance} toast={toast} />
                         <TaskMilestoneField taskUUID={taskUUID} projectId={projectUUID} canEdit={canEdit} />
                         {projectUUID && (
                             <TaskFieldsSection
@@ -1324,10 +1340,12 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         }
                         onOpen={handleChangeTask}
                         onCreateSubtask={handleCreateSubtask}
+                        canAdd={canEdit && !subTask}
+                        epic={epicTask ? statusOpts : undefined}
                     />
 
-                    {/* A project's top-level tasks wait on one another; subtasks are steps inside a task. */}
-                    {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !taskInfo.data.data.task_parent_task?.task_uuid && (
+                    {/* A project's top-level tasks wait on one another, an epic's among them; subtasks are steps inside a task. */}
+                    {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !subTask && (
                         <TaskDependencies
                             taskUUID={taskUUID}
                             taskName={taskInfo.data.data.task_name}
@@ -1338,6 +1356,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             onOpen={handleChangeTask}
                         />
                     )}
+                    {taskUUID && projectUUID && <TaskLinks taskUUID={taskUUID} projectUUID={projectUUID} canEdit={canEdit && !taskIsDeleted} onOpen={handleChangeTask} />}
 
                     <TaskAttachmentsSection
                         isAdmin={canEdit}

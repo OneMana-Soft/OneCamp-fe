@@ -29,8 +29,9 @@ export interface CallPipProps {
   cameraOn: boolean
   /** What the people running the call hold for you (meet-12): those controls stay, dimmed, and say why. */
   held?: ReadonlySet<CallHold>
-  onToggleMic: () => void
-  onToggleCamera: () => void
+  /** None for a companion (meet-04): no microphone or camera, so no control. */
+  onToggleMic?: () => void
+  onToggleCamera?: () => void
   /** Closes the window and brings the call's tab back. */
   onBack: () => void
   onLeave: () => void
@@ -87,22 +88,26 @@ export function CallPip({ win, micOn, cameraOn, held, onToggleMic, onToggleCamer
         {focus ? <StageTile key={first} trackRef={focus} size="sm" contain={focus.source === Track.Source.ScreenShare} /> : null}
       </div>
       <div role="toolbar" aria-label="Call controls" className="flex shrink-0 items-center justify-center gap-2">
-        <PipButton
-          label={micOn ? CONTROL_LABELS.mute : CONTROL_LABELS.unmute}
-          state={micOn ? "on" : "off"}
-          pressed={micOn}
-          hint={micHeld ? heldReason("microphone") : undefined}
-          icon={micOn ? <Mic /> : <MicOff />}
-          onClick={onToggleMic}
-        />
-        <PipButton
-          label={cameraOn ? CONTROL_LABELS.cameraOff : CONTROL_LABELS.cameraOn}
-          state={cameraOn ? "on" : "off"}
-          pressed={cameraOn}
-          hint={cameraHeld ? heldReason("camera") : undefined}
-          icon={cameraOn ? <Video /> : <VideoOff />}
-          onClick={onToggleCamera}
-        />
+        {onToggleMic ? (
+          <PipButton
+            label={micOn ? CONTROL_LABELS.mute : CONTROL_LABELS.unmute}
+            state={micOn ? "on" : "off"}
+            pressed={micOn}
+            hint={micHeld ? heldReason("microphone") : undefined}
+            icon={micOn ? <Mic /> : <MicOff />}
+            onClick={onToggleMic}
+          />
+        ) : null}
+        {onToggleCamera ? (
+          <PipButton
+            label={cameraOn ? CONTROL_LABELS.cameraOff : CONTROL_LABELS.cameraOn}
+            state={cameraOn ? "on" : "off"}
+            pressed={cameraOn}
+            hint={cameraHeld ? heldReason("camera") : undefined}
+            icon={cameraOn ? <Video /> : <VideoOff />}
+            onClick={onToggleCamera}
+          />
+        ) : null}
         <PipButton label="Back to the call" icon={<PipGlyph />} onClick={onBack} />
         <PipButton label="Leave call" icon={<PhoneOff />} className={LEAVE_FILL} onClick={onLeave} />
       </div>

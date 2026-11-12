@@ -9,6 +9,7 @@ import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Pl
 import { Plug } from "lucide-react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import type { ReturnFocus } from "@/components/ui/returnFocus"
 import { Command as CommandPrimitive } from "cmdk"
 import { useTheme } from "next-themes"
 import { CommandGroup, CommandItem } from "@/components/ui/command"
@@ -183,7 +184,8 @@ function commandMark(id: string, icon: React.ReactNode): React.ReactNode {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function CommandPalette() {
+/** Its close focus (components/ui/returnFocus) comes from the eager loader: this lazy chunk never imports it. */
+export function CommandPalette(back: Partial<ReturnFocus> = {}) {
   const [open, setOpen] = React.useState(false)
   // A pushed page: an action that asks for its argument (P1, "Nested pages").
   const [page, setPage] = React.useState<PalettePage | null>(null)
@@ -1172,6 +1174,7 @@ export function CommandPalette() {
           data-phone={isPhone ? "" : undefined}
           className="palette"
           aria-describedby={undefined}
+          {...back}
           onEscapeKeyDown={(e) => {
             // Esc closes the peek first, then the palette.
             if (peek) {

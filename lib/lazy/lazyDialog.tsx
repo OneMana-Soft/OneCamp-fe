@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
+import { useLatch } from "@/hooks/useLatch"
 import { lazyPart } from "@/lib/lazy/lazyPart"
 import { OverlayUnavailable } from "@/lib/lazy/overlayUnavailable"
 
@@ -40,9 +41,7 @@ export function lazyDialog<P extends DialogProps>(load: () => Promise<React.Comp
   const part = lazyPart<P>(load, { placeholder: NotYet, failed: Unavailable })
   return function LazyDialog(props: P) {
     const open = isOpen(props)
-    const [asked, setAsked] = useState(open)
-    // Kept from the first open on (information from earlier renders).
-    if (open && !asked) setAsked(true)
+    const asked = useLatch(open)
     // An open after a failed fetch tries again (warm is safe while rendering).
     if (open) void part.warm()
     return asked ? <part.Part {...props} /> : null

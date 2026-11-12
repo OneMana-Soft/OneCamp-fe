@@ -119,8 +119,8 @@ export function StatusMenuContent({
   )
 }
 
-/** The priorities the server takes, in key order (W02: the key is the level). */
-const PRIORITY_CHOICES = [...TASK_PRIORITIES].reverse().map((p) => p.value)
+/** The priorities the server takes, in key order (W02: the key is the level), and none. */
+const PRIORITY_CHOICES = [...TASK_PRIORITIES.map((p) => p.value).reverse(), ""]
 
 export function PriorityMenuContent({
   current,

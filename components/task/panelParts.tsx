@@ -106,6 +106,7 @@ function readMore(): boolean {
 export function MoreFields({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   const [hidden, setHidden] = React.useState<string[]>([])
+  const [folds, setFolds] = React.useState(false)
   const [opened, setOpened] = React.useState(false)
   const box = React.useRef<HTMLDivElement>(null)
   // The names it folds away, whole: those with no room wrap past the first line, and are counted.
@@ -128,9 +129,10 @@ export function MoreFields({ children }: { children: React.ReactNode }) {
     const el = box.current
     if (!el) return
     const read = () => {
-      const names = [...el.querySelectorAll<HTMLElement>("[data-field-empty]")]
-        .map((row) => row.querySelector("label, span")?.textContent?.trim() ?? "")
-        .filter(Boolean)
+      const rows = [...el.querySelectorAll<HTMLElement>("[data-field-empty]")]
+      const names = rows.map((row) => row.querySelector("label, span")?.textContent?.trim() ?? "").filter(Boolean)
+      // A row with no name (Edit fields) folds too, so the toggle shows for it.
+      setFolds(rows.length > 0)
       setHidden((prev) => (prev.join("|") === names.join("|") ? prev : names))
     }
     read()
@@ -154,7 +156,7 @@ export function MoreFields({ children }: { children: React.ReactNode }) {
       <div ref={box} className={cn(!open && "[&_[data-field-empty]]:hidden", open && opened && "[&>*]:[animation:work-row-in_180ms_var(--ease-out)_both]")}>
         {children}
       </div>
-      {(hidden.length > 0 || open) && (
+      {(folds || open) && (
         <button
           type="button"
           onClick={toggle}

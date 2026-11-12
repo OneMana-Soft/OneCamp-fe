@@ -88,6 +88,9 @@ export function ActivityFeedList({
     onViewAll,
     unreadOnly = false,
     read,
+    markedUnread,
+    counted,
+    onCounted,
     onToggleRead,
     onUnreadKeys,
     onShowAll,
@@ -99,6 +102,12 @@ export function ActivityFeedList({
     unreadOnly?: boolean
     /** What the reader has marked read (lib/activity/readState); no dots without it. */
     read?: ReadonlySet<string>
+    /** What the reader has marked unread here (lib/activity/readState). */
+    markedUnread?: ReadonlySet<string>
+    /** The rows the badge counted, kept here once the server marks them read (lib/activity/readState). */
+    counted?: ReadonlyMap<string, string>
+    /** Keeps what the server marks unread, on every page loaded, as counted. */
+    onCounted?: (items: UnifiedActivityItem[]) => void
     onToggleRead?: (keys: string[], read: boolean) => void
     /** The keys of every unread row in view, for the header's Mark all read and counts. */
     onUnreadKeys?: (keys: string[]) => void
@@ -167,10 +176,11 @@ export function ActivityFeedList({
         () => collapseEchoes(loaded.filter((a) => hasSubject(a) && inView[view](a) && matchesActor(a, who))),
         [loaded, view, who],
     )
+    useEffect(() => onCounted?.(loaded), [loaded, onCounted])
     const unreadOf = useMemo(() => {
         const set = read ?? new Set<string>()
-        return (a: UnifiedActivityItem) => isUnread(a, activityKey(a), set)
-    }, [read])
+        return (a: UnifiedActivityItem) => isUnread(a, activityKey(a), set, markedUnread, counted)
+    }, [read, markedUnread, counted])
     const visible = useMemo(() => (unreadOnly ? inScope.filter(unreadOf) : inScope), [inScope, unreadOnly, unreadOf])
 
     // Rows, collapsed (A6) and grouped: by day, or on Priority by what it asks

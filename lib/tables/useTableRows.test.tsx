@@ -163,14 +163,26 @@ describe("the rows a table's page holds", () => {
     expect(refetches()).toBe(0)
   })
 
-  it("asks again for the bundle and every page held when rows go", async () => {
-    const { result } = renderHook(() => useTableRows("t"))
-    act(() => result.current.more())
-    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
-    listRows.mockClear()
-    tell({ action: "deleted", row_id: "r3" })
-    await waitFor(() => expect(refetches()).toBe(1))
-    await waitFor(() => expect(listRows).toHaveBeenCalledWith("t", 500, 500))
+  // Tables L1: a delete reads nothing; the row leaves where it's held.
+  it("drops a row deleted where it's held, alone or in a change of many, reading nothing", async () => {
+    // (The page held past the bundle's draws again: this test's bundle doesn't, as SWR's would.)
+    for (const said of [{ action: "deleted", row_id: "r600" }, { action: "changed", change_set: "cs", created: [], updated: [], deleted: ["r3", "r600"], restored: [] }]) {
+      const { result, unmount } = renderHook(() => useTableRows("t"))
+      act(() => result.current.more())
+      await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+      mutate.mockClear()
+      listRows.mockClear()
+      rowsByIds.mockClear()
+      tell(said)
+      await waitFor(() => expect(result.current.rows.map((r) => r.id)).not.toContain("r600"))
+      if (said.action === "changed") expect(result.current.rows.map((r) => r.id)).not.toContain("r3")
+      expect(result.current.rows.length).toBe(said.action === "deleted" ? 999 : 998)
+      expect(refetches()).toBe(0)
+      expect(rowsByIds).not.toHaveBeenCalled()
+      // No page held is read again: the page reads on only to the rows it holds (here the 1,000th, from 999).
+      await waitFor(() => expect(listRows.mock.calls.map((c) => c[1])).toEqual([1000 - (said.action === "deleted" ? 1 : 2)]))
+      unmount()
+    }
   })
 
   // The row ledger (A2): a change of many rows is one live message naming them.
@@ -189,7 +201,7 @@ describe("the rows a table's page holds", () => {
   })
 
   it("asks again for everything held when a change of many made, deleted, brought back or moved rows", async () => {
-    for (const change of [{ created: ["r1200"] }, { deleted: ["r3"] }, { restored: ["r3"] }, { updated: ["r3"], moved: true }, { updated: ["r3"], more: true }]) {
+    for (const change of [{ created: ["r1200"] }, { restored: ["r3"] }, { updated: ["r3"], moved: true }, { updated: ["r3"], more: true }]) {
       const { result, unmount } = renderHook(() => useTableRows("t"))
       act(() => result.current.more())
       await waitFor(() => expect(result.current.rows).toHaveLength(1000))

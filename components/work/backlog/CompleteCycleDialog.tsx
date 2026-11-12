@@ -2,16 +2,16 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
+import { CarryChoice, itOrThem } from "@/components/work/carryChoice"
 import { cycleLabel } from "@/lib/tasks/cycles"
 import type { PlanCycle } from "@/lib/work/backlog"
 
 /**
  * Complete cycle (STEP4 #9): "4 tasks aren't done. Move them to the next
  * cycle or the backlog?", the choice as two radios. With no next cycle, one
- * the same length is made for them.
+ * the same length is made for them. The sentence and the choice are the
+ * shared CarryChoice, as Mark released's are.
  */
 export function CompleteCycleDialog({ cycle, next, onClose, onComplete }: { cycle: PlanCycle; next?: PlanCycle; onClose: () => void; onComplete: (carry: boolean) => void }) {
   const open = cycle.progress.total - cycle.progress.done
@@ -32,25 +32,16 @@ export function CompleteCycleDialog({ cycle, next, onClose, onComplete }: { cycl
         </>
       }
     >
-      {open === 0 ? (
-        <p className="text-ui-sm text-ink-2">Every task in it is done.</p>
-      ) : (
-        <div className="grid gap-3" data-complete-cycle="">
-          <p className="text-ui-sm text-ink-2">
-            {open} {open === 1 ? "task isn't" : "tasks aren't"} done. Move {open === 1 ? "it" : "them"} to the next cycle or the backlog?
-          </p>
-          <RadioGroup value={to} onValueChange={(v) => setTo(v as "next" | "backlog")} className="gap-1">
-            <Label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-1.5 text-sm font-normal hover:bg-hover">
-              <RadioGroupItem value="next" />
-              To {nextName}
-            </Label>
-            <Label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-1.5 text-sm font-normal hover:bg-hover">
-              <RadioGroupItem value="backlog" />
-              Back to the backlog
-            </Label>
-          </RadioGroup>
-        </div>
-      )}
+      <CarryChoice
+        open={open}
+        ask={`Move ${itOrThem(open)} to the next cycle or the backlog?`}
+        value={to}
+        onChange={setTo}
+        options={[
+          { value: "next", label: `To ${nextName}` },
+          { value: "backlog", label: "Back to the backlog" },
+        ]}
+      />
     </ResponsiveDialog>
   )
 }

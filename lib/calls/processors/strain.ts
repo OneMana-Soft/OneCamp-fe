@@ -71,17 +71,23 @@ export function watchStrain(onStrain: () => void, frames?: () => number | null, 
 
 /**
  * The next lighter way to run an effect when the computer is struggling, or
- * null when there is none left to take without changing what others see.
+ * null when there is none left to take.
  * A background is never taken away on its own: it may be what keeps a room
- * private. Strong blur becomes light blur; after that the person is asked.
- * Strong noise reduction becomes the browser's own, which costs nothing. Pure.
+ * private. So a touch-up goes first (smooth, then subtle, then off): it only
+ * changes how skin looks. Then strong blur becomes light blur, and strong
+ * noise reduction the browser's own, which costs nothing. Low light goes
+ * last: it is the cheapest, and it is what lets people see someone in a
+ * dark room. After that the person is asked. Pure.
  */
 export function lighter(e: CallEffects): { next: CallEffects; said: string } | null {
+  if (e.touchUp === "smooth") return { next: { ...e, touchUp: "subtle" }, said: "Your computer is busy, so your touch-up is subtler for now." }
+  if (e.touchUp === "subtle") return { next: { ...e, touchUp: "off" }, said: "Your computer is busy, so touch-up is off for now." }
   if (e.background.kind === "blur" && e.background.strength === "strong") {
     return { next: { ...e, background: { kind: "blur", strength: "light" } }, said: "Your computer is busy, so your background blur is lighter for now." }
   }
   if (e.noise === "strong") {
     return { next: { ...e, noise: "standard" }, said: "Your computer is busy, so strong noise reduction is off for now. Your browser's own is on." }
   }
+  if (e.lowLight) return { next: { ...e, lowLight: false }, said: "Your computer is busy, so low light is off for now." }
   return null
 }

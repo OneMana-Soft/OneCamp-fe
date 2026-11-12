@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
+import { useInboxBadge } from "@/lib/activity/inboxBadge"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 import {
@@ -13,7 +14,6 @@ import {
     createUserDocList,
     createUserBoardList,
     setUserStarred,
-    setTotalUnreadActivityCount,
     updateUsersStatusFromList,
 } from "@/store/slice/userSlice"
 import { batchUpdateChannelCallStatus } from "@/store/slice/channelSlice"
@@ -35,21 +35,17 @@ export function useSidenav() {
     })
 }
 
-// useHydrateUserSidebar is the SINGLE source of truth for seeding the sidebar
-// Redux state (channels, DMs, projects, teams, docs, boards, call status, and
-// the unread counts that drive the nav badges) from the server's sidenav
-// endpoint. It must be mounted by EVERY top-level layout — desktop AND the
-// mobile PWA — so the authoritative counts (and their 30s revalidation) are
-// hydrated the same way everywhere. Previously this lived only inside
-// DesktopNavigationBar, so on mobile the nav badges were never seeded/refreshed
-// and drifted (stale MQTT increments with no authoritative baseline). Returns
-// the SWR response so a caller can also read profile fields (e.g. is_admin);
-// a component that only reads them uses useSidenav, so the lists aren't seeded
-// twice.
+// Seeds the sidebar's Redux state (channels, DMs, projects, teams, docs,
+// boards, call status and their unread counts) from the sidenav answer, and
+// starts the Inbox badge's own read (lib/activity/inboxBadge). Every top-level
+// layout must mount it, desktop and phone alike, or that layout's badges drift.
+// It returns the SWR response for profile fields (is_admin); a reader alone
+// uses useSidenav, so the lists aren't seeded twice.
 export function useHydrateUserSidebar() {
     const dispatch = useDispatch()
 
     const userSideNav = useSidenav()
+    useInboxBadge()
 
     useEffect(() => {
         // Once per answer: the store is kept current by live updates since.
@@ -106,10 +102,6 @@ export function useHydrateUserSidebar() {
             if (activeDmIds.length > 0) {
                 dispatch(batchUpdateChatCallStatus({ grpIds: activeDmIds, callStatus: true }))
             }
-        }
-
-        if (data.user_total_unread_activity_count !== undefined) {
-            dispatch(setTotalUnreadActivityCount({ count: data.user_total_unread_activity_count }))
         }
 
         if (data.user_docs) {

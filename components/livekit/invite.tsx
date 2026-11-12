@@ -4,12 +4,13 @@
 // its Copy. An instant meeting's and a room's (InstantMeetingView), and a
 // conversation's call's invite (ConversationInvite).
 
-import { createContext, forwardRef, useContext, useState, type ComponentProps, type ReactNode } from "react"
+import { forwardRef, useContext, useState, type ComponentProps, type ReactNode } from "react"
 import dynamic from "next/dynamic"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { MiddleName } from "@/components/ui/middleName"
 import { useSheetMode } from "@/components/ui/overlayMode"
+import { InviteWordShown } from "./inviteWordShown"
 import { Check, Copy, Link as LinkIcon } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { CALL_SURFACE, callToast } from "./callSurface"
@@ -51,9 +52,6 @@ export function InvitePanel({ label, title, description, body, actions }: { labe
     </Popover>
   )
 }
-
-/** Invite says its word wherever it stands, not only where the call has room: at the head of People. */
-export const InviteWordShown = createContext(false)
 
 /** The pill: the link glyph, and "Invite" where the call has room (or InviteWordShown says). */
 export const InvitePill = forwardRef<HTMLButtonElement, ComponentProps<"button"> & { label: string }>(function InvitePill({ label, ...props }, ref) {

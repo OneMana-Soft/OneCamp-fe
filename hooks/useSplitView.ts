@@ -1,12 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { useDispatch, useSelector, useStore } from "react-redux"
-import { usePathname } from "next/navigation"
+import { shallowEqual, useDispatch, useSelector, useStore } from "react-redux"
 import { useAppRouter } from "@/lib/navigation/appRouter"
 import { injectSlice, type RootState } from "@/store/store"
 import splitSlice, { type SplitState } from "@/store/slice/splitSlice"
-import { closeSplit, evenOut, moveView, openInSplit, replacePane, restoreSplit, setActive, setFocused, setHere, setSplitOn } from "@/store/slice/splitActions"
+import { closeSplit, evenOut, moveView, openInSplit, replacePane, restoreSplit, setActive, setFocused, setSplitOn } from "@/store/slice/splitActions"
 import { focusView } from "@/hooks/useOpenBeside"
 import { MAIN, MAIN_KEY, claims, hrefOfPane, isCallPane, keyOf, paneFromHref, restorablePanes, splitShortcut, type SplitAction } from "@/lib/split"
 import { readSplit, stepView, viewRow } from "@/lib/splitLayout"
@@ -16,6 +15,13 @@ injectSlice(splitSlice)
 
 /** Split view's state (added above, so there for the shell and what it draws). */
 export const selectSplit = (s: RootState) => s.split as SplitState
+
+// What the shell draws: `used` once a view is beside the page (H1).
+const NONE: string[] = []
+const selectLayout = (s: RootState) => {
+  const { panes, order, active, focused, used, sizes, evened, pulse } = selectSplit(s)
+  return { panes, order, active, focused, used: panes.length ? used : NONE, sizes, evened, pulse }
+}
 
 /** The layout, kept per tab and as a new tab's (P); the list kept before. */
 const KEY = "oc_split_layout"
@@ -35,7 +41,6 @@ export function useSplitActions() {
   const dispatch = useDispatch()
   const store = useStore<RootState>()
   const router = useAppRouter()
-  const pathname = usePathname()
 
   return useCallback(
     (action: SplitAction, view?: number) => {
@@ -75,7 +80,7 @@ export function useSplitActions() {
         case "swap": {
           // The side view becomes the page; the page, if it can, goes beside.
           const pane = panes[on]
-          const here = paneFromHref(pathname + window.location.search, window.location.origin)
+          const here = paneFromHref(window.location.pathname + window.location.search, window.location.origin)
           // A call stays where it is, beside or as the page: moving it would hang it up.
           if (on === MAIN || !pane || isCallPane(pane) || (here && isCallPane(here))) return
           if (here) dispatch(replacePane({ index: on, pane: here }))
@@ -98,32 +103,27 @@ export function useSplitActions() {
           return
       }
     },
-    [dispatch, store, router, pathname],
+    [dispatch, store, router],
   )
 }
 
 /**
- * Split view's wiring for the layout: the layout kept per tab, the page's own
- * item (setHere), the active view following the pointer and the keyboard, the
+ * Split view's wiring for the layout: the layout kept per tab, the active
+ * view following the pointer and the keyboard, the
  * Ctrl+Alt shortcuts, and Alt-click on a link to open it beside (Ctrl/Cmd-click
  * still opens a browser tab, as people expect).
  */
 export function useSplitView(enabled: boolean) {
   const dispatch = useDispatch()
   const store = useStore<RootState>()
-  const split = useSelector(selectSplit)
+  const split = useSelector(selectLayout, shallowEqual)
   const run = useSplitActions()
-  const pathname = usePathname()
   const router = useAppRouter()
   const restored = useRef(false)
 
   useEffect(() => {
     dispatch(setSplitOn(enabled))
   }, [enabled, dispatch])
-
-  useEffect(() => {
-    dispatch(setHere(paneFromHref(pathname ?? "")))
-  }, [pathname, dispatch])
 
   useEffect(() => {
     if (!enabled || restored.current) return

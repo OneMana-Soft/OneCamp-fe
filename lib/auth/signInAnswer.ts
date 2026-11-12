@@ -2,22 +2,22 @@ import { within } from "@/lib/auth/probe"
 
 /**
  * GET /auth/providers, the sign-in answer: which ways in this workspace has on,
- * and its name (ORG_NAME). Anyone may read it, so it is asked without the
- * session.
+ * its name, whether mailed links arrive and where it runs. Anyone may read it,
+ * so it is asked without the session.
  *
- * It is asked once a load, whoever asks. The sign-in and sign-up pages read its
- * ways in (AuthService.getEnabledProviders) while every page reads its name
- * (hooks/useWorkspaceName), and each used to ask for itself: two requests on
- * every sign-in and sign-up load. An answer belongs to the fetch that brought
- * it, so a test that stands in its own fetch is answered afresh. A read that
- * brought nothing is not kept, and the next asker tries again.
+ * It is asked once a load, whoever asks: the sign-in pages read its ways in
+ * (AuthService.getEnabledProviders), every page its name
+ * (hooks/useWorkspaceName), a signed-out page its facts (lib/auth/useSignInFacts).
+ * An answer belongs to the fetch that brought it, so a test with its own fetch
+ * is answered afresh. One that brought nothing is not kept.
  *
- * Null when nothing answered in time (lib/auth/probe) or the answer wasn't a
- * success.
+ * Null when nothing answered in time (lib/auth/probe) or wasn't a success.
  */
 interface SignInAnswer {
   providers?: Record<string, unknown> | null
   workspace_name?: unknown
+  email_configured?: unknown
+  hosting?: unknown
 }
 
 let kept: { fetch: typeof fetch; answer: Promise<SignInAnswer | null> } | null = null

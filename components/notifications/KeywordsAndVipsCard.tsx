@@ -150,3 +150,8 @@ export function KeywordsAndVipsCard() {
     </SettingsSection>
   )
 }
+
+// The notifications settings' one lazy chunk (main, 9 Nov): Send me a test's section and the "why" panel behind both
+// its doors, the Inbox's too, ride it rather than a chunk of their own (A4 H3).
+export { NotifyTestSection } from "@/components/notifications/SendMeATest"
+export { WhyRecordPanel } from "@/components/notifications/NotifyWhyPanel"

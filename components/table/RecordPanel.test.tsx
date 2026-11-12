@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import type { ComponentProps } from "react"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import type { ComponentProps, ComponentType } from "react"
 
 const fill = vi.fn()
 // AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
@@ -25,16 +25,29 @@ const { toast } = vi.hoisted(() => ({ toast: vi.fn() }))
 vi.mock("@/hooks/use-toast", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/use-toast")>()), useToast: () => ({ toast }) }))
 
 // The row's comments are their own chunk (components/table/comments): a stand-in
-// that shows what the record hands it, and reports a count for Notes' cell.
-const comments = vi.hoisted(() => ({ props: null as null | Record<string, unknown>, counts: {} as Record<string, number> }))
+// that shows what the record hands it, and reports a count for Notes' cell. A test
+// that sets `real` (to realComments(), below) gets the row's own comments, on no
+// threads, read as Maya. The stand-in loads none of their code: a findBy waiting on
+// it would wait on theirs, cold in a file run alone (CR-260 F3).
+type RowCommentsProps = ComponentProps<typeof import("@/components/table/comments/RowComments").default>
+const comments = vi.hoisted(() => ({ props: null as null | Record<string, unknown>, counts: {} as Record<string, number>, real: null as null | ComponentType<RowCommentsProps> }))
 vi.mock("@/components/table/comments/RowComments", async () => {
   const React = await import("react")
-  function RowCommentsStandIn(p: { target: string | null; onCellCounts?: (c: Record<string, number>) => void }) {
-    comments.props = p
+  function RowCommentsStandIn(p: RowCommentsProps) {
+    comments.props = p as unknown as Record<string, unknown>
     React.useEffect(() => p.onCellCounts?.(comments.counts), [p])
+    const Real = comments.real
+    if (Real) return <Real {...p} />
     return <div data-testid="row-comments" data-target={p.target ?? ""} />
   }
   return { default: RowCommentsStandIn }
+})
+vi.mock("@/components/threads/threadsApi", () => ({ listThreads: vi.fn(async () => []) }))
+vi.mock("@/hooks/useFetch", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/hooks/useFetch")>()
+  const maya = { data: { data: { user_uuid: "me", user_name: "Maya" } }, isLoading: false, isError: undefined, mutate: vi.fn() }
+  const useFetchOnlyOnce: typeof real.useFetchOnlyOnce = (...a) => (comments.real ? (maya as never) : real.useFetchOnlyOnce(...a))
+  return { ...real, useFetchOnlyOnce }
 })
 // The row's page is its own chunk too (components/table/rowPage): a stand-in
 // that shows which row and page the record hands it.
@@ -51,9 +64,34 @@ import { RecordPanel } from "@/components/table/RecordPanel"
 import { TableEditProvider } from "@/lib/tables/tableEdit"
 import type { TableField, TableRow } from "@/services/tableService"
 import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 
 /** The table's undo order as a write that only sends: the tests of the order hold their own. */
 const pass: UndoOrder["write"] = (_what, send) => send()
+
+/** The row's own comments in a store and tooltips of their own, loaded once, by the tests that set `comments.real`. */
+let realOnce: Promise<ComponentType<RowCommentsProps>> | undefined
+const realComments = () =>
+  (realOnce ??= (async () => {
+    const [{ Provider }, { configureStore }, { TooltipProvider }, threads, users, { default: RowComments }] = await Promise.all([
+      import("react-redux"),
+      import("@reduxjs/toolkit"),
+      import("@/components/ui/tooltip"),
+      import("@/store/slice/threadsSlice"),
+      import("@/store/slice/userSlice"),
+      vi.importActual<typeof import("@/components/table/comments/RowComments")>("@/components/table/comments/RowComments"),
+    ])
+    const store = configureStore({ reducer: { threads: threads.default.reducer, users: users.default.reducer } })
+    return function RealRowComments(p: RowCommentsProps) {
+      return (
+        <Provider store={store}>
+          <TooltipProvider>
+            <RowComments {...p} />
+          </TooltipProvider>
+        </Provider>
+      )
+    }
+  })())
 
 const fields: TableField[] = [
   { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 0 },
@@ -79,6 +117,40 @@ afterEach(() => {
 
 // TAB-BUG-4: a person's correction to an AI cell stays until someone asks the
 // AI for it again, from the record.
+// FIRST in this file: the row's comments come in their own chunk (next/dynamic, nothing while loading), so the sheet and
+// its Comment are up before them; this case needs the chunk not yet in, as a page opening its first record has it.
+describe("a press of the phone record's Comment before the row's comments are in", () => {
+  // Their code loads first, in a hook: the stand-in's chunk, next/dynamic's, is still not in at the press.
+  beforeAll(async () => {
+    await realComments()
+  })
+  it("still brings their box into view as they come in (CR-260 PR3)", async () => {
+    comments.real = await realComments()
+    let scrolls = 0
+    const scrollIntoView = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      if (this.matches("[data-row-comment-box]")) scrolls++
+    }
+    const off = putOnScreen(SCREENS["a phone in portrait"])
+    try {
+      const two: TableRow[] = [row(), { ...row(), id: "r2", position: 1 }]
+      render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={two} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+      const sheet = screen.getByRole("dialog", { name: "Booth, a row of Launch budget" })
+      expect(document.querySelector("[data-row-comment-box]"), "PRECONDITION: the row's comments are not in yet").toBeNull()
+      fireEvent.click(within(sheet.querySelector<HTMLElement>("[data-sheet-footer]")!).getByRole("button", { name: "Comment" }))
+      await waitFor(() => expect(document.querySelector("[data-row-comment-box] .ProseMirror")).not.toBeNull())
+      await act(() => new Promise((r) => setTimeout(r, 100)))
+      expect(scrolls, "the press made before the comments were in brought their box into view").toBe(1)
+      // CR-261 F4: and the caret, once their editor is in (it comes after them).
+      expect(document.activeElement, "the press made before the comments were in put the caret in their box").toBe(document.querySelector("[data-row-comment-box] .ProseMirror"))
+    } finally {
+      comments.real = null
+      Element.prototype.scrollIntoView = scrollIntoView
+      off()
+    }
+  })
+})
+
 describe("an AI column in a row's record", () => {
   it("offers to fill this row's cell again, and asks for the table after", async () => {
     fill.mockResolvedValue({ filled: 1, skipped: 0 })
@@ -361,7 +433,7 @@ describe("a row's record in a view read in windows", () => {
 // saving read the row's copy, and showed the old value until the save answered.
 describe("a row's record opened while an edit to it saves", () => {
   it("shows the edit, not the row's copy", () => {
-    const edits = new Map([["r1", { saving: { notes: "Bring a banner" }, saved: {}, copy: null }]])
+    const edits = new Map([["r1", { saving: { notes: "Bring a banner" }, saved: {}, copy: null, unsaved: {} }]])
     render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[row()]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     expect((screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement).value).toBe("Bring a banner")
   })
@@ -465,5 +537,135 @@ describe("a record's delete, in the table's undo order (V-360)", () => {
     })
     expect(d.aims).toEqual([{ kind: "none", what: "delete" }])
     expect(offers).toEqual([])
+  })
+})
+
+// TABLES-BOARDS-25 (the phone pair, 10 Nov): on a phone the record was a panel
+// of its own pinned to the foot of the screen, with six small buttons in its
+// head, no grabber, no scrim and no swipe away. It is the shared sheet now
+// (components/ui/drawer): the grabber, a swipe down or the scrim closes it;
+// its head steps through the rows and closes it; Copy link and Delete are in
+// its More menu; and its pinned footer holds Comment, in a thumb's reach.
+describe("on a phone the record is the Drawer", () => {
+  let off = () => {}
+  afterEach(() => off())
+  const two: TableRow[] = [row(), { ...row(), id: "r2", position: 1, values: JSON.stringify({ item: "Banner", summary: "", notes: "" }) }]
+  const phone = (rowId: string, canManage = true) => {
+    off = putOnScreen(SCREENS["a phone in portrait"])
+    const onStep = vi.fn()
+    const onClose = vi.fn()
+    const at = (id: string) => <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={two} rowId={id} canManage={canManage} commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={onStep} onClose={onClose} onChange={vi.fn()} />
+    const { rerender } = render(at(rowId))
+    const sheet = screen.getByRole("dialog", { name: `${rowId === "r1" ? "Booth" : "Banner"}, a row of Launch budget` })
+    // The page hands the record the row stepped to (J/K, or a chevron in its head).
+    return { sheet, onStep, onClose, stepTo: (id: string) => rerender(at(id)) }
+  }
+  const named = (el: Element, sel: string) => [...el.querySelectorAll(sel)].map((b) => b.getAttribute("aria-label") || b.textContent?.trim())
+
+  it("opens in the shared sheet, with its grabber, and the record's own fields in it", () => {
+    const { sheet } = phone("r1")
+    expect(sheet.hasAttribute("data-v3-sheet"), "the shared Drawer's sheet").toBe(true)
+    expect(sheet.hasAttribute("data-record-panel")).toBe(true)
+    expect(sheet.querySelector("[data-drawer-handle]"), "its grabber").not.toBeNull()
+    expect((screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement).value).toBe("")
+  })
+
+  it("steps and closes from its head; Copy link and Delete are in its More menu, not the head", async () => {
+    const { sheet, onStep, onClose } = phone("r1")
+    const head = sheet.querySelector("[data-sheet-header]")!
+    expect(named(head, "button")).toEqual(["Previous row (K)", "Next row (J)", "More for this row", "Close"])
+    fireEvent.click(screen.getByRole("button", { name: "Next row (J)" }))
+    expect(onStep).toHaveBeenLastCalledWith("r2")
+    const more = screen.getByRole("button", { name: "More for this row" })
+    await act(async () => void fireEvent.keyDown(more, { key: "Enter" }))
+    const items = screen.getAllByRole("menuitem").map((i) => i.textContent?.trim())
+    expect(items).toEqual(["Copy a link to this row", "Delete this row"])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy a link to this row" }))
+    expect(copy).toHaveBeenCalledWith(expect.stringContaining("row=r1"), expect.any(String))
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("offers Delete in its More menu only to one who manages the table", async () => {
+    phone("r2", false)
+    const more = screen.getByRole("button", { name: "More for this row" })
+    await act(async () => void fireEvent.keyDown(more, { key: "Enter" }))
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual(["Copy a link to this row"])
+  })
+
+  it("pins Comment in its footer, which starts a comment on the row", async () => {
+    const { sheet } = phone("r1")
+    await screen.findByTestId("row-comments")
+    const foot = sheet.querySelector("[data-sheet-footer]")
+    expect(foot, "a pinned footer").not.toBeNull()
+    expect(named(foot!, "button")).toEqual(["Comment"])
+    // The row's comments (their own chunk) are asked to bring their box up, for the whole row.
+    expect(comments.props?.compose ?? 0).toBe(0)
+    // A cell's comment chosen first: Comment lets go of it.
+    fireEvent.click(screen.getByRole("button", { name: "Comment on Notes" }))
+    expect(comments.props?.target).toBe("notes")
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+    expect(comments.props?.compose).toBe(1)
+    expect(comments.props?.target, "the cell let go of").toBeNull()
+  })
+
+  it("opens the row stepped to after a press of Comment at its top: the press was the last row's", async () => {
+    comments.real = await realComments()
+    let scrolls = 0
+    const scrollIntoView = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      if (this.matches("[data-row-comment-box]")) scrolls++
+    }
+    try {
+      const { sheet, stepTo } = phone("r1")
+      const box = () => document.querySelector("[data-row-comment-box] .ProseMirror")
+      await waitFor(() => expect(box()).not.toBeNull())
+      // The footer's Comment (the box has a Comment of its own, its send).
+      fireEvent.click(within(sheet.querySelector<HTMLElement>("[data-sheet-footer]")!).getByRole("button", { name: "Comment" }))
+      await waitFor(() => expect(document.activeElement).toBe(box()))
+      expect(scrolls, "Comment brings the row's box into view").toBe(1)
+      ;(document.activeElement as HTMLElement).blur()
+      scrolls = 0
+      // The sheet's body (it stays as the rows step) down at the box.
+      const body = sheet.querySelector<HTMLElement>("[data-sheet-body]")!
+      body.scrollTop = 400
+      stepTo("r2")
+      await screen.findByRole("dialog", { name: "Banner, a row of Launch budget" })
+      expect(body.scrollTop, "the next row opens at its top").toBe(0)
+      await waitFor(() => expect(box()).not.toBeNull())
+      await act(() => new Promise((r) => setTimeout(r, 100)))
+      expect(scrolls, "the next row's box scrolled to").toBe(0)
+      expect(document.activeElement === box(), "the next row's box focused").toBe(false)
+      // Back on the row pressed: its press went as the record left it.
+      stepTo("r1")
+      await screen.findByRole("dialog", { name: "Booth, a row of Launch budget" })
+      await waitFor(() => expect(box()).not.toBeNull())
+      await act(() => new Promise((r) => setTimeout(r, 100)))
+      expect(scrolls, "the row pressed, stepped back to: its box scrolled to").toBe(0)
+      expect(document.activeElement === box(), "the row pressed, stepped back to: its box focused").toBe(false)
+    } finally {
+      comments.real = null
+      Element.prototype.scrollIntoView = scrollIntoView
+    }
+  })
+
+  it("keeps an Escape typed in a field the field's; one from the sheet closes the record", async () => {
+    const { sheet, onClose } = phone("r1")
+    const notes = screen.getByRole("textbox", { name: "Notes" })
+    notes.focus()
+    fireEvent.keyDown(notes, { key: "Escape" })
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(onClose, "an Escape typed in Notes").not.toHaveBeenCalled()
+    fireEvent.keyDown(sheet, { key: "Escape" })
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it("stays the side panel on a computer", () => {
+    off = putOnScreen(SCREENS["a computer"])
+    panel(row())
+    const aside = document.querySelector("aside[data-record-panel]")
+    expect(aside, "the panel beside the grid").not.toBeNull()
+    expect(aside!.hasAttribute("data-v3-sheet")).toBe(false)
+    expect(screen.getByRole("button", { name: "Copy a link to this row" })).toBeTruthy()
   })
 })

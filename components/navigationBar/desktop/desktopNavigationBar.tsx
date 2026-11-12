@@ -2,13 +2,12 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { useLaterList } from "@/hooks/useLater";
-import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils/helpers/cn";
 import type { DesktopChildrenNavType } from "@/types/nav";
 import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar";
-import { app_channel_path, app_chat_path, app_doc_path, app_grp_chat_path, app_project_path } from "@/types/paths";
+import { app_board_path, app_channel_path, app_chat_path, app_grp_chat_path, app_project_path } from "@/types/paths";
 import { openUI } from "@/store/slice/uiSlice";
 import { getOtherUserId } from "@/lib/utils/getOtherUserId";
 import type { RootState } from "@/store/store";
@@ -44,7 +43,8 @@ import { TabletListPanel } from "@/components/navigationBar/tablet/TabletListPan
 import { useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
 import { DocsSection } from "@/components/docTree/DocsSection";
-import { rememberDocIcon } from "@/lib/docLook";
+import { placeRows } from "@/lib/nav/placeRows";
+import { RecentPlacesSection } from "@/components/navigationBar/desktop/RecentPlacesSection";
 import { useStableRows } from "@/lib/ui/stableRows";
 
 /** The tablet's rail and its channel list, in pixels (design v3, mobile T2 and T3). */
@@ -152,7 +152,29 @@ function SidebarSeam({ width, onWidth, onDone }: { width: number; onWidth: (w: n
     )
 }
 
+/**
+ * The frame on a computer or a tablet: the sidebar beside the page, never
+ * around it, so the shell drawing the page again draws no sidebar (H1).
+ */
 export function DesktopNavigationBar({ children }: Readonly<{ children: React.ReactNode }>) {
+    const band = useShellBand()
+    return (
+        // data-app-viewport: on a tablet, fitted to what the on-screen
+        // keyboard leaves while it is up (lib/ui/visualViewport.ts).
+        // The frame is neutral graphite with the theme's glow and grain; the
+        // top bar is gone (design v3, shell A1), so the sheet runs 8px from
+        // every edge.
+        <div data-app-viewport="" data-shell="v3" data-band={isTabletBand(band) ? band : undefined} className="app-frame flex h-dvh overflow-hidden">
+            <Sidebar />
+            <main data-shell-main="" className="relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2">
+                {children}
+            </main>
+        </div>
+    )
+}
+
+// Memo with no props: it draws on its own reads (the path, the lists).
+const Sidebar = memo(function SideNav() {
     const dispatch = useDispatch();
     const pathname = usePathname()
     const path = useMemo(() => pathname.split('/'), [pathname])
@@ -255,19 +277,19 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         activity: userSidebarState.totalUnreadActivityCount,
         laterDue,
         tasksDue: self?.user_overdue_task_count ?? 0,
-        urgentNudges: 0,
     }
 
     const navLinks = useMemo(
         () => buildPrimaryNavLinks(path, counts, isAdmin),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [path, counts.channel, counts.dm, counts.activity, counts.laterDue, counts.tasksDue, counts.urgentNudges, isAdmin],
+        [path, counts.channel, counts.dm, counts.activity, counts.laterDue, counts.tasksDue, isAdmin],
     );
     // Docs are a section in the full sidebar and an item in the rails, which
     // have no sections (lib/nav/focusMode): the tablet's rail takes primary,
     // the collapsed rail puts the sections after Channels and DMs as the full
     // sidebar does, and the full sidebar's rows leave Docs to its section.
-    const { primary: rows, sections, folded: more } = useMemo(() => partitionNav(navLinks), [navLinks]);
+    const parts = useMemo(() => partitionNav(navLinks), [navLinks]);
+    const rows = useStableRows(parts.primary, rowPath), sections = parts.sections, more = useStableRows(parts.folded, rowPath);
     const primary = useStableRows(useMemo(() => [...rows, ...sections], [rows, sections]), rowPath);
 
     // A live arrival in Inbox while the window is focused and Inbox isn't
@@ -305,25 +327,12 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         muted: isMutedChannel(c),
     })
     // A starred channel is its Channels row (lib/nav/sidebarChannels), in
-    // starred order; starred docs follow, in the order they were starred (B5).
+    // starred order; starred docs and boards follow, in the order they were
+    // starred (B5, miro-46: lib/nav/placeRows).
     // Channels are A to Z (D-S2): no row moves when something arrives in it.
-    const starredDocRows: DesktopChildrenNavType[] = (userSidebarState.userStarred || [])
-        .filter((p) => p && p.resource_kind === "doc")
-        .map((p) => {
-            // Its icon, for the lists that name a doc without it (lib/docLook).
-            rememberDocIcon(p.resource_uuid, p.icon)
-            return {
-            title: p.title || "Untitled",
-            path: p.href || `${app_doc_path}/${p.resource_uuid}`,
-            kind: "doc",
-            hue_id: p.resource_uuid,
-            doc_icon: p.icon,
-            variant: path.length > 3 && path[2] === "doc" && path[3] === p.resource_uuid ? "sidebarActive" : "ghost",
-            } satisfies DesktopChildrenNavType
-        })
     const starredRows = useStableRows([
         ...starredChannelRows(userSidebarState.userChannels || [], userSidebarState.userFavChannels || []).map(channelRow),
-        ...starredDocRows,
+        ...placeRows(userSidebarState.userStarred || [], path),
     ], rowPath)
     const channelRows = useStableRows(sortChannelsByName((userSidebarState.userChannels || []).filter((c) => c && !favChannelUUIDs.has(c.ch_uuid))).map(channelRow), rowPath)
 
@@ -360,6 +369,12 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
 
     const scrollRef = useScrollFades()
 
+    // Made once: a memo section draws only when its rows or state do.
+    const add = useMemo(() => {
+        const ui = (key: Parameters<typeof openUI>[0]["key"]) => () => dispatch(openUI({ key }))
+        return { project: ui("createProject"), channel: ui("createChannel"), chat: ui("createChatMessage"), doc: ui("createDoc"), collapse: () => setCollapsed(true) }
+    }, [dispatch, setCollapsed])
+
     // Settings and Admin take the sidebar's place (design v3, admin §1.1):
     // the settings nav, with "Back to app" returning to the last place
     // outside them, which is remembered here as the person moves.
@@ -378,7 +393,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         </>
     ) : (
         <>
-            <SidebarHeader isAdmin={isAdmin} onCollapse={() => setCollapsed(true)} onPin={onPin} />
+            <SidebarHeader isAdmin={isAdmin} onCollapse={add.collapse} onPin={onPin} />
             <SidebarSearchRow />
             <PrimaryNav links={rows} more={more} inboxPulse={inboxPulse} />
             <div ref={scrollRef} className="shell-scroll mt-0.5">
@@ -396,32 +411,35 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         href={app_project_path}
                         open={isProjectOpen}
                         setOpen={setIsProjectOpen}
-                        onAdd={() => dispatch(openUI({ key: 'createProject' }))}
+                        onAdd={add.project}
                         addLabel="New project"
                         rows={projectRows}
                         cap={8}
-                        invite={{ label: "Start a project", onClick: () => dispatch(openUI({ key: 'createProject' })) }}
+                        invite="Start a project"
                     />
                     <SidebarSection
                         title="Channels"
                         open={isChannelOpen}
                         setOpen={setIsChannelOpen}
-                        onAdd={() => dispatch(openUI({ key: 'createChannel' }))}
+                        onAdd={add.channel}
                         addLabel="New channel"
                         rows={channelRows}
                         cap={10}
-                        invite={{ label: "Create a channel", onClick: () => dispatch(openUI({ key: 'createChannel' })) }}
+                        invite="Create a channel"
                     />
                     <SidebarSection
                         title="Direct messages"
                         open={isChatOpen}
                         setOpen={setIsChatOpen}
-                        onAdd={() => dispatch(openUI({ key: 'createChatMessage' }))}
+                        onAdd={add.chat}
                         addLabel="New message"
                         rows={dmRows}
                         cap={8}
-                        invite={{ label: "Message someone", onClick: () => dispatch(openUI({ key: 'createChatMessage' })) }}
+                        invite="Message someone"
                     />
+                    {/* The boards the person opened lately (miro-46), with the
+                        docs after the conversations, so Starred keeps the top. */}
+                    <RecentPlacesSection kind="board" title="Recent boards" href={app_board_path} path={path} />
                     {/* The docs tree after the conversations: above them, it put
                         Channels and DMs below the first screen at 1280 by 860
                         (PG1-02, the rivals review of 16 Oct). */}
@@ -429,7 +447,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         open={isDocsOpen}
                         setOpen={setIsDocsOpen}
                         active={path[2] === "doc" && !path[3]}
-                        onAdd={() => dispatch(openUI({ key: 'createDoc' }))}
+                        onAdd={add.doc}
                     />
                 </div>
             </div>
@@ -449,7 +467,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         return (
             // The tablet shell: the rail on the frame, then the sheets. The
             // settings pages keep their own nav as the page's first column.
-            <div data-app-viewport="" data-shell="v3" data-band={band} className="app-frame flex h-dvh overflow-hidden">
+            <>
                 <TabletRail
                     primary={primary}
                     more={more}
@@ -467,70 +485,55 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                 )}
                 {docked && (
                     <div className="flex-none py-2 pr-2">
-                        <TabletListPanel mode="docked" onClose={closeList} onAdd={() => dispatch(openUI({ key: 'createChannel' }))}>
+                        <TabletListPanel mode="docked" onClose={closeList} onAdd={add.channel}>
                             {channelList}
                         </TabletListPanel>
                     </div>
                 )}
-                <main data-shell-main="" className="relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2">
-                    {children}
-                </main>
                 {!wide && inChannel && listOpen && (
-                    <TabletListPanel mode="overlay" onClose={closeList} onAdd={() => dispatch(openUI({ key: 'createChannel' }))}>
+                    <TabletListPanel mode="overlay" onClose={closeList} onAdd={add.channel}>
                         {channelList}
                     </TabletListPanel>
                 )}
-            </div>
+            </>
         )
     }
 
-    return (
-        // data-app-viewport: on a tablet, fitted to what the on-screen
-        // keyboard leaves while it is up (lib/ui/visualViewport.ts).
-        // The frame is neutral graphite with the theme's glow and grain; the
-        // top bar is gone (design v3, shell A1), so the sheet runs 8px from
-        // every edge.
-        <div data-app-viewport="" data-shell="v3" className="app-frame flex h-dvh overflow-hidden">
-            {collapsed ? (
-                <SidebarRail
-                    body={settingsShell ? (
-                        <Suspense fallback={null}>
-                            <SettingsRailItems isAdmin={isAdmin} />
-                        </Suspense>
-                    ) : undefined}
-                    // Docs after Channels and DMs, as the sidebar orders them.
-                    primary={rows}
-                    sections={sections}
-                    more={more}
-                    places={[...projectRows, ...starredRows]}
-                    conversations={{
-                        // What the folded Channels section would say: "@2", or a dot.
-                        channels: sectionSignal((userSidebarState.userChannels || []).filter(Boolean).map(channelRow)),
-                        dms: rowSignal({ badge: true, unread_count: unreadDMs }),
-                        on: path[2] === "channel" ? "channel" : path[2] === "chat" ? "chat" : undefined,
-                    }}
-                    isAdmin={isAdmin}
-                    onExpand={() => setCollapsed(false)}
-                    peek={(pin) => <aside aria-label="Sidebar" className="shell-side h-full w-full" data-settled="true">{sidebarIn(pin)}</aside>}
-                />
-            ) : (
-                <>
-                    <aside
-                        aria-label="Sidebar"
-                        data-settled={settled ? "true" : undefined}
-                        className="shell-side h-full flex-none"
-                        // The seam beside it is the sidebar's last 8px: rows end 8px
-                        // short of the sheet, which starts at the width.
-                        style={{ width: `${width - 8}px`, paddingRight: 0 }}
-                    >
-                        {sidebar}
-                    </aside>
-                    <SidebarSeam width={width} onWidth={setWidth} onDone={(w) => setCookie(SIDEBAR_WIDTH_COOKIE, String(w))} />
-                </>
-            )}
-            <main data-shell-main="" className={cn("relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2")}>
-                {children}
-            </main>
-        </div>
+    return collapsed ? (
+        <SidebarRail
+            body={settingsShell ? (
+                <Suspense fallback={null}>
+                    <SettingsRailItems isAdmin={isAdmin} />
+                </Suspense>
+            ) : undefined}
+            // Docs after Channels and DMs, as the sidebar orders them.
+            primary={rows}
+            sections={sections}
+            more={more}
+            places={[...projectRows, ...starredRows]}
+            conversations={{
+                // What the folded Channels section would say: "@2", or a dot.
+                channels: sectionSignal((userSidebarState.userChannels || []).filter(Boolean).map(channelRow)),
+                dms: rowSignal({ badge: true, unread_count: unreadDMs }),
+                on: path[2] === "channel" ? "channel" : path[2] === "chat" ? "chat" : undefined,
+            }}
+            isAdmin={isAdmin}
+            onExpand={() => setCollapsed(false)}
+            peek={(pin) => <aside aria-label="Sidebar" className="shell-side h-full w-full" data-settled="true">{sidebarIn(pin)}</aside>}
+        />
+    ) : (
+        <>
+            <aside
+                aria-label="Sidebar"
+                data-settled={settled ? "true" : undefined}
+                className="shell-side h-full flex-none"
+                // The seam beside it is the sidebar's last 8px: rows end 8px
+                // short of the sheet, which starts at the width.
+                style={{ width: `${width - 8}px`, paddingRight: 0 }}
+            >
+                {sidebar}
+            </aside>
+            <SidebarSeam width={width} onWidth={setWidth} onDone={(w) => setCookie(SIDEBAR_WIDTH_COOKIE, String(w))} />
+        </>
     );
-}
+})

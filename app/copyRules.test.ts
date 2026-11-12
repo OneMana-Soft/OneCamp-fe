@@ -20,6 +20,8 @@ const VERSION = /\bv\d+(?:\.\d+)+\b|\b\d+\.\d+\.\d+\b|\bversion\s+\d/i
 const CLAIM = /complian|certified/i
 /** SVG path data reads like version numbers ("M12 5.38c1.62…"). */
 const PATH_DATA = /^[Mm][\d\s.,+-]/
+/** A WebGL shader's source opens with its GLSL version ("#version 300 es"); no one reads it. */
+const SHADER = /^#version \d+ es\n/
 /** Not shown to anyone: words people search the admin by (lib/adminSections keywords). */
 const ALLOWED = new Set(["lib/adminSections.ts: compliance"])
 
@@ -49,7 +51,7 @@ export function brokenCopy(file: string, src: string): string[] {
     if (ts.isJsxText(n)) text = n.text
     else if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) text = n.text
     else if (ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) text = n.text
-    if (text && !PATH_DATA.test(text.trim()) && (VERSION.test(text) || CLAIM.test(text))) {
+    if (text && !PATH_DATA.test(text.trim()) && !SHADER.test(text.trim()) && (VERSION.test(text) || CLAIM.test(text))) {
       const entry = `${relative(ROOT, file)}: ${text.trim().slice(0, 80)}`
       if (!ALLOWED.has(entry)) found.push(entry)
     }
@@ -76,9 +78,9 @@ describe("copy rules", () => {
     expect(brokenMessages(en, "")).toEqual([])
   })
 
-  it("reads strings, not comments, and skips drawing paths", () => {
-    const src = ['// compliant in a comment', 'const a = "Now compliant"', 'const b = <p>New in v2.3</p>', 'const d = "M12 5.38c1.62 0 3.06.56"'].join("\n")
-    expect(brokenCopy(join(ROOT, "x.tsx"), src)).toEqual(["x.tsx: Now compliant", "x.tsx: New in v2.3"])
+  it("reads strings, not comments, and skips drawing paths and shaders", () => {
+    const src = ['// compliant in a comment', 'const a = "Now compliant"', 'const b = <p>New in v2.3</p>', 'const d = "M12 5.38c1.62 0 3.06.56"', 'const e = `#version 300 es\nvoid main() {}`', 'const f = "#version 3 is here"'].join("\n")
+    expect(brokenCopy(join(ROOT, "x.tsx"), src)).toEqual(["x.tsx: Now compliant", "x.tsx: New in v2.3", "x.tsx: #version 3 is here"])
   })
 
   it("writes the doc's shortcut labels in sentence case", () => {

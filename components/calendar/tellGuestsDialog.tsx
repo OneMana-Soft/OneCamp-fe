@@ -26,7 +26,8 @@ const COPY: Record<TellAction, { title: string; description: string }> = {
 
 /**
  * "Tell guests?" (PROGRAM.md D-CAL-5): a change guests would hear of asks
- * whether to send it, as Google Calendar does. Send is chosen and focused;
+ * whether to send it, as Google Calendar does. Send is chosen, and focused
+ * with a mouse or the keys (a tap leaves the focus on the question itself);
  * Don't send tells them in OneCamp alone; closing goes back, and nothing
  * is saved.
  */
@@ -43,7 +44,7 @@ export function TellGuestsPrompt({ action, onDone }: { action: TellAction; onDon
                     <Button type="button" variant="ghost" onClick={() => onDone("none")}>
                         Don&apos;t send
                     </Button>
-                    <Button type="button" autoFocus onClick={() => onDone("send")}>
+                    <Button type="button" data-autofocus onClick={() => onDone("send")}>
                         Send
                     </Button>
                 </DialogFooter>

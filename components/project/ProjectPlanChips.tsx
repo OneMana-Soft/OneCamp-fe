@@ -15,6 +15,7 @@
 
 import dynamic from "next/dynamic"
 import { useMemo, useState, type ReactNode } from "react"
+import { useLatch } from "@/hooks/useLatch"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
 import { PlanLabelDot } from "@/components/project/PlanLabelDot"
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxList, ComboboxTrigger } from "@/components/ui/combobox"
@@ -27,7 +28,7 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { displayNameOf, personKeywords } from "@/lib/personName"
 import { useProjectMembers } from "@/hooks/useProjectMembers"
-import { MOST_PLAN_LABELS, PLAN_CATEGORIES, categoryKind, nextLabelColor, spanWords, type PlanField, type PlanMember, type PlanPick, type PlanRegistry, type ProjectPlan } from "@/lib/work/projectPlan"
+import { MOST_PLAN_LABELS, PLAN_CATEGORIES, categoryKind, mayLead, nextLabelColor, spanWords, type PlanField, type PlanMember, type PlanPick, type PlanRegistry, type ProjectPlan } from "@/lib/work/projectPlan"
 
 const PlanPopover = dynamic(() => import("@/components/project/ProjectPlanPickers").then((m) => m.PlanPopover), { ssr: false })
 /** Fetches the pickers' chunk as the pointer or the focus reaches a chip that opens one, so a first open doesn't wait. */
@@ -240,14 +241,13 @@ function StatusPicker({ plan, registry, registryError, onPick, opened, chipEl }:
  * Once opened it keeps the read, so the list stays whole while it closes (its fade, or the sheet's slide at 390).
  */
 function LeadPicker({ plan, projectId, membersError, onPick, opened, chipEl }: PickerProps & Pick<PlanChipsProps, "projectId" | "membersError">) {
-  const [asked, setAsked] = useState(false)
-  if (opened.open && !asked) setAsked(true)
+  const asked = useLatch(opened.open)
   const read = useProjectMembers(asked ? projectId : undefined)
   const members: PlanMember[] | undefined = read.members
   const people = useMemo(
     () =>
       (members ?? [])
-        .filter((m) => !m.is_external && !m.is_bot && m.user_project_role !== "viewer" && m.user_project_role !== "commenter")
+        .filter(mayLead)
         .sort((a, b) => nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: "base" })),
     [members],
   )

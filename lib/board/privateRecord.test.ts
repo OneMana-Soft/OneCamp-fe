@@ -109,7 +109,7 @@ describe("one browser's record, kept by a member's tabs (V-494)", () => {
     notes.publicText = { t1: "", t2: "" }
     notes.real.t1 = words("t1", "c1", "One")
     notes.real.t2 = words("t2", "c2", "Two")
-    expect(withoutHeld(notes, ["t1"])).toEqual({ round: "r1", publicText: { t2: "" }, real: { t2: notes.real.t2 } })
+    expect(withoutHeld(notes, ["t1"])).toEqual({ round: "r1", publicText: { t2: "" }, real: { t2: notes.real.t2 }, face: {} })
     expect(withoutHeld(notes, ["t1", "t2"])).toBeNull()
     expect(notes.publicText).toEqual({ t1: "", t2: "" })
   })

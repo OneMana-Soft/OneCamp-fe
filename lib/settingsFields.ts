@@ -33,6 +33,7 @@ export const SETTINGS_FIELDS: SettingsField[] = [
   row("notifications", "Only when I'm away", "email_only_when_offline", { keywords: ["offline", "away"] }),
   row("notifications", "Activity digest", "digest", { keywords: ["summary", "daily", "weekly"] }),
   row("notifications", "Hold notifications during quiet hours", "quiet_hours_enabled", { keywords: ["do not disturb", "dnd", "night"] }),
+  row("notifications", "Test notifications", "notify_test", { keywords: ["send me a test", "why", "not getting", "push"] }),
   row("notifications", "Send and see read receipts", "read-receipts", { keywords: ["seen"] }),
   row("notifications", "Record my views", "record-views", { keywords: ["viewed by", "page views", "privacy"] }),
   row("notifications", "Keywords", "notify-keywords", { keywords: ["alert", "words"] }),

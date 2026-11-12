@@ -8,15 +8,17 @@
 //   7x7 while a tile stays at least 160x90; past that, pages.
 // - The focus: your pin, else what is presented (the board alone when it went
 //   up last, else every share together, oldest first: the newest four, or a
-//   phone's newest one), else the spotlight, else whoever speaks, else the
-//   first tile. A presentation that begins clears your pin
-//   (presentationOrder), so it takes the stage from it.
+//   phone's newest one), else your call's ring while it shows, else the
+//   spotlight, else whoever speaks, else the first tile. A presentation that
+//   begins clears your pin (presentationOrder), so it takes the stage from it,
+//   and from the ring, which keeps the strip's first place (V-779: it held
+//   the stage over a board put up while it rang).
 // - The strip: whoever fits beside the focus, then "+N". A narrow stage (a
 //   phone's) holds one share in focus and three people and "+N" in its strip,
-//   in square places, and gives a board the whole stage. A share in focus
-//   there takes the stage's width, the strip a row under it, wherever that
-//   draws the share bigger (V-233: beside the strip a 366 px stage drew a
-//   slide 254 px wide).
+//   in square places, and gives a board the whole stage, but for a row under
+//   it while your call rings. A share in focus there takes the stage's width,
+//   the strip a row under it, wherever that draws the share bigger (V-233:
+//   beside the strip a 366 px stage drew a slide 254 px wide).
 
 /** Something on the stage: a person's camera or shared screen (`identity|source`, a tile's data-flip-key), or the board (`board:uuid`). */
 export type StageKey = string
@@ -50,6 +52,11 @@ export type StageInput = {
   board?: StageKey | null
   /** What you pinned for yourself. A presentation that begins clears it (presentationOrder's `began`). */
   pin?: StageKey | null
+  /**
+   * Your call ringing them while you are alone in it (CallerRinging's RING_PLACE): a place of its own, first among the
+   * people, where the one you call will be; in focus after your pin and what is presented.
+   */
+  ring?: StageKey | null
   /** Whom the people running the call put in the spotlight: everyone's pin (Call Control). */
   spotlight?: StageKey | null
   /** Who speaks now. */
@@ -134,7 +141,7 @@ export function presentationOrder(prev: StageKey[], now: StageKey[]): { order: S
 
 /** What the stage draws. Pure. */
 export function stageLayout(i: StageInput): StageLayout {
-  const all = [...new Set([...i.presenting, ...i.tiles])]
+  const all = [...new Set([...i.presenting, ...(i.ring ? [i.ring] : []), ...i.tiles])]
   const here = new Set(all)
   const has = (k?: StageKey | null): k is StageKey => !!k && here.has(k)
   const narrow = i.viewport.w < NARROW_BELOW
@@ -160,15 +167,16 @@ export function stageLayout(i: StageInput): StageLayout {
       if (newest === board) return [newest]
       return i.presenting.filter((k) => k !== board).slice(-(narrow ? MAX_SHARES.narrow : MAX_SHARES.wide))
     }
-    for (const k of [i.spotlight, i.speaker]) if (has(k)) return [k]
+    for (const k of [i.ring, i.spotlight, i.speaker]) if (has(k)) return [k]
     return all.slice(0, 1)
   })()
 
   const shown = new Set(focus)
   const others = all.filter((k) => !shown.has(k))
   const w = narrow ? STRIP_W.narrow : STRIP_W.wide
-  // A board on a phone's stage takes all of it; the people are in People.
-  const aside = narrow && focus.length === 1 && focus[0] === board
+  // A board on a phone's stage takes all of it; the people are in People. While your call rings, the ring keeps a
+  // place in sight: a row under the board, as under a share (below), and the board keeps the stage's width.
+  const aside = narrow && focus.length === 1 && focus[0] === board && !has(i.ring)
   // Whoever fits in `places`, then "+N" for the rest (never a "+1").
   const fill = (places: number) =>
     others.length <= places ? { keys: others, more: 0 } : { keys: others.slice(0, places - 1), more: others.length - (places - 1) }
@@ -181,8 +189,8 @@ export function stageLayout(i: StageInput): StageLayout {
   // A shared screen on a phone's stage: the strip goes under it, a row of the strip's four places (three people and
   // "+N", or four when they are all), squares as wide as the row allows, wherever that draws the share bigger than
   // beside the strip (V-233). A share beginning so moves no one out of the strip. A person in focus keeps the strip
-  // beside them (DESIGN-BUILD-54), and a board has the whole stage.
-  if (besideIt > 0 && narrow && focus.every((k) => k !== board && i.presenting.includes(k))) {
+  // beside them (DESIGN-BUILD-54), and a board has the whole stage (aside), or this row while your call rings.
+  if (besideIt > 0 && narrow && focus.every((k) => i.presenting.includes(k))) {
     const side = px((i.viewport.w - (NARROW_STRIP_PLACES - 1) * STAGE_GAP) / NARROW_STRIP_PLACES)
     const under = fitTiles(focus.length, { w: i.viewport.w, h: i.viewport.h - side - STAGE_GAP }, { max: MAX_SHARES.wide })
     if (under.tile.w > fit.tile.w) {
@@ -191,4 +199,46 @@ export function stageLayout(i: StageInput): StageLayout {
     }
   }
   return { focus: { keys: focus, cols: fit.cols, rows: fit.rows, tile: fit.tile }, grid: null, strip: { ...beside, w, tile, below: false } }
+}
+
+/** What a call's room says of its stage, the same for everyone in it: everyone's camera, what is presented in the order it began, the board, the spotlight and who speaks. */
+export type RoomStage = {
+  cameras: StageKey[]
+  presenting: StageKey[]
+  board?: StageKey | null
+  /** Whom the people running the call put in the spotlight (the room's metadata, callState), by identity. */
+  spotlight?: string | null
+  speaker?: StageKey | null
+}
+/**
+ * How one screen looks at the room's stage: its own pin, its own call's ring while it shows (a caller's, never the
+ * room's: the recording has none), grid or speaker, its room for tiles and its page.
+ */
+export type StageView = Pick<StageInput, "pin" | "ring" | "mode" | "viewport" | "page">
+
+/** A person's camera on the stage (LiveKit's Track.Source.Camera): the spotlight puts someone's camera in focus. */
+const CAMERA = "camera"
+
+/** What a screen draws of the room's stage: the call's, and its recording's (S4). The one way in to stageLayout. Pure. */
+export function roomStageLayout(room: RoomStage, view: StageView): StageLayout {
+  return stageLayout({
+    tiles: room.cameras,
+    presenting: room.presenting,
+    board: room.board,
+    spotlight: room.spotlight ? stageKey(room.spotlight, CAMERA) : null,
+    speaker: room.speaker,
+    ...view,
+  })
+}
+
+/** The recording's frame at egress's default preset (1080p): LiveKit opens the recording's page at its size. */
+export const RECORDING_VIEWPORT: Size = { w: 1920, h: 1080 }
+
+/**
+ * How the recording looks at the room's stage: as a screen on the call that pinned nothing and stays on the
+ * grid's first page, in the mode the call takes by itself (a spotlight, or a share that begins, puts it in
+ * speaker; else the grid). Pure.
+ */
+export function recordingView(room: RoomStage, viewport: Size = RECORDING_VIEWPORT): StageView {
+  return { pin: null, mode: room.spotlight || room.presenting.length > 0 ? "speaker" : "grid", viewport, page: 0 }
 }

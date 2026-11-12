@@ -86,3 +86,22 @@ describe("a copy of a board's elements", () => {
     expect(c.points).toEqual(line.points)
   })
 })
+
+describe("a template or a file with a crafted element in it (V-547)", () => {
+  it("lays only what a board draws, and nothing it lays points at what it left out", () => {
+    const crafted: CopyableElement[] = [
+      el("page", "magicframe", -20, -20, { width: 500, height: 300 }),
+      el("form", "iframe", 0, 0, { frameId: "page", customData: { generationData: { status: "done", html: "<form action=https://x.example>" } }, boundElements: [{ id: "label", type: "text" }] }),
+      el("label", "text", 10, 10, { containerId: "form", frameId: "page" }),
+      el("box", "rectangle", 200, 0, { frameId: "page", boundElements: [{ id: "label", type: "text" }] }),
+      el("odd", "script", 300, 0),
+    ]
+    const copies = copyElements(crafted, "t", 0, 0)
+    expect(copies.map((e) => e.type)).toEqual(["text", "rectangle"])
+    for (const c of copies) {
+      expect(c.frameId ?? null).toBeNull()
+      expect(c.containerId ?? null).toBeNull()
+    }
+    expect(copies[1].boundElements).toEqual([{ id: copies[0].id, type: "text" }])
+  })
+})

@@ -9,8 +9,9 @@
  * camera follows it (useStageSlide), guests' too; between moves each person
  * pans and zooms as they like.
  *
- * The bar: for a mover, Previous, the slide (a list of every slide and the
- * whole board) and Next, with PageUp and PageDown from anywhere but a field
+ * The bar (components/board/slideBar, one with a board's own slides): for a
+ * mover, Previous, the slide (a list of every slide and the whole board) and
+ * Next, with PageUp and PageDown from anywhere but a field
  * (a presenter's clicker sends those) and the arrow keys on the board while
  * nothing on it is selected (Excalidraw nudges a selection with them). For
  * everyone else, "Slide 3 of 8", which shows the slide again after a pan.
@@ -20,8 +21,9 @@
 import * as React from "react"
 import type * as Y from "yjs"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { notForTheBoard } from "@/components/board/boardKeys"
 import { holdFrame, type FrameHold } from "@/components/board/presentFrame"
+import { SlideBar, slideWords, useSlideSteps, type SlideScene } from "@/components/board/slideBar"
+import { useBoardDeck } from "@/components/board/useBoardDeck"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,18 +33,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useSceneElements } from "@/hooks/useSceneElements"
 import { frameDrawing } from "@/lib/board/camera"
-import { frameOrderOf } from "@/lib/board/frames"
-import { deckOf, slidePlace, stepSlide, type SceneFrame, type Slide } from "@/lib/calls/slides"
-import { ChevronDown, ChevronLeft, ChevronRight } from "@/lib/icons"
+import { slidePlace, type Slide } from "@/lib/calls/slides"
+import { ChevronDown } from "@/lib/icons"
 import type { CallAct } from "./callHosting"
 import { CALL_SURFACE, STAGE_OVERLAY } from "./callSurface"
 
+export type { SlideScene }
 /** What the stage's camera uses of Excalidraw's API (a test passes a stand-in). */
 export type SlideCamera = Pick<ExcalidrawImperativeAPI, "getSceneElements" | "onChange" | "scrollToContent" | "getAppState">
-/** What the bar reads of it: the scene, and whether anything on it is selected. */
-export type SlideScene = Pick<ExcalidrawImperativeAPI, "getSceneElements" | "onChange" | "getAppState">
 /** The call's pills on the board (CallBoardStage's and CallGuestBoardStage's bar): a slide keeps clear of them while they float over the canvas. */
 const PILLS = "[data-board-bar]"
 
@@ -116,20 +115,6 @@ export function useStageSlide(api: SlideCamera | null, board: string, slide: str
   }, [slide])
 }
 
-/** The frames' order the board keeps (the Frames panel's), live for everyone; null when none is kept. */
-function useFrameOrder(doc: Y.Doc | undefined): string[] | null {
-  const [order, setOrder] = React.useState<string[] | null>(null)
-  React.useEffect(() => {
-    if (!doc) return
-    const meta = doc.getMap<unknown>("boardMeta")
-    const read = () => setOrder(frameOrderOf(meta))
-    read()
-    meta.observe(read)
-    return () => meta.unobserve(read)
-  }, [doc])
-  return order
-}
-
 /**
  * Moves the slide for everyone: one ask in flight, the newest press winning
  * (a clicker's quick presses go as one move, to where they ended). Steps
@@ -163,60 +148,23 @@ function useSlideMoves(act: CallAct, slide: string) {
   return { go, from }
 }
 
-/** PageUp and PageDown from anywhere but a field, a dialog or a menu; the arrows on the board while nothing on it is selected. */
-function useSlideKeys(api: SlideScene, stage: React.RefObject<HTMLElement | null>, step: (by: 1 | -1) => void) {
-  React.useEffect(() => {
-    const onTheBoard = (e: KeyboardEvent) => {
-      const t = e.target
-      const here = t === document.body || (t instanceof Node && !!stage.current?.contains(t))
-      return here && !Object.values(api.getAppState().selectedElementIds).some(Boolean)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || notForTheBoard(e)) return
-      const by = e.key === "PageDown" || (e.key === "ArrowRight" && onTheBoard(e)) ? 1 : e.key === "PageUp" || (e.key === "ArrowLeft" && onTheBoard(e)) ? -1 : 0
-      if (!by) return
-      // Before Excalidraw, which scrolls the canvas on PageUp and PageDown.
-      e.preventDefault()
-      e.stopPropagation()
-      step(by)
-    }
-    window.addEventListener("keydown", onKey, true)
-    return () => window.removeEventListener("keydown", onKey, true)
-  }, [api, stage, step])
-}
-
 const ARROW = `${STAGE_OVERLAY} grid size-8 shrink-0 place-items-center focus-visible:outline-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4`
 /** Never a slide's id (lib/calls/slideId SLIDE_ID): the list's row for the whole board. */
 const WHOLE = "*"
 
 function SlideMover({ api, deck, slide, act, stage, refit }: { api: SlideScene; deck: readonly Slide[]; slide: string; act: CallAct; stage: React.RefObject<HTMLElement | null>; refit: () => void }) {
   const { go, from } = useSlideMoves(act, slide)
-  // The deck is read when a key is pressed: drawing changes it, and the keys stay bound.
-  const deckNow = React.useRef(deck)
-  React.useEffect(() => {
-    deckNow.current = deck
-  }, [deck])
-  const step = React.useCallback(
-    (by: 1 | -1) => {
-      const to = stepSlide(deckNow.current, from(), by)
-      if (to !== null) void go(to)
-    },
-    [from, go],
-  )
-  useSlideKeys(api, stage, step)
+  const step = useSlideSteps(api, stage, deck, from, (to) => void go(to))
   const place = slidePlace(deck, slide)
   // Picking the room's slide shows it again (after a pan); any other goes to everyone, Whole board too
   // while the room is on a slide that's no longer on the board.
   const pick = (to: string) => (to === slide ? refit() : void go(to))
   return (
-    <div role="group" aria-label="Slides" data-touch-group="32" className="flex shrink-0 items-center gap-1">
-      <button type="button" data-touch-target className={ARROW} aria-label="Previous slide" disabled={stepSlide(deck, slide, -1) === null} onClick={() => step(-1)}>
-        <ChevronLeft aria-hidden />
-      </button>
+    <SlideBar deck={deck} slide={slide} step={step} arrow={ARROW}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" data-touch-target className={`${STAGE_OVERLAY} flex h-8 min-w-0 max-w-[26ch] items-center gap-1.5 px-2.5 text-ui-sm tabular-nums focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-4 [&_svg]:shrink-0`}>
-            <span className="truncate">{place ? `${place.at} of ${place.of}${place.name ? ` · ${place.name}` : ""}` : "Whole board"}</span>
+            <span className="truncate">{slideWords(deck, slide)}</span>
             <ChevronDown aria-hidden />
           </button>
         </DropdownMenuTrigger>
@@ -236,17 +184,14 @@ function SlideMover({ api, deck, slide, act, stage, refit }: { api: SlideScene; 
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <button type="button" data-touch-target className={ARROW} aria-label="Next slide" disabled={stepSlide(deck, slide, 1) === null} onClick={() => step(1)}>
-        <ChevronRight aria-hidden />
-      </button>
-    </div>
+    </SlideBar>
   )
 }
 
 /**
  * The stage's slides: the mover's bar, or everyone else's "Slide 3 of 8"
- * (none on the whole board), and the slide said to a screen reader as it
- * moves. Nothing while the board has no frames.
+ * (none on the whole board), and the slide, or the whole board, said to a
+ * screen reader as it moves. Nothing while the board has no frames.
  */
 export function StageSlides({
   api,
@@ -269,12 +214,10 @@ export function StageSlides({
   /** The stage's frame: the arrow keys move slides from inside it. */
   stage: React.RefObject<HTMLElement | null>
 }) {
-  const elements = useSceneElements<SceneFrame>(api)
-  const order = useFrameOrder(doc)
-  const deck = React.useMemo(() => deckOf(elements, order), [elements, order])
+  const deck = useBoardDeck(api, doc)
   if (deck.length === 0) return null
   const place = slidePlace(deck, slide)
-  const said = place ? `Slide ${place.at} of ${place.of}${place.name ? `, ${place.name}` : ""}` : ""
+  const said = place ? `Slide ${place.at} of ${place.of}${place.name ? `, ${place.name}` : ""}` : "Whole board"
   return (
     <>
       {moves && act ? (

@@ -11,6 +11,10 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 export interface ThreadFollow {
   /** Whether the reader follows it now; undefined until known. */
   following?: boolean
+  /** True while the standing is first being read. */
+  loading: boolean
+  /** What choosing it does: "Follow thread" or "Unfollow thread". */
+  label: string
   /** Follows or unfollows it: at once on screen, put back with a toast when the server says no. */
   toggle: () => Promise<void>
 }
@@ -21,12 +25,13 @@ export interface ThreadFollow {
  */
 export function useThreadFollow(root: string | undefined): ThreadFollow {
   const key = root ? threadFollowKey(root) : ""
-  const { data, mutate } = useFetch<{ data: ThreadChoice }>(key, undefined, undefined, OWN_ERRORS)
+  const { data, mutate, isLoading } = useFetch<{ data: ThreadChoice }>(key, undefined, undefined, OWN_ERRORS)
   const { toast } = useToast()
   const following = data?.data?.following
 
   const toggle = useCallback(async () => {
-    if (!root) return
+    // Whether the reader follows isn't known while the standing loads: a tap then must not guess.
+    if (!root || isLoading) return
     const on = !following
     const before = data
     void mutate({ data: { root, following: on, follow: on ? "on" : "off" } }, { revalidate: false })
@@ -42,7 +47,7 @@ export function useThreadFollow(root: string | undefined): ThreadFollow {
         variant: "destructive",
       })
     }
-  }, [root, following, data, mutate, toast])
+  }, [root, isLoading, following, data, mutate, toast])
 
-  return { following, toggle }
+  return { following, loading: !!isLoading, label: following ? "Unfollow thread" : "Follow thread", toggle }
 }

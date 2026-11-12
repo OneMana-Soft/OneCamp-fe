@@ -4,6 +4,7 @@ import { EDITORS_CHOSEN, READ_ONLY_WORDS } from "@/lib/tables/tableEdit"
 import type { TableField, TableRow } from "@/services/tableService"
 import type { BatchResult } from "@/lib/tables/ledger"
 import type { CellsRecord, CellsWrite } from "@/lib/tables/cellsWrite"
+import { saysWriteFailure, wasSaid } from "@/lib/http/writeSaid"
 
 // The grid's one edit path, as each test's stand-in (writes().commitCells).
 const into = vi.hoisted(() => ({ commit: (c: CellsWrite): Promise<unknown> => Promise.reject(c) }))
@@ -37,7 +38,7 @@ function writes(canEdit: boolean) {
     onChange: vi.fn(),
     onCreated: vi.fn(),
     select,
-    cells: {} as CellsRecord,
+    cells: { said: wasSaid } as unknown as CellsRecord,
     press: vi.fn(),
     say,
     batch,
@@ -203,5 +204,24 @@ describe("a range's write through the grid's one edit path (V-360)", () => {
     Object.assign(w, { failure: () => ({ message: "The table is busy" }) })
     await fillCells(w, { left: 0, right: 0, source: { top: 0, bottom: 0 }, to: { top: 1, bottom: 2 }, copy: true })
     expect(say).toHaveBeenCalledWith({ tone: "error", title: "Couldn't fill those cells", description: "The table is busy" })
+  })
+
+  // V-617: a write the server asked to have again later (503) is kept and said by the edit path, with Retry; the
+  // range says nothing more, and its Retry is the same write of only the cells still kept, with its new rows.
+  it("a write the edit path kept and said (503) is said no more, and its Retry sends one batch of the cells still kept, as sent, with its new rows", async () => {
+    const { w, say, batch, commitCells } = writes(true)
+    const kept = Object.assign(new Error("Request failed with status code 503"), { response: { status: 503 } })
+    saysWriteFailure(kept)
+    commitCells.mockRejectedValueOnce(kept)
+    await pasteCells(w, { text: "x\ty\nz\tq\nm\tn", html: "" }, { top: 1, left: 0, bottom: 1, right: 0 })
+    expect(say, "said once, by the edit path's Retry").not.toHaveBeenCalled()
+    expect(batch).not.toHaveBeenCalled()
+    const c = commitCells.mock.calls[0][0]
+    expect(c.again, "a kept write's Retry").toBeTypeOf("function")
+    // r1 edited since: only r2's cells are still kept, and the paste's new row goes with them.
+    await c.again!([{ row: ROWS[2], values: { a: "z", b: "q" } }], true)
+    expect(batch).toHaveBeenCalledTimes(1)
+    expect(batch).toHaveBeenCalledWith({ kind: "paste", patch: [{ row: "r2", values: { a: "z", b: "q" } }], create: [{ values: { a: "m", b: "n" } }] })
+    expect(w.offerUndo).toHaveBeenCalledTimes(1)
   })
 })

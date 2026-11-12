@@ -10,6 +10,8 @@ const invite = vi.fn()
 vi.mock("@/services/invitationService", () => ({ invite }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copied: false, copy: vi.fn(async () => true) }) }))
+const server = { email_enabled: true }
+vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => server }))
 
 const { MemberInviteDialog } = await import("./MemberInviteDialog")
 
@@ -17,6 +19,34 @@ afterEach(() => {
   cleanup()
   invite.mockReset()
   toast.mockReset()
+  server.email_enabled = true
+})
+
+describe("a member inviting someone on a server that can't send email", () => {
+  it("promises no email when the server can't send", () => {
+    server.email_enabled = false
+    render(<MemberInviteDialog open onOpenChange={vi.fn()} />)
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.textContent).toContain("This server can't send email yet, so you'll get a link to share with each person yourself.")
+    expect(dialog.textContent).not.toMatch(/gets an email/)
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "ana@example.com" } })
+    expect(screen.getByRole("button", { name: "Create invitation" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /send invitation/i })).toBeNull()
+  })
+
+  it("says once, over the rows, that email isn't set up, and leaves each ready row without a reason", async () => {
+    server.email_enabled = false
+    invite
+      .mockResolvedValueOnce({ ok: true, answer: { email_sent: false, email_error: "email isn't set up on this server", invite_link: "https://x/a" } })
+      .mockResolvedValueOnce({ ok: true, answer: { email_sent: false, email_error: "email isn't set up on this server", invite_link: "https://x/b" } })
+    render(<MemberInviteDialog open onOpenChange={vi.fn()} />)
+    fireEvent.paste(screen.getByLabelText(/email address/i), { clipboardData: { getData: () => "ana@example.com, bo@example.com" } })
+    fireEvent.submit(screen.getByRole("button", { name: "Create 2 invitations" }).closest("form")!)
+    expect(await screen.findByText("2 to share by link")).toBeTruthy()
+    // A member can't set up email, so the line doesn't send them to Admin.
+    expect(screen.getAllByText("Email isn't set up yet. Share these links yourself.")).toHaveLength(1)
+    expect(screen.queryByText(/Couldn't email/)).toBeNull()
+  })
 })
 
 describe("a member inviting someone", () => {
@@ -128,10 +158,11 @@ describe("the invite dialog's chips", () => {
 
 describe("the seat line", () => {
   it("says how many places are left and how many won't fit, only when they don't", async () => {
-    const { seatLine } = await import("./InviteForm")
-    expect(seatLine(2, 5)).toBe("")
-    expect(seatLine(5, 3)).toBe("3 places left on the free plan. 2 of these won't fit.")
-    expect(seatLine(1, 0)).toBe("No places left on the free plan. 1 of these won't fit.")
-    expect(seatLine(9, undefined)).toBe("")
+    // With the seat meter's words, so the shared limit note can say it too.
+    const { seatOverflowLine } = await import("@/lib/people/seatWords")
+    expect(seatOverflowLine(2, 5)).toBe("")
+    expect(seatOverflowLine(5, 3)).toBe("3 places left on the free plan. 2 of these won't fit.")
+    expect(seatOverflowLine(1, 0)).toBe("No places left on the free plan. 1 of these won't fit.")
+    expect(seatOverflowLine(9, undefined)).toBe("")
   })
 })

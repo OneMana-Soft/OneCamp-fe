@@ -14,8 +14,9 @@
  * when it fails, the control springs back and the row says why. The Read
  * receipts card reads and updates this same answer.
  *
- * Email off for the person: the event rows stay where they are, dimmed and
- * disabled, under one line, so the page never jumps. Email off on the server
+ * Email off for the person: the event rows, and "Only when I'm away" over
+ * them, stay where they are, dimmed and disabled, under one line, so the
+ * page never jumps. Email off on the server
  * (no provider configured): said once, at the top; a request that FAILED is
  * not that, and says the load failed with Try again.
  *
@@ -54,6 +55,9 @@ type Preferences = {
   email_task_status: boolean
   email_comments: boolean
   email_calls: boolean
+  email_calendar_invites: boolean
+  email_calendar_changes: boolean
+  email_calendar_answers: boolean
   email_channel_invites: boolean
   email_only_when_offline: boolean
   email_digest_frequency: "off" | "daily" | "weekly"
@@ -75,6 +79,9 @@ const DEFAULTS: Preferences = {
   email_task_status: true,
   email_comments: true,
   email_calls: true,
+  email_calendar_invites: true,
+  email_calendar_changes: true,
+  email_calendar_answers: true,
   email_channel_invites: true,
   email_only_when_offline: true,
   email_digest_frequency: "off",
@@ -83,6 +90,9 @@ const DEFAULTS: Preferences = {
   quiet_hours_end: null,
   quiet_hours_tz: null,
 }
+
+/** An event's switch: one of the on/off keys. */
+type EmailEvent = { key: { [K in Key]: Preferences[K] extends boolean ? K : never }[Key]; label: string; help: string }
 
 /** The events, in the order people think of them. */
 export const EMAIL_EVENTS = [
@@ -93,7 +103,24 @@ export const EMAIL_EVENTS = [
   { key: "email_comments", label: "Comments and replies", help: "On posts, docs, tasks or threads you're part of." },
   { key: "email_calls", label: "Calls", help: "A call starts in a channel or chat you're in." },
   { key: "email_channel_invites", label: "Channel and project invites", help: "You're added to a new space." },
-] as const satisfies ReadonlyArray<{ key: Key; label: string; help: string }>
+] as const satisfies ReadonlyArray<EmailEvent>
+
+/**
+ * The calendar's, by kind (gcal-5), as Google lets each person choose. A
+ * booking of your time is an invitation, a cancellation a change. A reminder
+ * by email is your own ask, on the event or as a default, so it has no switch.
+ */
+export const CALENDAR_EMAIL_EVENTS = [
+  { key: "email_calendar_invites", label: "Invitations and bookings", help: "You're invited to an event, or someone books time with you." },
+  { key: "email_calendar_changes", label: "Changes and cancellations", help: "An event you're in moves, changes or is cancelled." },
+  { key: "email_calendar_answers", label: "Replies to my events", help: "Someone answers an invitation you sent." },
+] as const satisfies ReadonlyArray<EmailEvent>
+
+/** The events' groups, in order: the first under the switch above it, the rest under their names. */
+const EMAIL_GROUPS: ReadonlyArray<{ title?: string; events: ReadonlyArray<EmailEvent> }> = [
+  { events: EMAIL_EVENTS },
+  { title: "Calendar", events: CALENDAR_EMAIL_EVENTS },
+]
 
 const DIGEST_OPTIONS = [
   { value: "off", label: "Off" },
@@ -291,33 +318,50 @@ export function NotificationPreferencesCard() {
               </p>
             )}
             <div className={cn("you-events-body", masterOff && "opacity-50")}>
+              {/* It holds back every email, so it comes first, under the
+                  master switch and dimmed with it, never under the last
+                  group as one of its switches (DESIGN-BUILD-121 F1). */}
+              <div className="you-event-rows">
+                <SwitchRow
+                  id="email_only_when_offline"
+                  label="Only when I'm away"
+                  description="Skip the email if you're active in OneCamp on any device."
+                  checked={working.email_only_when_offline}
+                  disabled={masterOff}
+                  status={statuses.email_only_when_offline}
+                  onChange={(v) => change("email_only_when_offline", v)}
+                />
+              </div>
               {/* A switch per event on a computer and a phone alike: the
                   computer's was a one-column table of checkboxes (QA F-33). */}
-              <div className="you-event-rows">
-                {EMAIL_EVENTS.map((ev) => (
-                  <SwitchRow
-                    key={ev.key}
-                    id={ev.key}
-                    label={ev.label}
-                    description={ev.help}
-                    checked={working[ev.key]}
-                    disabled={masterOff}
-                    status={statuses[ev.key]}
-                    onChange={(v) => change(ev.key, v)}
-                  />
-                ))}
-              </div>
+              {EMAIL_GROUPS.map((group) => (
+                <div
+                  key={group.title ?? ""}
+                  role={group.title ? "group" : undefined}
+                  aria-labelledby={group.title ? `email-group-${group.title}` : undefined}
+                  className="you-event-rows"
+                >
+                  {group.title && (
+                    <h3 id={`email-group-${group.title}`} className="you-event-group">
+                      {group.title}
+                    </h3>
+                  )}
+                  {group.events.map((ev) => (
+                    <SwitchRow
+                      key={ev.key}
+                      id={ev.key}
+                      label={ev.label}
+                      description={ev.help}
+                      checked={working[ev.key]}
+                      disabled={masterOff}
+                      status={statuses[ev.key]}
+                      onChange={(v) => change(ev.key, v)}
+                    />
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
-          <SwitchRow
-            id="email_only_when_offline"
-            label="Only when I'm away"
-            description="Skip the email if you're active in OneCamp on any device."
-            checked={working.email_only_when_offline}
-            disabled={masterOff}
-            status={statuses.email_only_when_offline}
-            onChange={(v) => change("email_only_when_offline", v)}
-          />
         </SettingsList>
       </SettingsSection>
 

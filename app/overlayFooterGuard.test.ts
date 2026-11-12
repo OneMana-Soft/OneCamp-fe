@@ -57,7 +57,6 @@ const PENDING: Record<string, string[]> = {
   "tasks and projects": [
     "components/dialog/createTaskDialog.tsx",
     "components/goals/GoalDialog.tsx",
-    "components/project/ProjectFieldsDialog.tsx",
     "components/project/ProjectRatesDialog.tsx",
     "components/project/ProjectShareDialog.tsx",
     "components/project/ProjectStatusesDialog.tsx",

@@ -10,7 +10,7 @@ import { SectionHeader } from "../SectionHeader"
 /**
  * Notifications (design v3, admin S2): one save model on the whole page,
  * instant, each row with its saved tick. The sections carry the ids Search
- * settings lands on: notifications-email, -digest, -quiet, -keywords,
+ * settings lands on: notifications-email, -digest, -quiet, -test, -keywords,
  * -read-receipts and -doc-views.
  */
 // Keywords and VIPs load after the page (their chips and people picker are
@@ -24,11 +24,21 @@ const KeywordsAndVipsCard = dynamic(() => import("@/components/notifications/Key
   ),
 })
 
+// Send me a test (A4 H3) rides the same chunk, with the panel it opens: its section's place, id and title hold it.
+const NotifyTestSection = dynamic(() => import("@/components/notifications/KeywordsAndVipsCard").then((m) => m.NotifyTestSection), {
+  loading: () => (
+    <SettingsSection id="notifications-test" title="Test" description="Check that notifications reach you, and see why or why not.">
+      <SettingsRowsSkeleton rows={1} control="button" />
+    </SettingsSection>
+  ),
+})
+
 export default function NotificationSettingsPage() {
   return (
     <div className={SETTINGS_STACK}>
       <SectionHeader href="/app/settings/notifications" />
       <NotificationPreferencesCard />
+      <NotifyTestSection />
       <KeywordsAndVipsCard />
       <ReadReceiptsCard />
       <DocViewsCard />

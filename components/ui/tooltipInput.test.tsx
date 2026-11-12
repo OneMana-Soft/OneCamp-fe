@@ -4,7 +4,11 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import { SCREENS, putOnScreen, type ScreenName } from "@/lib/testing/screens"
 import { MediaQueryProvider } from "@/context/MediaQueryContext"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, warmTooltip } from "@/components/ui/tooltip"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
+
+// Its asserts are synchronous under fake timers: the Radix side is here before they start.
+warmBeforeTests(warmTooltip)
 
 // A TOOLTIP FOLLOWS THE INPUT, NOT THE WIDTH (21 Oct 2026). It read the width
 // (isMobile, under 640px), so a phone held sideways (844x390) and a tablet
@@ -84,8 +88,8 @@ for (const name of TOUCH) {
       wait(520)
       expect(label()?.textContent, "a long press").toContain("More actions")
       fireEvent.touchEnd(more)
-      // The click a phone sends as the finger lifts.
-      fireEvent.click(more)
+      // The click a phone sends as the finger lifts (detail 1: a key's is 0).
+      fireEvent.click(more, { detail: 1 })
       expect(pressed).not.toHaveBeenCalled()
       expect(label()?.textContent, "lifted").toContain("More actions")
       wait(20)

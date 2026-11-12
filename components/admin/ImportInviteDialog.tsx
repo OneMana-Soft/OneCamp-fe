@@ -40,6 +40,9 @@ import {
 } from "@/services/importService"
 import { AdminGet } from "@/services/endpoints/admin"
 import { emailLine, initialSelection, inviteSummary, MANY_TO_INVITE, notListedLine, roomForAnother, roomSelection, seatLine } from "@/lib/importInvites"
+import { usePlan } from "@/hooks/usePlan"
+import { LimitNote } from "@/components/admin/plan/LimitNote"
+import { seatNoteDue } from "@/lib/people/seatWords"
 
 interface Props {
   jobId: string
@@ -53,6 +56,8 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
   const { data, isError, isLoading, mutate } = useFetch<ImportPeople>(open ? importPeopleKey(jobId) : "", undefined, undefined, OWN_ERRORS)
   const people = useMemo(() => data?.people ?? [], [data])
   const seats = data?.seats ?? { used: 0, limit: 0, left: null }
+  // The ways past the limit, from the plan; the figures are this list's own.
+  const { links } = usePlan({ enabled: open })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [run, setRun] = useState<InviteRun | null>(null)
@@ -91,9 +96,10 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
   }
 
   const sending = progress !== null
-  const seatsText = data ? seatLine(seats) : null
+  const seatsText = data ? seatLine(seats, people.length) : null
   const notListed = data ? notListedLine(data) : ""
   const count = selected.size
+  const seatsDue = seats.limit > 0 && (seatNoteDue(seats.used, seats.limit, count) || people.length > (seats.left ?? 0))
   const emailText = data ? emailLine(data.email, count) : null
 
   return (
@@ -133,9 +139,12 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
           </ul>
         ) : (
           <div className="space-y-3">
-            {seatsText && (
-              <p className={seats.left === 0 ? "text-sm text-danger-ink" : "text-sm text-muted-foreground"}>{seatsText}</p>
-            )}
+            {seatsText &&
+              (seatsDue ? (
+                <LimitNote.Part asAdmin used={seats.used} limit={seats.limit} sending={count} links={links} line={seatsText} />
+              ) : (
+                <p className="text-sm text-muted-foreground">{seatsText}</p>
+              ))}
             {emailText && <p className="text-sm text-muted-foreground">{emailText}</p>}
             {people.length > MANY_TO_INVITE && count === 0 && (
               <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">

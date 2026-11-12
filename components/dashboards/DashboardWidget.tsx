@@ -1,7 +1,8 @@
 "use client"
 
-// One widget on a dashboard (B9-b3): its frame, its name and, for its
-// keepers, its menu; inside, what the server worked out for the reader,
+// One widget on a dashboard (B9-b3): its frame, its name, the saved view it
+// reads (B9-b4), and its menu: a chart's CSV for every reader (linear-32), and
+// for its keepers, its changes; inside, what the server worked out for the reader,
 // drawn by the report's own pieces (SvgChart, components/reports/insightParts)
 // so a number reads the same here as on Reports.
 
@@ -14,11 +15,27 @@ import { Stat } from "@/components/reports/stat"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ArrowDown, ArrowUp, Ellipsis, Pencil, Trash2 } from "@/lib/icons"
-import { lastWeeks, metricText, MEASURES, widgetTitle, type MetricData, type Widget, type WidgetData } from "@/lib/dashboards"
+import { toast } from "@/hooks/use-toast"
+import { ArrowDown, ArrowUp, Download, Ellipsis, Pencil, Trash2 } from "@/lib/icons"
+import { CSV_KINDS, lastWeeks, metricText, MEASURES, widgetTitle, type MetricData, type Widget, type WidgetData } from "@/lib/dashboards"
 import type { GoalSummary } from "@/lib/goals"
 import { displayNameOf } from "@/lib/personName"
-import { flowChart, openOf, PRIORITY_LABEL, throughputChart, type FlowWeek, type Insights, type ReportPersonRow, type ReportPriorityRow, type ReportProjectRow, type Spread } from "@/lib/reports"
+import { effortLabel, effortUnit, SLICE_BY, sliceName, slicesBy } from "@/lib/reportInsights"
+import {
+  flowChart,
+  openOf,
+  PRIORITY_LABEL,
+  throughputChart,
+  type FlowWeek,
+  type InsightField,
+  type InsightSlice,
+  type Insights,
+  type ReportPersonRow,
+  type ReportPriorityRow,
+  type ReportProjectRow,
+  type SliceBy,
+  type Spread,
+} from "@/lib/reports"
 import { cn } from "@/lib/utils/helpers/cn"
 import { app_project_path } from "@/types/paths"
 
@@ -32,7 +49,7 @@ export interface WidgetActions {
 
 const FRAME = "flex h-full min-w-0 flex-col rounded-lg bg-raised px-5 pb-4 pt-3.5 shadow-e1"
 
-function Menu({ title, actions }: { title: string; actions: WidgetActions }) {
+function Menu({ title, actions, onCSV }: { title: string; actions?: WidgetActions; onCSV?: () => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -41,21 +58,41 @@ function Menu({ title, actions }: { title: string; actions: WidgetActions }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={actions.onEdit}>
-          <Pencil /> Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={actions.first} onSelect={() => actions.onMove(-1)}>
-          <ArrowUp /> Move earlier
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={actions.last} onSelect={() => actions.onMove(1)}>
-          <ArrowDown /> Move later
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={actions.onRemove}>
-          <Trash2 /> Remove
-        </DropdownMenuItem>
+        {onCSV && (
+          <DropdownMenuItem onSelect={onCSV}>
+            <Download /> Download CSV
+          </DropdownMenuItem>
+        )}
+        {onCSV && actions && <DropdownMenuSeparator />}
+        {actions && (
+          <>
+            <DropdownMenuItem onSelect={actions.onEdit}>
+              <Pencil /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={actions.first} onSelect={() => actions.onMove(-1)}>
+              <ArrowUp /> Move earlier
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={actions.last} onSelect={() => actions.onMove(1)}>
+              <ArrowDown /> Move later
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={actions.onRemove}>
+              <Trash2 /> Remove
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Saves a chart's rows as CSV; its code comes when it is first asked for. */
+function downloadCSV(widget: Widget, result: WidgetData) {
+  import("@/lib/dashboardCSV").then(
+    (m) => {
+      if (!m.downloadWidgetCSV(widget, result)) toast({ tone: "error", title: "The CSV couldn't be saved", description: "Try again in a moment." })
+    },
+    () => toast({ tone: "error", title: "The CSV couldn't load", description: "Check the connection and try again." }),
   )
 }
 
@@ -63,8 +100,10 @@ const count = (n: number) => n.toLocaleString()
 
 const onTimeNote = (data: MetricData) => (data.value === null ? "Nothing done had a due date" : "of the work done with a due date")
 
-function Metric({ data, title }: { data: MetricData; title: string }) {
+function Metric({ data, title, view }: { data: MetricData; title: string; view?: string }) {
   const unit = MEASURES.find((m) => m.value === data.measure)?.unit
+  // A tile over a saved view says which, on the Stat's note line (beside a percent's own note).
+  const note = [unit === "percent" ? onTimeNote(data) : "", view ? `From ${view}` : ""].filter(Boolean).join(" · ") || undefined
   // Reports' own figure at its tile size: the number is the tile's hero, at its foot under the label.
   return (
     <dl className="h-full">
@@ -76,63 +115,63 @@ function Metric({ data, title }: { data: MetricData; title: string }) {
           size="tile"
         />
       ) : (
-        <Stat label={title} value={metricText(data)} note={unit === "percent" ? onTimeNote(data) : undefined} size="tile" />
+        <Stat label={title} value={metricText(data)} note={note} size="tile" />
       )}
     </dl>
   )
 }
 
-type Row = { key: string; name: React.ReactNode; open: number; overdue: number; done?: number }
+type Row = { key: string; name: React.ReactNode; open: React.ReactNode; overdue?: number; done?: React.ReactNode }
+type BreakdownData = { by: string; measure?: string; slices?: InsightSlice[]; rows?: unknown[] | null; field?: InsightField }
 
-function rowsOf(by: string, rows: unknown[]): Row[] {
-  if (by === "priority") {
-    return (rows as ReportPriorityRow[]).map((r) => ({ key: r.priority || "none", name: PRIORITY_LABEL[r.priority] ?? r.priority, open: r.open, overdue: r.overdue }))
+const projectLink = (id: string, name: string) => (
+  <Link href={`${app_project_path}/${id}`} className="hover:underline">
+    {name}
+  </Link>
+)
+
+/** A breakdown's rows: its slices (L32: any way, counted or by effort), or a server's before them, by project, person or priority. */
+function rowsOf(d: BreakdownData): Row[] {
+  if (d.slices) {
+    const unit = effortUnit({ slices: d.slices })
+    return slicesBy(d.slices, d.by as SliceBy).map((s) => {
+      const name = sliceName(s)
+      const shown = s.by === "project" && s.key ? projectLink(s.key, name) : name
+      if (d.measure === "effort") return { key: s.key, name: shown, open: effortLabel(s.effort?.open, unit), done: effortLabel(s.effort?.done, unit) }
+      return { key: s.key, name: shown, open: count(s.open ?? s.age.n), overdue: s.overdue ?? 0, done: count(s.done ?? s.lead.n) }
+    })
   }
-  if (by === "person") {
-    return (rows as ReportPersonRow[]).map((r) => ({
-      key: r.user_uuid ?? "nobody",
-      name: displayNameOf(r) || "Nobody",
-      open: openOf(r),
-      overdue: r.overdue,
-      done: r.done,
-    }))
+  const rows = d.rows ?? []
+  if (d.by === "priority") {
+    return (rows as ReportPriorityRow[]).map((r) => ({ key: r.priority || "none", name: PRIORITY_LABEL[r.priority] ?? r.priority, open: count(r.open), overdue: r.overdue }))
   }
-  return (rows as ReportProjectRow[]).map((r) => ({
-    key: r.project_uuid,
-    name: (
-      <Link href={`${app_project_path}/${r.project_uuid}`} className="hover:underline">
-        {r.project_name}
-      </Link>
-    ),
-    open: openOf(r),
-    overdue: r.overdue,
-    done: r.done,
-  }))
+  if (d.by === "person") {
+    return (rows as ReportPersonRow[]).map((r) => ({ key: r.user_uuid ?? "nobody", name: displayNameOf(r) || "Nobody", open: count(openOf(r)), overdue: r.overdue, done: count(r.done) }))
+  }
+  return (rows as ReportProjectRow[]).map((r) => ({ key: r.project_uuid, name: projectLink(r.project_uuid, r.project_name), open: count(openOf(r)), overdue: r.overdue, done: count(r.done) }))
 }
 
-function Breakdown({ data }: { data: { by: string; rows: unknown[] | null } }) {
-  const rows = rowsOf(data.by, data.rows ?? [])
-  const done = data.by !== "priority"
+function Breakdown({ data }: { data: BreakdownData }) {
+  const rows = rowsOf(data)
+  const effort = !!data.slices && data.measure === "effort"
+  const done = rows.some((r) => r.done !== undefined)
   if (rows.length === 0) return <p className="py-4 text-sm text-ink-2">Nothing open or done to count.</p>
+  const head = (label: string, w: string) => (
+    <th scope="col" className={cn(w, "pb-1.5 text-right font-[510]")}>
+      {label}
+    </th>
+  )
   return (
     <div className="min-h-0 overflow-y-auto">
-      <table className="w-full table-fixed text-xs" data-breakdown={data.by}>
+      <table className="w-full table-fixed text-xs" data-breakdown={data.by} data-measure={effort ? "effort" : "count"}>
         <thead className="text-left text-ink-3">
           <tr>
             <th scope="col" className="pb-1.5 font-[510]">
-              {data.by === "person" ? "Person" : data.by === "priority" ? "Priority" : "Project"}
+              {data.field?.name ?? SLICE_BY.find((s) => s.by === data.by)?.label ?? "Name"}
             </th>
-            <th scope="col" className="w-14 pb-1.5 text-right font-[510]">
-              Open
-            </th>
-            <th scope="col" className="w-16 pb-1.5 text-right font-[510]">
-              Overdue
-            </th>
-            {done && (
-              <th scope="col" className="w-14 pb-1.5 text-right font-[510]">
-                Done
-              </th>
-            )}
+            {head(effort ? "Effort open" : "Open", effort ? "w-24" : "w-14")}
+            {!effort && head("Overdue", "w-16")}
+            {done && head(effort ? "Effort done" : "Done", effort ? "w-24" : "w-14")}
           </tr>
         </thead>
         <tbody className="tabular-nums">
@@ -141,9 +180,9 @@ function Breakdown({ data }: { data: { by: string; rows: unknown[] | null } }) {
               <th scope="row" className="truncate py-1.5 pr-2 text-left text-sm font-normal">
                 {r.name}
               </th>
-              <td className="text-right text-ink-2">{count(r.open)}</td>
-              <td className={cn("text-right", r.overdue ? "font-[510] text-danger" : "text-ink-2")}>{count(r.overdue)}</td>
-              {done && <td className="text-right text-ink-2">{count(r.done ?? 0)}</td>}
+              <td className="text-right text-ink-2">{r.open}</td>
+              {!effort && <td className={cn("text-right", r.overdue ? "font-[510] text-danger" : "text-ink-2")}>{count(r.overdue ?? 0)}</td>}
+              {done && <td className="text-right text-ink-2">{r.done}</td>}
             </tr>
           ))}
         </tbody>
@@ -243,12 +282,13 @@ export function DashboardWidget({
       </p>
     )
   } else if (widget.kind === "metric") {
-    body = <Metric data={result.data as MetricData} title={title} />
+    body = <Metric data={result.data as MetricData} title={title} view={result.view} />
   } else {
     body = <Body widget={widget} result={result} now={now} compact={compact} />
   }
   // A number names itself (its tile's label); the rest are named above what they show.
   const metric = widget.kind === "metric" && !!result && !result.error
+  const onCSV = result && !result.error && result.data && CSV_KINDS.has(widget.kind) ? () => downloadCSV(widget, result) : undefined
   return (
     <section className={cn(FRAME, "relative")} style={style} aria-label={title} data-widget={widget.kind} data-widget-id={widget.id}>
       {metric ? (
@@ -259,8 +299,15 @@ export function DashboardWidget({
         )
       ) : (
         <div className="mb-2 flex items-start justify-between gap-2">
-          <h3 className="min-w-0 truncate pt-1 text-sm font-[590]">{title}</h3>
-          {actions && <Menu title={title} actions={actions} />}
+          <div className="min-w-0 pt-1">
+            <h3 className="truncate text-sm font-[590]">{title}</h3>
+            {result?.view && (
+              <p className="truncate text-xs text-ink-3" data-widget-view="">
+                From {result.view}
+              </p>
+            )}
+          </div>
+          {(actions || onCSV) && <Menu title={title} actions={actions} onCSV={onCSV} />}
         </div>
       )}
       <div className={cn("min-h-0 flex-1", metric && actions && "pr-8")}>{body}</div>

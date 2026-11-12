@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 // PM-3: quick create, the full dialog, the Calendars panel, Go to, an event's
@@ -37,6 +37,32 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), useSea
 
 import { CalendarApp } from "./calendarApp"
 import { SCREENS, putOnScreen } from "@/lib/testing/screens"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
+
+// The Calendars panel's calendar libraries (its sync tiles, the calendars beside yours, subscriptions), warmed before
+// the tests: the pointer's fetch of the panel inside a test then brings the panel itself, never more than 100 KB of
+// code this file hasn't loaded (lib/testing/inTestImportsGuard). The panel is never warmed: when it loads is the test.
+warmBeforeTests(
+  () => import("@/lib/calendar/calendarSync"),
+  () => import("@/lib/calendar/otherCalendars"),
+  () => import("@/lib/calendar/subscriptions"),
+)
+
+// V-61: the Calendars panel is ~100 KB of code, so it loads once here, before any test's clock, and the import in the
+// pointer's test only runs a module that is in. A mock's factory runs once, at that load, so its record is taken back
+// and the panel's is the app's own ask for it: every app import() goes through __trackLoad (lib/testing/lazyCode).
+const track = (globalThis as unknown as { __trackLoad: <T>(load: () => Promise<T>) => Promise<T> }).__trackLoad
+beforeAll(async () => {
+  await import("@/components/calendar/calendarsPopover")
+  loaded.clear()
+  Object.assign(globalThis, {
+    __trackLoad: <T,>(load: () => Promise<T>) => {
+      if (/calendarsPopover/.test(String(load))) loaded.add("calendars")
+      return track(load)
+    },
+  })
+})
+afterAll(() => void Object.assign(globalThis, { __trackLoad: track }))
 
 let offScreen = () => {}
 afterEach(() => {

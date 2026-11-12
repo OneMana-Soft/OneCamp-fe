@@ -10,6 +10,7 @@ import type { Table } from "@tanstack/react-table"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { lazyView } from "@/lib/lazy/lazyView"
 import { FILTERABLE, FILTER_ANY, FILTER_NONE, type TaskField } from "@/lib/tasks/fields"
+import { readableFields } from "@/components/task/hiddenField"
 
 export type FieldChoice = { value: string; label: string; color?: string }
 type Choice = FieldChoice
@@ -33,7 +34,8 @@ export function filterChoices(field: TaskField, people: { id: string; name: stri
 }
 
 export function TaskTableFieldFilter<TData>({ table, fields, people, variant }: { table: Table<TData>; fields: TaskField[]; people: { id: string; name: string }[]; variant?: "ghost" }) {
-  const filterable = fields.filter((f) => FILTERABLE.includes(f.type) && f.filter_id && table.getColumn(f.filter_id))
+  // A field the server hides from the reader (V-698) narrows nothing for them there, so it is never offered.
+  const filterable = readableFields(fields).filter((f) => FILTERABLE.includes(f.type) && f.filter_id && table.getColumn(f.filter_id))
   if (filterable.length === 0) return null
   const valuesOf = (f: TaskField) => (table.getColumn(f.filter_id)?.getFilterValue() as string[] | undefined) ?? []
   const active = filterable.reduce((n, f) => n + valuesOf(f).length, 0)

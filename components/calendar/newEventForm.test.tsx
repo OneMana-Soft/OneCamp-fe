@@ -32,7 +32,8 @@ afterEach(cleanup)
 describe("a new event", () => {
   it("picks its times with the same control as the event panel, in the app's words", () => {
     render(<CreateCalendarEventDialog open onOpenChange={() => {}} defaultStartDate={new Date(2026, 9, 12, 9, 0)} />)
-    const start = screen.getByLabelText("Start")
+    // Its name says its value (V-642 F2), with no zone: a new event is on the reader's clock.
+    const start = screen.getByLabelText(/^Start, [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}:\d{2}\s[AP]M$/)
     expect(start.tagName).toBe("BUTTON")
     // "Mon 12 Oct · 9:00 AM": the weekday, the day, and the time in the app's words.
     expect(start.textContent).toMatch(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} · \d{1,2}:\d{2}\s[AP]M$/)

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react"
 import en from "@/lib/utils/i18n/locales/en/en.json"
 
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
-vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string, o?: { field?: string }) => (en as Record<string, string>)[k]?.replace("{{field}}", o?.field ?? "") ?? k }) }))
+vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string, o?: { field?: string; defaultValue?: string }) => (en as Record<string, string>)[k]?.replace("{{field}}", o?.field ?? "") ?? o?.defaultValue ?? k }) }))
 const { default: TaskActivity } = await import("@/components/task/taskActivity")
 
 const row = (activity_type: string, next = "") =>
@@ -24,6 +24,13 @@ describe("a task's activity", () => {
     // A task's type (A8K): the type it has now.
     row("typeUpdate", "Bug")
     expect(screen.getByText(/changed the type to Bug\./)).toBeTruthy()
+  })
+
+  it("says a priority taken off was removed (UX-PROJECTS-H1: the server writes it with none next)", () => {
+    row("priorityUpdate", "")
+    expect(screen.getByText(/removed the priority\./)).toBeTruthy()
+    row("priorityUpdate", "high")
+    expect(screen.getByText(/updated task priority\./)).toBeTruthy()
   })
 
   it("has every empty state's words in English, so none is a humanised key", () => {

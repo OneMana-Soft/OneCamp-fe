@@ -73,3 +73,11 @@ export function durationLabel(minutes: number): string {
 export function atMinutes(day: Date, minutes: number): Date {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(minutes / 60), minutes % 60)
 }
+
+/** Minutes since midnight on the clock: what the hour lines and atMinutes count. Pure. */
+export function wallMinutes(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/** A ghost on the hours (a draft, a proposed block): brand at 14 %, a dashed ring, never an event's look. */
+export const GHOST_LOOK = "rounded-md border border-dashed border-brand bg-brand/14"

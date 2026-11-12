@@ -239,4 +239,51 @@ test.describe("the list's drag on a phone (L-1)", () => {
     expect(server.moves[0].task_uuid).toBe(LONG[1].task_uuid)
     await expect(page.locator("[data-reorder-lift]")).toHaveCount(0)
   })
+
+  // V-872: the click a finger's release sends is the drop's, not the row's (it opens it), however late a slow phone
+  // sends it. On a CPU slowed six times (CDP) a row held still and let go, and a row carried and let go, open
+  // nothing; a tap after them still opens its row.
+  test("on a slow phone (CPU 6x) a held row's release opens nothing, and the next tap opens its row", async ({ page }, testInfo) => {
+    test.setTimeout(300_000)
+    const server: Server = { moves: [], sorts: [], refuse: false }
+    await openList(page, testInfo, ADMIN, server, LONG, "[data-phone-task-row]")
+    await expect(page.locator("[data-reorder-grip]")).toHaveCount(0)
+    const list = page.url()
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 })
+    const title = async (i: number) => {
+      const b = (await phoneRow(page, i).boundingBox())!
+      return { x: b.x + b.width * 0.55, y: b.y + b.height / 2 }
+    }
+    // Held still until it lifts, then let go where it was.
+    let p = await title(1)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: touchAt(p.x, p.y) })
+    await expect(page.locator("[data-reorder-lift]")).toBeVisible({ timeout: 10_000 })
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await expect(page.locator("[data-reorder-lift]")).toHaveCount(0, { timeout: 10_000 })
+    await page.waitForTimeout(3_000)
+    expect(page.url(), "a held row let go still opens nothing").toBe(list)
+    // Carried two rows down and let go.
+    p = await title(2)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: touchAt(p.x, p.y) })
+    await expect(page.locator("[data-reorder-lift]")).toBeVisible({ timeout: 10_000 })
+    for (let k = 1; k <= 10; k++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: touchAt(p.x + 4, p.y + k * 15) })
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await expect.poll(() => server.moves.length, { timeout: 15_000 }).toBe(1)
+    await page.waitForTimeout(3_000)
+    expect(page.url(), "a carried row let go opens nothing").toBe(list)
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/v872-reorder-end-390-light.png` })
+    // A tap is a tap: it opens its row (one nothing covers: a demo build's offer card may rise after a move).
+    const rows = page.locator("[data-phone-task-row]")
+    let free: { x: number; y: number } | null = null
+    for (let i = 0; !free && i < (await rows.count()); i++) {
+      const b = await rows.nth(i).boundingBox()
+      if (!b || b.y < 0 || b.y + b.height > 780) continue
+      const at = { x: b.x + b.width * 0.55, y: b.y + b.height / 2 }
+      if (await rows.nth(i).evaluate((row, at) => row.contains(document.elementFromPoint(at.x, at.y)), at)) free = at
+    }
+    expect(free, "a row nothing covers").not.toBeNull()
+    await page.touchscreen.tap(free!.x, free!.y)
+    await expect.poll(() => page.url(), { timeout: 30_000, message: "a tap opens its row" }).not.toBe(list)
+  })
 })

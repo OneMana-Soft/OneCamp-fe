@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils/helpers/cn"
 /** The class that gives a call's portalled overlay the stage's dark surface. */
 export const CALL_SURFACE = "dark"
 
+/** The stage's gutter, 12px round its tiles (hub.md C4): the call's frame and its recording's. */
+export const STAGE_INSET = "p-3"
+
 /** The ink of what sits on the stage over a board or a tile, as a tile's own controls wear it. */
 export const STAGE_OVERLAY = "rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0]"
 

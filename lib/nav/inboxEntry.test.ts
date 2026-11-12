@@ -34,12 +34,19 @@ describe("Inbox and Mail", () => {
     expect(GO_KEYS.map((g) => g.label)).not.toContain("Activity")
   })
 
-  it("badges the sidebar's Inbox row with notifications and urgent nudges, never DMs", () => {
-    expect(inboxBadgeCount({ activity: 2, urgentNudges: 1 })).toBe(3)
-    const inbox = buildPrimaryNavLinks(["", "app", "home"], { channel: 4, dm: 9, activity: 0, urgentNudges: 0 }).find((l) => l.title === "Inbox")
+  // V-577: the web added the open urgent nudges to the server's count, outside
+  // its one rule, so a months-old nudge kept the owner's badge at 1 after every
+  // look, and the phone bar, the title and the favicon said 0. The server
+  // counts them now (business/Activity UnreadActivityCount); every surface
+  // shows its number alone.
+  it("badges the sidebar's Inbox row with the server's number alone, never DMs, as the phone bar does", () => {
+    expect(inboxBadgeCount({ activity: 2, ...({ urgentNudges: 1 } as object) })).toBe(2)
+    const inbox = buildPrimaryNavLinks(["", "app", "home"], { channel: 4, dm: 9, activity: 0 }).find((l) => l.title === "Inbox")
     expect(inbox?.label).toBe("")
-    // This edition has no AI, so nothing nudges.
-    expect(read("components/navigationBar/desktop/desktopNavigationBar.tsx")).toMatch(/urgentNudges: 0/)
+    const desktop = read("components/navigationBar/desktop/desktopNavigationBar.tsx")
+    expect(desktop).toMatch(/activity: userSidebarState\.totalUnreadActivityCount,/)
+    expect(desktop).not.toMatch(/useNudgeCount|urgentNudges/)
+    expect(read("components/navigationBar/mobile/mobileBottomNavigationBar.tsx")).toMatch(/case "activity":\s*return userSidebarState\.totalUnreadActivityCount/)
   })
 
   it("lists Mail behind More", () => {

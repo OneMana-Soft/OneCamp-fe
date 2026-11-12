@@ -1,11 +1,11 @@
 import * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 const makeRequest = vi.hoisted(() => vi.fn(async () => []))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
-const calendarList = vi.hoisted(() => ({ value: [] as { id: string; name: string; kind: string; container_kind?: string; container_id?: string; access: string }[] }))
-vi.mock("@/lib/calendar/calendarList", () => ({ useCalendarList: () => calendarList.value }))
+const calendarList = vi.hoisted(() => ({ value: [] as { id: string; name: string; kind: string; container_kind?: string; container_id?: string; access: string; source?: string; read_only?: boolean }[] }))
+vi.mock("@/lib/calendar/calendarList", async (importOriginal) => ({ ...(await importOriginal<object>()), useCalendarList: () => calendarList.value }))
 const peopleHours = vi.hoisted(() => ({ value: undefined as import("@/lib/calendar/peopleHours").PeopleDays | undefined, args: [] as unknown[] }))
 vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()),
@@ -24,9 +24,10 @@ vi.mock("@/components/task/taskFinder", () => ({
 }))
 
 import { EventForm } from "./eventForm"
-import { newEventValues, type EventFormValues } from "@/lib/calendar/eventForm"
+import { eventPatch, newEventValues, patchChanges, type EventFormValues } from "@/lib/calendar/eventForm"
 import { pinTestClock } from "@/lib/testing/testClock"
-import { clockTime } from "@/lib/utils/date/clock"
+import { clockRange, clockTime } from "@/lib/utils/date/clock"
+import { format } from "date-fns"
 
 // The reader's day: Thu 15 Oct 2026, 10:20.
 pinTestClock(new Date(2026, 9, 15, 10, 20))
@@ -62,7 +63,7 @@ const rowLabels = () => Array.from(document.querySelectorAll("[data-property-row
 describe("the one Event Form", () => {
   it("draws every row where the calendar keeps its own events", () => {
     render(<Form creating />)
-    expect(rowLabels()).toEqual(["All day", "Starts", "Ends", "Time zone", "Repeat", "Guests", "Free times", "Place", "Notes", "Reminders", "Calendar", "Colour", "Show as"])
+    expect(rowLabels()).toEqual(["All day", "Starts", "Ends", "Time zone", "Repeat", "Guests", "Free times", "Place", "Linked", "Notes", "Reminders", "Calendar", "Colour", "Show as"])
     // All day is one row on a phone too, never a label over a lone switch (DESIGN-BUILD-2, 20 Oct).
     const allDay = document.querySelector("[data-setting-row='switch']")
     expect(allDay?.querySelector("[role='switch']")?.getAttribute("aria-checked")).toBe("false")
@@ -141,6 +142,38 @@ describe("the one Event Form", () => {
     expect(seen.at(-1)?.reminders).toHaveLength(1)
   })
 
+  it("sends a reminder by email, sets a custom one up to four weeks, and shows the calendar's default (head A)", () => {
+    const seen: EventFormValues[] = []
+    const choose = (trigger: string, option: string | RegExp) => {
+      act(() => {
+        fireEvent.keyDown(screen.getByRole("combobox", { name: trigger }), { key: "ArrowDown" })
+      })
+      act(() => {
+        fireEvent.keyDown(screen.getByRole("option", { name: option }), { key: "Enter" })
+      })
+    }
+    render(<Form seen={seen} defaultReminders={{ mine: { timed: { minutes: [30], email: [30] } } }} />)
+    // A new event shows the reader's default for their own calendar, its way too.
+    expect(screen.getByRole("combobox", { name: "Reminder 1" }).textContent).toBe("30 minutes before · your default")
+    expect(screen.getByRole("combobox", { name: "Reminder 1 comes as" }).textContent).toBe("Email")
+    choose("Reminder 1 comes as", "Pop-up")
+    expect(seen.at(-1)).toMatchObject({ reminders: [30], reminderEmail: [] })
+    choose("Reminder 1 comes as", "Email")
+    expect(seen.at(-1)).toMatchObject({ reminders: [30], reminderEmail: [30] })
+    // Custom: 2 weeks; past four weeks it says why and sets nothing.
+    choose("Reminder 1", "Custom…")
+    const count = screen.getByRole("spinbutton", { name: "How many" })
+    fireEvent.change(count, { target: { value: "5" } })
+    choose("Unit", "weeks before")
+    expect(screen.getByRole("alert").textContent).toBe("Up to 4 weeks before, in whole numbers.")
+    expect((screen.getByRole("button", { name: "Set" }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(count, { target: { value: "2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Set" }))
+    // The reminder keeps its way: by email.
+    expect(seen.at(-1)).toMatchObject({ reminders: [2 * 7 * 24 * 60], reminderEmail: [2 * 7 * 24 * 60] })
+    expect(screen.getByRole("combobox", { name: "Reminder 1" }).textContent).toBe("2 weeks before")
+  })
+
   it("gives Place the field its neighbours have, and Show as values that say they open", () => {
     render(<Form />)
     const place = screen.getByRole("textbox", { name: "Place" })
@@ -202,9 +235,14 @@ describe("the one Event Form", () => {
       where: {},
     }
     const guest = (uuid: string, name: string) => ({ uuid, email: "", name, optional: false })
-    render(<Form start={base({ start, end: new Date("2026-10-19T15:30:00Z"), guests: [guest("kai", "Kai Tane"), guest("sam", "Sam Rivera")] })} />)
+    render(<Form start={base({ zone: here, start, end: new Date("2026-10-19T15:30:00Z"), guests: [guest("kai", "Kai Tane"), guest("sam", "Sam Rivera")] })} />)
     // Kiritimati is 14 hours ahead of UTC: 05:00 on Tuesday.
     expect(document.querySelector("[data-guest-times]")?.textContent).toBe(`${clockTime(start)} your time · ${clockTime(new Date(2000, 0, 1, 5, 0))} for Kai (Kiritimati)`)
+    cleanup()
+    // An event kept in another zone says the reader's time once, under its times (V-642): the guests' line doesn't again.
+    render(<Form start={base({ zone: here === "Pacific/Chatham" ? "Asia/Tokyo" : "Pacific/Chatham", start, end: new Date("2026-10-19T15:30:00Z"), guests: [guest("kai", "Kai Tane")] })} />)
+    expect(document.querySelector("[data-your-time]")?.textContent).toMatch(/ your time$/)
+    expect(document.querySelector("[data-guest-times]")?.textContent).toBe(`${clockTime(new Date(2000, 0, 1, 5, 0))} for Kai (Kiritimati)`)
     cleanup()
     peopleHours.value = { hours: { sam: peopleHours.value.hours.sam }, where: {} }
     render(<Form start={base({ start, end: new Date("2026-10-19T15:30:00Z"), guests: [guest("sam", "Sam Rivera")] })} />)
@@ -217,7 +255,7 @@ describe("the one Event Form", () => {
     const ends = base()
     render(<Form problem={{ field: "end", message: "It has to end after it starts" }} start={{ ...ends, end: new Date(ends.start.getTime() - 3_600_000) }} />)
     expect(screen.getByRole("alert").textContent).toBe("It has to end after it starts")
-    expect(screen.getByLabelText("End").getAttribute("aria-invalid")).toBe("true")
+    expect(screen.getByLabelText(/^End(,|$)/).getAttribute("aria-invalid")).toBe("true")
   })
 
   it("names a new block for what it is", () => {
@@ -242,6 +280,44 @@ describe("the one Event Form", () => {
     render(<Form start={{ ...base(), calendarId: "c-launch" }} />)
     expect(screen.queryByRole("combobox", { name: "Calendar" })).toBeNull()
     expect(screen.getByText("Launch")).toBeTruthy()
+    calendarList.value = []
+  })
+
+  // V-594: a calendar Google or Outlook lets OneCamp only read is no home for a new event: its push would be refused.
+  it("leaves a calendar read-only in its provider out of a new event's choice, and says a refused one at the Calendar row", () => {
+    calendarList.value = [
+      { id: "own", name: "Personal", kind: "personal", access: "manage" },
+      { id: "c-g", name: "Team holidays", kind: "external", access: "manage", source: "google", read_only: true },
+    ]
+    render(<Form creating />)
+    // Nowhere else to put it: the row says where it goes, with no choice.
+    expect(screen.queryByRole("combobox", { name: "Calendar" })).toBeNull()
+    expect(screen.getByText("OneCamp · Personal")).toBeTruthy()
+    cleanup()
+    calendarList.value = [...calendarList.value, { id: "c-launch", name: "Launch", kind: "project", container_kind: "project", container_id: "p-1", access: "edit", source: "onecamp" }]
+    const msg = "This calendar is read-only in Google. Put the event on another calendar."
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView")
+    render(<Form creating start={base({ calendarId: "c-launch" })} problem={{ field: "calendar", message: msg, calendar: "c-launch" }} />)
+    const picker = screen.getByRole("combobox", { name: "Calendar" })
+    const alert = screen.getByRole("alert")
+    expect(alert.textContent).toBe(msg)
+    expect(picker.getAttribute("aria-invalid")).toBe("true")
+    expect(document.getElementById(picker.getAttribute("aria-describedby") ?? "")?.textContent).toBe(msg)
+    // DESIGN-BUILD-123 F3: the row and its words come into view (not cut under the footer), and the picker has the focus.
+    expect(scrolled).toHaveBeenCalledWith({ block: "nearest" })
+    const row = scrolled.mock.contexts.at(-1) as Element
+    expect(row.contains(picker) && row.contains(alert)).toBe(true)
+    expect(document.activeElement).toBe(picker)
+    // Said once: typing elsewhere keeps the focus where it is.
+    const title = screen.getByRole("textbox", { name: "Title" })
+    title.focus()
+    fireEvent.change(title, { target: { value: "Offsite plan" } })
+    expect(document.activeElement).toBe(title)
+    scrolled.mockRestore()
+    cleanup()
+    // Another calendar picked since: the refusal was that one's.
+    render(<Form creating start={base({ calendarId: "" })} problem={{ field: "calendar", message: msg, calendar: "c-launch" }} />)
+    expect(screen.queryByRole("alert")).toBeNull()
     calendarList.value = []
   })
 })
@@ -413,5 +489,81 @@ describe("own time the server refuses", () => {
       expect(own.hasAttribute("disabled")).toBe(false)
       expect(nameInk(own)).toEqual(["text-ink"])
     }
+  })
+})
+
+// V-642: an event's times are read and written in its own zones, Starts in its zone and Ends in its end's, as Google's
+// form does; the reader's own time is one quiet line under them when it reads otherwise. A New York event at 12:30Z,
+// landing in London, read in Kolkata, said "Starts Fri 6 Nov · 6:00 PM" beside "Eastern Standard Time".
+describe("times in the event's own zones", () => {
+  const here = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const start = new Date("2026-11-06T12:30:00Z")
+  const end = new Date("2026-11-06T13:30:00Z")
+  const flight = () => base({ zone: "America/New_York", endZone: "Europe/London", start, end })
+  const wall = (h: number, m = 0) => clockTime(new Date(2000, 0, 1, h, m))
+  const named = (zone: string, name: string) => (zone === here ? "" : ` ${name}`)
+  const pickTime = (field: string, h: number, m = 0) => {
+    fireEvent.click(screen.getByLabelText(new RegExp(`^${field}(,|$)`)))
+    fireEvent.click(screen.getAllByRole("option").find((o) => (o.textContent ?? "").startsWith(wall(h, m)))!)
+  }
+
+  it("reads a New York event at 7:30 AM in New York and its end in London, with the reader's time beneath", () => {
+    render(<Form start={flight()} />)
+    expect(screen.getByLabelText(/^Start(,|$)/).textContent).toBe(`Fri 6 Nov · ${wall(7, 30)}${named("America/New_York", "EST")}`)
+    expect(screen.getByLabelText(/^End(,|$)/).textContent).toBe(`Fri 6 Nov · ${wall(13, 30)}${named("Europe/London", "GMT")}`)
+    // The end's list counts from the start on the end's own clock: 12:30 in London.
+    fireEvent.click(screen.getByLabelText(/^End(,|$)/))
+    expect(screen.getAllByRole("option")[0].textContent).toMatch(new RegExp(`^${wall(12, 45)}.*15 min`))
+    expect(document.querySelector("[data-your-time]")?.textContent).toBe(`${clockRange(start, end)} your time`)
+  })
+
+  // V-642 F1 + F2 (DESIGN-BUILD-120): two clocks with no names read as one. Each time names its zone where it isn't
+  // the reader's, the two zone pickers say which end each sets, and a screen reader hears each time with its zone and
+  // the end's with the reader's own time.
+  it("names each time's zone where it isn't the reader's, says which end each zone sets, and describes End by the reader's time", () => {
+    render(<Form start={flight()} />)
+    const start = screen.getByLabelText(/^Start(,|$)/)
+    const end = screen.getByLabelText(/^End(,|$)/)
+    expect(start.getAttribute("aria-label")).toBe(`Start, Fri 6 Nov, ${wall(7, 30)}${named("America/New_York", "Eastern Standard Time")}`)
+    expect(end.getAttribute("aria-label")).toBe(`End, Fri 6 Nov, ${wall(13, 30)}${named("Europe/London", "Greenwich Mean Time")}`)
+    expect(screen.getByText("Starts in")).toBeTruthy()
+    expect(screen.getByText("Ends in")).toBeTruthy()
+    const yours = document.querySelector("[data-your-time]")
+    expect(yours?.id).toBeTruthy()
+    expect(end.getAttribute("aria-describedby")).toBe(yours?.id)
+  })
+
+  it("sends the same instants when its time is picked again, and a time picked in its zone", () => {
+    const seen: EventFormValues[] = []
+    const was = flight()
+    render(<Form seen={seen} start={was} />)
+    pickTime("Start", 7, 30)
+    expect([seen.at(-1)?.start, seen.at(-1)?.end]).toEqual([start, end])
+    expect(patchChanges(eventPatch(seen.at(-1)!, was, 3, true))).toBe(false)
+    // 9:00 AM in New York is 14:00Z, and the end keeps the hour.
+    pickTime("Start", 9)
+    expect([seen.at(-1)?.start, seen.at(-1)?.end]).toEqual([new Date("2026-11-06T14:00:00Z"), new Date("2026-11-06T15:00:00Z")])
+    // 4:00 PM in London is 16:00Z.
+    pickTime("End", 16)
+    expect(seen.at(-1)?.end).toEqual(new Date("2026-11-06T16:00:00Z"))
+  })
+
+  it("says no time of the reader's when the event keeps their zone", () => {
+    render(<Form start={base({ zone: here, endZone: "", start, end })} />)
+    expect(screen.getByLabelText(/^Start(,|$)/).textContent).toBe(`${format(start, "EEE d MMM")} · ${clockTime(start)}`)
+    expect(document.querySelector("[data-your-time]")).toBeNull()
+    expect(screen.queryByText("Starts in")).toBeNull()
+  })
+
+  it("phrases its repeats from its own day: 8 PM on Friday in New York is Saturday in Kolkata", () => {
+    render(<Form start={base({ zone: "America/New_York", start: new Date("2026-11-07T01:00:00Z"), end: new Date("2026-11-07T02:00:00Z"), rule: "FREQ=YEARLY" })} />)
+    expect(screen.getByRole("combobox", { name: "Repeat" }).textContent).toBe("Annually on 6 November")
+  })
+
+  it("turns into its days in its own zone when it is all day", () => {
+    const seen: EventFormValues[] = []
+    render(<Form seen={seen} start={base({ zone: "America/New_York", start: new Date("2026-11-07T01:00:00Z"), end: new Date("2026-11-07T02:00:00Z") })} />)
+    fireEvent.click(screen.getByRole("switch", { name: "All day" }))
+    expect(seen.at(-1)).toMatchObject({ allDay: true, startDate: "2026-11-06", lastDate: "2026-11-06" })
   })
 })

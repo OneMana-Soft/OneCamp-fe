@@ -95,6 +95,18 @@ describe("canvasInsets", () => {
     expect(canvasInsets(h, "[data-board-bar]")).toEqual({ top: 56, right: 0, bottom: 52, left: 0 })
   })
 
+  it("takes a panel open beside the canvas off the side it sits nearer, and nothing for one not drawn", () => {
+    const h = host({ canvas: box(100, 600, 1000), toolRow: box(110, 48), footer: box(600, 0) })
+    h.insertAdjacentHTML("beforeend", `<aside data-board-side=""></aside>`)
+    let panel = { top: 164, bottom: 500, left: 688, right: 988, width: 300, height: 336, x: 688, y: 164 } as DOMRect
+    h.querySelector("aside")!.getBoundingClientRect = () => panel
+    expect(canvasInsets(h, undefined, "[data-board-side]")).toEqual({ top: 58, right: 312, bottom: 0, left: 0 })
+    panel = { ...panel, left: 12, right: 312, x: 12 } as DOMRect
+    expect(canvasInsets(h, undefined, "[data-board-side]")).toEqual({ top: 58, right: 0, bottom: 0, left: 312 })
+    panel = { ...panel, width: 0 } as DOMRect
+    expect(canvasInsets(h, undefined, "[data-board-side]")).toEqual({ top: 58, right: 0, bottom: 0, left: 0 })
+  })
+
   it("takes nothing with no host, or before the canvas is laid out", () => {
     expect(canvasInsets(null)).toEqual(NONE)
     expect(canvasInsets(document.createElement("div"))).toEqual(NONE)
@@ -162,6 +174,8 @@ describe("holdFrame", () => {
       },
     }
   }
+  /** Nodes added or removed are reported after the task that added or removed them. */
+  const settle = () => new Promise((r) => setTimeout(r, 0))
   /** The canvas becomes `height` tall from `top`, its tool row at its top, and Excalidraw takes that size when `taken`. */
   const move = (t: ReturnType<typeof stage>, top: number, height: number, taken = true) => {
     t.room.canvas = box(top, height)
@@ -169,7 +183,7 @@ describe("holdFrame", () => {
     if (taken) t.room.size = { width: 1000, height }
   }
 
-  it("shows a frame as a slide and holds it: a change of room shows it again, at once, when Excalidraw has the canvas's size", () => {
+  it("shows a frame as a slide and holds it: a change of room shows it again, at once, when Excalidraw has the canvas's size", async () => {
     const t = stage()
     const h = holdFrame(t.api, t.host)
     expect(h.show("f1", true)).toBe(true)
@@ -190,7 +204,7 @@ describe("holdFrame", () => {
     t.canvas.insertAdjacentHTML("beforeend", `<div class="App-bottom-bar"><div class="Island"></div></div>`)
     const footer = t.host.querySelector(PHONE_FOOTER)!
     footer.getBoundingClientRect = () => box(556, 44)
-    t.resized()
+    await settle()
     t.tick()
     expect(t.watched.has(footer)).toBe(true)
     expect(t.shown()).toMatchObject({ canvasOffsets: { top: 58, bottom: 44 }, minZoom: ((500 - 58 - 44) / 300) * SLIDE_COVER })
@@ -301,5 +315,32 @@ describe("holdFrame", () => {
     expect(t.scrollToContent).toHaveBeenCalledTimes(2)
     expect(t.shown()).toMatchObject({ canvasOffsets: { top: 58, bottom: 80 }, minZoom: ((600 - 58 - 80) / 300) * SLIDE_COVER, animate: false })
     h.stop()
+  })
+
+  it("shows the frame again clear of a part drawn after it was shown, and of a panel opened beside the canvas", async () => {
+    const t = stage()
+    const h = holdFrame(t.api, t.host, "[data-board-bar]", "[data-board-side]")
+    h.show("f1", false)
+    t.tick()
+    expect(t.shown()).toMatchObject({ canvasOffsets: { top: 58, right: 0, bottom: 0, left: 0 } })
+    // A follower's "Slide 2 of 3", drawn once its code has come: nothing on the canvas changes size.
+    t.host.insertAdjacentHTML("beforeend", `<div data-board-bar=""></div>`)
+    t.host.querySelector("[data-board-bar]")!.getBoundingClientRect = () => box(520, 40)
+    await settle()
+    t.tick()
+    expect(t.shown()).toMatchObject({ canvasOffsets: { top: 58, right: 0, bottom: 80, left: 0 }, animate: false })
+    // The outline, a panel at the canvas's right on a computer.
+    t.host.insertAdjacentHTML("beforeend", `<aside data-board-side=""></aside>`)
+    t.host.querySelector("aside")!.getBoundingClientRect = () => ({ top: 64, bottom: 400, left: 688, right: 988, width: 300, height: 336, x: 688, y: 64 }) as DOMRect
+    await settle()
+    t.tick()
+    expect(t.shown()).toMatchObject({ canvasOffsets: { top: 58, right: 312, bottom: 80, left: 0 }, minZoom: Math.min((1000 - 312) / 400, (600 - 58 - 80) / 300) * SLIDE_COVER })
+    expect(t.scrollToContent).toHaveBeenCalledTimes(3)
+    // Stopped, nothing drawn or taken away moves it.
+    h.stop()
+    t.host.querySelector("aside")!.remove()
+    await settle()
+    t.tick()
+    expect(t.scrollToContent).toHaveBeenCalledTimes(3)
   })
 })

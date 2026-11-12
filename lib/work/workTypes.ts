@@ -21,7 +21,7 @@ export function typeKey(t?: TaskWorkType | null): string {
 }
 
 /** The built-in types in the server's order. */
-const BUILT_IN = ["task", "bug", "feature", "milestone", "approval", "request"]
+const BUILT_IN = ["task", "bug", "feature", "milestone", "approval", "request", "epic"]
 
 const rank = (t: TaskWorkType) => (t.builtin ? BUILT_IN.indexOf(t.builtin) : BUILT_IN.length)
 

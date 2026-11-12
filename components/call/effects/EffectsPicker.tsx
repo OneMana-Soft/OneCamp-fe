@@ -2,14 +2,16 @@
 
 // Backgrounds and sound, one picker for the green room and the call: what is
 // behind someone (none, a light or strong blur, a backdrop drawn in the camp
-// palette, a picture of their own) and how their microphone is cleaned up.
-// Everything it offers runs on this device.
+// palette, a picture of their own), their touch-up and low light, and how
+// their microphone is cleaned up. Everything it offers runs on this device.
 
 import * as React from "react"
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
-import { AudioLines, Check, CircleSlash, ImagePlus, Loader2, Trash2, User } from "@/lib/icons"
-import type { Background, BackdropId, CallEffects, NoiseLevel } from "@/lib/calls/processors/effects"
-import { BACKDROPS, NOISE_LEVELS, backgroundName } from "@/lib/calls/processors/effectsCopy"
+import { AudioLines, Check, CircleSlash, ImagePlus, Loader2, Sparkles, Trash2, User } from "@/lib/icons"
+import type { Background, BackdropId, CallEffects, NoiseLevel, TouchUp } from "@/lib/calls/processors/effects"
+import { BACKDROPS, NOISE_LEVELS, TOUCH_UPS, backgroundName } from "@/lib/calls/processors/effectsCopy"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** A background as a radio value, and back. Pure. */
@@ -29,7 +31,9 @@ export interface EffectsPickerProps {
   effects: CallEffects
   onBackground: (b: Background) => void
   onNoise: (n: NoiseLevel) => void
-  busy?: "background" | "noise" | null
+  onTouchUp: (t: TouchUp) => void
+  onLowLight: (on: boolean) => void
+  busy?: "camera" | "noise" | null
   /** Why backgrounds can't run in this browser, or null. */
   unavailable?: string | null
   /** The backdrops' pictures, drawn on first look (backdropUrl). */
@@ -51,6 +55,7 @@ const TILE_NAME = "relative m-1 truncate rounded-[6px] bg-black/55 px-1.5 py-0.5
 export function EffectsPicker(p: EffectsPickerProps) {
   const headingId = React.useId()
   const noiseId = React.useId()
+  const lookId = React.useId()
   const file = React.useRef<HTMLInputElement>(null)
   const off = !!p.unavailable
   return (
@@ -58,7 +63,7 @@ export function EffectsPicker(p: EffectsPickerProps) {
       <section aria-labelledby={headingId}>
         <h3 id={headingId} className="mb-2 flex items-center gap-1.5 text-ui-sm font-medium text-[#EEEEF0]">
           Background
-          {p.busy === "background" ? <Loader2 className="size-3.5 animate-spin text-ink-3" aria-label="Putting it on" /> : null}
+          {p.busy === "camera" ? <Loader2 className="size-3.5 animate-spin text-ink-3" aria-label="Putting it on" /> : null}
         </h3>
         {off ? (
           <p className="mb-2 text-meta text-ink-3" data-effects-unavailable="">
@@ -131,6 +136,41 @@ export function EffectsPicker(p: EffectsPickerProps) {
           </div>
         ) : null}
         {p.picture.note ? <p className="mt-1.5 text-meta text-ink-3">{p.picture.note}</p> : null}
+      </section>
+
+      {/* Generated backgrounds join the Background tiles above; the touch-up and low light are the same camera's. */}
+      <section aria-labelledby={lookId} className="space-y-3">
+        <h3 id={lookId} className="flex items-center gap-1.5 text-ui-sm font-medium text-[#EEEEF0] [&_svg]:size-4">
+          <Sparkles aria-hidden className="text-ink-3" />
+          Touch-up and light
+        </h3>
+        <div className="space-y-2">
+          <span className="flex min-w-0 flex-col">
+            <span id={`${lookId}-touch-up`} className="text-ui-sm text-[#EEEEF0]">
+              Touch-up
+            </span>
+            <span id={`${lookId}-touch-up-detail`} className="text-meta text-ink-3">
+              Softens skin. Your eyes and edges stay sharp.
+            </span>
+          </span>
+          <SegmentedControl
+            aria-labelledby={`${lookId}-touch-up`}
+            aria-describedby={`${lookId}-touch-up-detail`}
+            value={p.effects.touchUp}
+            onValueChange={p.onTouchUp}
+            options={TOUCH_UPS.map((t) => ({ value: t.level, label: t.name }))}
+            disabled={off}
+          />
+        </div>
+        <label className="flex min-h-11 items-center justify-between gap-3">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-ui-sm text-[#EEEEF0]">Low light</span>
+            <span id={`${lookId}-low-light`} className="text-meta text-ink-3">
+              Brightens you when your room is dark.
+            </span>
+          </span>
+          <Switch aria-label="Low light" aria-describedby={`${lookId}-low-light`} checked={p.effects.lowLight} onCheckedChange={p.onLowLight} disabled={off} />
+        </label>
       </section>
 
       <section aria-labelledby={noiseId}>

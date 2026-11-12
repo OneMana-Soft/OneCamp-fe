@@ -4,7 +4,11 @@
 // the board keeps for everyone (and presenting will follow, W-3). A press
 // jumps to a frame; a double-click, F2 or Enter renames it; dragging its grip,
 // or Alt with ↑ and ↓, moves it in the order; and each has a link that opens
-// the board there. A side panel on a computer, a sheet on a phone.
+// the board there. An editor's Add a frame, at its foot, lists the sizes a
+// frame starts at (framePresets, the Frame tool's list): a phone's way to them.
+// A side panel on a computer, a sheet on a phone. An editor's row has the
+// frame's presenter notes too (miro-28 2a, components/board/slideNotes), read
+// and written through the page's `frameNotes`: a view-only member never asks.
 
 import * as React from "react"
 import { useSceneElements } from "@/hooks/useSceneElements"
@@ -15,16 +19,22 @@ import { useToast } from "@/hooks/use-toast"
 import { GripVertical, Link2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { fieldKeyDown } from "@/lib/keys/ime"
-import { frameLink, frameOrderOf, moveFrame, orderFrames } from "@/lib/board/frames"
-import { isStickyNote, noteColourOf } from "@/lib/board/notes"
-import { changeElements, type SceneElement } from "@/components/board/boardOps"
-import { noteTint } from "@/components/board/shapesPreview"
+import { frameLink, moveFrame, orderFrames } from "@/lib/board/frames"
+import { useFrameOrder } from "@/components/board/useBoardDeck"
+import { isStickyNote } from "@/lib/board/notes"
+import { addPresetFrame, changeElements, type SceneElement } from "@/components/board/boardOps"
+import { FramePresetList } from "@/components/board/framePresets"
+import { peekRows } from "@/components/ui/sheetPeek"
+import { Button } from "@/components/ui/button"
+import { FrameThumb, insideFrames, thumbParts, type ThumbPart } from "@/components/board/frameThumb"
 import { BoardSidePanel, SIDE_PANELS } from "@/components/board/boardSidePanel"
+import { FrameNotesButton } from "@/components/board/slideNotes"
+import type { FrameNotesReads, FrameNotesSource } from "@/components/board/frameNotesReads"
 
 interface FrameRow {
   frame: SceneElement
   /** What's in it, scaled into the frame's small picture. */
-  notes: { x: number; y: number; w: number; h: number; tint: string }[]
+  notes: ThumbPart[]
   /** What's in it, in words: its notes by name, the rest as things. */
   holds: string
 }
@@ -34,7 +44,8 @@ function holdings(total: number, notes: number): string {
   const others = total - notes
   if (total === 0) return "Empty"
   if (notes === 0) return others === 1 ? "1 thing" : `${others} things`
-  const named = notes === 1 ? "1 note" : `${notes} notes`
+  // Sticky notes, said so: beside a row's Notes (its presenter notes) "1 note" read as the same kind (DB-133 F1).
+  const named = notes === 1 ? "1 sticky note" : `${notes} sticky notes`
   if (others === 0) return named
   return `${named}, ${others === 1 ? "1 other thing" : `${others} other things`}`
 }
@@ -42,41 +53,15 @@ function holdings(total: number, notes: number): string {
 /** The board's frames as the panel lists them, in the kept order. Pure apart from reading the scene. */
 function readFrames(elements: readonly SceneElement[], order: readonly string[] | null): FrameRow[] {
   const frames = elements.filter((e) => e.type === "frame" && !e.isDeleted)
-  const byFrame = new Map<string, SceneElement[]>()
-  for (const e of elements) {
-    if (e.isDeleted || !e.frameId || (e.type === "text" && e.containerId)) continue
-    const list = byFrame.get(e.frameId) ?? []
-    list.push(e)
-    byFrame.set(e.frameId, list)
-  }
+  const byFrame = insideFrames(elements)
   return orderFrames(frames, order).map((frame) => {
     const inside = byFrame.get(frame.id) ?? []
     return {
       frame,
       holds: holdings(inside.length, inside.filter((e) => isStickyNote(e as never)).length),
-      notes: inside.slice(0, 40).map((e) => ({
-        x: (e.x - frame.x) / frame.width,
-        y: (e.y - frame.y) / frame.height,
-        w: e.width / frame.width,
-        h: e.height / frame.height,
-        tint: isStickyNote(e as never) ? noteTint(noteColourOf(e)) : "var(--line-2)",
-      })),
+      notes: thumbParts(frame, inside),
     }
   })
-}
-
-/** A frame drawn small: its shape, and its notes in their colours. */
-function FrameThumb({ row }: { row: FrameRow }) {
-  const ratio = row.frame.width / Math.max(1, row.frame.height)
-  const w = ratio >= 1.4 ? 56 : Math.max(24, Math.round(40 * ratio))
-  const h = Math.round(w / ratio)
-  return (
-    <svg width={w} height={Math.min(h, 40)} viewBox={`0 0 100 ${Math.round(100 / ratio)}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true" className="shrink-0 rounded-[4px] bg-raised shadow-e1">
-      {row.notes.map((n, i) => (
-        <rect key={i} x={n.x * 100} y={(n.y * 100) / ratio} width={Math.max(2, n.w * 100)} height={Math.max(2, (n.h * 100) / ratio)} rx={2} fill={n.tint} />
-      ))}
-    </svg>
-  )
 }
 
 export default function FramesPanel({
@@ -84,26 +69,23 @@ export default function FramesPanel({
   provider,
   boardId,
   editable,
+  frameNotes: WithFrameNotes,
   onClose,
 }: {
   api: ExcalidrawImperativeAPI
   provider: HocuspocusProvider
   boardId: string
   editable: boolean
+  /** Presenter notes' read and write, from the board page's first load (components/board/frameNotesReads). */
+  frameNotes?: FrameNotesSource
   onClose: () => void
 }) {
   const sheet = useSheetMode()
   const { toast } = useToast()
   const meta = React.useMemo(() => provider.document.getMap<unknown>("boardMeta"), [provider])
 
-  // The kept order, live for everyone.
-  const [order, setOrder] = React.useState<string[] | null>(null)
-  React.useEffect(() => {
-    const read = () => setOrder(frameOrderOf(meta))
-    read()
-    meta.observe(read)
-    return () => meta.unobserve(read)
-  }, [meta])
+  // The kept order, live for everyone (the one reader, with the slides that follow it).
+  const order = useFrameOrder(provider.document)
 
   // The frames, read again only when the scene changes (a pan is no change).
   const elements = useSceneElements<SceneElement>(api)
@@ -115,6 +97,15 @@ export default function FramesPanel({
   const jump = (frame: SceneElement) => {
     api.updateScene({ appState: { selectedElementIds: { [frame.id]: true } } as never })
     api.scrollToContent([frame] as never, { fitToContent: true, animate: true })
+    if (sheet) onClose()
+  }
+
+  // Add a frame (an editor's): the sizes a frame starts at, in place of the list until one is picked. A phone's way
+  // to them (it has no Frame tool beside the tools); on its sheet the pick closes the sheet, to show the frame.
+  const [adding, setAdding] = React.useState(false)
+  const add = (presetId: string) => {
+    if (!addPresetFrame(api, presetId)) return
+    setAdding(false)
     if (sheet) onClose()
   }
 
@@ -172,15 +163,22 @@ export default function FramesPanel({
     target.addEventListener("pointercancel", up)
   }
 
-  const body = (
+  const body = (notes?: FrameNotesReads) => (
     <>
-      {rows.length === 0 ? (
+      {adding ? (
+        <div data-frame-add="">
+          <p className="px-2 pb-1 pt-1.5 text-meta font-medium text-ink-3">Add a frame</p>
+          <FramePresetList onPick={add} sheet={sheet} ref={sheet ? peekRows : undefined} />
+        </div>
+      ) : rows.length === 0 ? (
         <div className="flex flex-col items-center gap-2 px-6 py-10 text-center" data-frames-empty="">
           <svg viewBox="0 0 48 32" aria-hidden="true" className="h-8 w-12 text-ink-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
             <path d="M4 10V4h6M38 4h6v6M44 22v6h-6M10 28H4v-6" />
           </svg>
           <p className="text-ui font-medium text-ink">No frames yet</p>
-          <p className="text-ui-sm text-ink-3">Add one from Frame, beside the tools, or draw one with F. Frames keep a part of the board together, and present as slides.</p>
+          <p className="text-ui-sm text-ink-3">
+            {editable ? (sheet ? "Add one below. " : "Add one below, or draw one with F. ") : ""}Frames keep a part of the board together, and present as slides.
+          </p>
         </div>
       ) : (
         <ol ref={list} className="grid gap-px" aria-label="Frames, in order">
@@ -217,7 +215,7 @@ export default function FramesPanel({
                   </button>
                 )}
                 <span className="w-5 shrink-0 text-right text-meta tabular-nums text-ink-3">{i + 1}</span>
-                <FrameThumb row={row} />
+                <FrameThumb frame={row.frame} parts={row.notes} />
                 {renaming === row.frame.id ? (
                   <input
                     autoFocus
@@ -261,6 +259,7 @@ export default function FramesPanel({
                 >
                   <Link2 />
                 </button>
+                {editable && notes && <FrameNotesButton frame={row.frame.id} name={row.frame.name || "Untitled frame"} reads={notes} />}
               </li>
             )
           })}
@@ -269,9 +268,31 @@ export default function FramesPanel({
     </>
   )
 
+  // An editor's Add a frame, pinned under the list; Back while the sizes show. Full-size on a phone's sheet.
+  const footer = (sheet: boolean) =>
+    editable && (
+      <div data-frames-foot="" className="flex">
+        <Button
+          variant={adding ? "ghost" : sheet ? "default" : "secondary"}
+          size={sheet ? "lg" : "sm"}
+          className={sheet ? "h-11 flex-1" : "flex-1"}
+          onClick={() => setAdding((a) => !a)}
+        >
+          {adding ? "Back to frames" : "Add a frame"}
+        </Button>
+      </div>
+    )
+
   return (
-    <BoardSidePanel {...SIDE_PANELS.frames()} count={rows.length} onClose={onClose}>
-      {body}
+    // While the sizes show, a phone's sheet grows to fit all eight (medium), where half cut Phone off (miro-11 F1).
+    <BoardSidePanel {...SIDE_PANELS.frames()} detent={adding ? "medium" : undefined} count={rows.length} footer={footer} onClose={onClose}>
+      {WithFrameNotes ? (
+        <WithFrameNotes board={boardId} may={editable}>
+          {body}
+        </WithFrameNotes>
+      ) : (
+        body()
+      )}
     </BoardSidePanel>
   )
 }

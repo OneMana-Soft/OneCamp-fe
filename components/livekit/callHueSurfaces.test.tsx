@@ -16,7 +16,7 @@ import { personHue } from "@/lib/utils/getAvatarColor"
 import { fakeCallRoom } from "@/lib/testing/callRoom"
 import { CaptionsOverlay } from "./CallStage"
 import { useCallHues } from "./callHues"
-import { CameraOffFace } from "./StageTile"
+import { CameraOffFace } from "./TileBody"
 
 const at = (s: number) => new Date(s * 1000)
 

@@ -65,8 +65,11 @@ describe("Display's Insights", () => {
     expect(insights().searchParams.get("filters")).toBeNull()
   })
 
-  it("is offered only on a project's list (My tasks has no one project)", () => {
-    render(<Display />)
-    expect(screen.queryByRole("link", { name: /Insights/ })).toBeNull()
+  it("on My tasks opens the report of the reader's own work, with the list's filters (L32)", () => {
+    render(<Display filters={[{ id: "task_priority", value: ["high"] }]} />)
+    const href = insights()
+    expect(href.searchParams.get("projects")).toBeNull()
+    expect(href.searchParams.get("mine")).toBe("1")
+    expect(JSON.parse(href.searchParams.get("filters")!)).toEqual([{ id: "task_priority", value: ["high"] }])
   })
 })

@@ -16,7 +16,7 @@ import type { UnifiedActivityItem } from "@/types/activity"
 import type { UserProfileDataInterface } from "@/types/user"
 import type { KindBadgeKind } from "@/components/ui/kindBadge"
 import { clockTime } from "@/lib/utils/date/clock"
-import { levelWord, noticeBadge, noticeHref, noticeWords, UNOPENED_PLACE } from "@/lib/activity/notice"
+import { levelWord, mentionVerb, noticeBadge, noticeHref, noticeWords, UNOPENED_PLACE } from "@/lib/activity/notice"
 
 export type ActivityType = UnifiedActivityItem["activity_type"]
 
@@ -74,19 +74,19 @@ export function sentenceOf(item: UnifiedActivityItem): Sentence {
   const r = item.reaction
   if (item.activity_type === "MENTION" && m) {
     if (m.mention_post) {
-      return { actor: m.mention_post.post_by, verb: "mentioned you in", place: channelName(m.mention_post.post_channel?.ch_name) || "a channel", preview: m.mention_post.post_text ?? "", at: m.mention_created_at || item.time }
+      return { actor: m.mention_post.post_by, verb: mentionVerb(), place: channelName(m.mention_post.post_channel?.ch_name) || "a channel", preview: m.mention_post.post_text ?? "", at: m.mention_created_at || item.time }
     }
     if (m.mention_chat) {
-      return { actor: m.mention_chat.chat_from, verb: "mentioned you in", place: "a direct message", preview: m.mention_chat.chat_body_text ?? "", at: m.mention_created_at || item.time }
+      return { actor: m.mention_chat.chat_from, verb: mentionVerb(), place: "a direct message", preview: m.mention_chat.chat_body_text ?? "", at: m.mention_created_at || item.time }
     }
     if (m.mention_comment) {
-      return { actor: m.mention_comment.comment_by, verb: "mentioned you in a comment on", place: commentPlace(m.mention_comment), preview: m.mention_comment.comment_text ?? "", at: m.mention_created_at || item.time }
+      return { actor: m.mention_comment.comment_by, verb: mentionVerb(true), place: commentPlace(m.mention_comment), preview: m.mention_comment.comment_text ?? "", at: m.mention_created_at || item.time }
     }
     if (m.mention_task) {
-      return { actor: m.mention_task.task_created_by, verb: "mentioned you in", place: m.mention_task.task_name || "a task", preview: "", at: m.mention_created_at || item.time }
+      return { actor: m.mention_task.task_created_by, verb: mentionVerb(), place: m.mention_task.task_name || "a task", preview: "", at: m.mention_created_at || item.time }
     }
     if (m.mention_doc) {
-      return { actor: m.mention_doc.doc_created_by, verb: "mentioned you in", place: m.mention_doc.doc_title || "a doc", preview: "", at: m.mention_created_at || item.time }
+      return { actor: m.mention_doc.doc_created_by, verb: mentionVerb(), place: m.mention_doc.doc_title || "a doc", preview: "", at: m.mention_created_at || item.time }
     }
   }
   if (item.activity_type === "COMMENT" && c) {

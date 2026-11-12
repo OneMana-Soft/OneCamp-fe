@@ -8,20 +8,18 @@
 // Every screen applies these rules to every packet it reads. Pure, with no
 // LiveKit import.
 
+import { INK_CHUNK, INK_STROKE_MAX, trailPath, writePoints } from "./laser"
 import type { CallSignal } from "./signals"
+
+// A stroke's sizes and a laser's timing are lib/calls/laser's, which a board's laser shares.
+export { INK_CHUNK, INK_SEND_MS, INK_STROKE_MAX, LASER_MS } from "./laser"
 
 /** A point's place on a share's frame, in whole steps of this many across and down. */
 export const INK_SCALE = 4096
-/** Points in one packet. */
-export const INK_CHUNK = 64
-/** Points in one stroke. */
-export const INK_STROKE_MAX = 2000
 /** Strokes on one share: past this the oldest goes. */
 export const INK_STROKES_MAX = 400
 /** Shares with ink at once. */
 export const INK_SHARES_MAX = 8
-/** How long a laser stroke stays once it ends. */
-export const LASER_MS = 1500
 
 export type InkTool = "pen" | "laser"
 
@@ -134,8 +132,7 @@ export function inkReduce(state: InkState, e: InkEvent, rules: InkRules): InkSta
       if (rules.held(e.by) || (!state.has(e.share) && state.size >= INK_SHARES_MAX)) return state
       const i = was.findIndex((k) => sameStroke(k, e.by, e.id))
       const old = i >= 0 ? was[i] : undefined
-      const kept = old ? old.points.slice(0, Math.min(e.at * 2, old.points.length)) : []
-      const stroke: InkStroke = { id: e.id, by: e.by, tool: old?.tool ?? e.tool, points: kept.concat(e.p).slice(0, INK_STROKE_MAX * 2), done: e.end || (old?.done ?? false) }
+      const stroke: InkStroke = { id: e.id, by: e.by, tool: old?.tool ?? e.tool, points: writePoints(old?.points ?? [], e.at, e.p), done: e.end || (old?.done ?? false) }
       return withStrokes(state, e.share, old ? was.map((k, j) => (j === i ? stroke : k)) : [...was, stroke].slice(-INK_STROKES_MAX))
     }
     case "ink-undo":
@@ -182,22 +179,10 @@ export function inkChunks(share: string, stroke: Pick<InkStroke, "id" | "tool" |
   return out
 }
 
-/** One coordinate in the frame's own units, to a tenth. */
-const unit = (v: number, size: number) => Math.round((v / INK_SCALE) * size * 10) / 10
-
 /**
  * A stroke as an SVG path in the frame's own units (the layer's viewBox is
- * the frame): smoothed through the middles of its segments, and a tap drawn as
- * a dot (a segment of no length, with round caps). Pure.
+ * the frame), as every laser's line is drawn (trailPath). Pure.
  */
 export function inkPath(points: readonly number[], frame: { w: number; h: number }): string {
-  const n = Math.floor(points.length / 2)
-  if (n === 0) return ""
-  const x = (i: number) => unit(points[i * 2], frame.w)
-  const y = (i: number) => unit(points[i * 2 + 1], frame.h)
-  if (n === 1) return `M${x(0)} ${y(0)}L${x(0)} ${y(0)}`
-  if (n === 2) return `M${x(0)} ${y(0)}L${x(1)} ${y(1)}`
-  let d = `M${x(0)} ${y(0)}`
-  for (let i = 1; i < n - 1; i++) d += `Q${x(i)} ${y(i)} ${Math.round(((x(i) + x(i + 1)) / 2) * 10) / 10} ${Math.round(((y(i) + y(i + 1)) / 2) * 10) / 10}`
-  return `${d}L${x(n - 1)} ${y(n - 1)}`
+  return trailPath(points.map((v, i) => (v / INK_SCALE) * (i % 2 ? frame.h : frame.w)))
 }

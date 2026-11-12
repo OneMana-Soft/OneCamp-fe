@@ -20,6 +20,8 @@ import { EventForm } from "@/components/calendar/form/eventForm";
 import { createEvent } from "@/components/calendar/form/saveEvent";
 import { formProblem, newEventValues, type EventFormValues } from "@/lib/calendar/eventForm";
 import { notesText } from "@/lib/calendar/notes";
+import { DEFAULT_REMINDERS_KEY } from "@/lib/calendar/reminders";
+import { usePreferences } from "@/lib/preferences/usePreference";
 
 interface Props {
     open: boolean;
@@ -45,6 +47,9 @@ function valuesFor(initial: EventDraftValues | undefined, at: Date | undefined):
         kind: initial.task ? "task_block" : initial.isAway ? "out_of_office" : initial.isFocus ? "focus" : "event",
         task: initial.task ?? null,
         guests: initial.task ? [] : initial.guests.map((p) => ({ uuid: p.uuid, email: p.email ?? "", name: p.name, optional: false })),
+        // A copy's own colour and files (Duplicate).
+        hue: initial.hue ?? "",
+        files: initial.files ?? [],
     };
 }
 
@@ -60,6 +65,9 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
     const post = usePost();
     // The calendar's one store: repeats, guests by email, colour, place, zones.
     const full = useFeature(FEATURE_CALENDAR_REPEATS);
+    // The person's own default reminders per calendar, read here and nowhere else, so a new event
+    // shows them wherever the dialog opens: the calendar, the app's Create event, Home, the palette.
+    const defaultReminders = usePreferences()?.[DEFAULT_REMINDERS_KEY];
     const { ask: askTell, prompt: tellPrompt } = useTellGuests();
     const { ask: askScope, prompt: scopePrompt } = useScopePrompt();
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
@@ -81,6 +89,8 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
         setSubmitting(true);
         const done = await createEvent({ makeRequest: post.makeRequest, askScope, askTell }, values, full);
         setSubmitting(false);
+        // A calendar read-only in its provider: said at the form's Calendar row until another is picked (V-594).
+        if (!done.saved && done.why === "read_only") setProblem({ field: "calendar", message: done.message, calendar: values.calendarId });
         if (!done.saved) return;
         onSuccess?.();
         onOpenChange(false);
@@ -111,6 +121,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                 exclude={self ? [self] : []}
                 creating
                 googleConnected={isGCalConnected}
+                defaultReminders={defaultReminders}
                 problem={problem}
                 autoFocusTitle
             />

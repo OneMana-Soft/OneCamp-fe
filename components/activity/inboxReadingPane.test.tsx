@@ -20,6 +20,7 @@ const share = (n: number, title: string) => ({
   activity_type: "NOTICE",
   time: ago(20 + n),
   priority: "normal",
+  unread: true,
   actor_kind: "person",
   notice: { id: `n-${n}`, kind: "doc.shared", resource_kind: "doc", resource_uuid: `d-${n}`, title, can_open: true, reason: "subject", actor: JONAS, data: { level: "edit" }, created_at: ago(20 + n) },
 })
@@ -28,6 +29,7 @@ const FEED = [
     activity_type: "MENTION",
     time: ago(5),
     priority: "high",
+    unread: true,
     actor_kind: "person",
     mention: { mention_created_at: ago(5), mention_post: { post_uuid: "p-1", post_text: "Can you check the rollback steps?", post_channel: { ch_uuid: "c-1", ch_name: "engineering" }, post_by: JONAS } },
   },
@@ -35,6 +37,7 @@ const FEED = [
     activity_type: "COMMENT",
     time: ago(10),
     priority: "normal",
+    unread: true,
     actor_kind: "person",
     comment: { comment_uuid: "k-1", comment_created_at: ago(10), comment_text: "Pilot moved to Thursday", comment_by: MAYA, comment_task: { task_uuid: "t-1", task_name: "Customer onboarding" } },
   },
@@ -45,6 +48,7 @@ const FEED = [
     activity_type: "NOTICE",
     time: ago(40),
     priority: "normal",
+    unread: true,
     actor_kind: "person",
     notice: { id: "n-9", kind: "doc.mentioned", resource_kind: "doc", resource_uuid: "d-9", title: "Q4 launch plan", can_open: true, reason: "mention", actor: MAYA, created_at: ago(40) },
   },
@@ -80,9 +84,8 @@ vi.mock("@/hooks/usePhone", () => ({ usePhone: () => screenIs.phone }))
 vi.mock("@/components/navigationBar/tablet/useShellBand", () => ({ usePanelPlacement: () => screenIs.placement, useShellBand: () => "desktop" }))
 
 vi.mock("@/components/later/SaveForLater", () => ({ SaveForLaterButton: () => null }))
-vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
-vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
-vi.mock("@/components/ai/InboxNudges", () => ({ default: () => null }))
+vi.mock("@/services/unreadCache", () => ({ recountInbox: () => {} }))
+vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => 0 }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 // jsdom lays nothing out, so the virtual list would draw no rows: every row here.

@@ -19,7 +19,7 @@ import { toast } from "@/hooks/use-toast"
 import { docRestored } from "@/lib/docCache"
 import { Loader2 } from "@/lib/icons"
 import { displayNameOf } from "@/lib/personName"
-import { TrashMeta } from "@/components/trash/TrashMeta"
+import { TrashRow } from "@/components/trash/TrashRow"
 import { purgeDoc, restoreDoc } from "@/services/docGraphService"
 import type { DocGraphPerson } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
@@ -79,20 +79,23 @@ export function RestoreRow({ id, title, icon, at, verb, by, subpages = 0, purgeA
   }
 
   return (
-    <div data-restore-row={id} className="flex min-h-14 items-center gap-2.5 rounded-lg px-2 py-2 sm:min-h-12">
-      <DocIcon icon={icon} id={id} size={16} />
-      <div className="min-w-0 flex-1">
-        <p className={title.trim() ? "truncate text-ui font-[450] text-ink" : "truncate text-ui font-[450] text-ink-3"}>
+    <TrashRow
+      data-restore-row={id}
+      lead={<DocIcon icon={icon} id={id} size={16} />}
+      untitled={!title.trim()}
+      title={
+        <>
           {name}
           {subpages > 0 && <span className="ml-1.5 text-ui-sm font-normal text-ink-3">+ {subpages} {subpages === 1 ? "page" : "pages"} inside</span>}
-        </p>
-        <TrashMeta verb={verb} at={at} who={who} purgeAt={purgeAt} className="max-sm:line-clamp-2 sm:truncate" />
-      </div>
+        </>
+      }
+      meta={{ verb, at, who, purgeAt }}
+    >
       {canPurge && <DeleteForGood name={name} warning={purgeWarning(`“${name}”`, subpages)} busy={busy === "purge"} disabled={!!busy} onDelete={purge} />}
       <Button size="sm" variant="secondary" onClick={() => void restore()} disabled={!!busy} className="shrink-0 gap-1.5">
         {busy === "restore" && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
         Restore
       </Button>
-    </div>
+    </TrashRow>
   )
 }

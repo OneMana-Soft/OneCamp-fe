@@ -221,7 +221,7 @@ export function boardInfo(board, user, owner) {
     board_commenting_users: [],
     board_created_at: now,
     board_updated_at: now,
-    board_mqtt_topic: "",
+    board_mqtt_topic: board.topic ?? "",
   }
 }
 

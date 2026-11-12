@@ -11,24 +11,18 @@ import { CalendarClock } from "@/lib/icons"
 import { SEND_LATER_MAX_LEAD_MS, quarterUp, schedulePresets, sendLaterProblem, toLocalInputValue, type SchedulePreset } from "@/lib/messages/schedulePresets"
 import { ix } from "@/lib/ui/interactive"
 
-// The date and time fields load as the custom time first shows: the composer
-// rides on every chat route's first load. Held at their height meanwhile.
-const DateTimeField = dynamic(() => import("@/components/ui/date-time-field").then((m) => m.DateTimeField), {
+// The time in words and the date and time fields load as the custom time
+// first shows: the composer rides on every chat route's first load. Held at
+// their height meanwhile.
+const WhenField = dynamic(() => import("@/components/ui/when-field").then((m) => m.WhenField), {
   ssr: false,
-  loading: () => (
-    <div className="@container/dt">
-      <div className="grid gap-2 @[18rem]/dt:grid-cols-2">
-        <div className="h-11 md:h-8" />
-        <div className="h-11 md:h-8" />
-      </div>
-    </div>
-  ),
+  loading: () => <div className="h-[217px] max-sm:h-[165px] md:pointer-fine:h-[181px]" />,
 })
 
 /**
- * Any moment inside the send-later window, in the app's date and time fields
- * (D14), with why it can't be used yet in the server's own words (MC-41) and
- * the action under it, inside the popover's width. Schedule send and the
+ * Any moment inside the send-later window, in words or the app's date and
+ * time fields (WhenField, H3), with why it can't be used yet in the server's
+ * own words (MC-41) and the action under it, inside the popover's width. Schedule send and the
  * composer's Send later share it, so both take the server's 30 seconds to 120
  * days: the composer wanted a minute, took a time past 120 days, and said nothing.
  */
@@ -37,36 +31,39 @@ export function CustomSendTime({
   busy,
   actionLabel = "Schedule",
   leadMs = 60 * 60 * 1000,
+  pinned = false,
 }: {
   onPick: (at: Date) => void
   busy?: boolean
   actionLabel?: string
   /** Where the field starts: this far from now. */
   leadMs?: number
+  /** In a phone's sheet: the field is the one scroller, the action pinned under it (app/overlay.css; SendLaterMenu marks the sheet). */
+  pinned?: boolean
 }) {
   const now = new Date()
-  const labelId = React.useId()
   const problemId = React.useId()
   const [custom, setCustom] = React.useState(() => toLocalInputValue(quarterUp(new Date(now.getTime() + leadMs))))
   const customAt = custom ? new Date(custom) : null
   const problem = sendLaterProblem(customAt, Date.now())
+  // Pinned, the column holds the body and never scrolls itself; the sheet's
+  // root carries the same mark and the footer's (SendLaterMenu, first load).
   return (
-    <div data-schedule-custom="" className="flex flex-col gap-1.5">
-      <span id={labelId} className="px-1 text-xs text-muted-foreground">
-        Custom time
-      </span>
-      <DateTimeField
-        aria-labelledby={labelId}
-        aria-describedby={problem ? problemId : undefined}
-        value={custom}
-        min={toLocalInputValue(now)}
-        max={toLocalInputValue(new Date(now.getTime() + SEND_LATER_MAX_LEAD_MS))}
-        onChange={setCustom}
-      />
-      {problem && <p id={problemId} className="px-1 text-meta text-ink-2">{problem}</p>}
-      <Button size="sm" className="h-8 self-end" disabled={!!problem} busy={busy} aria-describedby={problem ? problemId : undefined} onClick={() => customAt && onPick(customAt)}>
-        {actionLabel}
-      </Button>
+    <div data-schedule-custom="" data-overlay-column={pinned ? "" : undefined} data-overlay-holds-body={pinned ? "" : undefined} className="flex flex-col gap-1.5">
+      <div data-overlay-body={pinned ? "" : undefined} className={pinned ? "-mx-1 p-1" : "contents"}>
+        <WhenField
+          value={custom}
+          onChange={setCustom}
+          onPick={(at) => !busy && onPick(at)}
+          within={{ max: new Date(now.getTime() + SEND_LATER_MAX_LEAD_MS), problem: sendLaterProblem }}
+          messageId={problemId}
+        />
+      </div>
+      <div data-overlay-footer={pinned ? "" : undefined} className={pinned ? "flex justify-end" : "contents"}>
+        <Button size="sm" className="h-8 self-end" disabled={!!problem} busy={busy} aria-describedby={problem ? problemId : undefined} onClick={() => customAt && onPick(customAt)}>
+          {actionLabel}
+        </Button>
+      </div>
     </div>
   )
 }

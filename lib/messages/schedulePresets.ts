@@ -13,23 +13,26 @@ export interface SchedulePreset {
   at: Date
 }
 
-const at = (base: Date, days: number, hour: number) => {
+/** The day `days` on from `base`, at `hour`:00. */
+export const dayAt = (base: Date, days: number, hour: number) => {
   const d = new Date(base)
   d.setDate(d.getDate() + days)
   d.setHours(hour, 0, 0, 0)
   return d
 }
 
+/** Next Monday, at 0:00; on a Monday, the one after. */
+export const nextMonday = (now: Date) => dayAt(now, (8 - now.getDay()) % 7 || 7, 0)
+
 export function schedulePresets(now: Date): SchedulePreset[] {
   const out: SchedulePreset[] = []
   // Later today, only with a couple of working hours still ahead.
   // Each label says its time on the reader's clock: "5:00 PM" or "17:00".
   const preset = (day: string, when: Date) => ({ label: `${day}, ${clockTime(when)}`, at: when })
-  if (now.getHours() < 15) out.push(preset("Later today", at(now, 0, 17)))
-  out.push(preset("Tomorrow", at(now, 1, 9)))
+  if (now.getHours() < 15) out.push(preset("Later today", dayAt(now, 0, 17)))
+  out.push(preset("Tomorrow", dayAt(now, 1, 9)))
   // Next Monday, unless that is tomorrow (already offered).
-  const toMonday = (8 - now.getDay()) % 7 || 7
-  if (toMonday !== 1) out.push(preset("Monday", at(now, toMonday, 9)))
+  if (now.getDay()) out.push(preset("Monday", dayAt(nextMonday(now), 0, 9)))
   return out
 }
 

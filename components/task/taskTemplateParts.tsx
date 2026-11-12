@@ -8,6 +8,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { useProjectFields } from "@/hooks/useProjectFields"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import type { FieldValue, TaskField } from "@/lib/tasks/fields"
+import { HiddenFieldValue, fieldHidden } from "@/components/task/hiddenField"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { projectTypesPath, type ProjectType } from "@/lib/work/keysApi"
 import { askLabel, askedField, defaultFor, groupTemplates, prefillOf, typedOf, type FormValues, type Prefill, type TaskTemplate, type TemplateSummary } from "@/lib/work/taskTemplates"
@@ -156,6 +157,15 @@ export function TemplateAsks({ projectId, asks, answers, members, leftOff, onAns
         const field = fields.find((f) => f.id === id)
         if (!field) return null
         const box = `template-ask-${id}`
+        // One the server hides from its reader (V-698) takes no value from them: the words, no box.
+        if (fieldHidden(field)) {
+          return (
+            <div key={a} className="grid gap-1">
+              <p className="text-meta font-[510] text-ink-3">{field.name}</p>
+              <HiddenFieldValue className="text-ui-sm" />
+            </div>
+          )
+        }
         const input = (
           <AnswerInput id={box} value={answers[id]?.value} onChange={(value) => onAnswer({ field, value })} labelledBy={`${box}-label`} className="h-8" {...taskFieldAnswer(field, members ?? [])} />
         )

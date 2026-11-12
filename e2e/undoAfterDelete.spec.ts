@@ -1,6 +1,7 @@
-import { expect, test, type Page, type Request } from "@playwright/test"
+import { expect, test, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { FORM_ID, launchForm } from "./demoForm"
+import { expectReachable, hoverWhenReachable } from "./menuReach"
 import { P, openBoard } from "./projectBoard"
 import { SAM, SHOT_THEMES, TASK_PANEL_READS, expectEveryCallAnswered, logFailures, reviewShot, withStatus, type Answers } from "./stubbedApp"
 
@@ -40,11 +41,14 @@ function restoresOf(page: Page): string[] {
   return sent
 }
 
+/** A click, or on a phone a finger's tap. */
+const press = (target: Locator, by: "mouse" | "finger" = "mouse") => (by === "finger" ? target.tap() : target.click())
+
 /** Presses Undo on the newest toast that says `title`. */
-async function pressUndo(page: Page, title: string) {
+async function pressUndo(page: Page, title: string, by: "mouse" | "finger" = "mouse") {
   const offered = toastOf(page, title).last()
   await expect(offered.getByRole("button", { name: "Undo" })).toBeVisible()
-  await offered.getByRole("button", { name: "Undo" }).click()
+  await press(offered.getByRole("button", { name: "Undo" }), by)
 }
 
 /**
@@ -74,6 +78,48 @@ function listOr(read: () => unknown, remove: (id: string, request: Request) => v
     remove(del[1], request)
     return { msg: "ok" }
   }
+}
+
+/**
+ * A time entry deleted from its task's time list, and its Undo, as a person
+ * does it. On a computer a row's Change and Delete show while the pointer is
+ * on the row (taskTimeSection), so the pointer rests on the time entry first;
+ * a phone shows them always, and a finger taps. Hovering the hidden Delete
+ * itself met the row (the button takes no pointer events until then), and
+ * passed only while a retry's scroll brought the row under the pointer left
+ * on "logged": the Epic row above Time (J-H) moved it out from there (V-852).
+ */
+async function timeComesBack(page: Page, testInfo: TestInfo, theme: "light" | "dark", by: "mouse" | "finger") {
+  const ENTRY = { id: "e7e10000-0000-4000-8000-000000000001", task_uuid: CARD.task_uuid, project_uuid: P, user_id: SAM.user_uuid, started_at: at(-1), ended_at: at(-0.9375), note: "", billable: false, person: "Sam", seconds: 5400, mine: true }
+  const server = { listed: true }
+  const sent = restoresOf(page)
+  await openBoard(page, testInfo, theme, {
+    ...TASK_PANEL_READS,
+    [`/task/time/${CARD.task_uuid}`]: () => ({ msg: "ok", data: { entries: server.listed ? [ENTRY] : [], seconds: server.listed ? 5400 : 0, billable_seconds: 0, running: null } }),
+    "/task/time/entry/": listOr(() => ({ msg: "ok" }), () => (server.listed = false)),
+    [`/restore/time_entry/${ENTRY.id}`]: () => {
+      server.listed = true
+      return { msg: "Time restored." }
+    },
+  })
+  await press(page.locator(`[data-board] [data-task-id="${CARD.task_uuid}"]`), by)
+  const logged = page.getByRole("button", { name: /1h 30m logged/ })
+  await press(logged, by)
+  const remove = page.getByRole("button", { name: "Delete this time" })
+  if (by === "mouse") await hoverWhenReachable(page.getByRole("listitem").filter({ has: remove }))
+  else await remove.scrollIntoViewIfNeeded()
+  // Shown (its row's actions, not only the button) and what the pointer or finger meets.
+  await expect(remove.locator("xpath=.."), "the row's Change and Delete show").toHaveCSS("opacity", "1")
+  await expectReachable(remove)
+  await press(remove, by)
+  await expect(logged).toHaveCount(0)
+  await reviewShot(page, "undo-time-deleted", theme)
+
+  await pressUndo(page, "Deleted 1h 30m", by)
+  await expect(toastOf(page, "Undone")).toBeVisible()
+  await expect(logged).toBeVisible()
+  expect(sent).toEqual([`time_entry/${ENTRY.id}`])
+  await expectEveryCallAnswered(page)
 }
 
 for (const theme of SHOT_THEMES) {
@@ -264,32 +310,15 @@ for (const theme of SHOT_THEMES) {
     })
 
     test("a time entry comes back, with the task's time", async ({ page }, testInfo) => {
-      const ENTRY = { id: "e7e10000-0000-4000-8000-000000000001", task_uuid: CARD.task_uuid, project_uuid: P, user_id: SAM.user_uuid, started_at: at(-1), ended_at: at(-0.9375), note: "", billable: false, person: "Sam", seconds: 5400, mine: true }
-      const server = { listed: true }
-      const sent = restoresOf(page)
-      await openBoard(page, testInfo, theme, {
-        ...TASK_PANEL_READS,
-        [`/task/time/${CARD.task_uuid}`]: () => ({ msg: "ok", data: { entries: server.listed ? [ENTRY] : [], seconds: server.listed ? 5400 : 0, billable_seconds: 0, running: null } }),
-        "/task/time/entry/": listOr(() => ({ msg: "ok" }), () => (server.listed = false)),
-        [`/restore/time_entry/${ENTRY.id}`]: () => {
-          server.listed = true
-          return { msg: "Time restored." }
-        },
-      })
-      await page.locator(`[data-board] [data-task-id="${CARD.task_uuid}"]`).click()
-      const logged = page.getByRole("button", { name: /1h 30m logged/ })
-      await logged.click()
-      const row = page.getByRole("button", { name: "Delete this time" })
-      await row.hover()
-      await row.click()
-      await expect(logged).toHaveCount(0)
-      await reviewShot(page, "undo-time-deleted", theme)
+      await timeComesBack(page, testInfo, theme, "mouse")
+    })
 
-      await pressUndo(page, "Deleted 1h 30m")
-      await expect(toastOf(page, "Undone")).toBeVisible()
-      await expect(logged).toBeVisible()
-      expect(sent).toEqual([`time_entry/${ENTRY.id}`])
-      await expectEveryCallAnswered(page)
+    test.describe("at 390, a finger", () => {
+      test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+      test("a time entry comes back, with the task's time", async ({ page }, testInfo) => {
+        await timeComesBack(page, testInfo, theme, "finger")
+      })
     })
 
     test("a form comes back, and its delete no longer says it can't be undone", async ({ page }, testInfo) => {

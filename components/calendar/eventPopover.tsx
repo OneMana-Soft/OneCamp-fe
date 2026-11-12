@@ -1,7 +1,7 @@
 "use client";
 
 import { avatarSeed } from "@/lib/utils/getAvatarColor";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
 import { Calendar as CalendarIcon, Ellipsis, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
 import { Popover, PopoverAnchor } from "@/components/ui/popover";
@@ -14,11 +14,12 @@ import { stayBehindConfirm } from "@/components/ui/overlayFocus";
 import { MenuOnDemand } from "@/components/ui/menuOnDemand";
 import { copyToClipboard } from "@/hooks/useCopyToClipboard";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
-import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { displayNameOf } from "@/lib/personName";
 import { cn } from "@/lib/utils/helpers/cn";
-import { OWN_HUE, hueOf, kindOf } from "@/components/calendar/calendarTones";
-import { taskGlyphStatus } from "@/components/calendar/HueBlock";
+import { OWN_HUE, kindOf } from "@/components/calendar/calendarTones";
+import { hueMark, taskGlyphStatus } from "@/components/calendar/HueBlock";
+import { PlaceLine } from "@/components/calendar/placeLine";
+import { VisibilityLine } from "@/components/calendar/visibilityLine";
 import { StatusGlyph } from "@/components/ui/graphics/glyphs";
 import { GoogleMark } from "@/components/ui/graphics/GoogleMark";
 import { isCampHue } from "@/lib/campHue";
@@ -40,6 +41,7 @@ import { ReminderRow } from "@/components/calendar/rsvp/reminderRow";
 import { usePost } from "@/hooks/usePost";
 import { wantsNewTab } from "@/lib/liveEntity/follow";
 import { workRoute } from "@/lib/work/route";
+import { BlockWaits } from "@/components/calendar/blockWaits";
 
 /**
  * Clicking an event opens this (content.md C12, owner decision 4): a 360 px
@@ -111,7 +113,7 @@ function cardInfo(event: CalendarEventInterface, now: Date, selfId: string | und
   const end = parseISO(placed.event_end_time);
   const allDay = allDayItem(placed, start, end);
   const when = whenLabel(start, end, now);
-  // Its own call (calendar B11), else the link in its notes.
+  // Its guest call (calendar B11), else the link in its notes, else its own room (gcal-15).
   const call = eventCallOf(event, window.location.origin);
   const link = call?.join ?? null;
   const google = event.event_uuid.startsWith("gcal-");
@@ -163,7 +165,8 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull, onOpenTa
     return (
       <Drawer open={!!event} onOpenChange={close} detent="medium">
         {shown && info ? (
-          <DrawerContent aria-describedby={undefined} data-event-card="" data-event-sheet="" onInteractOutside={stayBehindConfirm}>
+          // A card that asks "Going?" keeps it at the sheet's foot: that edge never fades (app/interaction.css, V-619).
+          <DrawerContent aria-describedby={undefined} data-event-card="" data-event-sheet="" data-pinned-foot={info.asks ? "" : undefined} onInteractOutside={stayBehindConfirm}>
             <EventCard event={shown} info={info} phone onClose={onClose} onOpenFull={onOpenFull} onOpenTask={onOpenTask} onAnswer={onAnswer} mutateEvents={mutateEvents} />
           </DrawerContent>
         ) : null}
@@ -240,7 +243,15 @@ function EventCard({
   mutateEvents?: AnswerSender["mutateEvents"];
 }) {
   const kind = kindOf(event);
+  const mark = hueMark(event);
   const others = info.guests.faces.filter((f) => !f.organiser);
+  // A task's link: it opens as the calendar opens one, and the card makes way. A new tab's click is the browser's.
+  const openTaskLink = (e: ReactMouseEvent<HTMLAnchorElement>, uuid: string) => {
+    if (wantsNewTab(e) || !onOpenTask) return;
+    e.preventDefault();
+    onClose();
+    onOpenTask(uuid);
+  };
   // Its own call is its organiser's to add and take off here (calendar B11),
   // as its edits are: never on a subscribed calendar's copy or Google's.
   const callChoice = eventCallChoice(event, { mayChange: info.mine && !info.readOnly, google: info.google, ended: info.when.tone === "ended" });
@@ -264,7 +275,7 @@ function EventCard({
         ) : kind === "away" ? (
           <Plane className="mt-1 size-3 shrink-0 text-ink-3" aria-hidden="true" />
         ) : (
-          <span aria-hidden="true" className={cn(HUE_CLASS[hueOf(event)], "mt-1 size-3 shrink-0 rounded-[3px] bg-hue")} />
+          <span aria-hidden="true" data-own-hue={mark.own} style={mark.style} className={cn(mark.className, "mt-1 size-3 shrink-0 rounded-[3px] bg-hue")} />
         )}
         {/* The sheet is named by the title itself, which keeps its look. */}
         {phone ? <DrawerTitle asChild>{title}</DrawerTitle> : title}
@@ -280,6 +291,8 @@ function EventCard({
               <DropdownMenuContent {...own} align="end" className="w-44">
                 <DropdownMenuItem onSelect={() => onOpenFull(event.event_uuid)}>Open</DropdownMenuItem>
                 {info.call ? <DropdownMenuItem onSelect={() => void copyToClipboard(info.call!.share, "Call link copied.")}>Copy call link</DropdownMenuItem> : null}
+                {/* Its own room is the card's Join (gcal-15): a guest link goes on it from here. */}
+                {callChoice === "add" ? <DropdownMenuItem onSelect={() => void callActions.add()}>Add a guest link</DropdownMenuItem> : null}
                 {callChoice === "remove" ? <DropdownMenuItem onSelect={callActions.remove}>Remove call</DropdownMenuItem> : null}
               </DropdownMenuContent>
             )}
@@ -308,25 +321,27 @@ function EventCard({
           (lib/calendar/joinLink): the primary from ten minutes before. */}
       {info.link && info.join ? (
         <div className="px-4 pt-3">
-          <Button asChild size="sm" variant={info.join === "primary" ? "default" : "secondary"} className="w-full">
-            {/* Its own call opens here in the app; a link in its notes, beside it. */}
+          <Button asChild size="sm" variant={info.join === "primary" ? "default" : "secondary"} className="w-full pointer-coarse:h-11">
+            {/* Its own call or room opens here in the app; a link in its notes, beside it. */}
             <a href={info.link} {...(info.call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })}>
               <Video />
               Join call
             </a>
           </Button>
         </div>
-      ) : callChoice === "add" ? (
-        <div className="px-4 pt-3">
-          <Button size="sm" variant="secondary" className="w-full" busy={callActions.adding} onClick={() => void callActions.add()}>
-            <Video />
-            Add a call
-          </Button>
-        </div>
       ) : null}
 
       {/* One column the card's width: a long line wraps, never runs out of the card. */}
       <dl className="grid grid-cols-1 gap-0 px-4 pb-2 pt-3">
+        {/* Its place, opening a map or its link (calendar head B). */}
+        {event.event_location?.trim() ? (
+          <div className="flex min-h-7 min-w-0 items-center" data-card-place="">
+            <dt className="sr-only">Place</dt>
+            <dd className="min-w-0">
+              <PlaceLine place={event.event_location} />
+            </dd>
+          </div>
+        ) : null}
         {/* A task block: the task it is time for, where it stands, and its project (B1). */}
         {event.event_task ? (
           <div className="flex min-h-7 min-w-0 items-start gap-2.5" data-card-task="">
@@ -336,15 +351,10 @@ function EventCard({
               {event.event_task.task_name ? (
                 <>
                   Time for{" "}
-                  {/* The work itself: the task opens as the calendar opens one, and the card makes way. A new tab's click is the browser's. */}
+                  {/* The work itself (openTaskLink). */}
                   <a
                     href={workRoute({ task: event.event_task.task_uuid })}
-                    onClick={(e) => {
-                      if (wantsNewTab(e) || !onOpenTask) return;
-                      e.preventDefault();
-                      onClose();
-                      onOpenTask(event.event_task!.task_uuid);
-                    }}
+                    onClick={(e) => openTaskLink(e, event.event_task!.task_uuid)}
                     className="rounded-[4px] font-medium text-ink underline decoration-ink-4 underline-offset-[3px] outline-none transition-colors hover:decoration-ink-2 focus-visible:ring-2 focus-visible:ring-brand"
                     data-touch-target=""
                   >
@@ -355,6 +365,7 @@ function EventCard({
               ) : (
                 <span className="text-ink-3">Time for a task you can no longer see</span>
               )}
+              <BlockWaits task={event.event_task} onLink={openTaskLink} />
             </dd>
           </div>
         ) : null}
@@ -387,6 +398,15 @@ function EventCard({
             {info.google ? <GoogleMark className="size-3.5 shrink-0" /> : <IdentityMark hue={isCampHue(event.calendar_hue) ? event.calendar_hue : OWN_HUE} variant="dot" size={6} />}
           </dd>
         </div>
+        {/* Made private (V-643): said with the calendar it is on. */}
+        {event.event_visibility === "private" ? (
+          <div className="flex min-h-7 min-w-0 items-center" data-card-visibility="">
+            <dt className="sr-only">Visibility</dt>
+            <dd className="min-w-0">
+              <VisibilityLine visibility={event.event_visibility} />
+            </dd>
+          </div>
+        ) : null}
         {organiser && !info.readOnly ? (
           <div className="flex min-h-7 items-center gap-2.5">
             <dt className="sr-only">Organiser</dt>

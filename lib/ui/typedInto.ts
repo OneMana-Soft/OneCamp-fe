@@ -1,4 +1,3 @@
-/** Whether `t` is a field or an editor. */
 export function isTypedInto(t: EventTarget | null): t is Element {
-  return t instanceof Element && !!t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
+  return t instanceof Element && !!t.closest(':is(input,textarea):not([readonly],:disabled),select:not(:disabled),[contenteditable=""],[contenteditable="true"]')
 }

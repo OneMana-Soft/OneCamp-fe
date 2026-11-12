@@ -50,10 +50,10 @@ describe("the desktop sidebar's primary rows (design v3, shell S5)", () => {
         expect(links.find((l) => l.title === "Home")?.variant).toBe("ghost")
     })
 
-    it("counts Inbox from what has no row of its own, plus urgent nudges, and never DMs", () => {
-        const links = buildPrimaryNavLinks(at("home"), { channel: 3, dm: 12, activity: 2, urgentNudges: 1 }, false)
-        expect(links.find((l) => l.title === "Inbox")?.label).toBe("3")
-        expect(inboxBadgeCount({ activity: 0, urgentNudges: 0 })).toBe(0)
+    it("counts Inbox with the server's number alone (urgent nudges are in it, V-577), and never DMs", () => {
+        const links = buildPrimaryNavLinks(at("home"), { channel: 3, dm: 12, activity: 2, ...({ urgentNudges: 1 } as object) }, false)
+        expect(links.find((l) => l.title === "Inbox")?.label).toBe("2")
+        expect(inboxBadgeCount({ activity: 0 })).toBe(0)
         expect(buildPrimaryNavLinks(at("home"), quiet, false).find((l) => l.title === "Inbox")?.label).toBe("")
     })
 

@@ -146,6 +146,15 @@ describe("highlighting", () => {
     expect(h.hasWanted()).toBe(false)
   })
 
+  it("colours a long block left on Auto to its last line, though the guess reads only its first (V-564)", async () => {
+    await loadHighlighter()
+    const fn = "def total(lines):\n    return sum(l.price * l.qty for l in lines)\n\n"
+    const code = `${fn.repeat(Math.ceil(6_000 / fn.length))}def tail_marker():\n    return None`
+    const e = make("doc", `<pre><code>${code}</code></pre>`)
+    expect(block(e).attrs?.language ?? null).toBeNull()
+    await vi.waitFor(() => expect(Array.from(e.view.dom.querySelectorAll("pre code .hljs-title")).some((t) => t.textContent === "tail_marker")).toBe(true))
+  })
+
   it("keeps every block's colours when collaboration replaces the whole doc, and colours again the block that changed", async () => {
     await loadHighlighter()
     const e = make("doc", '<pre><code class="language-go">func main() {}</code></pre><p>between</p><pre><code class="language-go">func other() {}</code></pre>')

@@ -11,7 +11,7 @@ import type { Page, WebSocketRoute } from "@playwright/test"
 // The protocol's messages come from livekit-client's own copy of
 // @livekit/protocol, so they are the ones the app decodes.
 const protocol = createRequire(require.resolve("livekit-client"))("@livekit/protocol")
-const { DataPacket, DataPacket_Kind, JoinResponse, ParticipantInfo, ParticipantInfo_Kind, ParticipantInfo_State, ParticipantPermission, ParticipantUpdate, Room, ServerInfo, SessionDescription, SignalRequest, SignalResponse, TrackInfo, TrackPublishedResponse, TrackSource, TrackType, UserPacket } = protocol
+const { DataPacket, DataPacket_Kind, DisconnectReason, JoinResponse, LeaveRequest, LeaveRequest_Action, ParticipantInfo, ParticipantInfo_Kind, ParticipantInfo_State, ParticipantPermission, ParticipantUpdate, Room, ServerInfo, SessionDescription, SignalRequest, SignalResponse, TrackInfo, TrackPublishedResponse, TrackSource, TrackType, UserPacket } = protocol
 
 /** Someone in the call: their identity, the name everyone sees, and their LiveKit attributes (the call's role travels there). */
 export interface FakePerson {
@@ -36,24 +36,46 @@ function personInfo(p: FakePerson, sid: string, state = ParticipantInfo_State.AC
     state,
     tracks: sharing ? [new TrackInfo({ sid: `TR_screen_${sid}`, type: TrackType.VIDEO, name: "screen", source: TrackSource.SCREEN_SHARE, width: 1920, height: 1080 })] : [],
     joinedAt: BigInt(Math.floor(Date.now() / 1000)),
-    permission: new ParticipantPermission({ canSubscribe: true, canPublish: true, canPublishData: true }),
+    // A companion (meet-04) may publish only a screen, as the server's grant says (livekitInit companion.go).
+    permission: new ParticipantPermission({
+      canSubscribe: true,
+      canPublish: true,
+      canPublishData: true,
+      canPublishSources: COMPANION.test(p.identity) ? [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO] : [],
+    }),
   })
+}
+
+const COMPANION = /~c~[0-9a-f]{12}$/
+
+/** Who a join's token says it is, as LiveKit names your part from its sub and name; null for a token that names nobody. */
+function claimsOf(token: string): { sub?: string; name?: string } | null {
+  try {
+    return JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString()) as { sub?: string; name?: string }
+  } catch {
+    return null
+  }
 }
 
 /**
  * Answers the call's signal socket for `page`: you join as `you`, with
  * `others` already in the call, and the room's metadata as `metadata`
- * (an object, as the server writes it). Register it after stubBackend, so it
+ * (an object, as the server writes it), and the room named `room` ("fake-call"
+ * by default). Register it after stubBackend, so it
  * takes the call's socket from the stub's silent one. With `holdJoin` the
  * join isn't answered until releaseJoin(), so the room stays connecting, as
  * behind a slow call server: LiveKit names the room only from that answer.
+ * With `youByToken` each join is whoever its token names (sub and name), as
+ * LiveKit's are: another device of yours joins as itself (meet-04).
  */
-export async function fakeCallServer(page: Page, opts: { you: FakePerson; others?: FakePerson[]; metadata?: Record<string, unknown>; holdJoin?: boolean }) {
+export async function fakeCallServer(page: Page, opts: { you: FakePerson; others?: FakePerson[]; metadata?: Record<string, unknown>; holdJoin?: boolean; room?: string; youByToken?: boolean }) {
+  // The room's name, as the call server gives it: a conversation's id names its call (services/callInviteService).
+  const named = { ...ROOM, name: opts.room ?? ROOM.name }
   let socket: WebSocketRoute | undefined
   let metadata = JSON.stringify(opts.metadata ?? {})
   let tracks = 0
-  // What the page has published (its source, as LiveKit names it) and whether it is muted now.
-  const published: { sid: string; source: string; muted: boolean }[] = []
+  // What the page has published (its source, as LiveKit names it), whether it is muted now, and on which join (1, 2…).
+  const published: { sid: string; source: string; muted: boolean; join: number }[] = []
   let releaseJoin = () => {}
   // Who among the others shares their screen now (FakePerson.shares, then share()).
   const sharing = new Set((opts.others ?? []).filter((p) => p.shares).map((p) => p.identity))
@@ -119,8 +141,11 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
   // join of its own (calls package C), on a media connection of its own.
   const joins: string[] = []
   await page.routeWebSocket(/\/rtc(\/v1)?(\?|$)/, async (ws) => {
-    joins.push(new URL(ws.url()).searchParams.get("access_token") ?? "")
+    const token = new URL(ws.url()).searchParams.get("access_token") ?? ""
+    joins.push(token)
     const gen = ++generation
+    const claims = opts.youByToken ? claimsOf(token) : null
+    const you = claims?.sub ? { ...opts.you, identity: claims.sub, name: claims.name ?? opts.you.name } : opts.you
     socket = ws
     await unlessMoot(
       page.evaluate((gen: number) => {
@@ -133,8 +158,8 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
     )
     if (joinHeld) await joinHeld
     const join = new JoinResponse({
-      room: new Room({ ...ROOM, metadata }),
-      participant: personInfo(opts.you, "PA_you"),
+      room: new Room({ ...named, metadata }),
+      participant: personInfo(you, "PA_you"),
       otherParticipants: (opts.others ?? []).map((p, i) => personInfo(p, `PA_other${i}`, ParticipantInfo_State.ACTIVE, sharing.has(p.identity))),
       serverVersion: "1.9.0",
       serverInfo: new ServerInfo({ version: "1.9.0", protocol: 15 }),
@@ -161,7 +186,7 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
       } else if (m.case === "addTrack") {
         tracks += 1
         const track = new TrackInfo({ sid: `TR_${tracks}`, type: m.value.type, name: m.value.name, source: m.value.source, muted: m.value.muted, width: m.value.width, height: m.value.height })
-        published.push({ sid: track.sid, source: TrackSource[m.value.source] ?? String(m.value.source), muted: m.value.muted })
+        published.push({ sid: track.sid, source: TrackSource[m.value.source] ?? String(m.value.source), muted: m.value.muted, join: gen })
         send({ case: "trackPublished", value: new TrackPublishedResponse({ cid: m.value.cid, track }) })
       } else if (m.case === "mute") {
         const was = published.find((t) => t.sid === m.value.sid)
@@ -174,7 +199,7 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
     /** The room's metadata changes, as the server writes it. */
     setMetadata(next: Record<string, unknown>) {
       metadata = JSON.stringify(next)
-      send({ case: "roomUpdate", value: { room: new Room({ ...ROOM, metadata }) } })
+      send({ case: "roomUpdate", value: { room: new Room({ ...named, metadata }) } })
     },
     /** A data packet on `topic`, over the reliable channel: from the server (no sender), or from `from`, someone in the call, as LiveKit names a sender. */
     async sendData(topic: string, payload: unknown, from?: string) {
@@ -196,6 +221,12 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
       if (i < 0) throw new Error(`${identity} isn't among the call's others`)
       send({ case: "update", value: new ParticipantUpdate({ participants: [personInfo(opts.others![i], `PA_other${i}`, ParticipantInfo_State.DISCONNECTED)] }) })
     },
+    /** Someone joins the call, as LiveKit says it (a participant update, active): one who answers a ring. */
+    arrive(person: FakePerson) {
+      const others = (opts.others ??= [])
+      const i = others.push(person) - 1
+      send({ case: "update", value: new ParticipantUpdate({ participants: [personInfo(person, `PA_other${i}`)] }) })
+    },
     /** Someone already in the call starts sharing their screen, or stops (a participant update with, or without, the share). */
     share(identity: string, on = true) {
       const i = (opts.others ?? []).findIndex((p) => p.identity === identity)
@@ -203,6 +234,14 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
       if (on) sharing.add(identity)
       else sharing.delete(identity)
       send({ case: "update", value: new ParticipantUpdate({ participants: [personInfo(opts.others![i], `PA_other${i}`, ParticipantInfo_State.ACTIVE, on)] }) })
+    },
+    /**
+     * The server ends the page's connection, saying why as LiveKit does (a
+     * leave with a reason): DUPLICATE_IDENTITY when the same person joined on
+     * another device (Switch here there, meet-04).
+     */
+    kick(reason: "DUPLICATE_IDENTITY" | "PARTICIPANT_REMOVED" | "ROOM_DELETED") {
+      send({ case: "leave", value: new LeaveRequest({ canReconnect: false, reason: DisconnectReason[reason], action: LeaveRequest_Action.DISCONNECT }) })
     },
     /** Answers a join held by `holdJoin`, and every join after it. */
     releaseJoin: () => releaseJoin(),
@@ -219,8 +258,10 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
         }
       })
     },
-    /** Every track the page has published, in order: its source (CAMERA, MICROPHONE…) and whether it is muted now. */
+    /** Every track the page has published, in order: its source (CAMERA, MICROPHONE…), whether it is muted now, and its join. */
     published: () => published.map((t) => ({ ...t })),
+    /** What each join published, by join (the first first): its sources, in order. */
+    publishedByJoin: () => joins.map((_, i) => published.filter((t) => t.join === i + 1).map((t) => t.source)),
     /** The token of every join so far, the latest last. */
     joins: () => [...joins],
     /** Whether the room is connected: the media connection is up. */

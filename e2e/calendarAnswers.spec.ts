@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
+import { expectPinWhole } from "./sheetFade"
 import { SAM, stubBackend } from "./stubbedApp"
 import { expectTouchSize } from "./touchTarget"
 
@@ -220,7 +221,7 @@ for (const theme of ["light", "dark"] as const) {
       await shot(page, "card-reminders-open", theme)
       const saved = page.waitForRequest((r) => r.method() === "PUT" && r.url().endsWith(`/calendar/events/${LAUNCH}/reminders`))
       await menu.getByRole("menuitemradio", { name: "30 minutes before" }).click()
-      expect((await saved).postDataJSON()).toEqual({ minutes: [30] })
+      expect((await saved).postDataJSON()).toEqual({ minutes: [30], email: [] })
       await expect(card(page).getByRole("button", { name: "Reminders: 30 minutes before" })).toBeVisible()
       // Saved at once, without a toast; the card stays open. (The calendar's
       // own live regions are statuses too: a toast is a .toast-root.)
@@ -327,6 +328,15 @@ for (const theme of ["light", "dark"] as const) {
       const yes = await sheet.getByRole("radio", { name: "Yes" }).boundingBox()
       expectTouchSize(yes?.height, "Yes")
       await shot(page, "sheet-guest", theme)
+      // The card fits, even on a 375x667 phone, so nothing scrolls under Going? and nothing fades: it is whole at the
+      // sheet's foot (e2e/sheetFade). A card that grew to scroll here would need the band over its top edge that a
+      // menu's Disconnect casts (app/phone.css, V-619 F1), or a row would be cut off behind it.
+      const going = sheet.getByRole("radiogroup", { name: "Going?" })
+      await expectPinWhole(page, going, "foot", { fits: true })
+      await shot(page, "sheet-pin-going", theme)
+      await page.setViewportSize({ width: 375, height: 667 })
+      await expectPinWhole(page, going, "foot", { fits: true })
+      await shot(page, "sheet-pin-going", theme)
     })
 
     test("says the reader's reminder, which opens a sheet of its choices, and a choice closes it", async ({ page }, testInfo) => {
@@ -352,7 +362,7 @@ for (const theme of ["light", "dark"] as const) {
       await shot(page, "sheet-reminders-open", theme)
       const saved = page.waitForRequest((r) => r.method() === "PUT" && r.url().endsWith(`/calendar/events/${HANDS}/reminders`))
       await choices.getByRole("button", { name: "30 minutes before" }).tap()
-      expect((await saved).postDataJSON()).toEqual({ minutes: [30] })
+      expect((await saved).postDataJSON()).toEqual({ minutes: [30], email: [] })
       await expect(choices).toHaveCount(0)
       await expect(sheet.getByRole("button", { name: "Reminders: 30 minutes before" })).toBeVisible()
     })

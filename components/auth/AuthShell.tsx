@@ -26,6 +26,7 @@ import { AuthAvatar } from "@/components/auth/AuthAvatar"
 
 export { AuthAvatar, initialsOf } from "@/components/auth/AuthAvatar"
 import { CampBand, CampCanvas, GradientRing, useHost } from "@/components/auth/CampArt"
+import { useHosting } from "@/lib/auth/useSignInFacts"
 
 /** The product's site (release notes, docs, privacy), when the install names one. */
 const productSite = () => (process.env.NEXT_PUBLIC_PRODUCT_SITE || "").replace(/\/$/, "")
@@ -51,26 +52,31 @@ function AuthHeader() {
   )
 }
 
-/** "<host> · self-hosted, your data stays on this server", with Privacy and Help when the install names its site. */
+/** What the trust line claims of where the workspace runs: nothing until the server says (SHELL-05). */
+const CLAIM = { self: "self-hosted, your data stays on this server", cloud: "run by OneMana for your team" }
+
+/** "<host> · <where it runs>", or the demo's own line, with Privacy and Help when the install names its site. */
 export function TrustLine() {
   const host = useHost()
+  const hosting = useHosting()
+  const claim = hosting && hosting !== "demo" ? CLAIM[hosting] : ""
   const site = productSite()
   return (
     <footer className="auth-trust" data-trust-line="">
       <span className="inline-flex items-start gap-1.5">
-      <ShieldCheck aria-hidden="true" className="mt-0.5" />
-      <span>
-        {host && (
-          <>
-            <span translate="no">{host}</span>
-            {" · "}
-          </>
-        )}
-        self-hosted, your data stays on this server
-      </span>
+      {claim && <ShieldCheck aria-hidden="true" className="mt-0.5" />}
+      {hosting === "demo" ? (
+        <span>Shared demo</span>
+      ) : (
+        <span>
+          {host && <span translate="no">{host}</span>}
+          {host && claim && " · "}
+          {claim}
+        </span>
+      )}
       </span>
       {site && (
-        <span className="inline-flex items-center gap-1.5 pl-5">
+        <span className={`inline-flex items-center gap-1.5${claim ? " pl-5" : ""}`}>
           <a href={`${site}/privacy`} target="_blank" rel="noopener noreferrer">
             Privacy
           </a>

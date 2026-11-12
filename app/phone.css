@@ -552,6 +552,22 @@ html[data-task-sheet] [data-task-body="panel"] {
     z-index: 1;
     box-shadow: var(--e1), 0 0 0 8px var(--pop);
   }
+  /* While there is more below it (the body's data-more-below,
+     components/ui/moreMarks), what scrolls under it fades into the sheet over
+     its top edge, as it does over a pinned footer: a card's edge cut off
+     behind Disconnect read as the menu's end (V-619 F1, DESIGN-BUILD-124). A
+     shadow, not a ::before: the group clips its own children. */
+  [data-v3-sheet][data-detent="menu"] [data-sheet-body][data-more-below] .sheet-group[data-holds-danger] {
+    box-shadow: var(--e1), 0 0 0 8px var(--pop), 0 -20px 16px var(--pop);
+  }
+  /* Its mirror at the top: while there is more above, a part pinned to a
+     sheet's top (a picker's filter, a time panel's box, the emoji search;
+     data-pins-top, components/ui/sheetPins) casts the same band down over
+     what scrolls under it; the foot of a row cut off behind it read as stray
+     marks (V-619, DESIGN-BUILD-124). */
+  [data-sheet-body][data-more-above] [data-pins-top] {
+    box-shadow: 0 20px 16px var(--pop);
+  }
   /* Its rows: 48px, square inside the card, a hairline between them inset
      past the icon (16 + 32 + 12), none under the last. */
   .sheet-group > [data-press="row"],
@@ -616,7 +632,11 @@ html[data-task-sheet] [data-task-body="panel"] {
     }
   }
   /* The pinned footer (DrawerContent's, and a dialog's on a sheet): what
-     scrolls under its top edge fades out rather than being cut off at a line. */
+     scrolls under its top edge fades out rather than being cut off at a line.
+     A sheet with no footer (a combobox's) draws the same fade at its list's
+     end (data-sheet-end, held at the scroller's foot) while more rows sit
+     below, so a row cut by the edge reads as a list that goes on. */
+  [data-sheet-end]::before,
   [data-sheet-footer]::before,
   .v3-dialog[role="dialog"][data-v3-sheet] > .v3-dlg-footer::before,
   .v3-dialog[role="dialog"][data-v3-sheet] > form > .v3-dlg-footer::before {
@@ -627,6 +647,36 @@ html[data-task-sheet] [data-task-body="panel"] {
     height: 12px;
     background: linear-gradient(to top, var(--pop), transparent);
     pointer-events: none;
+  }
+  /* The list's end draws it only while rows sit below and no footer follows,
+     and a row tall: there it is the only cue, and 12px lay under the last
+     row's text, whole above it, so the open sheet read as a list that ends
+     (DESIGN-BUILD-127 F2b). A row is --m-hit (44px), and 4px more: wherever
+     the edge cuts the rows, the last whose text sits above it fades at its
+     middle (at 40px, a list scrolled 28px kept that row's ink whole). No
+     footer is the sheet's own mark (components/ui/drawer), not a :has() on
+     its body: that made the body's subtree restyle four times as a sheet
+     opened (the phone pair, 11 Nov). */
+  [data-sheet-end]::before {
+    content: none;
+  }
+  [data-v3-sheet]:not([data-overlay-holds-footer]) [data-sheet-body][data-more-below] [data-sheet-end]::before {
+    content: "";
+    height: 48px;
+  }
+  /* A modal sheet's Radix layer writes pointer-events: none on <body> as it
+     opens, and takes it off as it unmounts: inherited, it restyled every
+     element of the page each way. The page under it keeps its own here:
+     under an open sheet (html[data-sheet], components/ui/sheetMark), a float
+     in it too, and for as long as <body> holds none, as sheetMark's mark goes
+     as the close starts, before the layer lets go. Not under a float alone
+     (html[data-float]): a menu's tap outside reaches nothing under it. The
+     scrim over the page still takes every tap outside the sheet, as before
+     (the phone pair, 11 Nov). */
+  @media (max-width: 639.98px) {
+    html:is([data-sheet="open"], :not([data-float])) body[style*="pointer-events: none"] [data-app-viewport] {
+      pointer-events: auto;
+    }
   }
 }
 

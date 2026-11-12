@@ -14,7 +14,7 @@ export function focusDialogItself(event: Event) {
  * For an overlay's onInteractOutside: a press or focus inside a confirm it
  * asked (an alertdialog, drawn in its own portal) isn't outside it, so the
  * overlay stays behind the confirm and shows what the confirmed step did
- * (the event card's Remove call: its Add a call comes back).
+ * (the event card's Remove call: its own room comes back).
  */
 export function stayBehindConfirm(event: Event) {
   if (event.target instanceof Element && event.target.closest('[role="alertdialog"]')) event.preventDefault()

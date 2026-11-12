@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useDispatch, useStore } from "react-redux"
 
 import { useFetch } from "@/hooks/useFetch"
+import type { AxiosRequestConfig } from "axios"
 import { hasPageAfter, pagesToCome } from "@/lib/http/pageCount"
 import { createListForTaskInfo } from "@/store/slice/taskInfoSlice"
 import type { RootState } from "@/store/store"
@@ -29,8 +30,8 @@ export function joinPages(rows: TaskInfoInterface[][], fresh: (page: number) => 
 }
 
 /** Mounted, SWR keeps a page fresh: useTaskUpdate's patches reach every page. */
-function PageReader<A>({ address, index, onRead }: { address: string; index: number; onRead: (address: string, index: number, read: Read<A>) => void }) {
-  const read = useFetch<A>(`${address}&pageIndex=${index}`)
+function PageReader<A>({ address, index, onRead, requestConfig }: { address: string; index: number; onRead: (address: string, index: number, read: Read<A>) => void; requestConfig?: AxiosRequestConfig }) {
+  const read = useFetch<A>(`${address}&pageIndex=${index}`, undefined, undefined, requestConfig)
   useEffect(() => onRead(address, index, read), [address, index, read, onRead])
   return null
 }
@@ -40,7 +41,8 @@ function PageReader<A>({ address, index, onRead }: { address: string; index: num
  * "Show more" while the last pageCount has one after it. Another `address`
  * (path and query, with pageSize) starts again. `tasksOf` must be stable.
  */
-export function useTaskPages<A extends { pageCount?: number }>(address: string, tasksOf: (answer: A) => TaskInfoInterface[] | undefined) {
+/** requestConfig: how each page is asked (a project's, in the reader's zone: lib/tasks/readerZone). */
+export function useTaskPages<A extends { pageCount?: number }>(address: string, tasksOf: (answer: A) => TaskInfoInterface[] | undefined, requestConfig?: AxiosRequestConfig) {
   const dispatch = useDispatch()
   const store = useStore<RootState>()
   const [state, setState] = useState({ address, wanted: 0, reads: [] as (Read<A> | undefined)[] })
@@ -92,7 +94,7 @@ export function useTaskPages<A extends { pageCount?: number }>(address: string, 
 
   return {
     /** Render under the table; they draw nothing. */
-    readers: address ? Array.from({ length: pages.wanted + 1 }, (_, i) => <PageReader<A> key={i} address={address} index={i} onRead={onRead} />) : null,
+    readers: address ? Array.from({ length: pages.wanted + 1 }, (_, i) => <PageReader<A> key={i} address={address} index={i} onRead={onRead} requestConfig={requestConfig} />) : null,
     first,
     loading: !!address && (!first || first.isLoading),
     more: (lastIn && hasPageAfter(pages.wanted, pageCount)) || failed,

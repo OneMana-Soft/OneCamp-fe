@@ -18,9 +18,9 @@ const reviewer: TaskField = { ...base, id: "r", name: "Reviewer", type: "person"
 const notes: TaskField = { ...base, id: "n", name: "Notes", type: "text", filter_id: "field_n" }
 const signed: TaskField = { ...base, id: "s", name: "Signed off", type: "checkbox", filter_id: "field_s" }
 
-function Harness({ onFilters }: { onFilters: (f: ColumnFiltersState) => void }) {
+function Harness({ onFilters, fields = [channel, reviewer, notes, signed] }: { onFilters: (f: ColumnFiltersState) => void; fields?: TaskField[] }) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const columns: ColumnDef<object>[] = [channel, reviewer, notes, signed].map((f) => ({ id: f.filter_id, accessorFn: () => undefined }))
+  const columns: ColumnDef<object>[] = fields.map((f) => ({ id: f.filter_id, accessorFn: () => undefined }))
   const table = useReactTable({
     data: [],
     columns,
@@ -34,7 +34,7 @@ function Harness({ onFilters }: { onFilters: (f: ColumnFiltersState) => void }) 
     getCoreRowModel: getCoreRowModel(),
     manualFiltering: true,
   })
-  return <TaskTableFieldFilter table={table} fields={[channel, reviewer, notes, signed]} people={[{ id: "u1", name: "Maya Chen" }]} />
+  return <TaskTableFieldFilter table={table} fields={fields} people={[{ id: "u1", name: "Maya Chen" }]} />
 }
 
 describe("the Fields filter", () => {
@@ -55,5 +55,20 @@ describe("the Fields filter", () => {
     expect(filters).toContainEqual({ id: "field_r", value: ["u1"] })
     fireEvent.click(screen.getByText("Clear field filters"))
     expect(filters).toEqual([])
+  })
+
+  // V-698W: a field the server hides from its reader (a money field, to anyone
+  // not an admin of its project) narrows nothing for them on the server, so
+  // it is never offered, whatever its type.
+  it("never offers a field the server hides from its reader (V-698W)", () => {
+    render(<Harness fields={[{ ...channel, hidden: true }, reviewer]} onFilters={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: /Fields/ }))
+    expect(screen.queryByText("Channel")).toBeNull()
+    expect(screen.queryByText("Blog")).toBeNull()
+    expect(screen.getByText("Maya Chen")).toBeTruthy()
+    cleanup()
+    // With nothing else to filter on, there is no Fields filter at all.
+    render(<Harness fields={[{ ...channel, hidden: true }]} onFilters={() => {}} />)
+    expect(screen.queryByRole("button", { name: /Fields/ })).toBeNull()
   })
 })

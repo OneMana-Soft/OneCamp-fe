@@ -138,6 +138,26 @@ export function shownFiles(files: AttachmentMediaReq[], type: FileTypeFilter, so
 }
 
 /**
+ * What a project's Files tab knows before it draws its files, on a computer
+ * and on a phone alike: how many docs and boards are linked; whether it is
+ * still loading (its files, or its links while none has come yet); and
+ * whether it has nothing at all, no file, none uploading and nothing linked,
+ * the one case for the tray that invites a drop. A project with only links
+ * shows them, not a tray saying it has no files.
+ */
+export function filesTabState(
+  p: Pick<ReturnType<typeof useProjectFiles>, "list" | "files" | "uploading">,
+  links: { docs: readonly unknown[]; boards: readonly unknown[]; isLoading?: boolean },
+) {
+  const linked = links.docs.length + links.boards.length
+  return {
+    linked,
+    loading: !!p.list.isLoading || (!!links.isLoading && linked === 0),
+    nothing: p.files.length === 0 && p.uploading.length === 0 && linked === 0,
+  }
+}
+
+/**
  * A project with no files (F01): a dashed region that lights up while files
  * are dragged over the tab, the plug drawing, "Drop files here", what belongs
  * here, and for someone who can add files, Upload.

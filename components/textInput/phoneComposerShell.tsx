@@ -11,13 +11,18 @@ import { EmojiReactionPicker } from "@/components/minimal-tiptap/components/emoj
 import { SectionTwo } from "@/components/minimal-tiptap/components/section/two"
 import { SectionFour } from "@/components/minimal-tiptap/components/section/four"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
+import { useLongPress } from "@/hooks/useLongPress"
 import {
     ClipRecorderHost,
     ComposerPlusMenu,
     RecordTool,
+    ScheduledChip,
+    SendLaterMenu,
     useComposerDictation,
+    useSendLater,
     type ComposerAgent,
 } from "@/components/textInput/composerTools"
+import type { ChipSchedule } from "@/components/textInput/useUndoSchedule"
 
 /** Past this many lines the expand glyph offers the whole screen (C48). */
 export const EXPAND_AFTER_LINES = 3
@@ -27,6 +32,10 @@ export interface PhoneComposerShellProps {
     nothingToSend: boolean
     buttonLabel: string
     onSend: () => void
+    /** Send later, as the computer's (C44): a long-press on Send or "+" opens it (V-711). */
+    onSchedule?: (at: Date) => Promise<unknown> | unknown
+    /** The chip's message in the queue: its Undo, and whether it is still there. */
+    chipSchedule?: ChipSchedule
     onUpload?: () => void
     onFiles?: (files: File[]) => void
     agents?: ComposerAgent[]
@@ -53,7 +62,7 @@ const STRIP_BUTTON =
  * glyph offers the whole screen. Clips and dictation are in "+" too.
  */
 export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposerShellProps>(function PhoneComposerShell(
-    { editor, nothingToSend, buttonLabel, onSend, onUpload, onFiles, agents, onDraftWithAI, aiSlot, expanded = false, onExpandedChange, children, linkMenu },
+    { editor, nothingToSend, buttonLabel, onSend, onSchedule, chipSchedule, onUpload, onFiles, agents, onDraftWithAI, aiSlot, expanded = false, onExpandedChange, children, linkMenu },
     ref,
 ) {
     const { toast } = useToast()
@@ -64,6 +73,22 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
     const arrow = React.useRef<SVGSVGElement>(null)
     const lines = useEditorState({ editor, selector: ({ editor: e }) => (e ? e.state.doc.childCount : 1) }) ?? 1
     const ready = !nothingToSend
+    // Send later (V-711): Slack's long-press on Send, or "+". A tap still
+    // sends; the hold's release sends nothing (useLongPress swallows it).
+    const { scheduled, schedule, done: chipDone } = useSendLater(onSchedule)
+    const [laterOpen, setLaterOpen] = React.useState(false)
+    const openLater = React.useCallback(() => setLaterOpen(true), [])
+    const hold = useLongPress<HTMLButtonElement>(() => ready && schedule && openLater())
+    // The sheet's anchor takes no focus: closing, the sheet gives it to Send,
+    // or to the box once a time went (focusAfter), the words with it (CR-B44).
+    const focusBox = React.useCallback(() => {
+        editor.commands.focus()
+    }, [editor])
+    const focusBack = (e: Event) => {
+        e.preventDefault()
+        if (ready) hold.ref.current?.focus()
+        else focusBox()
+    }
 
     const send = () => {
         if (arrow.current && !prefersReducedMotion() && typeof arrow.current.animate === "function") {
@@ -82,6 +107,7 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
     const target = useComposerTarget()
     return (
         <div className="px-3 pb-3 pt-1">
+            {scheduled && <ScheduledChip at={scheduled} schedule={chipSchedule} onDone={chipDone} />}
             <div
                 ref={ref}
                 data-phone-composer=""
@@ -156,6 +182,8 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
                         dictateLabel={dictation.label}
                         agents={agents}
                         onDraftWithAI={onDraftWithAI}
+                        onSendLater={schedule && openLater}
+                        nothingToSend={!ready}
                         triggerClassName="size-9 shrink-0 rounded-[18px] bg-press text-ink-2 [&_svg]:size-5"
                     />
                     <div className="relative min-w-0 flex-1">
@@ -182,6 +210,7 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
                             />
                         </span>
                         <button
+                            ref={hold.ref}
                             type="button"
                             data-touch-target=""
                             aria-label={buttonLabel}
@@ -198,6 +227,12 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
                         >
                             <ArrowUp ref={arrow} className="size-5" aria-hidden="true" />
                         </button>
+                        {/* Where the sheet rises from: Send itself would take Enter for the menu. */}
+                        {schedule && (
+                            <SendLaterMenu open={laterOpen} onOpenChange={setLaterOpen} onSchedule={schedule} onCloseAutoFocus={focusBack} focusAfter={focusBox}>
+                                <span aria-hidden="true" className="pointer-events-none absolute inset-0" />
+                            </SendLaterMenu>
+                        )}
                     </span>
                 </div>
                 {aiSlot}

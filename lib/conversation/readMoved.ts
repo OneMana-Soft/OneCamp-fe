@@ -7,7 +7,7 @@
 
 import type { Dispatch } from "@reduxjs/toolkit"
 import { resetUserChannelUnread, resetUserChatUnread } from "@/store/slice/userSlice"
-import { clearChannelUnread, clearChatUnread } from "@/services/unreadCache"
+import { clearChannelUnread, clearChatUnread, recountInbox } from "@/services/unreadCache"
 import { appMutate } from "@/lib/swrMutate"
 import { readStateKey } from "@/lib/conversation/conversationPath"
 
@@ -26,10 +26,12 @@ export function readMovedOf(data: unknown): ReadMoved | null {
   return { kind: d.kind, id: d.id, unread: Math.max(0, Number(d.unread) || 0), first_unread: typeof d.first_unread === "string" ? d.first_unread : undefined }
 }
 
-/** Applies a read.moved to the badges and an open conversation's position. */
+/** Applies a read.moved to the badges (the Inbox's too: C6, C7) and an open conversation's position. */
 export function applyReadMoved(dispatch: Dispatch, data: unknown): void {
+  if ((data as { kind?: unknown } | null)?.kind === "inbox") return recountInbox()
   const moved = readMovedOf(data)
   if (!moved) return
+  recountInbox()
   if (moved.kind === "channel") {
     dispatch(resetUserChannelUnread({ ch_uuid: moved.id, count: moved.unread }))
     clearChannelUnread(moved.id, moved.unread)

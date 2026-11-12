@@ -64,16 +64,18 @@ export function mergePrivateNotes(mine: PrivateNotes, stored: PrivateNotes | nul
   if (!stored) return mine
   const real = { ...stored.real }
   for (const [id, el] of Object.entries(mine.real)) if (!real[id] || (el.version ?? 0) >= (real[id].version ?? 0)) real[id] = el
-  return { round: mine.round, publicText: { ...stored.publicText, ...mine.publicText }, real }
+  return { round: mine.round, publicText: { ...stored.publicText, ...mine.publicText }, real, ...(stored.face || mine.face ? { face: { ...stored.face, ...mine.face } } : {}) }
 }
 
 /** The record without the ids a reveal settled; null when none is left. Pure. */
 export function withoutHeld(notes: PrivateNotes, ids: Iterable<string>): PrivateNotes | null {
   const publicText = { ...notes.publicText }
   const real = { ...notes.real }
+  const face = { ...notes.face }
   for (const id of ids) {
     delete publicText[id]
     delete real[id]
+    delete face[id]
   }
-  return Object.keys(publicText).length > 0 ? { round: notes.round, publicText, real } : null
+  return Object.keys(publicText).length > 0 ? { round: notes.round, publicText, real, ...(notes.face ? { face } : {}) } : null
 }

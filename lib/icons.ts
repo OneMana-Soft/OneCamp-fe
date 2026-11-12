@@ -268,6 +268,7 @@ export {
 export {
   Calendar as CalendarIcon,
   CalendarDays,
+  MapPin,
   CalendarClock,
   Clock,
   History,

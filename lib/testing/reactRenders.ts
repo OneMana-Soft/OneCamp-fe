@@ -7,6 +7,12 @@
  * React DOM looks for the DevTools hook once, as it loads, so import this
  * before anything that loads it: a test file's first import. A count read
  * before React DOM joined throws, so a budget can't pass on a count of zero.
+ *
+ * A count by name, of(name), throws on a name nothing has had since counting
+ * began, so a typo or a rename can't read 0 and pass. A component is counted by
+ * its function's own name (or displayName), and the test bundle (esbuild)
+ * renames a function that shares its binding's name: memo(function X) bound to
+ * X draws as "X2". Such a component's function is named apart from its binding.
  */
 
 type Fiber = { tag: number; flags: number; type: unknown; child: Fiber | null; sibling: Fiber | null; alternate: Fiber | null }
@@ -20,7 +26,8 @@ const PERFORMED_WORK = 1
 const nameOf = (t: unknown): string =>
   typeof t === "function" ? (t as Named).displayName || t.name || "?" : t && typeof t === "object" ? nameOf((t as Named).type || (t as Named).render) : "?"
 
-const seen = { fibers: 0, byName: {} as Record<string, number>, joined: 0, missed: undefined as unknown }
+// `names`: every name counted since this file loaded; reset() leaves it.
+const seen = { fibers: 0, byName: {} as Record<string, number>, names: new Set<string>(), joined: 0, missed: undefined as unknown }
 
 // A fiber new in this commit (no alternate) rendered; one kept rendered if it did work.
 function walk(next: Fiber, prev: Fiber | null) {
@@ -28,6 +35,7 @@ function walk(next: Fiber, prev: Fiber | null) {
     seen.fibers++
     const n = nameOf(next.type)
     seen.byName[n] = (seen.byName[n] || 0) + 1
+    seen.names.add(n)
   }
   if (prev !== null && next.child === prev.child) return
   for (let child = next.child; child; child = child.sibling) walk(child, prev === null ? null : child.alternate)
@@ -71,6 +79,18 @@ export const renders = {
     if (!seen.joined) throw new Error("React DOM loaded before lib/testing/reactRenders: import it first")
     if (seen.missed !== undefined) throw new Error("lib/testing/reactRenders couldn't count a commit", { cause: seen.missed })
     return seen.fibers
+  },
+  /**
+   * How often components of this name rendered since the last reset (checked as
+   * `count` is). Throws on a name no component has had since counting began.
+   */
+  of(name: string): number {
+    void renders.count
+    if (!seen.names.has(name)) {
+      const like = [...seen.names].filter((n) => n.startsWith(name))
+      throw new Error(`lib/testing/reactRenders: nothing named "${name}" has drawn since counting began${like.length ? ` (drawn: ${like.join(", ")})` : ""}`)
+    }
+    return seen.byName[name] || 0
   },
   /** The components rendered most since the last reset, as "Name n, ...", for a failure's message. */
   top(n = 12): string {

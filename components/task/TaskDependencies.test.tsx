@@ -1,20 +1,33 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { DependencyTask } from "@/types/task"
 
 const setDependency = vi.fn(async () => true)
 vi.mock("@/hooks/useTaskDependencies", () => ({ useTaskDependencies: () => setDependency }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: [] }) }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }) }))
+// The project's tasks, as the timeline's read answers them (nothing, until a test says).
+const unread = () => ({ data: undefined as unknown, isLoading: false, isError: undefined as unknown, mutate: vi.fn() })
+// Each read's url and request config, as the app sends them.
+const read = vi.hoisted(() => ({ now: undefined as unknown as { data: unknown; isLoading: boolean; isError: unknown; mutate: () => void }, asked: [] as [string, unknown][] }))
+vi.mock("@/hooks/useFetch", () => ({
+  useFetch: (url: string, _shape?: unknown, _fetch?: unknown, request?: unknown) => {
+    if (url) read.asked.push([url, request])
+    return read.now
+  },
+}))
 
 const { TaskDependencies } = await import("@/components/task/TaskDependencies")
 
 const design: DependencyTask = { task_uuid: "design", task_name: "Design", task_status: "todo", "task_blocked_by|kind": "ss", "task_blocked_by|lag": 2 }
 const ship: DependencyTask = { task_uuid: "ship", task_name: "Ship", task_status: "todo" }
 
+read.now = unread()
+
 afterEach(() => {
   cleanup()
   setDependency.mockClear()
+  read.now = unread()
+  read.asked = []
 })
 
 describe("how a task waits on another", () => {
@@ -50,5 +63,41 @@ describe("how a task waits on another", () => {
     fireEvent.click(await screen.findByRole("radio", { name: /Start to start/ }))
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
     expect(setDependency).toHaveBeenCalledWith("ship", "build", false, { kind: "ss", lag: 0 })
+  })
+})
+
+describe("adding a task it waits on", () => {
+  const draw = () => render(<TaskDependencies taskUUID="build" taskName="Build" projectUUID="p" canEdit waitingOn={[design]} blocking={[ship]} onOpen={() => {}} />)
+
+  it("offers the project's tasks, none taken or canceled, and waits on the one picked", async () => {
+    const tasks = [
+      { task_uuid: "build", task_name: "Build", task_status: "todo" },
+      { task_uuid: "design", task_name: "Design", task_status: "todo" },
+      { task_uuid: "ship", task_name: "Ship", task_status: "todo" },
+      { task_uuid: "old", task_name: "Old idea", task_status: "canceled" },
+      { task_uuid: "docs", task_name: "Write the docs", task_status: "todo" },
+    ]
+    read.now = { ...unread(), data: { data: { tasks, total: tasks.length, can_edit: true } } }
+    draw()
+    fireEvent.click(screen.getByRole("button", { name: "Add a task it waits on" }))
+    const docs = await screen.findByRole("option", { name: /Write the docs/ })
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Write the docs"])
+    fireEvent.click(docs)
+    await waitFor(() => expect(setDependency).toHaveBeenCalledTimes(1))
+    expect(setDependency.mock.calls[0]).toEqual(["build", "docs", false, undefined])
+  })
+
+  it("says the project's tasks couldn't be read, with Try again, which reads them again", async () => {
+    read.now = { ...unread(), isError: new Error("Network Error") }
+    draw()
+    fireEvent.click(screen.getByRole("button", { name: "Add a task it waits on" }))
+    expect(await screen.findByText("Couldn't load this project's tasks")).toBeTruthy()
+    expect(screen.queryByText("Loading…")).toBeNull()
+    // The picker says the failure itself, so its read is made with OWN_ERRORS: the app's toast for a failed read stays quiet.
+    const timeline = read.asked.filter(([url]) => url === "/project/p/timeline")
+    expect(timeline).not.toHaveLength(0)
+    for (const [, request] of timeline) expect(request).toEqual({ suppressErrorToast: true })
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(read.now.mutate).toHaveBeenCalledTimes(1)
   })
 })

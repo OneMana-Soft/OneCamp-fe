@@ -11,7 +11,7 @@
 
 import * as React from "react"
 import "@/components/table/table.css"
-import { TableField, TableRow, RelationRef, isHiddenRef, alignsRight, optionsOf, parseRowValues, computedOf } from "@/services/tableService"
+import { TableField, TableRow, RelationRef, isHiddenRef, alignsRight, byPlace, optionsOf, parseRowValues, computedOf } from "@/services/tableService"
 import { Check, Lock } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
 import { OptionChip, tintedFields } from "@/components/table/optionChip"
@@ -166,19 +166,6 @@ function CellValue({ field, value, tinted }: { field: TableField; value: unknown
     default:
       return <span className="whitespace-pre-wrap break-words">{String(value)}</span>
   }
-}
-
-/**
- * Rows in their table's order: by their places (position_key, compared as
- * the server compares them, character by character), then their ids; a row
- * from a server before places, by its number. Pure.
- */
-function byPlace(a: TableRow, b: TableRow): number {
-  if (a.position_key && b.position_key) {
-    if (a.position_key !== b.position_key) return a.position_key < b.position_key ? -1 : 1
-    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
-  }
-  return a.position - b.position
 }
 
 export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps) {

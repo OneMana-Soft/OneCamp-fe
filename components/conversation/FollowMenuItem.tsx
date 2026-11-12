@@ -10,11 +10,11 @@ import { Bell, BellOff } from "@/lib/icons"
  * open, so the standing is read then.
  */
 export function FollowMenuItem({ root }: { root: string }) {
-  const { following, toggle } = useThreadFollow(root)
+  const { following, label, toggle } = useThreadFollow(root)
   const Icon = following ? BellOff : Bell
   return (
     <DropdownMenuItem onSelect={() => void toggle()} data-follow-thread={following ? "on" : "off"}>
-      <Icon className="text-ink-3" aria-hidden="true" /> {following ? "Unfollow thread" : "Follow thread"}
+      <Icon className="text-ink-3" aria-hidden="true" /> {label}
     </DropdownMenuItem>
   )
 }

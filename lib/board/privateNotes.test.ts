@@ -7,6 +7,7 @@ import {
   heldNoteCount,
   parsePrivateNotes,
   privateRoundOf,
+  privateScene,
   privateWriter,
   restoreScene,
   unveil,
@@ -213,5 +214,139 @@ describe("how many notes a board holds back", () => {
     expect(heldNoteCount([{ ...out[0], isDeleted: true }, out[1], ...open])).toBe(0)
     expect(heldNoteCount(open)).toBe(0)
     expect(heldNoteCount([])).toBe(0)
+  })
+})
+
+// V-528 (2): the veil carries the public face only. Words typed in private grow their text (and their card), and
+// tags added in private sit in customData: neither may reach the shared board.
+describe("the veil shows the public face only", () => {
+  const at = (x: number, y: number, width: number, height: number) => ({ x, y, width, height })
+
+  it("a public note's words grown in private keep their public size and place", () => {
+    const notes = emptyPrivateNotes("r1")
+    const shared = sharedOf([card("c1", "t1", at(0, 0, 200, 200)), words("t1", "c1", "Old idea", { ...at(60, 88, 80, 24), fontSize: 20, lineHeight: 1.2 })])
+    const scene = [
+      card("c1", "t1", at(0, 0, 200, 340)),
+      words("t1", "c1", "A much longer secret plan over many lines", { ...at(10, 18, 180, 304), fontSize: 20, lineHeight: 1.2, version: 2 }),
+    ]
+    const out = scene.map(writerFor(notes, shared, scene))
+    expect(out[1]).toMatchObject({ text: "Old idea", ...at(60, 88, 80, 24) })
+    // The card the words grew stays its public size.
+    expect(out[0]).toMatchObject({ width: 200, height: 200 })
+  })
+
+  // CR-221 F1: the veil draws the face whole. Of the author's real copy it takes only what syncs it and the moves and
+  // ties that are public by design; every other field changed in private keeps its face's value, in privateWriter's
+  // copy (the server's) and privateScene's (thumbnail, AI, template) alike. `link` first: a URL is content.
+  const PRIVATE_EDITS: Array<[string, unknown, unknown]> = [
+    ["link", null, "https://secret.example/plan"],
+    ["strokeColor", "#B98200", "#e03131"],
+    ["backgroundColor", "#FFF6D6", "#000000"],
+    ["fontSize", 20, 36],
+    ["fontFamily", 5, 1],
+    ["textAlign", "center", "left"],
+    ["verticalAlign", "middle", "top"],
+    ["angle", 0, 1.2],
+    ["opacity", 100, 30],
+    ["roundness", { type: 3 }, null],
+    ["groupIds", [], ["g-secret"]],
+    ["frameId", null, "f-secret"],
+    ["strokeWidth", 1, 4],
+    ["fillStyle", "solid", "hachure"],
+  ]
+  for (const [field, face, real] of PRIVATE_EDITS)
+    it(`a ${field} changed in private stays in the author's tab`, () => {
+      const notes = emptyPrivateNotes("r1")
+      const pub = { [field]: face }
+      const shared = sharedOf([card("c1", "t1", { ...at(0, 0, 200, 200), ...pub }), words("t1", "c1", "Old idea", { ...at(60, 88, 80, 24), ...pub })])
+      const scene = [
+        card("c1", "t1", { ...at(0, 0, 200, 200), ...pub, [field]: real, version: 2 }),
+        words("t1", "c1", "Secret plan", { ...at(60, 88, 80, 24), ...pub, [field]: real, version: 2 }),
+      ]
+      const out = scene.map(writerFor(notes, shared, scene)) as El[]
+      const seen = privateScene(scene, notes, SAM) as El[]
+      for (const veiled of [out[0], out[1], seen[0], seen[1]]) expect(veiled[field]).toEqual(face)
+      // What syncs it is the real copy's.
+      expect(out.map((el) => el.version)).toEqual([2, 2])
+    })
+
+  // CR-221 row 2590 M1: the public side of the allowlist, pinned. A held note's ties and its place in the stack are
+  // public by design, like a move, so the author's change to them goes out (a field dropped from PUBLIC_FIELDS fails here).
+  const PUBLIC_EDITS: Array<[string, "card" | "words" | "both", unknown, unknown]> = [
+    ["boundElements", "card", [{ id: "t1", type: "text" }], [{ id: "t1", type: "text" }, { id: "a1", type: "arrow" }]],
+    ["boundElements", "words", null, [{ id: "a1", type: "arrow" }]],
+    ["index", "both", "a0", "a5"],
+    ["containerId", "words", "c1", "c2"],
+  ]
+  for (const [field, on, face, real] of PUBLIC_EDITS)
+    it(`${field} changed in private on a held note's ${on === "both" ? "card and words" : on} goes out: it is public by design`, () => {
+      const notes = emptyPrivateNotes("r1")
+      const of = (part: "card" | "words", v: unknown) => (on === "both" || on === part ? { [field]: v } : {})
+      const shared = sharedOf([card("c1", "t1", { ...at(0, 0, 200, 200), ...of("card", face) }), words("t1", "c1", "Old idea", { ...at(60, 88, 80, 24), ...of("words", face) })])
+      const first = [card("c1", "t1", { ...at(0, 0, 200, 200), ...of("card", face) }), words("t1", "c1", "Secret plan", { ...at(60, 88, 80, 24), ...of("words", face), version: 2 })]
+      first.map(writerFor(notes, shared, first))
+      // Held now; the author then changes the field in private.
+      const scene = [
+        card("c1", "t1", { ...at(0, 0, 200, 200), ...of("card", real), version: 3 }),
+        words("t1", "c1", "Secret plan", { ...at(60, 88, 80, 24), ...of("words", real), version: 3 }),
+      ]
+      const out = scene.map(writerFor(notes, shared, scene)) as El[]
+      const seen = privateScene(scene, notes, SAM) as El[]
+      expect(out.map((el) => el.locked)).toEqual([true, true])
+      for (const i of on === "both" ? [0, 1] : on === "card" ? [0] : [1]) for (const veiled of [out[i], seen[i]]) expect(veiled[field]).toEqual(real)
+    })
+
+  // CR-221 row 2590 L1: the empty line of words made in private is sized from their first face, not the author's copy,
+  // so a font made bigger in private never shows through the line's height or place.
+  it("words made in private keep their first face's line when their font grows in private", () => {
+    const notes = emptyPrivateNotes("r1")
+    const scene = [card("c1", "t1", at(0, 0, 200, 200)), words("t1", "c1", "", { ...at(100, 88, 0, 24), fontSize: 20, lineHeight: 1.2 })]
+    const write = writerFor(notes, new Map(), scene)
+    scene.map(write)
+    scene[1] = words("t1", "c1", "Secret", { ...at(10, 18, 180, 90), fontSize: 40, lineHeight: 1.5, version: 2 })
+    const out = scene.map(write) as El[]
+    const seen = privateScene(scene, notes, SAM) as El[]
+    for (const veiled of [out[1], seen[1]]) expect(veiled).toMatchObject({ text: "", fontSize: 20, lineHeight: 1.2, x: 100, y: 88, width: 0, height: 24 })
+  })
+
+  it("a held note moved in private moves, its words with it", () => {
+    const notes = emptyPrivateNotes("r1")
+    const shared = sharedOf([card("c1", "t1", at(0, 0, 200, 200)), words("t1", "c1", "Old idea", at(60, 88, 80, 24))])
+    const scene = [card("c1", "t1", { ...at(300, 100, 200, 200), version: 2 }), words("t1", "c1", "Secret plan", { ...at(310, 118, 180, 164), version: 2 })]
+    const out = scene.map(writerFor(notes, shared, scene))
+    expect(out[0]).toMatchObject(at(300, 100, 200, 200))
+    expect(out[1]).toMatchObject({ text: "Old idea", ...at(360, 188, 80, 24) })
+  })
+
+  it("a note made in private shows one empty line at the centre of its first face", () => {
+    const notes = emptyPrivateNotes("r1")
+    const scene = [card("c1", "t1", at(0, 0, 200, 200)), words("t1", "c1", "", { ...at(100, 88, 0, 24), fontSize: 20, lineHeight: 1.2 })]
+    const write = writerFor(notes, new Map(), scene)
+    scene.map(write)
+    // The author types and the card grows: the shared copies keep the first face.
+    scene[0] = card("c1", "t1", { ...at(0, 0, 200, 320), version: 2 })
+    scene[1] = words("t1", "c1", "Secret plan in three long lines", { ...at(10, 18, 180, 284), fontSize: 20, lineHeight: 1.2, version: 2 })
+    const out = scene.map(write)
+    expect(out[0]).toMatchObject({ width: 200, height: 200 })
+    expect(out[1]).toMatchObject({ text: "", x: 100, y: 88, width: 0, height: 24 })
+  })
+
+  it("tags added in private stay in the author's tab", () => {
+    const notes = emptyPrivateNotes("r1")
+    const shared = sharedOf([card("c1", "t1", { customData: { kind: "note", colour: "yellow", tags: ["ux"] } }), words("t1", "c1", "Old idea")])
+    const scene = [
+      card("c1", "t1", { customData: { kind: "note", colour: "yellow", tags: ["ux", "layoffs"] }, version: 2 }),
+      words("t1", "c1", "Secret plan", { customData: { tags: ["hr"] }, version: 2 }),
+    ]
+    const out = scene.map(writerFor(notes, shared, scene))
+    expect((out[0] as El).customData).toEqual({ kind: "note", colour: "yellow", tags: ["ux"], privateBy: SAM.id, privateName: SAM.name })
+    expect((out[1] as El).customData).toEqual({ privateBy: SAM.id, privateName: SAM.name })
+  })
+
+  it("a record kept before faces existed still reads, and keeps its faces when it has them", () => {
+    const old = { round: "r1", publicText: { t1: "" }, real: {} }
+    expect(parsePrivateNotes(JSON.stringify(old))).toEqual(old)
+    const kept = { ...old, face: { t1: { blank: true } } }
+    expect(parsePrivateNotes(JSON.stringify(kept))).toEqual(kept)
   })
 })

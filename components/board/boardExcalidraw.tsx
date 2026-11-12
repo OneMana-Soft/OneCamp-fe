@@ -9,6 +9,9 @@ import { useBoardExportTrail } from "./exportRecord"
 import { useKeptDialogFocus } from "./dialogFocus"
 import { CARD_KINDS, boardEmbedOf, cardLinksIn, layCards, linkPopupOverCard, onlyCardsSelected, type EmbedPlace } from "@/lib/board/cards"
 import { clientToScene, viewCentre } from "@/lib/board/viewport"
+import { isBoardElement } from "@/lib/board/elementTypes"
+import { codeBlockOf, isCodeBlock } from "@/lib/board/codeBlocks"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import type { CardPointer, EmbedView } from "./boardEmbeds"
 import { adminHostsNow } from "@/components/minimal-tiptap/extensions/links-media/hosts"
 import { ensureAdminHosts } from "@/components/minimal-tiptap/extensions/links-media/adminHosts"
@@ -27,6 +30,19 @@ const EmbedSlot = React.memo(function EmbedSlot({ link, view: View, place, point
   return (
     <React.Suspense fallback={null}>
       <View embed={embed} pointer={pointer} />
+    </React.Suspense>
+  )
+})
+
+// A code block, drawn from its element (its link only says "code block"): loaded on demand, so the highlighter
+// stays off the board's first load, and drawn again only when its content or its pointer state changes (miro-17).
+const CodeBlockView = lazyPiece(() => import("./boardCodeBlock").then((m) => ({ default: m.BoardCodeBlock })))
+const CodeSlot = React.memo(function CodeSlot({ id, data, pointer, edit }: { id: string; data: unknown; pointer: CardPointer; edit?: (id: string) => void }) {
+  const block = React.useMemo(() => codeBlockOf({ type: "embeddable", customData: data as Record<string, unknown> }), [data])
+  if (!block) return null
+  return (
+    <React.Suspense fallback={null}>
+      <CodeBlockView block={block} pointer={pointer} onEdit={edit ? () => edit(id) : undefined} />
     </React.Suspense>
   )
 })
@@ -61,6 +77,7 @@ export default function BoardExcalidraw({
   guest = false,
   sheetMode = false,
   embedView,
+  onEditCode,
   ...props
 }: ExcalidrawProps & {
   guest?: boolean
@@ -71,6 +88,8 @@ export default function BoardExcalidraw({
    */
   sheetMode?: boolean
   embedView: EmbedView
+  /** A code block's Edit button, on a board someone may edit (miro-17): the page opens its dialog. */
+  onEditCode?: (id: string) => void
 }) {
   // A slow picture's button drops its focus; it stays in Excalidraw's dialog instead (V-362).
   useKeptDialogFocus()
@@ -128,6 +147,8 @@ export default function BoardExcalidraw({
 
   const handlePaste = React.useCallback<NonNullable<ExcalidrawProps["onPaste"]>>(
     (data, event) => {
+      // A paste lays only what a board draws (lib/board/elementTypes, V-547); Excalidraw lays data.elements after this.
+      if (data.elements) data.elements = data.elements.filter(isBoardElement)
       const links = editable ? cardLinksIn(data.text ?? "", placeRef.current) : []
       if (!links.length) return onPaste ? onPaste(data, event) : true
       lay(links, pointerRef.current ?? viewMiddle())
@@ -148,15 +169,24 @@ export default function BoardExcalidraw({
     lay(links, clientToScene({ ...s, zoom: s.zoom.value }, e.clientX, e.clientY))
   }
 
+  // The latest Edit handler behind a steady function, so a code block draws again only when its own content changes.
+  const editRef = React.useRef(onEditCode)
+  React.useEffect(() => {
+    editRef.current = onEditCode
+  }, [onEditCode])
+  const editCode = React.useCallback((id: string) => editRef.current?.(id), [])
+
   const validateEmbeddable = React.useCallback((link: string) => boardEmbedOf(link, placeRef.current) !== null, [])
   // A card hears whether the pointer is over its middle ("hover": a click there lets its buttons work) or it is
   // being used ("active"), so it can say so itself: Excalidraw's own pill would cover its name (DB-54).
   const renderEmbeddable = React.useCallback<NonNullable<ExcalidrawProps["renderEmbeddable"]>>(
     (el, appState) => {
       const a = appState.activeEmbeddable
-      return <EmbedSlot link={el.link ?? ""} view={embedView} place={placeRef.current} pointer={a && a.element.id === el.id ? a.state : null} />
+      const pointer = a && a.element.id === el.id ? a.state : null
+      if (isCodeBlock(el)) return <CodeSlot id={el.id} data={el.customData} pointer={pointer} edit={editable && onEditCode ? editCode : undefined} />
+      return <EmbedSlot link={el.link ?? ""} view={embedView} place={placeRef.current} pointer={pointer} />
     },
-    [embedView],
+    [embedView, editable, onEditCode, editCode],
   )
 
   // Excalidraw opens its link popup over a selected linked element; a card is its own link, so while the popup is

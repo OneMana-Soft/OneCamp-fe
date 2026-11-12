@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { durationLabel, inSlice, insightsCSV, sliceChoices, sliceName, slicesBy } from "@/lib/reportInsights"
+import { durationLabel, effortUnit, inSlice, insightsCSV, sliceChoices, sliceName, slicesBy } from "@/lib/reportInsights"
 import type { InsightPoint, InsightSlice, Insights, Report, Spread } from "@/lib/reports"
 import { pinTestClock } from "@/lib/testing/testClock"
 
@@ -80,7 +80,7 @@ describe("insightsCSV", () => {
     expect(csv).toContain("Triage time (left the backlog),1,2,4,8,12\n")
     expect(csv).toContain("Age of open work,3,15,30,60,90\n")
     expect(csv).toContain("To do,2,2.5,5,10,15\nIn review,0,0,0,0,0\n")
-    expect(csv).toContain("project,Q4 launch,2,10,20,20,40,3,30\n")
+    expect(csv).toContain("Project,Q4 launch,2,10,20,20,40,3,30,,,\n")
     expect(csv).toContain("Ship it,2026-10-06T10:00:00Z,10,20,Q4 launch,Maya Chen,No priority,Bug\n")
     // A task's own name is kept as text, never run as a formula; no cycle is an empty cell.
     expect(csv).toContain(`"'=cmd()",2026-10-06T10:00:00Z,,20,Q4 launch,Nobody,Low,Task\n`)
@@ -91,13 +91,79 @@ describe("insightsCSV", () => {
     expect(insightsCSV({ ...report, insights: { ...insights, points_capped: true } })).toContain("The latest 2 done tasks; the measures above count them all.")
     expect(insightsCSV({ ...report, insights: undefined })).toBe("")
   })
+
+  // B9-b4 (CR-B14 M2): the report's own CSV, byte for byte, with every column
+  // its points can fill: the report sends its projects and slices by person and type.
+  it("writes the report's own CSV unchanged", () => {
+    const head = "Tasks,25th percentile (hours),Median (hours),85th percentile (hours),95th percentile (hours)"
+    expect(insightsCSV(report)).toBe(
+      [
+        "",
+        `How long work takes,${head}`,
+        "Cycle time (started to done),2,5,10,20,30",
+        "Lead time (made to done),2,10,20,40,60",
+        "Triage time (left the backlog),1,2,4,8,12",
+        "Age of open work,3,15,30,60,90",
+        "",
+        `Time in status,${head}`,
+        "To do,2,2.5,5,10,15",
+        "In review,0,0,0,0,0",
+        "",
+        "Slice,Name,Done,Cycle median (hours),Cycle 85th percentile (hours),Lead median (hours),Lead 85th percentile (hours),Open,Age median (hours),Overdue,Open effort (hours),Done effort (hours)",
+        "Project,Q4 launch,2,10,20,20,40,3,30,,,",
+        "Person,Maya Chen,1,10,20,20,40,0,0,,,",
+        "Type,Bug,1,10,20,20,40,0,0,,,",
+        "",
+        "Done task,Done at,Cycle (hours),Lead (hours),Project,Person,Priority,Type",
+        "Ship it,2026-10-06T10:00:00Z,10,20,Q4 launch,Maya Chen,No priority,Bug",
+        `"'=cmd()",2026-10-06T10:00:00Z,,20,Q4 launch,Nobody,Low,Task`,
+        "",
+      ].join("\n"),
+    )
+  })
+
+  // B9-b4: a dashboard's chart asks for its own tables, from the parts of the
+  // insights it has; a measure it wasn't sent is left out. A control chart is
+  // sent no projects and no slices (business/Dashboard/data.go), so its tasks
+  // have no Project, Person or Type column that could only ever be blank (CR-B14 M2).
+  it("writes only the tables asked for, from what was sent", () => {
+    expect(insightsCSV(report, ["in_status"])).toBe("\nTime in status,Tasks,25th percentile (hours),Median (hours),85th percentile (hours),95th percentile (hours)\nTo do,2,2.5,5,10,15\nIn review,0,0,0,0,0\n")
+    const control = { insights: { cycle: insights.cycle, lead: insights.lead, points: insights.points, points_capped: false } }
+    const csv = insightsCSV(control, ["measures", "points"])
+    expect(csv).toContain("Cycle time (started to done),2,5,10,20,30\nLead time (made to done),2,10,20,40,60\n\nDone task,")
+    expect(csv).not.toContain("Triage")
+    expect(csv).not.toContain("Time in status")
+    expect(csv).toContain("\nDone task,Done at,Cycle (hours),Lead (hours),Priority\nShip it,2026-10-06T10:00:00Z,10,20,No priority\n")
+    expect(csv).toContain(`\n"'=cmd()",2026-10-06T10:00:00Z,,20,Low\n`)
+  })
+
+  it("writes a task's project only when the projects were sent, and its person or type only when the slices name them", () => {
+    const points = (r: Parameters<typeof insightsCSV>[0]) => insightsCSV(r, ["points"]).split("\n").slice(1, 4)
+    expect(points({ all_projects: report.all_projects, insights: { points: insights.points } })).toEqual([
+      "Done task,Done at,Cycle (hours),Lead (hours),Project,Priority",
+      "Ship it,2026-10-06T10:00:00Z,10,20,Q4 launch,No priority",
+      `"'=cmd()",2026-10-06T10:00:00Z,,20,Q4 launch,Low`,
+    ])
+    expect(points({ insights: { points: insights.points, slices: [slice("person", "maya", "Maya Chen", 1)] } })).toEqual([
+      "Done task,Done at,Cycle (hours),Lead (hours),Person,Priority",
+      "Ship it,2026-10-06T10:00:00Z,10,20,Maya Chen,No priority",
+      `"'=cmd()",2026-10-06T10:00:00Z,,20,Nobody,Low`,
+    ])
+    // Someone no slice names is an empty cell, never taken for nobody (CR-B14 W9).
+    expect(insightsCSV({ insights: { points: [point({ person_uuid: "ben" })], slices: [slice("person", "maya", "Maya Chen", 1)] } }, ["points"])).toContain("\nShip it,2026-10-06T10:00:00Z,,20,,No priority\n")
+    expect(points({ insights: { points: insights.points, slices: [slice("type", "b1", "Bug", 1)] } })).toEqual([
+      "Done task,Done at,Cycle (hours),Lead (hours),Priority,Type",
+      "Ship it,2026-10-06T10:00:00Z,10,20,No priority,Bug",
+      `"'=cmd()",2026-10-06T10:00:00Z,,20,Low,Task`,
+    ])
+  })
 })
 
 describe("custom-field slices (B9-b1)", () => {
   const team = "field:f-team" as const
   it("offers each field the report sliced by after the four, and names a field's empty slice None", () => {
-    expect(sliceChoices({ fields: [{ by: team, name: "Team", type: "select", project_uuid: "q4" }] }).map((c) => c.label)).toEqual(["Project", "Person", "Priority", "Type", "Team"])
-    expect(sliceChoices({}).length).toBe(4)
+    expect(sliceChoices({ fields: [{ by: team, name: "Team", type: "select", project_uuid: "q4" }] }).map((c) => c.label)).toEqual(["Project", "Person", "Priority", "Type", "Status", "Labels", "Cycle", "Estimate", "Team"])
+    expect(sliceChoices({}).length).toBe(8)
     expect(sliceName({ by: team, key: "", name: "" })).toBe("None")
     expect(sliceName({ by: team, key: "web", name: "Web" })).toBe("Web")
   })
@@ -107,5 +173,36 @@ describe("custom-field slices (B9-b1)", () => {
     expect(inSlice(p, { by: team, key: "" })).toBe(false)
     expect(inSlice({ ...p, in: { [team]: [""] } }, { by: team, key: "" })).toBe(true)
     expect(inSlice({ ...p, in: undefined }, { by: team, key: "" })).toBe(false)
+  })
+})
+
+describe("every way to slice, with counts and effort (L32)", () => {
+  const e = (open: number, done: number, unit: "points" | "hours" = "points") => ({ open: { points: 0, hours: 0, [unit]: open }, done: { points: 0, hours: 0, [unit]: done } })
+  it("offers status, labels, cycle and estimate after the four, then each field by name", () => {
+    const labels = sliceChoices({ fields: [{ by: "field:f1", name: "Vendor", type: "text", project_uuid: "p" }] }).map((c) => c.label)
+    expect(labels).toEqual(["Project", "Person", "Priority", "Type", "Status", "Labels", "Cycle", "Estimate", "Vendor"])
+  })
+
+  it("names the work with none each way, the rest of a text field Other, and a status as the board does", () => {
+    expect(["labels", "cycle", "estimate", "field:f1"].map((by) => sliceName({ by: by as InsightSlice["by"], key: "", name: "" }))).toEqual(["No labels", "No cycle", "No estimate", "None"])
+    expect(sliceName({ by: "field:f1", key: "Other", name: "Other" })).toBe("Other")
+    expect(sliceName({ by: "status", key: "inReview", name: "" })).toBe("In review")
+    expect(sliceName({ by: "cycle", key: "c7", name: "Cycle 7" })).toBe("Cycle 7")
+  })
+
+  it("puts a done task in a slice by its keys that way, and in none a server didn't key", () => {
+    const p = point({ in: { labels: ["bug", "ui"], cycle: [""], person: ["u1"] } })
+    expect([inSlice(p, { by: "labels", key: "ui" }), inSlice(p, { by: "cycle", key: "" }), inSlice(p, { by: "estimate", key: "" })]).toEqual([true, true, false])
+    expect(inSlice(p, { by: "person", key: "u1" })).toBe(true)
+    expect(inSlice(point({ priority: "low" }), { by: "priority", key: "low" })).toBe(true)
+  })
+
+  it("counts effort in points when any work has them, else hours, and the CSV adds open, overdue and effort", () => {
+    const s = { ...slice("labels", "bug", "bug", 2, 1), open: 4, overdue: 1, done: 2, effort: e(5, 8) }
+    expect(effortUnit({ slices: [s] })).toBe("points")
+    expect(effortUnit({ slices: [{ ...s, effort: e(3, 1.5, "hours") }] })).toBe("hours")
+    const csv = insightsCSV({ insights: { slices: [s], fields: [] } }, ["slices"])
+    expect(csv).toContain("Open,Age median (hours),Overdue,Open effort (points),Done effort (points)\n")
+    expect(csv).toContain("Labels,bug,2,10,20,20,40,4,30,1,5,8\n")
   })
 })

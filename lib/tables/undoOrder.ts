@@ -5,6 +5,8 @@
  * set its answer names, whatever order the writes land in.
  */
 
+import { changeSetOf, type SetOf } from "@/lib/tables/changeSetOf"
+
 export type Aim =
   /** The reader's latest change, as the server keeps it: nothing was on its way, or a server from before V-360 answered with no change set. */
   | { kind: "latest" }
@@ -13,11 +15,7 @@ export type Aim =
   /** The write on its way at the press wasn't saved (lost), or changed nothing (none): nothing to take back. */
   | { kind: "lost" | "none"; what: string }
 
-/** The change set a write's answer names: null when it changed nothing; none (undefined) from a server before V-360. */
-export type SetOf<T> = (answer: T) => string | null | undefined
-
-/** Every row write's answer names the change set it stored (V-360, the API's change_set). */
-const changeSet = (a: unknown) => (a as { change_set?: string | null } | undefined)?.change_set
+export type { SetOf }
 
 const LATEST: Aim = { kind: "latest" }
 
@@ -33,8 +31,8 @@ export class UndoOrder {
   #last: Promise<void> = Promise.resolve()
   #open = 0
 
-  /** Enters a write made now, with its answer on its way: setOf reads the change set it names (by default, change_set). */
-  made<T>(what: string, answer: Promise<T>, onTaken?: () => void, setOf: SetOf<T> = changeSet): { taken: () => boolean } {
+  /** Enters a write made now, with its answer on its way: setOf reads the change set it names (by default, changeSetOf: its change_set). */
+  made<T>(what: string, answer: Promise<T>, onTaken?: () => void, setOf: SetOf<T> = changeSetOf): { taken: () => boolean } {
     const m: Made = {
       aim: answer.then(setOf).then(
         (set): Aim => (set ? { kind: "set", set } : set === null ? { kind: "none", what } : LATEST),

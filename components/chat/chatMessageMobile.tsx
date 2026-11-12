@@ -16,6 +16,7 @@ import { UserProfileInterface } from "@/types/user";
 import { AttachmentMediaReq } from "@/types/attachment";
 import { ChatInfo } from "@/types/chat";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { COPIED } from "@/lib/chat/messageActionLabels";
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
 import { setChatReplyTarget } from "@/store/slice/chatSlice";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
@@ -74,7 +75,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
     const copyPostText = () => {
         const t = removeHtmlTags(chatInfo.chat_body_text)
 
-        copyToClipboard.copy(t, 'copied chat text')
+        copyToClipboard.copy(t, COPIED.text)
     }
 
     const addEmojiReaction = () => {

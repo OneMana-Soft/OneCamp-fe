@@ -1,21 +1,8 @@
 "use client"
 
-import { Pencil, Trash2, Type, SmilePlus } from "@/lib/icons";
+import { MessageActionSheet } from "@/components/drawers/messageActionSheet"
 
-import {
-    Drawer,
-    DrawerContent,
-    DrawerDescription,
-    DrawerHeader,
-    DrawerTitle,
-} from "@/components/ui/drawer"
-import { Button } from "@/components/ui/button"
-import {Separator} from "@/components/ui/separator";
-import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiConst";
-import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
-import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
-
-interface postCommentOptionsDrawerProps {
+interface ReplySheetProps {
     drawerOpenState: boolean
     setOpenState: (state: boolean) => void
     onAddEmoji: () => void
@@ -27,112 +14,23 @@ interface postCommentOptionsDrawerProps {
     isOwner?: boolean
 }
 
-
-
-export function PostCommentMessageLongPressDrawer({ drawerOpenState, isAdmin, isOwner, setOpenState, onAddEmoji, copyTextToClipboard, editMessage, deleteMessage, handleEmojiClick }: postCommentOptionsDrawerProps) {
-
-
-    function closeDrawer() {
-        setOpenState(false)
-    }
-
-    const handleEditClick = () => {
-        editMessage()
-        closeDrawer()
-    }
-
-    const emojiClick = (emojiId: string) => {
-        handleEmojiClick(emojiId)
-        closeDrawer()
-    }
-
-    const handleCopyClick = () => {
-        copyTextToClipboard()
-        closeDrawer()
-    }
-
-    const handleDeleteClick = () => {
-        setTimeout(() => {
-            deleteMessage()
-        }, 100);
-
-        closeDrawer()
-    }
-
-
+/**
+ * A thread's reply, long-pressed on its phone page: the list's sheet with
+ * what a reply takes (reactions, Copy text, and its author's Edit and Delete,
+ * which asks first). Its props are UnifiedUIManager's, as they were.
+ */
+export function PostCommentMessageLongPressDrawer({ drawerOpenState, setOpenState, onAddEmoji, copyTextToClipboard, editMessage, deleteMessage, handleEmojiClick, isAdmin, isOwner }: ReplySheetProps) {
     return (
-        <Drawer detent="medium" onOpenChange={closeDrawer} open={drawerOpenState}>
-            <DrawerContent>
-                <div className="w-full mb-6 relative">
-                    <DrawerHeader className="hidden">
-                        <DrawerTitle></DrawerTitle>
-                        <DrawerDescription></DrawerDescription>
-                    </DrawerHeader>
-
-                    <div className="flex-col p-4 pb-2 space-y-4">
-                        {/* Emoji Buttons */}
-                        <div className="flex justify-between items-center bg-muted/20 p-2 rounded-2xl">
-
-                            {
-                                preSelectedEmojis.map(( e) => {
-                                    return (
-
-                                        <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 transition-colors" key={e.emojiId} aria-label={`React with ${e.emojiName}`} onClick={()=>{emojiClick(e.emojiId)}}>
-                                            <span className="text-2xl"><span className="text-2xl">{e.emojiString}</span></span>
-                                        </Button>
-                                    )
-                                })
-                            }
-
-
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="rounded-full h-12 w-12 transition-colors"
-                                aria-label="Pick another reaction"
-                                onClick={() => onAddEmoji()}
-                            >
-                                <SmilePlus aria-hidden="true" className="h-[22px] w-[22px] text-muted-foreground" />
-                            </Button>
-                        </div>
-
-
-                        <div className="flex flex-col items-center justify-start  pt-2">
-
-
-                            <DrawerActionLink
-                                onLinkClick={handleCopyClick}
-                                linkText={'Copy all text'}
-                                Icon={Type}
-                            />
-
-
-                            {isOwner && <DrawerActionLink
-                                onLinkClick={handleEditClick}
-                                linkText={'Edit message'}
-                                Icon={Pencil}
-                            />}
-
-                        </div>
-
-                        {(isAdmin || isOwner)  && <><Separator orientation="horizontal" className='absolute w-full left-0'/>
-
-                         <div className="flex flex-col items-center justify-start  pt-2">
-
-                            <DrawerDestructiveActionLink
-                                onLinkClick={handleDeleteClick}
-                                linkText={'Delete message'}
-                                Icon={Trash2}
-                            />
-
-                        </div></>}
-
-
-                    </div>
-
-
-                </div>
-            </DrawerContent>
-        </Drawer>
+        <MessageActionSheet
+            open={drawerOpenState}
+            onOpenChange={setOpenState}
+            onAddEmoji={onAddEmoji}
+            handleEmojiClick={handleEmojiClick}
+            copyText={copyTextToClipboard}
+            editMessage={editMessage}
+            deleteMessage={deleteMessage}
+            isOwner={isOwner}
+            isAdmin={isAdmin}
+        />
     )
 }

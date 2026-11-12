@@ -28,10 +28,12 @@ interface Props {
     messageText?: string
     /** The pressed message, lifted above the sheet (C61). */
     preview?: MessageSheetPreview | null
+    /** The thread's root on its own phone page (the thread page's drawers). */
+    inThread?: boolean
 }
 
 /** A message's actions on a phone: the v3 sheet (components/drawers/messageActionSheet). */
-export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard, otherUserUUID, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText, preview }: Props) {
+export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard, otherUserUUID, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText, preview, inThread }: Props) {
     const threadPath = `${app_chat_path}/${otherUserUUID}/${chatUUID}`
     // The DM, as the conversation service names it: both people's ids.
     const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
@@ -41,6 +43,7 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, make
             onOpenChange={setOpenState}
             preview={preview}
             threadPath={threadPath}
+            inThread={inThread}
             forwardPath={`${app_message_forward_path}/${chat_forward_type}/${chatUUID}`}
             laterTarget={{ itemType: "chat", itemId: chatUUID, link: threadPath, title: htmlToPreviewText(messageText) || "A message" }}
             onReply={onReply}
@@ -54,6 +57,7 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, make
             isAdmin={isAdmin}
             messageText={messageText}
             pin={{ conversation: dmWith(otherUserUUID, self), messageId: chatUUID }}
+            followRoot={chatUUID}
         />
     )
 }

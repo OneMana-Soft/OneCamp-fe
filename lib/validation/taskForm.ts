@@ -32,9 +32,9 @@ export const createTaskFormSchema = z.object({
     .string()
     .trim()
     .optional(),
+  // "" is No priority, a priority to make a task with (PROJECTS-14).
   task_priority: z
     .string()
-    .min(1, "Please select a priority")
     .optional(),
   task_github_issue_url: z
     .string()

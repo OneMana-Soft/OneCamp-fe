@@ -11,21 +11,23 @@ import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import TaskTypeGlyph from "@/components/task/TypeGlyphOnDemand"
 import { LabelChip } from "@/components/ui/chip"
-import { DueLabel } from "@/components/task/DueLabel"
+import { DueLabel, dueDateOf } from "@/components/task/DueLabel"
 import { TaskCheck, TaskTitle } from "@/components/task/TaskCheck"
 import { TaskKeyCell, keyWidth } from "@/components/task/TaskKeyCell"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
 import { statusKindOf } from "@/components/task/taskStatusCell"
 import { BlockedBadge, RestrictedMark } from "@/components/task/BlockedBadge"
 import { FieldValueView } from "@/components/task/fieldValue"
-import { formatFieldValue, type TaskField } from "@/lib/tasks/fields"
+import { alignsRight, type TaskField } from "@/lib/tasks/fields"
 import { PriorityMenu, StatusMenu, TaskAvatar } from "@/components/task/taskRowParts"
 import { useBulkTaskUpdate } from "@/hooks/useBulkTaskUpdate"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { isBusyPointer, useScrolling } from "@/lib/ui/scrollState"
 import { ReorderGrip, ReorderHost, useReorderLayer, type ListReorder } from "@/components/task/reorderSlot"
+import type { GroupPlan } from "@/lib/ui/windowedRows"
+import { lazyPart } from "@/lib/lazy/lazyPart"
 import { useToast } from "@/hooks/use-toast"
-import { ListSelectionContext, useRowState, useSelectedIds } from "@/hooks/useListSelection"
+import { ListSelectionContext, useRowSelected } from "@/hooks/useListSelection"
 import { ChevronDown, GitBranch, MessageSquare, Plus, Sun } from "@/lib/icons"
 import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
@@ -47,6 +49,22 @@ export const ROW_H = "h-10"
 export const GROUP_H = "h-9"
 
 const NO_FIELDS: TaskField[] = []
+/** Above this many rows only those near the screen are drawn (components/task/listWindow); fewer, and find-in-page finds all. */
+const WINDOW_ABOVE = 200
+/** Till the window's part plans (its code still coming), a long list draws a screen of its rows (40 px each, ROW_H) and pads for the rest. */
+const FIRST_ROWS = 30
+
+/** A group's rows shown: an open group's first sixty, a finished one's newest five, all once "Show N more" is pressed. */
+const shownOf = (g: TaskGroup, more: Set<string>) => (more.has(g.key) ? g.tasks : g.tasks.slice(0, g.closed ? CLOSED_SHOWN : OPEN_SHOWN))
+
+type WindowChunk = typeof import("@/components/task/listWindow")
+/** The window (lib/lazy/lazyPart), fetched when first needed; till then, or offline, every row is drawn. */
+const listWindow = lazyPart<React.ComponentProps<WindowChunk["ListWindow"]>>(() => import("@/components/task/listWindow").then((m) => m.ListWindow), { failed: DrawAll })
+/** The window's code couldn't come: an empty plan, so every row is drawn. */
+function DrawAll({ onPlans }: { onPlans: (plans: Map<string, GroupPlan>) => void }) {
+  React.useLayoutEffect(() => onPlans(new Map()), [onPlans])
+  return null
+}
 const SETTLE_HOLD = 600
 const STATUS_HOLD = 300
 const SETTLE_MS = 240
@@ -108,7 +126,14 @@ export function GroupedTaskList({
 }) {
   const box = React.useRef<HTMLDivElement>(null)
   const store = React.useContext(ListSelectionContext)
-  const anySelected = useSelectedIds(store).size > 0
+  // Whether it holds a selection: one attribute on the list that the rows' select slots read in CSS, so the first X draws no other row (H3-c).
+  React.useLayoutEffect(() => {
+    const el = box.current
+    if (!store || !el) return
+    const mark = () => el.toggleAttribute("data-any-selected", store.get().selected.size > 0)
+    mark()
+    return store.subscribe(mark)
+  })
   const update = useBulkTaskUpdate(projectId)
   // The rows' hover reads whether a scroll is under way.
   useScrolling()
@@ -134,6 +159,10 @@ export function GroupedTaskList({
   const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set(grouping === "when" ? ["done"] : []))
   const [more, setMore] = React.useState<Set<string>>(() => new Set())
   const [adding, setAdding] = React.useState<string | null>(null)
+  // Each group's plan while windowed: what it draws and the space around it.
+  const [plans, setPlans] = React.useState<Map<string, GroupPlan> | null>(null)
+  // The opened task, kept drawn wherever the window is: read here for the window's part, which reads no store. A short list reads nothing.
+  const openedId = useSelector((s: RootState) => (tasks.length > WINDOW_ABOVE && s.rightPanel.rightPanelState.isOpen ? (s.rightPanel.rightPanelState.data.taskUUID ?? null) : null))
 
   React.useLayoutEffect(() => {
     if (!flipFrom.current) return
@@ -201,13 +230,14 @@ export function GroupedTaskList({
     },
   )
 
-  const toggleGroup = (key: string) =>
+  const toggleGroup = useStableCallback((key: string) =>
     setCollapsed((c) => {
       const next = new Set(c)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
-    })
+    }),
+  )
 
   if (loading) return <GroupedListSkeleton />
   if (tasks.length === 0 && !filtered && empty) return <>{empty}</>
@@ -227,25 +257,26 @@ export function GroupedTaskList({
   const keyW = keyWidth(tasks)
   // Types without keys keep the slot (V-459).
   const typed = tasks.some((t) => t.task_work_type)
+  // Rows left to draw before the window plans: a screen's worth once more than WINDOW_ABOVE are shown, as the window counts them.
+  let room = !plans && groups.reduce((n, g) => n + (collapsed.has(g.key) ? 0 : shownOf(g, more).length), 0) > WINDOW_ABOVE ? FIRST_ROWS : Infinity
   const list = (
-    <div ref={box} data-grouped-list="" data-task-sequence="" aria-label="Tasks" className="relative" style={keyW ? ({ "--key-w": `${keyW}ch` } as React.CSSProperties) : undefined}>
+    <div ref={box} data-grouped-list="" data-task-sequence="" aria-label="Tasks" className="group/list relative" style={keyW ? ({ "--key-w": `${keyW}ch` } as React.CSSProperties) : undefined}>
       {groups.map((g) => {
         const isCollapsed = collapsed.has(g.key)
-        const cap = g.closed ? CLOSED_SHOWN : OPEN_SHOWN
-        const shown = more.has(g.key) ? g.tasks : g.tasks.slice(0, cap)
+        const shown = shownOf(g, more)
         const hidden = g.tasks.length - shown.length
+        // Windowed: what this group draws, each item with the space above it, and its list padded for the rest.
+        const plan = plans?.get(g.key)
+        const gaps = plan && new Map(plan.drawn.map((d) => [d.key, d.gap]))
+        const draws = (key: string) => !gaps || gaps.has(key)
+        const cut = isCollapsed ? 0 : Math.min(shown.length, room)
+        room -= cut
         return (
           <section key={g.key} data-group={g.key} aria-label={g.label}>
-            <GroupHeader
-              group={g}
-              partial={partial}
-              collapsed={isCollapsed}
-              onToggle={() => toggleGroup(g.key)}
-              onAdd={onAdd && !g.closed && g.key !== "overdue" ? () => setAdding(g.key) : undefined}
-            />
+            <GroupHeader group={g} partial={partial} collapsed={isCollapsed} onToggle={toggleGroup} onAdd={onAdd && !g.closed && g.key !== "overdue" ? setAdding : undefined} />
             {!isCollapsed && (
-              <div role="list" aria-label={g.label}>
-                {adding === g.key && onAdd && (
+              <div role="list" aria-label={g.label} data-rows={plan ? shown.length : undefined} style={plan ? { paddingTop: plan.before, paddingBottom: plan.after } : cut < shown.length ? { paddingBottom: (shown.length - cut) * 40 } : undefined}>
+                {adding === g.key && onAdd && draws(`${g.key}#add`) && (
                   <InlineAdd
                     group={g}
                     onCancel={() => setAdding(null)}
@@ -254,7 +285,7 @@ export function GroupedTaskList({
                     }}
                   />
                 )}
-                {g.when === "today" && g.tasks.length === 0 && (
+                {g.when === "today" && g.tasks.length === 0 && draws(`${g.key}#empty`) && (
                   <div data-all-clear="" className="flex h-12 items-center gap-3 border-b border-line pl-5 text-sm text-ink-2 [animation:work-fade-in_220ms_var(--ease-out)_both]">
                     <span className="hue-moss inline-flex size-5 items-center justify-center rounded-md bg-hue-tint text-hue [animation:work-check-fill_220ms_var(--ease-spring)_both]">
                       <StatusGlyph status="done" size={12} />
@@ -262,15 +293,17 @@ export function GroupedTaskList({
                     Nothing due today
                   </div>
                 )}
-                {shown.map((t) => (
+                {shown.map((t, i) => i < cut && draws(t.task_uuid) && (
                   <TaskRow
                     key={t.task_uuid}
+                    gap={gaps?.get(t.task_uuid)}
+                    setsize={plan && shown.length}
+                    posinset={plan && i + 1}
                     task={t}
                     keyed={keyW > 0 || typed}
                     options={options}
                     props={props}
                     editable={canEdit(t)}
-                    anySelected={anySelected}
                     justDone={justDone.has(t.task_uuid)}
                     sortedBy={sortedBy}
                     fields={fields}
@@ -281,7 +314,7 @@ export function GroupedTaskList({
                     onManageStatuses={onManageStatuses}
                   />
                 ))}
-                {hidden > 0 && (
+                {hidden > 0 && cut === shown.length && draws(`${g.key}#more`) && (
                   <button
                     type="button"
                     onClick={() => setMore((m) => new Set(m).add(g.key))}
@@ -300,13 +333,14 @@ export function GroupedTaskList({
   return (
     <ReorderHost>
       {list}
+      {tasks.length > WINDOW_ABOVE && <listWindow.Part above={WINDOW_ABOVE} groups={groups} collapsed={collapsed} more={more} adding={onAdd ? adding : null} box={box} shownOf={shownOf} opened={openedId} onPlans={setPlans} />}
       {Layer && reorder && <Layer {...reorder} tasks={tasks} groups={groups} grouping={grouping} options={options} canEdit={canEdit} box={box} onPlaced={onPlaced} />}
     </ReorderHost>
   )
 }
 
-/** A group's 36 px header (work.md W18): chevron, glyph, name, count that ticks, and "+" on hover. */
-function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: TaskGroup; partial: boolean; collapsed: boolean; onToggle: () => void; onAdd?: () => void }) {
+/** A group's 36 px header (work.md W18): chevron, glyph, name, count that ticks, and "+" on hover. Memoised: a window's step draws none. */
+const GroupHeader = React.memo(function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: TaskGroup; partial: boolean; collapsed: boolean; onToggle: (key: string) => void; onAdd?: (key: string) => void }) {
   return (
     <div
       data-group-header=""
@@ -317,7 +351,7 @@ function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: Ta
     >
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => onToggle(group.key)}
         aria-expanded={!collapsed}
         aria-label={`${collapsed ? "Show" : "Hide"} ${group.label}`}
         className="flex h-7 min-w-0 items-center gap-2 rounded-md px-1.5 outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring"
@@ -343,7 +377,7 @@ function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: Ta
       {onAdd && (
         <button
           type="button"
-          onClick={onAdd}
+          onClick={() => onAdd(group.key)}
           aria-label={`New task in ${group.label}`}
           className="inline-flex size-6 items-center justify-center rounded-sm text-ink-3 [@media(hover:hover)]:opacity-0 transition-opacity hover:bg-hover hover:text-foreground focus-visible:opacity-100 group-hover/head:opacity-100"
         >
@@ -352,7 +386,7 @@ function GroupHeader({ group, partial, collapsed, onToggle, onAdd }: { group: Ta
       )}
     </div>
   )
-}
+})
 
 /** The 40 px editable row "+" puts at the top of a group: Enter creates, Esc cancels. */
 function InlineAdd({ group, onSubmit, onCancel }: { group: TaskGroup; onSubmit: (name: string) => Promise<void>; onCancel: () => void }) {
@@ -397,23 +431,7 @@ function InlineAdd({ group, onSubmit, onCancel }: { group: TaskGroup; onSubmit: 
   )
 }
 
-/** The desktop task row (work.md W19). Memoised: a key press re-renders the rows it changes and no other. */
-const TaskRow = React.memo(function TaskRow({
-  task,
-  keyed,
-  options,
-  props,
-  editable,
-  anySelected,
-  justDone,
-  sortedBy,
-  fields,
-  nameOf,
-  onComplete,
-  onStatus,
-  onPriority,
-  onManageStatuses,
-}: {
+type CellProps = {
   fields: TaskField[]
   nameOf?: (id: string) => string | undefined
   task: TaskInfoInterface
@@ -421,28 +439,55 @@ const TaskRow = React.memo(function TaskRow({
   options: StatusOption[]
   props: RowProp[]
   editable: boolean
-  anySelected: boolean
   justDone: boolean
   sortedBy?: RowProp
   onComplete: (task: TaskInfoInterface, done: boolean) => void
   onStatus: (task: TaskInfoInterface, value: string) => void
   onPriority: (task: TaskInfoInterface, value: string) => void
   onManageStatuses?: () => void
+}
+
+/** The Checkbox that takes the light box's place under the focus takes the focus too (a screen reader's cursor, a finger). */
+const takeFocus = (el: HTMLElement | null) => el?.focus()
+
+/** What the Tab key reaches inside a row. */
+const TABBABLE = 'button:not([tabindex="-1"]):not(:disabled),a[href]:not([tabindex="-1"]),input:not([tabindex="-1"]):not(:disabled),[tabindex]:not([tabindex="-1"])'
+/** Whether a row's select box comes first of what Tab reaches in it (a grip comes before). */
+function boxFirst(row: HTMLElement): boolean {
+  const slot = row.querySelector("[data-row-select]")
+  const first = row.querySelector(TABBABLE)
+  return !!slot && (!first || (slot.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0)
+}
+
+/** The desktop task row (work.md W19). Memoised: a key press re-renders the rows it changes and no other, and only their frame; J draws none (painted). */
+const TaskRow = React.memo(function TaskRow({
+  gap,
+  setsize,
+  posinset,
+  ...cells
+}: CellProps & {
+  /** Windowed (components/task/listWindow): the space above a row drawn away from the rows before it, and its place among its group's shown rows. */
+  gap?: number
+  setsize?: number
+  posinset?: number
 }) {
+  const { task, editable } = cells
   const dispatch = useDispatch()
   const store = React.useContext(ListSelectionContext)
-  const { highlighted, selected } = useRowState(task.task_uuid)
+  const selected = useRowSelected(task.task_uuid)
   const opened = useSelector((s: RootState) => s.rightPanel.rightPanelState.isOpen && s.rightPanel.rightPanelState.data.taskUUID === task.task_uuid)
-  const [statusOpen, setStatusOpen] = React.useState(false)
-  // The select box is in the tree only while the row is pointed at or has
-  // focus (F-1 #2); the priority picker's menu, only while it is open.
+  // The Checkbox is in the tree only while the row is pointed at or something in it has focus (F-1 #2);
+  // "box" when the focus came to the light box, which hands it on to the Checkbox.
   const [pointed, setPointed] = React.useState(false)
-  const [focused, setFocused] = React.useState(false)
-  const live = pointed || focused
-  const status = statusOptionOf(task, options) ?? options[0]
-  const done = isClosedStatus(task.task_status)
-  const has = (p: RowProp) => props.includes(p)
-  const tags = has("labels") ? splitTags(task.task_label) : []
+  const [focused, setFocused] = React.useState<false | "row" | "box">(false)
+  const live = pointed || !!focused
+  // Not while a scroll or a drag carries rows under the pointer; a move wakes it.
+  // Never a finger's: its enter comes with its tap, and the Checkbox would take
+  // the place of the box the tap lands on (the slot's own click selects instead).
+  // Nor while the list holds a selection: the empty box draws as the Checkbox then,
+  // and a click that arrives with the pointer is the box's (the list's own click
+  // writes the store, which draws a swap still waiting before the click is read).
+  const point = (e: React.PointerEvent) => e.pointerType !== "touch" && !isBusyPointer() && !store?.get().selected.size && setPointed(true)
   const open = () => dispatch(openRightPanel({ taskUUID: task.task_uuid }))
   const Grip = React.useContext(ReorderGrip)
 
@@ -451,16 +496,18 @@ const TaskRow = React.memo(function TaskRow({
       role="listitem"
       data-task-id={task.task_uuid}
       data-flip-id={task.task_uuid}
+      aria-setsize={setsize}
+      aria-posinset={posinset}
+      style={gap ? { marginTop: gap } : undefined}
       data-state={selected ? "selected" : undefined}
-      data-highlighted={highlighted || undefined}
       data-opened={opened || undefined}
       aria-current={opened || undefined}
       tabIndex={-1}
-      // Not while a scroll or a drag carries rows under the pointer; a move wakes it.
-      onPointerEnter={() => !isBusyPointer() && setPointed(true)}
-      onPointerMove={pointed ? undefined : () => !isBusyPointer() && setPointed(true)}
+      onPointerEnter={point}
+      onPointerMove={pointed ? undefined : point}
       onPointerLeave={() => setPointed(false)}
-      onFocus={() => setFocused(true)}
+      // The row's own focus (the keys', a click) is no state; a control's in it is.
+      onFocus={(e) => e.target !== e.currentTarget && setFocused((e.target as HTMLElement).hasAttribute("data-row-box") ? "box" : "row")}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false)
       }}
@@ -469,7 +516,13 @@ const TaskRow = React.memo(function TaskRow({
         open()
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && e.target === e.currentTarget) open()
+        if (e.target !== e.currentTarget) return
+        if (e.key === "Enter") open()
+        // Tab from the row lands on its select box: the light box hands it on.
+        else if (e.key === "Tab" && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && !live && !selected && boxFirst(e.currentTarget)) {
+          e.preventDefault()
+          setFocused("box")
+        }
       }}
       className={cn(
         ROW_H,
@@ -484,15 +537,55 @@ const TaskRow = React.memo(function TaskRow({
       {/* The opened row's 2px brand edge, scaling in. */}
       {opened && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-brand [animation:work-grow-y_140ms_var(--ease-out)_both] [transform-origin:center]" />}
       {/* The keyboard's cursor: an inset ring, clear of the hairlines, for the keys' focus only (a mouse's press highlights without it). */}
-      {highlighted && !opened && <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none absolute inset-0.5 hidden rounded-md ring-cursor group-focus-visible/row:block group-has-[:focus-visible]/row:block" />}
+      {!opened && <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none absolute inset-0.5 hidden rounded-md ring-cursor group-data-[highlighted]/row:group-focus-visible/row:block group-data-[highlighted]/row:group-has-[:focus-visible]/row:block" />}
       {Grip && <Grip task={task} editable={editable} />}
-      <span className={cn("flex w-4 shrink-0 justify-center transition-opacity duration-[140ms]", selected || anySelected ? "opacity-100" : "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto")} data-row-select="">
-        {live || selected || anySelected ? (
-          <Checkbox checked={selected} onCheckedChange={() => store?.toggle(task.task_uuid)} aria-label={`Select ${task.task_name}`} />
+      <span
+        className={cn("flex w-4 shrink-0 justify-center transition-opacity duration-[140ms]", selected ? "opacity-100" : "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto group-data-[any-selected]/list:opacity-100 group-data-[any-selected]/list:pointer-events-auto")}
+        data-row-select=""
+        // While the list holds a selection, the empty box beside a row is a box to a finger too: a tap on it adds the row and opens nothing.
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest("[role=checkbox]:not([data-row-box])") || !store?.get().selected.size) return
+          e.stopPropagation()
+          store.toggle(task.task_uuid)
+        }}
+      >
+        {live || selected ? (
+          <Checkbox ref={focused === "box" ? takeFocus : undefined} checked={selected} onCheckedChange={() => store?.toggle(task.task_uuid)} aria-label={`Select ${task.task_name}`} />
         ) : (
-          <span aria-hidden="true" className="size-4" />
+          // While the list holds a selection, an empty box as the Checkbox draws it, and a real
+          // control with the row's name (a screen reader finds every row's), with the Checkbox's
+          // hover ring, press and reach; the Checkbox comes under the focus, or under the pointer
+          // with no selection. Hidden without a selection, but under the keys' focus (a screen reader finds it).
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={false}
+            aria-label={`Select ${task.task_name}`}
+            tabIndex={-1}
+            data-row-box=""
+            // A press (a finger's tap comes as one) leaves the focus where it is: a focus here hands on to the
+            // Checkbox, which would take this box's place under the press and lose its click. Keys and a screen
+            // reader's focus still hand on.
+            onMouseDown={(e) => e.preventDefault()}
+            className="invisible relative size-4 rounded-[5px] transition-spring group-focus-visible/row:visible group-focus-visible/row:ring-[1.5px] group-focus-visible/row:ring-inset group-focus-visible/row:ring-faint-foreground after:absolute after:-inset-1 hover:ring-muted-foreground motion-safe:active:scale-[0.88] active:duration-[90ms] group-data-[any-selected]/list:visible group-data-[any-selected]/list:ring-[1.5px] group-data-[any-selected]/list:ring-inset group-data-[any-selected]/list:ring-faint-foreground"
+          />
         )}
       </span>
+      <RowCells {...cells} />
+    </div>
+  )
+})
+
+/** A row's cells, memoised apart from its frame, which alone draws again for the row's highlight, focus, pointer or place in a window. */
+const RowCells = React.memo(function RowCells({ task, keyed, options, props, editable, justDone, sortedBy, fields, nameOf, onComplete, onStatus, onPriority, onManageStatuses }: CellProps) {
+  const [statusOpen, setStatusOpen] = React.useState(false)
+  const status = statusOptionOf(task, options) ?? options[0]
+  const done = isClosedStatus(task.task_status)
+  const has = (p: RowProp) => props.includes(p)
+  const tags = has("labels") ? splitTags(task.task_label) : []
+  const due = has("due") ? dueDateOf(task.task_due_date) : null
+  return (
+    <>
       {has("priority") && (
         editable ? (
           <PriorityMenu current={task.task_priority} onPick={(v) => onPriority(task, v)}>
@@ -525,8 +618,9 @@ const TaskRow = React.memo(function TaskRow({
         <TaskTitle done={done} justDone={justDone} className="text-sm font-[450]">
           {task.task_name}
         </TaskTitle>
-        <RestrictedMark restricted={task.task_restricted} />
-        {has("badges") && <RowBadges task={task} />}
+        {/* A mark with nothing to draw is no component: a window move mounts every row's cells. */}
+        {task.task_restricted && <RestrictedMark restricted />}
+        {has("badges") && hasBadges(task) && <RowBadges task={task} />}
       </span>
       {has("project") && task.task_project?.project_uuid && (
         <span className="hidden min-w-0 max-w-[160px] shrink items-center gap-1.5 text-meta text-ink-2 md:inline-flex">
@@ -546,11 +640,13 @@ const TaskRow = React.memo(function TaskRow({
         .filter((f) => has(`field:${f.id}`))
         .map((f) => {
           const v = task.task_fields?.[f.id]
-          // Money is tabular text in its own right-aligned 72px column, never a pill.
-          if (f.type === "money" || f.type === "number") {
+          // Money, a number and a formula giving one are tabular text in their own right-aligned 72px
+          // column, never a pill; one the server hides from the reader (V-698) is its lock, the words
+          // in its tip, and a formula's error its chip's icon, its why in its tip.
+          if (alignsRight(f)) {
             return (
               <span key={f.id} data-field-cell={f.type} className="w-[72px] shrink-0 truncate text-right text-meta tabular-nums text-ink-2">
-                {formatFieldValue(f, v, nameOf)}
+                <FieldValueView field={f} value={v} nameOf={nameOf} compact />
               </span>
             )
           }
@@ -562,22 +658,23 @@ const TaskRow = React.memo(function TaskRow({
         })}
       {has("due") && (
         <span className="flex w-16 shrink-0 justify-end">
-          <DueLabel date={task.task_due_date} done={done} className={cn(sortedBy === "due" && !done && "text-foreground")} />
+          {due && <DueLabel date={due} done={done} className={cn(sortedBy === "due" && !done && "text-foreground")} />}
         </span>
       )}
       {has("estimate") && task.task_estimate_minutes ? (
         <span className="w-12 shrink-0 text-right text-meta tabular-nums text-ink-3">{formatMinutes(task.task_estimate_minutes)}</span>
       ) : null}
       {has("assignee") && <TaskAvatar user={task.task_assignee} />}
-    </div>
+    </>
   )
 })
+
+const hasBadges = (task: TaskInfoInterface) => !!(task.task_blocked_open || task.task_sub_task_count || task.task_comment_count)
 
 /** The badges after a title: blocked, subtasks, comments (work.md W19). */
 function RowBadges({ task }: { task: TaskInfoInterface }) {
   const subs = task.task_sub_task_count || 0
   const comments = task.task_comment_count || 0
-  if (!task.task_blocked_open && !subs && !comments) return null
   return (
     <span className="flex shrink-0 items-center gap-2 text-xs text-ink-3">
       <BlockedBadge count={task.task_blocked_open} />

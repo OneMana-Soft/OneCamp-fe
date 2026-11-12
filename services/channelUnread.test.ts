@@ -18,7 +18,7 @@ const mutate = vi.fn(async (key: string, updater: (data: unknown) => unknown) =>
 import axiosInstance from "@/lib/axiosInstance"
 import { bindAppMutate } from "@/lib/swrMutate"
 import { markChannelSeen } from "@/services/channelService"
-import { clearActivityUnread, clearChatUnread } from "@/services/unreadCache"
+import { clearChatUnread, recountInbox } from "@/services/unreadCache"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 const post = axiosInstance.post as unknown as ReturnType<typeof vi.fn>
@@ -170,11 +170,14 @@ describe("reading a channel clears its badge", () => {
     expect(sidenavCache().data.user_dms.find((d) => d.dm_grouping_id === OTHER_DM)?.dm_unread).toBe(7)
   })
 
-  // The activity count is a single number on the same cached payload, so opening
-  // the feed and navigating away brought the old count straight back.
-  it("clears the activity count", () => {
-    clearActivityUnread()
+  // The Inbox badge is the server's count alone (lib/activity/inboxBadge): it
+  // is read again, never patched here. A zero patched into the sidenav's
+  // answer, or one still on its way, put the old number back (C1).
+  it("reads the Inbox badge again and patches no count of its own", () => {
+    const before = sidenavCache().data.user_total_unread_activity_count
+    recountInbox()
 
-    expect(sidenavCache().data.user_total_unread_activity_count).toBe(0)
+    expect(mutate).toHaveBeenCalledWith("/activity/unread")
+    expect(sidenavCache().data.user_total_unread_activity_count).toBe(before)
   })
 })

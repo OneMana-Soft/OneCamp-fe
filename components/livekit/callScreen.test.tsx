@@ -30,13 +30,15 @@ vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => 
 
 import { PreJoin, previewMessage } from "@/components/livekit/PreJoin"
 import { CallRemoved, CaptionsOverlay, captionsLift, GREEN_ROOM_GROUND, LivePill, NamePlate, RecordingPill, StageFace } from "@/components/livekit/CallStage"
-import { CameraOffFace, cameraIsOff } from "@/components/livekit/StageTile"
+import { CameraOffFace } from "@/components/livekit/TileBody"
+import { cameraIsOff } from "@/components/livekit/stageTracks"
 import { PersonTag } from "@/components/livekit/personTag"
 import { CallDock, CONTROL_LABELS, VideoControls } from "@/components/livekit/VideoControls"
 import { whoIsHere } from "@/components/livekit/PreJoin"
 import { ParticipantKind } from "livekit-client"
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
 import { captionsHigh, STAGE_FRAME, STAGE_TYPE } from "@/components/livekit/VideoConference"
+import { STAGE_INSET } from "@/components/livekit/callSurface"
 
 /** What a screen reader hears in an element: its text, less what is hidden from it, its spaces as one. */
 function heardIn(el: HTMLElement): string {
@@ -422,7 +424,8 @@ describe("the call stage's frame", () => {
     expect(src.match(/STAGE_FRAME\)/g)?.length).toBe(1)
     expect(STAGE_FRAME.split(" ")).toEqual(
       expect.arrayContaining([
-        "px-3",
+        // The stage's gutter, as the call's recording keeps it (RecordingStage).
+        STAGE_INSET,
         "pt-12",
         "pb-[max(6rem,var(--call-captions-room,0px))]",
         "@3xl:pb-[max(84px,var(--call-captions-room,0px))]",

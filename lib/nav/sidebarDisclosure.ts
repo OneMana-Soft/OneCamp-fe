@@ -45,8 +45,8 @@ export function readSidebarSections(): Record<string, boolean> {
     }
 }
 
-/** Remember one section, leaving the others as they are. */
-export function writeSidebarSection(key: string, open: boolean): void {
+/** Remember one section, or forget it with undefined. */
+export function writeSidebarSection(key: string, open?: boolean): void {
     if (typeof document === "undefined") return
     const next = { ...readSidebarSections(), [key]: open }
     const value = encodeURIComponent(JSON.stringify(next))

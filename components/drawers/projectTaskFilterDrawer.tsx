@@ -4,9 +4,8 @@ import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
 import { ExportCSVButton } from "@/components/task/ExportCSVButton"
-import Link from "next/link"
 import { insightsHref } from "@/lib/board/boardQuery"
-import { BarChart3 } from "@/lib/icons"
+import { InsightsButton } from "@/components/task/insightsLink"
 import { taskViewScope } from "@/lib/tasks/views"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -31,6 +30,9 @@ import { taskPriorityOptions } from "@/types/taskScale"
 import { DATE_SORTS } from "@/lib/tasks/sortChoices"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectTypes } from "@/hooks/useProjectTypes"
+import { useReleaseList } from "@/components/task/releaseFacet"
+import axiosInstance from "@/lib/axiosInstance"
+import { TASK_RELEASE, releaseFilterOptions } from "@/lib/work/releaseFilter"
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
 import { ProjectsGet } from "@/services/endpoints/projects";
@@ -55,6 +57,7 @@ const filterSchema = z.object({
     status: z.array(z.string()).optional(),
     assignee: z.array(z.string()).optional(),
     type: z.array(z.string()).optional(),
+    release: z.array(z.string()).optional(),
 })
 
 type FilterFormValues = z.infer<typeof filterSchema>
@@ -73,6 +76,8 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     // The project's types (linear-03), read while the drawer is open.
     const { types } = useProjectTypes(projectId, drawerOpenState)
     const { cycles } = useProjectCycles(drawerOpenState ? projectId : undefined)
+    // Its releases (jira-04), read while the drawer is open; "none" is No release.
+    const { releases } = useReleaseList(projectId, axiosInstance, drawerOpenState)
     const dispatch = useDispatch()
     const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId])
     // The list as its applied sort and filters show it, as a CSV file (the
@@ -91,6 +96,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             const status = valuesOf("task_status")
             const assignee = valuesOf("task_assignee_name")
             const type = valuesOf("task_work_type")
+            const release = valuesOf(TASK_RELEASE)
             
             const sortArr = taskFiltersAndSorts?.sort || []
             const sort = sortArr.length > 0 ? sortArr[0] : MANUAL
@@ -101,6 +107,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                 status,
                 assignee,
                 type,
+                release,
             })
         }
     }, [drawerOpenState, taskFiltersAndSorts])
@@ -118,6 +125,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             priority: [],
             status: [],
             type: [],
+            release: [],
         },
     })
 
@@ -131,6 +139,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
         { id: "sort", label: "Sort" },
         { id: "priority", label: "Priority" },
         { id: "type", label: "Type" },
+        { id: "release", label: "Release" },
         { id: "status", label: "Status" },
         { id: "assignee", label: "Assignee" },
     ]
@@ -147,6 +156,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             ...(data.status?.length ? [{ id: "task_status", value: data.status }] : []),
             ...(data.assignee?.length ? [{ id: "task_assignee_name", value: data.assignee }] : []),
             ...(data.type?.length ? [{ id: "task_work_type", value: data.type }] : []),
+            ...(data.release?.length ? [{ id: TASK_RELEASE, value: data.release }] : []),
             // The cycle is picked in its own tab; keep it.
             ...(taskFiltersAndSorts?.filters ?? []).filter((f) => f.id === "task_cycle"),
         ]
@@ -170,6 +180,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             status: [],
             assignee: [],
             type: [],
+            release: [],
         })
         dispatch(updateProjectSortingAndFiltering({ projectId, filters: [], sort: [] }))
         setOpenState(false)
@@ -244,7 +255,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             )
         }
 
-        const fieldName = activeTab as "priority" | "status" | "assignee" | "type"
+        const fieldName = activeTab as "priority" | "status" | "assignee" | "type" | "release"
 
         if (activeTab === "assignee") {
             return (
@@ -281,6 +292,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             // The project's own statuses too, beside the built-in ones.
             status: statusOpts.map((o) => ({ id: o.value, label: o.label })),
             type: types.map((t) => ({ id: t.id, label: t.name })),
+            release: releaseFilterOptions(releases),
         }
 
         const currentOptions = optionsMap[activeTab as keyof typeof optionsMap] || []
@@ -327,12 +339,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                         </div>
                         <span className="-mr-2 flex shrink-0 items-center">
                             {/* Insights (B9-b1): the project's report, narrowed to the filters this list reads by. */}
-                            <Button asChild variant="ghost" size="sm">
-                                <Link href={insightsHref(projectId, taskFiltersAndSorts?.filters ?? [], "", "")} onClick={() => setOpenState(false)}>
-                                    <BarChart3 className="size-3.5" aria-hidden="true" />
-                                    Insights
-                                </Link>
-                            </Button>
+                            <InsightsButton href={insightsHref(projectId, taskFiltersAndSorts?.filters ?? [], "", "")} onClick={() => setOpenState(false)} />
                             <ExportCSVButton onExport={exportCSV} />
                         </span>
                     </DrawerHeader>

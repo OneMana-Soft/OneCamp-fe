@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { Search } from "@/lib/icons"
 import { onPaletteState, openPalette } from "@/lib/ui/palette"
 import { useModKey } from "@/hooks/useModKey"
@@ -13,7 +13,7 @@ import { useModKey } from "@/hooks/useModKey"
  * retired, and their results live in the palette. It stays pressed while the
  * palette it opened is up.
  */
-export function SidebarSearchRow() {
+export const SidebarSearchRow = memo(function SidebarSearchRow() {
   const mod = useModKey()
   const [paletteOpen, setPaletteOpen] = useState(false)
   useEffect(() => onPaletteState(setPaletteOpen), [])
@@ -38,4 +38,4 @@ export function SidebarSearchRow() {
       </button>
     </div>
   )
-}
+})

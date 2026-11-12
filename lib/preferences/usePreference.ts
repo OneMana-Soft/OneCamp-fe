@@ -18,7 +18,7 @@ type Answer = { data?: Preferences }
 
 // The signed-in person's own preferences (GET; PUT /{key} sets one). The path
 // sits here, not in services/endPoints.ts: only this module asks for it.
-const KEY = "/user/preferences"
+export const KEY = "/user/preferences"
 
 /** Every preference of the signed-in person, once the server answers. */
 export function usePreferences(): Preferences | undefined {

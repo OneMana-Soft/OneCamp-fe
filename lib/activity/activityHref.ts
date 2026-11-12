@@ -37,7 +37,7 @@ export function activityHref(activity: UnifiedActivityItem, currentUserId: strin
     case "COMMENT":
       return commentHref(activity.comment, currentUserId)
     case "NOTICE":
-      return noticeHref(activity.notice)
+      return noticeHref(activity.notice, currentUserId)
     case "REACTION": {
       const r = activity.reaction
       if (!r) return null

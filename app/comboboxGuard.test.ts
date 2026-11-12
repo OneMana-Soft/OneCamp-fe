@@ -30,7 +30,6 @@ const BASELINE: Record<string, number> = {
   "components/task/fieldFilterMenu.tsx": 1,
   "components/task/StatusMenu.tsx": 2,
   "components/task/taskCreateForm.tsx": 2,
-  "components/task/TaskDependencies.tsx": 1,
 }
 
 function sources(dir: string): string[] {

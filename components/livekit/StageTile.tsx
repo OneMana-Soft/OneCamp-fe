@@ -1,24 +1,15 @@
 "use client"
 
 /**
- * One participant on the stage (hub.md C5, C6): the picture or their face,
- * the name plate, the speaking ring in their own hue and, on hover, the pin.
- * Built on LiveKit's ParticipantTile for its contexts and click handling, with
- * our own contents in place of LiveKit's defaults.
+ * One participant on the stage (hub.md C5, C6): the tile's body (TileBody: the
+ * picture or their face, the ring, the plate) with the call's controls on it,
+ * a hover's tint, a raised hand, Call Control's menu and the pin. Built on
+ * LiveKit's ParticipantTile for its contexts and click handling, with our own
+ * contents in place of LiveKit's defaults.
  */
-import { useEffect, useState, type ReactNode } from "react"
-import {
-  ParticipantTile,
-  VideoTrack,
-  useConnectionQualityIndicator,
-  useEnsureTrackRef,
-  useIsMuted,
-  useIsSpeaking,
-  type ParticipantClickEvent,
-  type TrackReference,
-  type TrackReferenceOrPlaceholder,
-} from "@livekit/components-react"
-import { ConnectionQuality, Track, type Participant } from "livekit-client"
+import { type ReactNode } from "react"
+import { ParticipantTile, useEnsureTrackRef, type ParticipantClickEvent, type TrackReferenceOrPlaceholder } from "@livekit/components-react"
+import type { Participant } from "livekit-client"
 import { Pin, PinOff } from "@/lib/icons"
 import type { PersonAction } from "@/lib/calls/control"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -27,47 +18,8 @@ import { useHandPlace } from "./handsQueue"
 
 // A raised hand's badge: drawn once someone raises one, so not with the call.
 const HandBadge = dynamic(() => import("./HandBadge").then((m) => m.HandBadge), { ssr: false })
-import { NamePlate, SpeakingRing, StageFace, useRing } from "./CallStage"
-import { guestName } from "./callLevels"
-import { isAgentParticipant, useCallHues } from "./callHues"
-import { useTileWho } from "./callSelf"
-import { PersonActionsMenu, useCallPart } from "./callHosting"
-
-/** Whether a tile shows a face rather than a picture: a camera with nothing to show. Pure. */
-export function cameraIsOff(trackRef: Pick<TrackReferenceOrPlaceholder, "source" | "publication">, muted: boolean): boolean {
-  return trackRef.source === Track.Source.Camera && (!trackRef.publication || muted)
-}
-
-/**
- * A person whose camera is off, in their colour in the call, inside a LiveKit
- * tile. LiveKit's placeholder was the same grey silhouette for everybody. The
- * tile's plate names them, so the face's own name is for the eye only.
- */
-export function CameraOffFace({ trackRef, size = "md" }: { trackRef: TrackReferenceOrPlaceholder; size?: "sm" | "md" | "lg" }) {
-  const muted = useIsMuted(trackRef)
-  const who = trackRef.participant
-  const shown = useTileWho(who)
-  const hueOf = useCallHues()
-  if (!cameraIsOff(trackRef, muted)) return null
-  const { name } = guestName(shown.identity, shown.name || shown.identity || "Guest")
-  // A small tile's plate already says the name.
-  return <StageFace identity={shown.identity} name={name} hue={hueOf(shown.identity, name)} agent={isAgentParticipant(who)} showName={size !== "sm"} plateNames />
-}
-
-/** A participant's audio level, read 10 times a second while they speak, else 0. */
-export function useAudioLevel(participant: Participant, speaking: boolean): number {
-  const [level, setLevel] = useState(0)
-  useEffect(() => {
-    if (!speaking) {
-      setLevel(0)
-      return
-    }
-    setLevel(participant.audioLevel ?? 0)
-    const t = window.setInterval(() => setLevel(participant.audioLevel ?? 0), 100)
-    return () => window.clearInterval(t)
-  }, [participant, speaking])
-  return level
-}
+import { PersonActionsMenu } from "./callHosting"
+import { TileBody, type TileSize } from "./TileBody"
 
 export function StageTile({
   trackRef: given,
@@ -85,7 +37,7 @@ export function StageTile({
   onParticipantClick?: (evt: ParticipantClickEvent) => void
   pinned?: boolean
   onPin?: () => void
-  size?: "sm" | "md" | "lg"
+  size?: TileSize
   /** A shared screen fits the frame rather than filling it. */
   contain?: boolean
   /**
@@ -99,104 +51,73 @@ export function StageTile({
   className?: string
 }) {
   const trackRef = useEnsureTrackRef(given)
-  const who = trackRef.participant
-  const mic = { participant: who, source: Track.Source.Microphone, publication: who.getTrackPublication?.(Track.Source.Microphone) } as TrackReferenceOrPlaceholder
-  const micMuted = useIsMuted(mic)
-  // The voice detector lags a microphone closing (push to talk let go), and
-  // the mute is known at once: a closed microphone is never speaking.
-  const speaking = useIsSpeaking(who) && !micMuted
-  const level = useAudioLevel(who, speaking)
-  const ring = useRing(speaking ? Math.max(level, 0.05) : 0)
-  const camMuted = useIsMuted(trackRef)
-  const { quality } = useConnectionQualityIndicator({ participant: who })
-  const screen = trackRef.source === Track.Source.ScreenShare
-  const handPlace = useHandPlace(who.identity)
-  const showVideo = !!trackRef.publication && !cameraIsOff(trackRef, camMuted)
-  // Your own part has no identity or name until the call connects: the call's token says both (callSelf).
-  const shown = useTileWho(who)
-  const hueOf = useCallHues()
-  const { name, guest } = guestName(shown.identity, shown.name || shown.identity || "Guest")
-  const agent = isAgentParticipant(who)
-  // Someone let in by the call's invite, as the server names their part (calls HU13).
-  const invited = useCallPart(who).role === "invitee"
-  const reconnecting = quality === ConnectionQuality.Lost
-  const actions = actionsFor && !who.isLocal && !agent && !screen ? actionsFor(who) : []
+  const handPlace = useHandPlace(trackRef.participant.identity)
 
   return (
-    <div
-      data-flip-key={`${who.identity}|${trackRef.source}`}
-      data-stage-tile=""
+    <TileBody
+      trackRef={trackRef}
+      size={size}
+      contain={contain}
       className={cn(
-        "group/tile relative h-full w-full overflow-hidden rounded-[14px] bg-[#16171A] ring-1 ring-inset ring-white/[0.06] [container-type:size] focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-brand",
+        "group/tile focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-brand",
         // LiveKit's focus toggle, which ParticipantTile draws in every tile and shows on a hover or a tap: our pin is the
         // one control in that corner, and the toggle never takes a Tab (DESIGN-BUILD-55). Important, as LiveKit's CSS is unlayered.
         "[&_.lk-focus-toggle-button]:!hidden",
-        reconnecting && "opacity-60",
         className,
       )}
-    >
-      <ParticipantTile trackRef={trackRef} onParticipantClick={onParticipantClick} className="!h-full !w-full !rounded-none !bg-transparent">
-        {/* Always contents of ours, if only an empty one: given none, LiveKit draws its own silhouette, mic and name in the tile (DESIGN-BUILD-55). */}
-        {showVideo ? (
-          <VideoTrack trackRef={trackRef as TrackReference} className={cn("h-full w-full", contain || screen ? "object-contain" : "object-cover")} />
-        ) : (
-          <></>
-        )}
-      </ParticipantTile>
-      <CameraOffFace trackRef={trackRef} size={size} />
-      {/* A 4% white overlay on hover. */}
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-white/0 transition-colors group-hover/tile:bg-white/[0.04]" />
-      {layer}
-      {!screen ? <SpeakingRing identity={shown.identity} name={name} hue={hueOf(shown.identity, name)} opacity={ring} agent={agent} /> : null}
-      {handPlace !== null && !screen ? <HandBadge place={handPlace} className="absolute left-2 top-2 z-[3]" /> : null}
-      <NamePlate
-        name={name}
-        screen={screen}
-        muted={!screen && micMuted}
-        speaking={!screen && speaking}
-        level={level}
-        guest={guest}
-        agent={agent}
-        invited={invited && !screen}
-        poor={quality === ConnectionQuality.Poor}
-      />
-      {reconnecting ? (
-        <span role="status" className="absolute inset-0 grid place-items-center text-ui-sm text-[#A8ABB1]">
-          Reconnecting…
-        </span>
-      ) : null}
-      {actions.length > 0 ? (
-        // Beside the pin where there is one. Its own button, so pressing it
-        // never also brings the tile to the stage.
-        <span className={cn("absolute top-2 z-[3]", onPin ? "right-10" : "right-2")} onClick={(e) => e.stopPropagation()} data-tile-menu="">
-          <PersonActionsMenu
-            name={name}
-            actions={actions}
-            onSelect={(a) => onAction?.(a, who)}
-            triggerClassName="grid size-7 place-items-center rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0] opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-brand group-hover/tile:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100 [&_svg]:size-3.5"
-          />
-        </span>
-      ) : null}
-      {onPin ? (
-        <button
-          type="button"
-          aria-label={pinned ? "Unpin" : "Pin to the stage"}
-          aria-pressed={!!pinned}
-          onClick={(e) => {
-            e.stopPropagation()
-            onPin()
-          }}
-          className={cn(
-            "absolute right-2 top-2 z-[3] grid size-7 place-items-center rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0] transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3.5",
-            pinned ? "opacity-100" : "opacity-0 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100",
-            // While you draw on this tile's share, the pin steps aside for the drawing bar, which a phone's narrow tile
-            // gives its whole width (callInk's data-ink-drawing; DESIGN-BUILD-57 MUST 1).
-            "group-has-[[data-ink-drawing]]/tile:hidden",
-          )}
-        >
-          {pinned ? <PinOff /> : <Pin />}
-        </button>
-      ) : null}
-    </div>
+      picture={(video) => (
+        <ParticipantTile trackRef={trackRef} onParticipantClick={onParticipantClick} className="!h-full !w-full !rounded-none !bg-transparent">
+          {/* Always contents of ours, if only an empty one: given none, LiveKit draws its own silhouette, mic and name in the tile (DESIGN-BUILD-55). */}
+          {video ?? <></>}
+        </ParticipantTile>
+      )}
+      under={
+        <>
+          {/* A 4% white overlay on hover. */}
+          <span aria-hidden className="pointer-events-none absolute inset-0 bg-white/0 transition-colors group-hover/tile:bg-white/[0.04]" />
+          {layer}
+        </>
+      }
+      controls={({ who, name, agent, screen }) => {
+        const actions = actionsFor && !who.isLocal && !agent && !screen ? actionsFor(who) : []
+        return (
+          <>
+            {handPlace !== null && !screen ? <HandBadge place={handPlace} className="absolute left-2 top-2 z-[3]" /> : null}
+            {actions.length > 0 ? (
+              // Beside the pin where there is one. Its own button, so pressing it
+              // never also brings the tile to the stage.
+              <span className={cn("absolute top-2 z-[3]", onPin ? "right-10" : "right-2")} onClick={(e) => e.stopPropagation()} data-tile-menu="">
+                <PersonActionsMenu
+                  name={name}
+                  actions={actions}
+                  onSelect={(a) => onAction?.(a, who)}
+                  triggerClassName="grid size-7 place-items-center rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0] opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-brand group-hover/tile:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100 [&_svg]:size-3.5"
+                />
+              </span>
+            ) : null}
+            {onPin ? (
+              <button
+                type="button"
+                aria-label={pinned ? "Unpin" : "Pin to the stage"}
+                aria-pressed={!!pinned}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPin()
+                }}
+                className={cn(
+                  "absolute right-2 top-2 z-[3] grid size-7 place-items-center rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0] transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3.5",
+                  pinned ? "opacity-100" : "opacity-0 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100",
+                  // While you draw on this tile's share, the pin steps aside for the drawing bar, which a phone's narrow tile
+                  // gives its whole width (callInk's data-ink-drawing; DESIGN-BUILD-57 MUST 1).
+                  "group-has-[[data-ink-drawing]]/tile:hidden",
+                )}
+              >
+                {pinned ? <PinOff /> : <Pin />}
+              </button>
+            ) : null}
+          </>
+        )
+      }}
+    />
   )
 }

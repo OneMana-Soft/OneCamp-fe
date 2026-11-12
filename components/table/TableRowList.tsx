@@ -23,6 +23,7 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 import { matchesByRow, type FindMarks } from "@/lib/tables/findMarks"
 import type { TransformMatch } from "@/lib/tables/transform"
+import { UnsavedMark } from "@/components/table/UnsavedMark"
 
 /** A value as one short line of plain markup, for a list row's meta. */
 export function brief(f: TableField, v: unknown, tinted: boolean): React.ReactNode {
@@ -114,6 +115,7 @@ export function TableRowList({
   onNearEnd,
   scrollTo,
   edits,
+  onRetry,
   grouping,
   hues,
   found,
@@ -134,6 +136,8 @@ export function TableRowList({
   scrollTo?: string | null
   /** What each row shows over its copy until it's read again (useCellCommit). */
   edits: ReadonlyMap<string, RowEdits>
+  /** Sends a row's kept edit again (useCellCommit's retryCell, V-640): its mark's Retry. */
+  onRetry?: (row: TableRow, fieldId: string) => unknown
   /** A grouped view (tables V2b): a header above each group, and the rows of its open groups; until its counts come, rows on their way. */
   grouping?: Grouping | null
   /** Each row's colour, as the view colours rows (V3). */
@@ -156,7 +160,7 @@ export function TableRowList({
   return (
     <div data-table-list="" aria-busy={(!!body && !layout) || undefined}>
       {length === 0 ? empty : null}
-      <ListBody fields={fields} rows={body?.rows ?? rows} count={length} tail={tail} from={from} onOpen={onOpen} onNearEnd={onNearEnd} scrollTo={scrollTo} edits={edits} groups={groups || null} hues={hues} found={found} />
+      <ListBody fields={fields} rows={body?.rows ?? rows} count={length} tail={tail} from={from} onOpen={onOpen} onNearEnd={onNearEnd} scrollTo={scrollTo} edits={edits} onRetry={onRetry} groups={groups || null} hues={hues} found={found} />
       {onAdd ? (
         <button type="button" onClick={onAdd} className="flex h-11 w-full items-center gap-2 text-ui text-ink-3 active:bg-press">
           <Plus className="size-4" aria-hidden="true" /> New row
@@ -189,6 +193,7 @@ const ListBody = React.memo(function ListBody({
   onNearEnd,
   scrollTo,
   edits,
+  onRetry,
   groups,
   hues,
   found,
@@ -202,6 +207,7 @@ const ListBody = React.memo(function ListBody({
   onNearEnd?: (last: number, first?: number) => void
   scrollTo?: string | null
   edits: ReadonlyMap<string, RowEdits>
+  onRetry?: (row: TableRow, fieldId: string) => unknown
   groups: { layout: GroupLayout; levels: Grouping["levels"]; all: TableField[]; onToggle: (path: string[]) => void; partial?: boolean } | null
   hues?: ReadonlyMap<string, CampHue> | null
   found?: FindMarks | null
@@ -279,7 +285,7 @@ const ListBody = React.memo(function ListBody({
           const row = rows[spot ? spot.row : rowAt(index)]
           if (!row) return listPlaceholder(index)
           // The same element as last time while sameListRow holds: React skips it.
-          return keep(row.id, { row, place: index, count, look, onOpen, edits: edits.get(row.id), hue: hues?.get(row.id), found: byRow.get(row.id), foundAt: current?.row === row.id ? (current.field ?? "") : undefined }, (p) => <ListRow key={row.id} {...p} />)
+          return keep(row.id, { row, place: index, count, look, onOpen, edits: edits.get(row.id), onRetry, hue: hues?.get(row.id), found: byRow.get(row.id), foundAt: current?.row === row.id ? (current.field ?? "") : undefined }, (p) => <ListRow key={row.id} {...p} />)
         })}
       </ul>
     </div>
@@ -296,6 +302,8 @@ interface ListRowProps {
   onOpen: (rowId: string) => void
   /** The edits its copy doesn't show yet: it shows them, as saving while one is on its way. */
   edits?: RowEdits
+  /** Sends a kept edit of its again (useCellCommit's retryCell, V-640): its mark's Retry. */
+  onRetry?: (row: TableRow, fieldId: string) => unknown
   /** Its colour, as the view colours rows (V3): a stripe at its edge. */
   hue?: CampHue
   /** A find's matched fields in this row (G2b-2): the row is tinted, and they lead its values, by name and value. */
@@ -306,7 +314,15 @@ interface ListRowProps {
 
 /** Whether a row drawn with a draws as it would with b (ListBody keeps its element). */
 const sameListRow = (a: ListRowProps, b: ListRowProps) =>
-  a.row.id === b.row.id && a.row.values === b.row.values && a.place === b.place && a.count === b.count && a.look === b.look && a.onOpen === b.onOpen && a.edits === b.edits && a.hue === b.hue && a.found === b.found && a.foundAt === b.foundAt
+  a.row.id === b.row.id && a.row.values === b.row.values && a.place === b.place && a.count === b.count && a.look === b.look && a.onOpen === b.onOpen && a.edits === b.edits && a.onRetry === b.onRetry && a.hue === b.hue && a.found === b.found && a.foundAt === b.foundAt
+
+/** The names of a row's fields with kept edits, for its mark ("Retry saving Cost and Units"). */
+function keptNames(look: ListLook, kept: string[], named?: Record<string, string>): string[] {
+  const all = look.primary ? [look.primary, ...look.rest] : look.rest
+  // A cell a range write kept is named for that whole write, once (V-617).
+  const names = kept.flatMap((id) => named?.[id] ?? all.find((f) => f.id === id)?.name ?? [])
+  return names.length ? [...new Set(names)] : ["this row"]
+}
 
 /** One row of the list: one render as it enters the window, its chips and icon drawn as plain markup. */
 /** A matched value's mark: "at" for the find's match, "" for another. */
@@ -331,18 +347,22 @@ function rowMeta(look: ListLook, values: ReturnType<typeof shownValues>, found: 
   return meta
 }
 
-function ListRow({ row, place, count, look, onOpen, edits, hue, found, foundAt }: ListRowProps) {
+function ListRow({ row, place, count, look, onOpen, edits, onRetry, hue, found, foundAt }: ListRowProps) {
   const values = shownValues(row, edits)
   const saving = !!edits && Object.keys(edits.saving).length > 0
+  // Its edits the server asked to have again (V-583): shown, and marked by a Retry of their own (V-640).
+  const kept = edits ? Object.keys(edits.unsaved) : []
+  const unsaved = kept.length > 0
   const { primary, striped } = look
   const meta = rowMeta(look, values, found, foundAt)
   const titleFound = primary && found?.includes(primary.id) ? foundMark(primary.id, foundAt) : undefined
   return (
-    <li data-row={row.id} data-found={foundAt !== undefined ? "at" : found ? "" : undefined} aria-setsize={count} aria-posinset={place + 1} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn(hue && "relative")}>
+    <li data-row={row.id} data-found={foundAt !== undefined ? "at" : found ? "" : undefined} aria-setsize={count} aria-posinset={place + 1} aria-busy={saving || undefined} data-saving={saving || undefined} data-unsaved={unsaved || undefined} className={cn(hue && "relative")}>
       {hue ? <span aria-hidden="true" data-row-hue={hue} className={cn("absolute inset-y-2 left-0 w-[3px] rounded-sm bg-hue", HUE_CLASS[hue])} /> : null}
       <button type="button" onClick={() => onOpen(row.id)} className={cn("flex h-[60px] w-full items-center gap-3 py-2 text-left active:bg-press", striped && "pl-3")}>
         <span className="min-w-0 flex-1">
           <span data-found-value={titleFound} className="block truncate text-ui font-medium text-ink">{primary ? String(values[primary.id] ?? "") || "Untitled" : "Untitled"}</span>
+          {unsaved ? <span className="sr-only">Not saved</span> : null}
           {meta.length ? (
             <span className="mt-0.5 flex min-w-0 items-center gap-2 overflow-hidden text-meta text-ink-3">
               {meta.map((m, i) => (
@@ -360,6 +380,7 @@ function ListRow({ row, place, count, look, onOpen, edits, hue, found, foundAt }
         </span>
         {iconMarkup(ChevronRight, { className: "size-4 shrink-0 text-ink-4", "aria-hidden": true })}
       </button>
+      {unsaved && onRetry ? <UnsavedMark names={keptNames(look, kept, edits?.named)} onRetry={() => kept.forEach((f) => void onRetry(row, f))} /> : null}
     </li>
   )
 }

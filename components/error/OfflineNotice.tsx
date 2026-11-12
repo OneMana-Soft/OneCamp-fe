@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
+import { useEffect, useSyncExternalStore, type ReactNode } from "react"
+import { useLatch } from "@/hooks/useLatch"
 import { useHostPill, usePillHosted, usePillStoodIn } from "@/components/error/pillPlace"
 import { isAppOffline, isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
 import { useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttContext"
@@ -83,10 +84,7 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
 
   // The live connection only counts as lost after it has been up once, so a
   // page that is still connecting says nothing.
-  const [wasLive, setWasLive] = useState(false)
-  useEffect(() => {
-    if (connectionState?.isConnected) setWasLive(true)
-  }, [connectionState?.isConnected])
+  const wasLive = useLatch(!!connectionState?.isConnected)
 
   // Someone idle on a page makes no requests, so nothing would notice the
   // server coming back. Ask it, cheaply, while it is away.

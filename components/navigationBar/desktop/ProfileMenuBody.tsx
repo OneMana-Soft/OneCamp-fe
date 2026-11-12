@@ -8,6 +8,7 @@ import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSub
 import { displayNameOf } from "@/lib/personName"
 import { BellOff, CircleUser, Focus, Keyboard, LogOut, Settings, X } from "@/lib/icons"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import { useLatch } from "@/hooks/useLatch"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { useFocusTime } from "@/hooks/useFocusTime"
 import { useLogout } from "@/hooks/useLogout"
@@ -50,8 +51,7 @@ export function ProfileMenuBody() {
   const post = usePost()
   const [pauseOpen, setPauseOpen] = useState(false)
   // Mounted from its first open on, so it can animate away.
-  const [pauseUsed, setPauseUsed] = useState(false)
-  if (pauseOpen && !pauseUsed) setPauseUsed(true)
+  const pauseUsed = useLatch(pauseOpen)
   useEffect(() => watchInputModality(), [])
 
   const clearStatus = () => {

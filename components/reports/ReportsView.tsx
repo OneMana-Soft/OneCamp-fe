@@ -9,7 +9,7 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { displayNameOf } from "@/lib/personName"
 import Link from "next/link"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import SvgChart from "@/components/charts/SvgChart"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { Button } from "@/components/ui/button"
@@ -27,18 +27,20 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
-import { useFetch } from "@/hooks/useFetch"
+import { toast } from "@/hooks/use-toast"
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
+import { filtersOf, reportFilters, reportView, reportViewName } from "@/lib/reportView"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { UserProfileInterface } from "@/types/user"
 import { useStoredState } from "@/hooks/useStoredState"
-import { ChevronDown, Download, X } from "@/lib/icons"
+import { ChevronDown, Download, LayoutDashboard, X } from "@/lib/icons"
+import { AddToDashboardDialog, warmAddToDashboard } from "@/components/dashboards/addToDashboardPiece"
 import {
   PRIORITY_LABEL,
   REPORT_WEEKS,
   hoursChart,
   openOf,
-  reportCSV,
   reportKey,
-  reportView,
-  reportViewName,
   flowChart,
   throughputChart,
   totalHours,
@@ -178,8 +180,13 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   const params = useSearchParams()
   const router = useRouter()
   const view = useMemo(() => (params ? reportView(params) : null), [params])
-  const key = weeksLoaded && chosenLoaded ? (view ? reportKey(tz, weeks, [view.project], view.filters) : reportKey(tz, weeks, chosen)) : ""
-  const { data, isLoading, isError, mutate } = useFetch<{ data: Report }>(key, undefined, { keepPreviousData: true })
+  // My tasks' view (no project) keeps to the reader's own work: asked once their profile says who they are.
+  const me = useFetchOnlyOnce<UserProfileInterface>(view && !view.project ? GetEndpointUrl.SelfProfile : "")
+  const sent = view ? reportFilters(view, me.data?.data?.uid) : ""
+  const key = !weeksLoaded || !chosenLoaded || sent === null ? "" : view ? reportKey(tz, weeks, view.project ? [view.project] : [], sent) : reportKey(tz, weeks, chosen)
+  const asked = useFetch<{ data: Report }>(key, undefined, { keepPreviousData: true })
+  const { data, isLoading, mutate } = asked
+  const isError = asked.isError || (sent === null && !!me.isError)
   const report = data?.data
 
   // A remembered project that's gone (left, archived, the demo's nightly copy)
@@ -193,6 +200,8 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   const viewProject = view ? available.find((p) => p.project_uuid === view.project)?.project_name : undefined
   const viewName = view ? reportViewName(view, viewProject) : ""
   const toggle = (id: string) => setChosen(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id])
+  // Add to dashboard (B9-b4): the report's question as it stands, as a widget's own copy.
+  const [adding, setAdding] = useState(false)
 
   // The overview's frame (components/task/workFrame): this row is where
   // Table's row is on every other view, flush under the tabs with its 28 px
@@ -217,7 +226,9 @@ export function ReportsView({ compact }: { compact?: boolean }) {
           <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={!report || !!view}>
             <span className="sr-only">Projects: </span>
             {view
-              ? (viewProject ?? "1 project")
+              ? view.project
+                ? (viewProject ?? "1 project")
+                : "All projects"
               : picked.length === 0
               ? "All projects"
               : picked.length === 1
@@ -258,15 +269,32 @@ export function ReportsView({ compact }: { compact?: boolean }) {
         disabled={!report}
         onClick={() => {
           if (!report) return
-          // The Insights rows come with their section's chunk; without it (offline), the rest still downloads.
-          const save = (more: string) => downloadTextFile(`onecamp-report-${report.weeks[report.weeks.length - 1]}.csv`, reportCSV(report, personName) + more, "text/csv")
-          if (!report.insights) return save("")
-          Insights.warm().then((m) => save(m.insightsCSV(report)), () => save(""))
+          // The CSV's writer comes when it is first asked for (lib/reportCSV), and the Insights rows with their
+          // section's chunk; without that chunk (offline), the rest still downloads.
+          const more = report.insights ? Insights.warm().then((m) => m.insightsCSV(report), () => "") : ""
+          Promise.all([import("@/lib/reportCSV"), more]).then(
+            ([m, rest]) => downloadTextFile(`onecamp-report-${report.weeks[report.weeks.length - 1]}.csv`, m.reportCSV(report, personName) + rest, "text/csv"),
+            () => toast({ tone: "error", title: "The CSV couldn't load", description: "Check the connection and try again." }),
+          )
         }}
       >
         <Download className="h-3.5 w-3.5" />
         Download CSV
       </Button>
+      <Button variant="ghost" size="sm" className="gap-1.5 text-xs" disabled={!report} onPointerEnter={warmAddToDashboard} onFocus={warmAddToDashboard} onClick={() => setAdding(true)}>
+        <LayoutDashboard className="h-3.5 w-3.5" />
+        Add to dashboard
+      </Button>
+      {adding && (
+        <AddToDashboardDialog
+          preset={{
+            kind: "throughput",
+            query: { projects: view ? (view.project ? [view.project] : undefined) : picked.length > 0 ? picked : undefined, filters: view ? filtersOf(sent ?? "") : undefined, weeks },
+          }}
+          project={view ? view.project || undefined : picked.length === 1 ? picked[0] : undefined}
+          onClose={() => setAdding(false)}
+        />
+      )}
     </div>
   )
 
@@ -296,7 +324,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       <>
         {isError ? (
           <WorkState>
-            <ErrorState subject="the report" onRetry={() => void mutate()} />
+            <ErrorState subject="the report" onRetry={() => void (sent === null ? me.mutate() : mutate())} />
           </WorkState>
         ) : (
           <div className="grid gap-3" aria-busy>

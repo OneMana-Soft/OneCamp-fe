@@ -37,3 +37,12 @@ describe("frozen columns", () => {
     expect(frozenLefts([232, 160, 120], 3)).toEqual({ "--frozen-1": "232px", "--frozen-2": "392px" })
   })
 })
+
+// TABLES-BOARDS-11 (UX-TB-H3): a chart's look is the view's, kept like the timeline's, read by the chart itself.
+describe("a view's chart", () => {
+  it("keeps what it holds, and nothing when there's none", () => {
+    const look = { type: "pie", groupBy: "stage", op: "sum", valueField: "amount" }
+    expect(readDisplay({ chart: look }).chart).toEqual(look)
+    expect(readDisplay({}).chart).toBeNull()
+  })
+})

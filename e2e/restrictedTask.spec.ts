@@ -12,7 +12,6 @@ import { SAM, stubBackend } from "./stubbedApp"
 const P = "9e0a0000-0000-4000-8000-0000000000b2"
 const NONE = "0001-01-01T00:00:00Z"
 const id = (i: number) => `7a5c00b2-0000-4000-8000-${String(i + 1).padStart(12, "0")}`
-const HIDDEN = "7a5c00b2-0000-4000-8000-0000000000ff"
 const admin = { role: "admin", view: true, comment: true, create_tasks: true, edit_tasks: "all", delete_tasks: "all", log_time: true, post_updates: true, add_files: true, manage: true, manage_people: true, archive: true }
 const MAYA = { user_uuid: "5a5c00b2-0000-4000-8000-0000000000a1", user_name: "maya", user_full_name: "Maya Chen", user_email_id: "maya@example.com" }
 const IVY = { user_uuid: "5a5c00b2-0000-4000-8000-0000000000a2", user_name: "ivy", user_full_name: "Ivy Park", user_email_id: "ivy@example.com" }
@@ -94,14 +93,17 @@ async function openProject(page: Page, testInfo: TestInfo, tab: "list" | "kanban
     const extra =
       t.task_uuid === id(0)
         ? {
-            // Waits on a task kept from Sam, and on one he can see.
+            // Waits on two tasks kept from Sam, and on one he can see. A task
+            // he can't see comes as the server's stub (V-678): the link's kind
+            // and task_hidden, never its name or id.
             task_blocked_by: [
-              { task_uuid: HIDDEN, task_hidden: true },
+              { task_hidden: true, "task_blocked_by|kind": "fs" },
               { task_uuid: id(2), task_name: TASKS[2].task_name, task_status: "todo" },
+              { task_hidden: true, "task_blocked_by|kind": "ss" },
             ],
           }
         : t.task_uuid === id(3)
-          ? { task_parent_task: { task_uuid: HIDDEN, task_hidden: true } }
+          ? { task_parent_task: { task_hidden: true } }
           : {}
     answers[`/task/info/${t.task_uuid}`] = () => ({
       msg: "ok",
@@ -170,8 +172,10 @@ for (const theme of ["light", "dark"] as const) {
       const panel = page.locator("[data-task-panel]")
       const row = panel.locator("[data-property=visibility]")
       await expect(row).toContainText("Only some people", { timeout: 20_000 })
-      // What it waits on: one Sam can see, and one he can't, named as such.
-      await expect(panel.getByText("A task you can't see")).toBeVisible()
+      // What it waits on: one Sam can see, and two he can't, each named as such.
+      const hiddenEnds = panel.locator("[data-dependency][data-hidden-task]")
+      await expect(hiddenEnds).toHaveCount(2)
+      for (const end of await hiddenEnds.all()) await expect(end.getByText("A task you can't see")).toBeVisible()
       await shot(page, "panel", theme)
 
       await row.getByRole("button").click()

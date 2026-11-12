@@ -28,7 +28,7 @@ import { closedVotes, noteRows, notesCsv, pdfFrames, type ExportElement } from "
 import { NOTE_AUTHORS } from "@/lib/board/authors"
 import { frameOrderOf } from "@/lib/board/frames"
 import { downloadFile, exportFileName } from "@/lib/export/download"
-import { printTitled } from "@/lib/export/print"
+import { printHost } from "@/lib/export/print"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { useToast } from "@/hooks/use-toast"
 import type { BoardExportFormat } from "@/components/board/exportRecord"
@@ -49,31 +49,22 @@ function shared(provider: HocuspocusProvider) {
   }
 }
 
-/**
- * Prints each page's SVG, one page each, then takes them away again once the
- * dialog closes. A browser that never says so (printTitled) keeps them, out of
- * sight, until the next export takes them away.
- */
+/** Prints each page's SVG, one page each (lib/export/print printHost). */
 function printPages(svgs: SVGSVGElement[], title: string) {
-  for (const left of document.querySelectorAll("[data-board-print], style[data-board-print-style]")) left.remove()
-  const host = document.createElement("div")
-  host.setAttribute("data-board-print", "")
-  for (const svg of svgs) {
-    const page = document.createElement("section")
-    svg.removeAttribute("width")
-    svg.removeAttribute("height")
-    page.appendChild(svg)
-    host.appendChild(page)
-  }
-  const style = document.createElement("style")
-  style.setAttribute("data-board-print-style", "")
-  style.textContent = `@media screen{[data-board-print]{display:none}}@media print{@page{margin:12mm}body>*:not([data-board-print]){display:none!important}[data-board-print] section{display:flex;align-items:center;justify-content:center;height:calc(100vh - 1px);break-after:page}[data-board-print] section:last-child{break-after:auto}[data-board-print] svg{max-width:100%;max-height:100%}}`
-  document.head.appendChild(style)
-  document.body.appendChild(host)
-  printTitled(title, () => {
-    host.remove()
-    style.remove()
-  })
+  printHost(
+    "board",
+    (host) => {
+      for (const svg of svgs) {
+        const page = document.createElement("section")
+        svg.removeAttribute("width")
+        svg.removeAttribute("height")
+        page.appendChild(svg)
+        host.appendChild(page)
+      }
+    },
+    "[data-board-print] section{display:flex;align-items:center;justify-content:center;height:calc(100vh - 1px);break-after:page}[data-board-print] section:last-child{break-after:auto}[data-board-print] svg{max-width:100%;max-height:100%}",
+    title,
+  )
 }
 
 export async function exportBoard(

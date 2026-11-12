@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isTablet: false, isDesktop: true }) }))
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, warmTooltip } from "@/components/ui/tooltip"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
+
+// Its asserts are synchronous under fake timers: the Radix side is here before they start.
+warmBeforeTests(warmTooltip)
 
 afterEach(() => {
   cleanup()

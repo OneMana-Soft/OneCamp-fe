@@ -10,19 +10,24 @@
  * away takes it off the tasks that had it, and the dialog says so first.
  */
 
-import { useState } from "react"
+import { useCallback, useId, useRef, useState } from "react"
 import { fieldKeyDown } from "@/lib/keys/ime"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { OverlayBody } from "@/components/ui/overlay"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { OptionsEditor } from "@/components/fields/OptionsEditor"
-import { Calendar, CheckSquare, ChevronDown, ChevronUp, CircleDot, Coins, Hash, Link, ListTodo, Plus, Trash2, Type, User } from "@/lib/icons"
+import { Calendar, CheckSquare, ChevronDown, ChevronUp, CircleDot, Coins, Hash, Link, ListTodo, Plus, Sigma, Trash2, Type, User } from "@/lib/icons"
+// The formula editor comes with this dialog's chunk, never a lazy group of its own (V-693/V-752: one re-cut the /app shell).
+import { FormulaEditor, type FormulaInput } from "@/components/formula/FormulaEditor"
 import { useToast } from "@/hooks/use-toast"
 import { deletedTitle, offerUndo, restore } from "@/services/restoreService"
 import { useProjectFields, type FieldInput } from "@/hooks/useProjectFields"
-import { FIELD_TYPES, typeLabel, type FieldOption, type FieldType, type TaskField } from "@/lib/tasks/fields"
+import { TASK_WRITER } from "@/lib/tasks/formulaShown"
+import { FIELD_TYPES, typeLabel, type FieldBuiltin, type FieldOption, type FieldType, type TaskField } from "@/lib/tasks/fields"
+import type { FormulaPreview } from "@/services/tableCalls"
 import { STATUS_COLORS } from "@/lib/taskStatus"
 
 /** As the server allows (business/TaskField). */
@@ -59,6 +64,23 @@ const KIND_ICON: Record<FieldType, typeof Type> = {
   person: User,
   checkbox: CheckSquare,
   url: Link,
+  formula: Sigma,
+}
+
+/** What a task's formula may read: the project's fields and the task's built-ins, each with its kind's glyph. */
+const BUILTIN_GLYPH = { number: Hash, date: Calendar, text: Type, checkbox: CheckSquare } as const
+const inputsOf = (fields: TaskField[], builtins: FieldBuiltin[]): FormulaInput[] => [
+  ...fields.map((f) => ({ id: f.id, name: f.name, label: typeLabel(f.type), glyph: KIND_ICON[f.type] })),
+  ...builtins.map((b) => ({ id: `builtin:${b.id}`, name: b.name, label: "Built in", glyph: BUILTIN_GLYPH[b.result] ?? Type })),
+]
+const HELP = "Fields go in braces, like {Spend} or {Due}. Use + − * / for numbers, & to join text, /* notes */ for yourself, and the functions below."
+const NO_SAMPLES = "Sample values appear here once tasks have them."
+
+type Formula = { inputs: FormulaInput[]; preview: (formula: string, fieldId?: string) => Promise<FormulaPreview> }
+
+/** The one formula editor, as a task field's (J-F WEB). */
+function TaskFormula({ formula, fieldId, value, onChange }: { formula: Formula; fieldId?: string; value: string; onChange: (v: string) => void }) {
+  return <FormulaEditor inputs={formula.inputs} preview={formula.preview} write={TASK_WRITER} help={HELP} noSamples={NO_SAMPLES} fieldId={fieldId} value={value} onChange={onChange} />
 }
 
 /** A field's kind as a 24 px tile with its icon, then its name (design v3, work.md W47). */
@@ -75,7 +97,21 @@ export function FieldKind({ type }: { type: FieldType }) {
 }
 
 export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { projectId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { fields, create, update, reorder, remove, refresh, refreshTasks, http } = useProjectFields(open ? projectId : undefined)
+  const { fields, builtins, create, update, reorder, remove, preview, refresh, refreshTasks, http } = useProjectFields(open ? projectId : undefined)
+  // The last text the server couldn't work out: Save formula holds on it. Only
+  // the answer for the text last checked moves it (answers come out of order).
+  const [unworkable, setUnworkable] = useState<string | null>(null)
+  const lastChecked = useRef("")
+  const checked = useCallback(
+    async (text: string, fieldId?: string) => {
+      lastChecked.current = text
+      const r = await preview(text, fieldId)
+      if (lastChecked.current === text) setUnworkable(r.error ? text : null)
+      return r
+    },
+    [preview],
+  )
+  const formula: Formula = { inputs: inputsOf(fields, builtins ?? []), preview: checked }
   const [busy, setBusy] = useState(false)
   const { toast } = useToast()
 
@@ -93,6 +129,13 @@ export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { project
     }
   }
 
+  // One row open at a time; its actions, or else Add field, in the footer.
+  const [editing, setEditing] = useState<RowEdit | null>(null)
+  const row = editing ? fields.find((f) => f.id === editing.id) : undefined
+  const add = useNewField((input) => run(() => create(input), `Added ${input.name}`))
+  const addForm = useId()
+  const close = () => setEditing(null)
+
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir
     if (j < 0 || j >= fields.length) return
@@ -103,7 +146,8 @@ export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { project
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      {/* Top-anchored: its height changes as rows open, and a centred dialog would move what was clicked. */}
+      <DialogContent className="sm:max-w-xl mt-24">
         <DialogHeader>
           <DialogTitle>Fields</DialogTitle>
           <DialogDescription>
@@ -112,29 +156,75 @@ export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { project
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
-          {fields.length === 0 && <p className="py-4 text-center text-sm text-ink-2">No fields yet. Add the first below: a select for stages, a number for points, a date for a deadline.</p>}
-          {fields.map((f, i) => (
-            <FieldRow
-              key={f.id}
-              field={f}
-              busy={busy}
-              first={i === 0}
-              last={i === fields.length - 1}
-              onMove={(dir) => move(i, dir)}
-              onSave={(input) => run(() => update(f.id, input))}
-              onDelete={() => run(async () => {
-                await remove(f.id)
-                offerUndo(deletedTitle(f.name), () => restore(http, "field", f.id, () => Promise.all([refresh(), refreshTasks()])))
-              })}
-            />
-          ))}
-        </div>
+        <OverlayBody className="space-y-3">
+          <div className="space-y-2">
+            {fields.length === 0 && <p className="py-4 text-center text-sm text-ink-2">No fields yet. Add the first below: a select for stages, a number for points, a date for a deadline.</p>}
+            {fields.map((f, i) => (
+              <FieldRow
+                key={f.id}
+                field={f}
+                busy={busy}
+                first={i === 0}
+                last={i === fields.length - 1}
+                formula={formula}
+                edit={editing?.id === f.id ? editing : null}
+                onEdit={setEditing}
+                onMove={(dir) => move(i, dir)}
+                onSave={(input) => run(() => update(f.id, input))}
+              />
+            ))}
+          </div>
 
-        {fields.length >= MAX_FIELDS ? (
-          <p className="border-t border-line pt-3 text-sm text-muted-foreground">This project has {MAX_FIELDS} fields, the most it can have.</p>
+          {fields.length >= MAX_FIELDS ? (
+            <p className="border-t border-line pt-3 text-sm text-muted-foreground">This project has {MAX_FIELDS} fields, the most it can have.</p>
+          ) : (
+            // One editor at a time: while a row is open its footer acts, so the add form waits (its draft kept).
+            !row && <AddField add={add} formId={addForm} busy={busy} formula={formula} />
+          )}
+        </OverlayBody>
+
+        {row && editing?.mode === "formula" ? (
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={close}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              busy={busy}
+              disabled={!editing.text.trim() || editing.text === row.formula || editing.text === unworkable}
+              onClick={() => void run(() => update(row.id, { ...inputOf(row), formula: editing.text.trim() })).then((ok) => ok && close())}
+            >
+              Save formula
+            </Button>
+          </DialogFooter>
+        ) : row && editing?.mode === "delete" ? (
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={close}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              busy={busy}
+              onClick={() =>
+                void run(async () => {
+                  await remove(row.id)
+                  offerUndo(deletedTitle(row.name), () => restore(http, "field", row.id, () => Promise.all([refresh(), refreshTasks()])))
+                }).then((ok) => ok && close())
+              }
+            >
+              Delete {row.name}
+            </Button>
+          </DialogFooter>
         ) : (
-          <AddField busy={busy} onAdd={(input) => run(() => create(input), `Added ${input.name}`)} />
+          fields.length < MAX_FIELDS && (
+            <DialogFooter>
+              <Button type="submit" form={addForm} className="gap-1" disabled={!add.ready} busy={busy}>
+                <Plus className="h-4 w-4" />
+                Add field
+              </Button>
+            </DialogFooter>
+          )
         )}
       </DialogContent>
     </Dialog>
@@ -145,26 +235,32 @@ function inputOf(field: TaskField, patch: Partial<FieldInput> = {}): FieldInput 
   return { name: field.name, type: field.type, options: field.options, currency: field.currency, on_card: field.on_card, ...patch }
 }
 
+/** A row open to change its formula (the draft) or to be deleted. */
+type RowEdit = { id: string; mode: "formula"; text: string } | { id: string; mode: "delete" }
+
 function FieldRow({
   field,
   busy,
   first,
   last,
+  formula,
+  edit,
+  onEdit,
   onMove,
   onSave,
-  onDelete,
 }: {
   field: TaskField
   busy: boolean
   first: boolean
   last: boolean
+  formula: Formula
+  edit: RowEdit | null
+  onEdit: (edit: RowEdit | null) => void
   onMove: (dir: -1 | 1) => void
   onSave: (input: FieldInput) => Promise<boolean>
-  onDelete: () => void
 }) {
   const [name, setName] = useState(field.name)
   const [currency, setCurrency] = useState(field.currency ?? "")
-  const [deleting, setDeleting] = useState(false)
 
   const saveName = () => {
     const n = name.trim()
@@ -196,7 +292,9 @@ function FieldRow({
             if (e.key === "Enter") e.currentTarget.blur()
             if (e.key === "Escape") setName(field.name)
           })}
-          className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 shadow-none focus-visible:border-input"
+          // The name keeps room for itself: on a phone the row's other controls wrap
+          // to a second line instead of squeezing it to its first letter.
+          className="h-8 min-w-32 flex-1 border-transparent bg-transparent px-2 shadow-none focus-visible:border-input"
         />
         <FieldKind type={field.type} />
         {field.type === "money" && (
@@ -210,6 +308,11 @@ function FieldRow({
             onKeyDown={fieldKeyDown((e) => e.key === "Enter" && e.currentTarget.blur())}
             className="h-8 w-16 text-xs uppercase"
           />
+        )}
+        {field.type === "formula" && (
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" aria-label={`Edit ${field.name}'s formula`} aria-expanded={edit?.mode === "formula"} disabled={busy} onClick={() => onEdit(edit?.mode === "formula" ? null : { id: field.id, mode: "formula", text: field.formula ?? "" })}>
+            Edit
+          </Button>
         )}
         <label className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-muted-foreground">
           <Switch
@@ -233,7 +336,8 @@ function FieldRow({
           className="h-8 w-8 text-muted-foreground hover:text-danger-ink"
           aria-label={`Delete ${field.name}`}
           disabled={busy}
-          onClick={() => setDeleting((d) => !d)}
+          aria-expanded={edit?.mode === "delete"}
+          onClick={() => onEdit(edit?.mode === "delete" ? null : { id: field.id, mode: "delete" })}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -255,45 +359,60 @@ function FieldRow({
         </div>
       )}
 
-      {deleting && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-line bg-sunken px-3 py-2 text-sm">
-          <span className="text-muted-foreground">Every task&apos;s {field.name} goes with it.</span>
-          <div className="ml-auto flex gap-1">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(false)}>
-              Cancel
-            </Button>
-            <Button type="button" variant="destructive" size="sm" disabled={busy} onClick={onDelete}>
-              Delete {field.name}
-            </Button>
-          </div>
+      {field.error && <p className="border-t border-line px-3 py-2 text-xs text-camp-sun-ink">{field.error}</p>}
+
+      {field.type === "formula" && edit?.mode === "formula" && (
+        <div className="border-t border-line px-2 py-2">
+          <TaskFormula formula={formula} fieldId={field.id} value={edit.text} onChange={(text) => onEdit({ ...edit, text })} />
         </div>
+      )}
+
+      {edit?.mode === "delete" && (
+        <p className="border-t border-line bg-sunken px-3 py-2 text-sm text-muted-foreground">Every task&apos;s {field.name} goes with it.</p>
       )}
     </div>
   )
 }
 
-function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) => Promise<boolean> }) {
+function useNewField(onAdd: (input: FieldInput) => Promise<boolean>) {
   const [name, setName] = useState("")
   const [type, setType] = useState<FieldType>("select")
   const [options, setOptions] = useState<DraftOption[]>([])
   const [currency, setCurrency] = useState("")
+  const [text, setText] = useState("")
   const needsOptions = isChoice(type) && options.length === 0
+  const needsFormula = type === "formula" && !text.trim()
   const submit = async () => {
     const n = name.trim()
-    if (!n || needsOptions) return
-    const ok = await onAdd({ name: n, type, options: isChoice(type) ? asSent(options) : undefined, currency: type === "money" ? currency.trim().toUpperCase() : undefined })
+    if (!n || needsOptions || needsFormula) return
+    const ok = await onAdd({
+      name: n,
+      type,
+      options: isChoice(type) ? asSent(options) : undefined,
+      currency: type === "money" ? currency.trim().toUpperCase() : undefined,
+      ...(type === "formula" ? { formula: text.trim(), on_card: false } : {}),
+    })
     if (ok) {
       setName("")
       setOptions([])
       setCurrency("")
+      setText("")
     }
   }
+  const ready = !!name.trim() && !needsOptions && !needsFormula
+  return { name, setName, type, setType, options, setOptions, currency, setCurrency, text, setText, needsOptions, ready, submit }
+}
+
+/** The new field's form; its submit is the footer's. */
+function AddField({ add, formId, busy, formula }: { add: ReturnType<typeof useNewField>; formId: string; busy: boolean; formula: Formula }) {
+  const { name, setName, type, setType, options, setOptions, currency, setCurrency, text, setText, needsOptions } = add
   return (
     <form
+      id={formId}
       className="space-y-2 border-t border-line pt-3"
       onSubmit={(e) => {
         e.preventDefault()
-        void submit()
+        void add.submit()
       }}
     >
       <div className="flex flex-wrap items-center gap-1">
@@ -331,10 +450,6 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
             className="h-8 w-16 text-xs uppercase"
           />
         )}
-        <Button type="submit" size="sm" className="h-8 gap-1" disabled={!name.trim() || needsOptions} busy={busy}>
-          <Plus className="h-4 w-4" />
-          Add field
-        </Button>
       </div>
       {isChoice(type) && (
         <div className="pl-1">
@@ -342,6 +457,7 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
           {needsOptions && <p className="mt-1 text-xs text-muted-foreground">Add its options first: what can be chosen.</p>}
         </div>
       )}
+      {type === "formula" && <TaskFormula formula={formula} value={text} onChange={setText} />}
       {type === "money" && <p className="text-xs text-muted-foreground">Without a currency it takes the project&apos;s billing currency, or USD.</p>}
     </form>
   )

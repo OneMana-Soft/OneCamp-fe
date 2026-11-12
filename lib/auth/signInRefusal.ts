@@ -119,9 +119,10 @@ const REFUSALS: Record<string, SignInRefusal> = {
     message: "Your account couldn't be set up. Try again, and if it keeps happening, ask your administrator.",
     tone: "error",
   },
+  // The server tells every admin when the limit refuses someone (business/Seats).
   seat_limit: {
     title: "No free seat",
-    message: "This workspace is on OneCamp's free plan and has no room for another person. Ask your administrator to free a place or remove the limit.",
+    message: "This workspace is on OneCamp's free plan, and it's full. Your admin has been told; try again once they've freed a place or removed the limit.",
     tone: "warning",
   },
   plan_required: {

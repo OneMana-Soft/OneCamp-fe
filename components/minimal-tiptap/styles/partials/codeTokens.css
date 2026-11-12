@@ -1,0 +1,97 @@
+/* The one set of code token colours (lowlight's hljs-* classes, codeHighlight.ts): a doc's code blocks and a
+   board's code block (components/board/boardCodeBlock.tsx, miro-17), which loads it on its own because the board
+   route loads none of the editor's styles. A doc editor tints them to the camp inks (doc.css). */
+:root {
+  --hljs-string: #aa430f;
+  --hljs-title: #b08836;
+  --hljs-comment: #999999;
+  --hljs-keyword: #0c5eb1;
+  --hljs-attr: #3a92bc;
+  --hljs-literal: #c82b0f;
+  --hljs-name: #259792;
+  --hljs-selector-tag: #c8500f;
+  --hljs-number: #3da067;
+}
+
+.dark {
+  --hljs-string: #da936b;
+  --hljs-title: #f1d59d;
+  --hljs-comment: #aaaaaa;
+  --hljs-keyword: #6699cc;
+  --hljs-attr: #90cae8;
+  --hljs-literal: #f2777a;
+  --hljs-name: #5fc0a0;
+  --hljs-selector-tag: #e8c785;
+  --hljs-number: #b6e7b6;
+}
+
+.minimal-tiptap-editor .ProseMirror pre,
+.code-tokens {
+  .hljs-keyword,
+  .hljs-operator,
+  .hljs-function,
+  .hljs-built_in,
+  .hljs-builtin-name {
+    color: var(--hljs-keyword);
+  }
+
+  .hljs-attr,
+  .hljs-symbol,
+  .hljs-property,
+  .hljs-attribute,
+  .hljs-variable,
+  .hljs-template-variable,
+  .hljs-params {
+    color: var(--hljs-attr);
+  }
+
+  .hljs-name,
+  .hljs-regexp,
+  .hljs-link,
+  .hljs-type,
+  .hljs-addition {
+    color: var(--hljs-name);
+  }
+
+  .hljs-string,
+  .hljs-bullet {
+    color: var(--hljs-string);
+  }
+
+  .hljs-title,
+  .hljs-subst,
+  .hljs-section {
+    color: var(--hljs-title);
+  }
+
+  .hljs-literal,
+  .hljs-type,
+  .hljs-deletion {
+    color: var(--hljs-literal);
+  }
+
+  .hljs-selector-tag,
+  .hljs-selector-id,
+  .hljs-selector-class {
+    color: var(--hljs-selector-tag);
+  }
+
+  .hljs-number {
+    color: var(--hljs-number);
+  }
+
+  .hljs-comment,
+  .hljs-meta,
+  .hljs-quote {
+    color: var(--hljs-comment);
+  }
+
+  .hljs-emphasis {
+    font-style: italic;
+  }
+
+  .hljs-strong {
+    /* The theme's bold (app/globals.css --font-weight-bold), as a doc's code had it by @apply font-bold. */
+    font-weight: 600;
+  }
+}

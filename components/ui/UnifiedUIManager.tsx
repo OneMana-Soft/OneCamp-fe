@@ -9,6 +9,7 @@ import { closeUI } from "@/store/slice/uiSlice";
 import { appMutate as mutate } from "@/lib/swrMutate";
 // Not lazy (fluid-16): drawers/accountSheetOpen.test.tsx
 import { UserProfileDrawer } from "@/components/drawers/userProfileDrawer";
+import { useReturnFocus } from "@/components/ui/returnFocus";
 
 // Lazy load dialogs/drawers to keep bundle size small
 const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"), { ssr: false });
@@ -86,6 +87,9 @@ export function UnifiedUIManager() {
   const ui = useSelector((state: RootState) => state.ui);
   // The profile card anchors to whatever was pressed to open it (lib/hub/lastAnchor).
   useEffect(() => installAnchorTracking(), []);
+  // The details sheets' own Radix Content is lazy: their close focus is held here.
+  const channelBack = useReturnFocus();
+  const chatBack = useReturnFocus();
   const [ghDisconnectSubmitting, setGhDisconnectSubmitting] = useState(false);
   const [ghUnlinkSubmitting, setGhUnlinkSubmitting] = useState(false);
 
@@ -191,6 +195,7 @@ export function UnifiedUIManager() {
 
       {ui.channelDetails.isOpen && (
         <ChannelDetailsSheet
+          {...channelBack}
           channelId={ui.channelDetails.data.channelUUID}
           open={ui.channelDetails.isOpen}
           onOpenChange={(open) => { if (!open) dispatch(closeUI('channelDetails')) }}
@@ -209,6 +214,7 @@ export function UnifiedUIManager() {
           its grouping id, a DM's with kind "dm". */}
       {ui.editDmMember.isOpen && (
           <ConversationDetailsSheet
+              {...chatBack}
               place={{ kind: ui.editDmMember.data.kind === "dm" ? "dm" : "group", id: ui.editDmMember.data.grpId }}
               adding={!!ui.editDmMember.data.adding}
               open={ui.editDmMember.isOpen}

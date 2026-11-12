@@ -40,9 +40,11 @@
   flex: 1 1 auto;
   min-height: 0;
 }
-/* What scrolls into view in a sheet clears the pinned footer's 12px fade. */
+/* What scrolls into view in a sheet clears the pinned footer's 12px fade, and
+   the 24px fade at either edge of its body (app/interaction.css), so a row
+   focused upward never rests under the top one (V-619 N1). */
 [data-sheet-body] {
-  scroll-padding-bottom: 20px;
+  scroll-padding-block: 24px;
 }
 [data-sheet-body][data-overlay-holds-body] {
   overflow: hidden;
@@ -312,4 +314,17 @@
    own sheet lies over the layer that asked for it too (app/phone.css C5b). */
 [data-radix-popper-content-wrapper] ~ [data-radix-popper-content-wrapper] > [data-overlay="float"] {
   z-index: calc(var(--z-dropdown) + 1);
+}
+
+/* 10. A dialog or a sheet asked for from a popover lies over it, with its
+   scrim: Add to dashboard, asked from the Display menu, was drawn under the
+   menu, which stays open beneath it (DESIGN-BUILD-116 F5). Radix puts each
+   positioner, scrim and dialog straight in <body>, in the order they open,
+   so what comes after a positioner was asked for over it, and takes the
+   layer over the popovers'. A confirm keeps its own (--z-confirm); a popover
+   the dialog opens lies over it by 9, and a select or a menu by theirs. */
+[data-radix-popper-content-wrapper] ~ .v3-overlay,
+[data-radix-popper-content-wrapper] ~ .v3-dialog,
+[data-radix-popper-content-wrapper] ~ .v3-sheet {
+  --z-modal: calc(var(--z-popover) + 1);
 }

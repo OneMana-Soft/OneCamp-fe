@@ -70,7 +70,8 @@ describe("the task views' tabs share one frame", () => {
 
   it("the project page has one scroll container for its tabs, and no boxed section in Attachments", () => {
     const src = readFileSync("components/project/projectTaskDesktop.tsx", "utf8")
-    expect(src).toContain('<div className="min-h-0 flex-1 overflow-y-auto">')
+    // The one scroll container, declared to a windowed list as its scroller (components/task/listWindow).
+    expect(src).toContain('<div className="min-h-0 flex-1 overflow-y-auto" data-list-scroller="">')
     expect(src).not.toContain('<div className="p-4">')
   })
 })

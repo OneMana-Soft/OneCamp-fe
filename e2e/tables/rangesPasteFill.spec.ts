@@ -550,7 +550,9 @@ for (const phone of [false, true]) {
     if (!phone) await page.locator("tbody tr").filter({ has: openRow }).hover()
     await press(openRow)
     held = await holdPosts(page, "/rows/batch")
-    await press(page.getByRole("button", { name: "Delete this row" }))
+    // On a phone the record is the sheet, its Delete in its More menu (TABLES-BOARDS-25).
+    if (phone) await press(page.getByRole("button", { name: "More for this row" }))
+    await press(page.getByRole(phone ? "menuitem" : "button", { name: "Delete this row" }))
     await press(page.getByRole("button", { name: "Delete row" }))
     await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
     await undoHeld(held, "c0000005")

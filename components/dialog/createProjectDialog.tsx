@@ -32,6 +32,7 @@ import { nameSchema } from "@/lib/validation/names";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { TemplatePicker } from "@/components/projectTemplates/TemplatePicker";
+import { ANY_TEMPLATE } from "@/lib/projectTemplateStart";
 import { appliedNotice, BLANK, taskCount, type AppliedTemplate, type TemplateSummary } from "@/lib/projectTemplates";
 import { browserTZ, localDay } from "@/lib/utils/timeZone";
 
@@ -109,7 +110,9 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
 
   const onSubmit = async (data: CreateTeamFormValues) => {
     const dates = { start_date: startDate, tz: browserTZ(), skip_weekends: skipWeekends }
-    const template: TemplateChoice = templateId === BLANK ? {} : { template_id: templateId, ...dates }
+    const template: TemplateChoice =
+      // Any template not resolved yet (templates unread, or their read failed) is none: never sent.
+      templateId === BLANK || templateId === ANY_TEMPLATE ? {} : { template_id: templateId, ...dates }
     let res: (ProjectInfoInterface & { template?: AppliedTemplate }) | undefined
     try {
       res = await makeRequest<CreateTeamFormValues & TemplateChoice, ProjectInfoInterface & { template?: AppliedTemplate }>({

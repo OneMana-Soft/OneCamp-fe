@@ -26,7 +26,6 @@ import {usePost} from "@/hooks/usePost";
 import { useSaveEdit } from "@/hooks/useSaveEdit"
 import { useDeleteMessage } from "@/hooks/useDeleteMessage";
 import {UserProfileInterface} from "@/types/user";
-import {openUI} from "@/store/slice/uiSlice";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {
     createGroupChatReactionChatId,
@@ -37,6 +36,8 @@ import {app_grp_chat_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+import { FollowThreadButton } from "@/components/conversation/FollowThread";
+import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
 
 // Module-level, so a selector that finds nothing returns the same value every
 // time: a fresh [] per call re-drew the thread on every store change.
@@ -120,18 +121,8 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
         if(!messaageId) return
 
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this message?",
-                    description: "It's removed from the conversation for everyone. This can't be undone.",
-                    confirmText: "Delete message",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChat(messaageId)}
-                }
-            }));
-        }, 500);
+        // The sheet has asked already (MessageActionSheet): one question, not two.
+        executeDeleteChat(messaageId)
 
 
     }
@@ -188,18 +179,8 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
         if(!commentUUID) return
 
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this reply?",
-                    description: "It's removed from the thread for everyone. This can't be undone.",
-                    confirmText: "Delete reply",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
-                }
-            }));
-        }, 500);
+        // The sheet has asked already (MessageActionSheet): one question, not two.
+        executeDeleteChatComment(commentIndex, commentUUID)
 
 
     }
@@ -256,6 +237,8 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                 </div>
 
                 <ReplyDivider replyCount={mainMessageData.commentCount}/>
+                {/* The panel's bell, in the top bar (V-699). */}
+                <PhoneBarActions><FollowThreadButton root={chatMessageUUID} replies={mainMessageData.commentCount}/></PhoneBarActions>
 
                     <MobileMessageCommentList
                         comments={chatCommentState}

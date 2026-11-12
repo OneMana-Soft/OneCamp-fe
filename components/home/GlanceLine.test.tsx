@@ -72,6 +72,18 @@ describe("the summary sentence", () => {
     expect(container.textContent).not.toContain("Nothing needs you")
     expect(screen.getByRole("status", { name: "Counting what needs you" })).toBeTruthy()
   })
+
+  // C11 (V-581): an overdue commitment is the server's row (commitmentNeedsMeNow),
+  // said as a commitment, never as a task: it was "1 task overdue".
+  it("says overdue commitments apart from tasks, in danger ink, linking to the rows", () => {
+    expect(glanceText({ ...zero, overdue: 1, commitments: 1 }, next)).toBe("1 task overdue · 1 commitment overdue · Next: Launch sync at 11:00")
+    expect(glanceText({ ...zero, tasksDue: 1, commitments: 2 })).toBe("1 task due today · 2 commitments overdue")
+    const { container } = render(<GlanceLine counts={{ ...zero, commitments: 1 }} />)
+    expect(container.textContent).toBe("1 commitment overdue")
+    const link = screen.getByRole("link", { name: "1 commitment" })
+    expect(link.getAttribute("href")).toBe("#needs-due")
+    expect(link.className).toMatch(/text-danger-ink/)
+  })
 })
 
 // DESIGN-BUILD-3 on Home (21 Oct 2026): the sentence said "Nothing needs you"
@@ -162,11 +174,12 @@ describe("the line, from what the list shows", () => {
       row("ai:question:q1", "reply"),
       row("ai:approval:a1", "agent"),
       row("email:m1", "email"),
+      row("ai:commitment:/app/ai/memory?item=m-1", "due", { commitment: true, overdue: true }),
     ]
     expect(glanceOf({ items, loading: false, failed: false })).toEqual({
       loading: false,
       failed: false,
-      counts: { tasksDue: 2, overdue: 1, mentions: 1, agentRequests: 1 },
+      counts: { tasksDue: 2, overdue: 1, commitments: 1, mentions: 1, agentRequests: 1 },
       unnamed: 3,
     })
   })

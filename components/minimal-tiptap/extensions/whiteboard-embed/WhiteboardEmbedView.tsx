@@ -11,8 +11,8 @@ import { ArrowUpRight, Presentation } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import { EmbedFrame, embedNote, loadFailedWords, type EmbedWords } from "../task-list-embed/embedFrame"
-import type { BoardChipData } from "./boardKind"
-import "./boardKind"
+import type { BoardChipData } from "@/lib/liveEntity/boardKind"
+import "@/lib/liveEntity/boardKind"
 
 // The live canvas (Excalidraw), read-only: loaded once a block has a board to show.
 const GuestBoardViewer = lazyPiece(() => import("@/components/guest/GuestBoardViewer").then((m) => ({ default: m.GuestBoardViewer })))

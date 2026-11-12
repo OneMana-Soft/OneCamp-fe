@@ -46,3 +46,11 @@ describe("insightsHref (B9-b1)", () => {
     expect(insightsHref("p1", [], "", "")).toBe("/app/project?view=reports&projects=p1")
   })
 })
+
+describe("insightsHref with no project (L32)", () => {
+  it("opens the reader's own work, My tasks, with the view's filters and name", () => {
+    expect(insightsHref(undefined, [], "", "")).toBe("/app/project?view=reports&mine=1")
+    const q = new URL(insightsHref(undefined, [{ id: "task_priority", value: ["low"] }], "", "Mine low"), "http://x").searchParams
+    expect([q.get("projects"), q.get("mine"), q.get("filters"), q.get("name")]).toEqual([null, "1", '[{"id":"task_priority","value":["low"]}]', "Mine low"])
+  })
+})

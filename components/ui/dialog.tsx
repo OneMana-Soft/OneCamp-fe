@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { sheetEdge, useSheetMark } from "@/components/ui/sheetMark"
+import { openFocus, useReturnFocus } from "@/components/ui/returnFocus"
 
 const Dialog = DialogPrimitive.Root
 
@@ -37,16 +38,18 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 /**
- * Where focus lands when a dialog opens: the first field a person can see and
- * type in. Radix's default, the first tabbable element, was often the filled
- * primary button, which reads as "about to submit" (and Enter would). Without
- * a field, or on a touch screen, Radix's default stands; a caller's
- * onOpenAutoFocus runs first and wins with preventDefault. A file, range or
- * colour input is picked, not typed in, and a hidden one shows no focus (the
- * profile dialog's hidden photo input took it).
+ * Where focus lands when a dialog opens with a mouse or the keys: the control
+ * it marks data-autofocus (Tell guests?' Send), else the first field a person
+ * can see and type in. Radix's default, the first tabbable element, was often
+ * the filled primary button, which reads as "about to submit" (and Enter
+ * would). Without a field, Radix's default stands. On a touch screen it is the
+ * dialog itself, and a caller's onOpenAutoFocus runs first and wins with
+ * preventDefault (openFocus). React's autoFocus would take it before either.
+ * A select (a Select hides one), file, range or colour input is picked, not
+ * typed in.
  */
 const FIRST_FIELD =
-  'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled]), [contenteditable="true"]'
+  'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), [contenteditable="true"]'
 
 /** The first field in the dialog a person can see and type in, if any. */
 function firstVisibleField(content: HTMLElement): HTMLElement | null {
@@ -64,7 +67,7 @@ function focusFirstField(event: Event) {
   if (typeof window === "undefined" || !window.matchMedia?.("(pointer: fine)").matches) return
   // Radix dispatches this event on the content element itself.
   const content = event.target instanceof HTMLElement ? event.target : null
-  const field = content && firstVisibleField(content)
+  const field = content && (content.querySelector<HTMLElement>("[data-autofocus]") ?? firstVisibleField(content))
   if (!field) return
   field.focus({ preventScroll: true })
   // Radix's default stands unless focus really moved.
@@ -98,8 +101,9 @@ type DialogSize = keyof typeof DIALOG_SIZE
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { size?: DialogSize; hideClose?: boolean }
->(({ className, children, onOpenAutoFocus, onClick, size = "md", hideClose = false, ...props }, ref) => {
+>(({ className, children, onOpenAutoFocus, onFocusCapture, onCloseAutoFocus, onClick, size = "md", hideClose = false, ...props }, ref) => {
   const sheet = useSheetMode() ? "" : undefined
+  const back = useReturnFocus({ onFocusCapture, onCloseAutoFocus })
   // Drawn as a sheet, it marks the page as every sheet does (components/ui/sheetMark).
   const marks = useSheetMark(ref)
   return (
@@ -114,15 +118,13 @@ const DialogContent = React.forwardRef<
         className={cn(
           // grid-cols-[minmax(0,1fr)]: the one column is the dialog's width and
           // no wider, so a long name truncates instead of pushing the content
-          // past the dialog's edge (the implicit auto column grew to it).
-          "v3-dialog fixed inset-0 m-auto h-fit z-[var(--z-modal)] grid grid-cols-[minmax(0,1fr)] w-[calc(100%-2rem)] max-h-[85dvh] overflow-y-auto overscroll-contain gap-4 rounded-[16px] bg-pop p-5 shadow-e4",
+          // past the dialog's edge (the implicit auto column grew to it). No ring: it has the focus only as a fallback.
+          "v3-dialog fixed inset-0 m-auto h-fit z-[var(--z-modal)] focus-visible:outline-none grid grid-cols-[minmax(0,1fr)] w-[calc(100%-2rem)] max-h-[85dvh] overflow-y-auto overscroll-contain gap-4 rounded-[16px] bg-pop p-5 shadow-e4",
           DIALOG_SIZE[size],
           className
         )}
-        onOpenAutoFocus={(event) => {
-          onOpenAutoFocus?.(event)
-          if (!event.defaultPrevented) focusFirstField(event)
-        }}
+        onOpenAutoFocus={openFocus(onOpenAutoFocus, focusFirstField)}
+        {...back}
         {...props}
       >
         {children}

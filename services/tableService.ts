@@ -459,15 +459,42 @@ export async function patchRow(tableId: string, rowId: string, values: Record<st
   return res.data?.data as TableRow
 }
 
-/** Rows by id (tables A7), as a page of rows is read; 500 to a request. Quiet. */
-export async function rowsByIds(tableId: string, ids: string[], signal?: AbortSignal): Promise<TableRow[]> {
+/** A read by id's ids and fields at most: a URL past 16 KB is refused (V-647). */
+const ID_CHARS = 15_000
+
+async function byIds(tableId: string, ids: string[], only: string, signal?: AbortSignal): Promise<TableRow[]> {
   const out: TableRow[] = []
-  for (let at = 0; at < ids.length; at += 500) {
-    const some = ids.slice(at, at + 500).map(encodeURIComponent).join(",")
-    const res = await axiosInstance.get(inZone(`${TablesGet.GetTableRows}/${tableId}/rows?ids=${some}`), { ...OWN_ERRORS, signal })
+  for (let at = 0, n = 0; at < ids.length; at += n) {
+    let some = encodeURIComponent(ids[at])
+    for (n = 1; n < 500 && at + n < ids.length; n++) {
+      const id = encodeURIComponent(ids[at + n])
+      if (only.length + some.length + id.length >= ID_CHARS) break
+      some += `,${id}`
+    }
+    const res = await axiosInstance.get(inZone(`${TablesGet.GetTableRows}/${tableId}/rows?ids=${some}${only}`), { ...OWN_ERRORS, signal })
     out.push(...((res.data?.data as TableRow[] | null) ?? []))
   }
   return out
+}
+
+/** Rows by id (tables A7), as a page of rows is read. Quiet. */
+export const rowsByIds = (tableId: string, ids: string[], signal?: AbortSignal): Promise<TableRow[]> => byIds(tableId, ids, "", signal)
+
+/**
+ * Rows by id, the fields named alone (empty: null) beside those worked out
+ * (tables L1). Whole rows (cells false) when the fields take half the URL,
+ * or once when refused (400, 414; V-647). Quiet.
+ */
+export async function cellsByIds(tableId: string, ids: string[], fields: readonly string[], signal?: AbortSignal): Promise<{ rows: TableRow[]; cells: boolean }> {
+  const only = `&fields=${fields.map(encodeURIComponent).join(",")}`
+  if (only.length <= ID_CHARS / 2)
+    try {
+      return { rows: await byIds(tableId, ids, only, signal), cells: true }
+    } catch (e) {
+      const status = (e as { response?: { status?: number } })?.response?.status
+      if (status !== 400 && status !== 414) throw e
+    }
+  return { rows: await byIds(tableId, ids, "", signal), cells: false }
 }
 
 /**
@@ -524,6 +551,15 @@ export async function readEveryRow(tableId: string, opts: { onProgress?: (read: 
     signal: opts.signal,
   })
   return eachRowOnce(items)
+}
+
+/** Rows in the table's order: by place (position_key, as the server compares), then id; else by number. */
+export function byPlace(a: TableRow, b: TableRow): number {
+  if (a.position_key && b.position_key) {
+    if (a.position_key !== b.position_key) return a.position_key < b.position_key ? -1 : 1
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  }
+  return a.position - b.position
 }
 
 /** Rows in order, each once: a row read twice where a page met the next (the table changed between reads) keeps its first place. */

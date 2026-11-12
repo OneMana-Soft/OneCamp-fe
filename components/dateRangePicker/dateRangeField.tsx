@@ -2,6 +2,7 @@ import { Calendar as CalendarIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { useRef, useState } from "react";
+import { useLatch } from "@/hooks/useLatch";
 
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -46,8 +47,7 @@ export const DateRangeField: React.FC<
   const sheet = useSheetMode();
   const [open, setOpen] = useState(false);
   // Drawn from its first opening, and kept, so it slides away as it closes.
-  const [drawn, setDrawn] = useState(false);
-  if (open && !drawn) setDrawn(true);
+  const drawn = useLatch(open);
   const opener = useRef<HTMLButtonElement>(null);
   // On a phone the button opens the sheet itself, so it says what it opens as a trigger would.
   const opens = sheet && {

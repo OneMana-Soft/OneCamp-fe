@@ -38,10 +38,9 @@ export function useReadsThread(root: string | undefined, replies: number) {
  * while the panel shows it (useReadsThread).
  */
 export function FollowThreadButton({ root, replies }: { root: string; replies: number }) {
-  const { following, toggle } = useThreadFollow(root)
+  const { following, label, toggle } = useThreadFollow(root)
   useReadsThread(root, replies)
   if (following === undefined) return null
-  const label = following ? "Unfollow thread" : "Follow thread"
   // The bell says the state, as a pressed toggle does: the selected tint and a
   // bell filled in the accent while you follow it, an outline while you don't.
   // Not the layer's ring for a pressed control: beside Close it read as focus

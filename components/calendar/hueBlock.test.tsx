@@ -82,3 +82,34 @@ describe("an event drawn on time", () => {
     expect(screen.getByRole("button", { name: "Review" }).getAttribute("data-event-uuid")).toBe("e7")
   })
 })
+
+// More colours (calendar head B): an event in a colour of its own takes the hue-own class and its colour as the one
+// variable the class cuts both themes from in CSS, so it paints in it at once; Google's events and tasks keep theirs.
+describe("an event in a colour of its own", () => {
+  it("draws in its own cuts, and only an event of the calendar's own", () => {
+    render(<HueBlock item={{ event_uuid: "e1", event_hue: "#10b981" }} variant="block" style={{ top: 4 }}>Own</HueBlock>)
+    const block = screen.getByRole("button", { name: "Own" })
+    expect(block.className).toMatch(/(^| )hue-own( |$)/)
+    expect(block.className).not.toMatch(/hue-sun/)
+    expect(block.getAttribute("data-hue")).toBe("own")
+    expect(block.getAttribute("data-own-hue")).toBe("#10b981")
+    expect(block.style.getPropertyValue("--own")).toBe("#10b981")
+    expect(block.style.top).toBe("4px")
+    render(<HueBlock item={{ event_uuid: "gcal-1", event_hue: "#10b981" }} variant="block">Google</HueBlock>)
+    expect(screen.getByRole("button", { name: "Google" }).className).not.toMatch(/hue-own/)
+  })
+})
+
+
+// gcal-new-task-blocks: a block whose task waits on open tasks draws the stop sign a task's card and row draw.
+describe("a task block whose task waits", () => {
+  it("draws the stop sign and how many it waits on", async () => {
+    render(<HueBlock item={{ event_uuid: "b1", event_task: { task_status: "todo", task_blocked_open: 2 } }} variant="block">Write the brief</HueBlock>)
+    const mark = await screen.findByTitle("Blocked by 2 tasks")
+    expect(mark.textContent).toContain("2")
+  })
+  it("draws none when it waits on nothing", () => {
+    render(<HueBlock item={{ event_uuid: "b2", event_task: { task_status: "todo" } }} variant="block">Ship it</HueBlock>)
+    expect(screen.queryByTitle(/Blocked by/)).toBeNull()
+  })
+})

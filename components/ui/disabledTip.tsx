@@ -1,9 +1,8 @@
 "use client"
 
 import * as React from "react"
-import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
-import { TooltipContent } from "@/components/ui/tooltip"
+import { warmTooltip } from "@/components/ui/tooltip"
 import { isBusyPointer, watchScrolling } from "@/lib/ui/scrollState"
 
 /**
@@ -31,17 +30,30 @@ import { isBusyPointer, watchScrolling } from "@/lib/ui/scrollState"
  * (e2e/disabledTip.spec.ts:70, batch 6b). Now Radix's trigger is the
  * control's own node (OnControl), and what reached it before the chunk is
  * answered as it lands.
+ *
+ * Radix's tooltip and the chip come through the tooltip's own chunk
+ * (warmTooltip, 6 Nov 2026), as every tooltip's do. Imported here, they rode
+ * in each of this file's chunks beside that chunk, and a page with a tooltip
+ * and a disabled reason fetched them twice (lib/lazy/lazyStaticGuard).
  */
 export default function DisabledTip({ reason, control }: { reason: string; control: Control }) {
+  const [code, set] = React.useState<typeof import("@/components/ui/tooltipBridge") | null>(null)
+  React.useEffect(() => {
+    let live = true
+    void warmTooltip().then((c) => live && c && set(c))
+    return () => void (live = false)
+  }, [])
+  if (!code) return null
+  const { Provider, Root, Trigger, TooltipChip } = code
   return (
-    <TooltipPrimitive.Provider delayDuration={400} skipDelayDuration={300}>
-      <TooltipPrimitive.Root>
-        <TooltipPrimitive.Trigger asChild>
+    <Provider delayDuration={400} skipDelayDuration={300}>
+      <Root>
+        <Trigger asChild>
           <OnControl control={control} />
-        </TooltipPrimitive.Trigger>
-        <TooltipContent className="max-w-[240px] text-center">{reason}</TooltipContent>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+        </Trigger>
+        <TooltipChip className="max-w-[240px] text-center">{reason}</TooltipChip>
+      </Root>
+    </Provider>
   )
 }
 

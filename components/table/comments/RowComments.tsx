@@ -38,9 +38,11 @@ export interface RowCommentsProps {
   focusThread?: string | null
   /** Each field's count of comments in open threads on its cell, as they change. */
   onCellCounts?: (counts: Record<string, number>) => void
+  /** Counts the presses of a Comment button outside (the record's phone sheet) on this row: each brings the box into view and into focus, one made before these comments came in too. */
+  compose?: number
 }
 
-export default function RowComments({ rowId, fields, target, onTargetDone, focusThread, onCellCounts }: RowCommentsProps) {
+export default function RowComments({ rowId, fields, target, onTargetDone, focusThread, onCellCounts, compose = 0 }: RowCommentsProps) {
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const me = self.data?.data
   const t = useRowThreads(rowId, me)
@@ -55,6 +57,20 @@ export default function RowComments({ rowId, fields, target, onTargetDone, focus
   React.useEffect(() => {
     onCellCounts?.(byField)
   }, [byField, onCellCounts])
+
+  // A press of Comment outside: the box (the row's, its target let go) into view, with the caret in it. At mount too:
+  // these comments come in their own chunk, after the sheet and its Comment, and the record hands them only its own
+  // row's presses (RecordPanel), so a row stepped to mounts with none.
+  const box = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (!compose) return
+    box.current?.scrollIntoView({ block: "nearest" })
+    box.current?.querySelector<HTMLElement>("[contenteditable=true]")?.focus({ preventScroll: true })
+  }, [compose])
+  // A press counted before these comments came in: their editor comes in after them (immediatelyRender: false), so
+  // the box takes the caret by the composer's own autoFocus, which waits for it. A cell chosen since takes it over.
+  const [pressedAtMount, setPressedAtMount] = React.useState(compose > 0)
+  if (pressedAtMount && target) setPressedAtMount(false)
 
   // A link named a thread: open it, and bring it into view once it's there.
   React.useEffect(() => {
@@ -113,7 +129,7 @@ export default function RowComments({ rowId, fields, target, onTargetDone, focus
         </>
       ) : null}
 
-      <div className="mt-3" data-row-comment-box="">
+      <div ref={box} className="mt-3" data-row-comment-box="">
         {targetField ? (
           <div className="mb-1.5 flex items-center gap-1 text-meta text-ink-2" data-comment-target={targetField.id}>
             <span className="truncate">On {targetField.name}</span>
@@ -136,7 +152,7 @@ export default function RowComments({ rowId, fields, target, onTargetDone, focus
           label={targetField ? `Comment on ${targetField.name}` : "Comment on this row"}
           sendLabel="Comment"
           uploads={false}
-          autoFocus={!!targetField}
+          autoFocus={!!targetField || pressedAtMount}
           onSend={send}
           onCancel={targetField ? onTargetDone : undefined}
         />

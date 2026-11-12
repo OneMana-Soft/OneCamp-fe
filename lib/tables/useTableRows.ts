@@ -8,11 +8,15 @@ import { commentsMessageRow, rowCommentsChanged } from "@/lib/tables/rowComments
 import { readPages } from "@/lib/http/readPages"
 import { rulesToSpec, summariesToSpec, type RowSpec } from "@/lib/tables/query"
 import type { ViewRules } from "@/lib/tables/viewRules"
+import { nameCells, type Named } from "@/lib/tables/heardRows"
+import type { PlaceHost } from "@/lib/tables/liveRun"
+import { isAppOffline, subscribeConnectivity } from "@/lib/connectivity"
+import { once } from "@/lib/lazy/once"
 import type { SummaryFn } from "@/lib/tables/display"
 import type { GroupCount, QuerySummaries, QuerySummaryRequest } from "@/lib/querySpec/types"
 import { refusalReason } from "@/lib/utils/apiError"
 import { unprocessableReason, workingOutOf, type WorkingOut } from "@/lib/tables/unprocessable"
-import { eachRowOnce, isComputed, listRows, queryRows, rowsByIds, tableBundleKey, type RowsWindow, type TableBundle, type TableRow } from "@/services/tableService"
+import { eachRowOnce, isComputed, listRows, queryRows, tableBundleKey, type RowsWindow, type TableBundle, type TableRow } from "@/services/tableService"
 import type { RefusedSums, RowsChanged } from "@/lib/tables/types"
 import { windowRead, type WindowReadRules } from "@/lib/tables/windowReads"
 
@@ -26,8 +30,15 @@ export const WINDOW_ROWS = 500
 const READ_AHEAD = 250
 /** Pages asked for at once. */
 const PAGES_AT_ONCE = 4
-/** How long a burst of live messages settles before the table is asked for again. */
-const HEARD_SETTLE_MS = 300
+/** How long a burst of live messages settles before the table is asked for again: one read by id a burst (tables L1). */
+const HEARD_SETTLE_MS = 50
+/** A view's own order (applyRules viewOrder), in its chunk: loaded when a live change may move a row (tables L1). */
+const rulesChunk = once(() => import("@/lib/tables/applyRules"))
+/**
+ * A burst's runner (lib/tables/liveRun: its read by id, with liveRows, and the view's run after it), in
+ * its chunk (V-693): fetched when the first message is heard, inside the burst's settle; the first view draws without it.
+ */
+const liveChunk = once(() => import("@/lib/tables/liveRun"))
 /** The count and sums (each a pass over the whole view) are asked again at most this often while rows change, and once after (CR-62). */
 const RESUM_MS = 2000
 /** A count that left out the sums and groups asked (past their budget, V-48) is asked again after each wait in turn. */
@@ -64,7 +75,7 @@ interface Read {
 }
 
 /** A view's windows (tables T5c): the rows it holds, one run of its places read in its order. */
-interface Windows {
+export interface Windows {
   tableId: string
   /** The spec's key: another spec's windows are another view's. */
   key: string
@@ -100,7 +111,11 @@ interface Windows {
 interface Job {
   bundle: boolean
   pages: boolean
-  rows: Set<string>
+  /** Rows changed, each with the fields named (lib/tables/heardRows Named). */
+  rows: Map<string, Named>
+  /** Rows made or brought back, and rows deleted (tables L1: placed, or dropped, with no window read). */
+  made?: Set<string>
+  gone?: Set<string>
   /** The windows again, a group collapsed or opened: the count stands. */
   shut?: boolean
   /** The count and sums again, after a wait. */
@@ -108,6 +123,14 @@ interface Job {
 }
 
 const NO_ROWS: TableRow[] = []
+const NO_IDS: ReadonlySet<string> = new Set()
+const newJob = (): Job => ({ bundle: false, pages: false, rows: new Map() })
+/** Puts a job's rows read by id (changed, with the fields named; made; deleted) in another's. */
+const mergeById = (into: Job, from: Job) => {
+  for (const [id, n] of from.rows) nameCells(into.rows, id, n === "row" ? null : [...n])
+  for (const id of from.made ?? []) (into.made ??= new Set()).add(id)
+  for (const id of from.gone ?? []) (into.gone ??= new Set()).add(id)
+}
 /** How long a view whose formula is still being filled first waits to read again (airtable-03b); each wait after is twice the last (CR-95 M2). */
 export const WORKING_AGAIN_MS = 2_000
 /** The longest a view still being filled waits to read again: a fill that runs long is asked about twice a minute. */
@@ -127,7 +150,7 @@ const readRulesOf = (v: { isCounted: boolean; count: number; tail: readonly Tabl
 const counting = (spec: RowSpec, asks: QuerySummaryRequest[]): RowSpec => (asks.length ? { ...spec, summaries: asks } : spec)
 
 /** A count's answer, the spec it answered (the one asked, less the sums refused), and the sums refused. */
-interface Counted {
+export interface Counted {
   c: RowsWindow
   spec: RowSpec
   refusedSums: RefusedSums | null
@@ -170,6 +193,9 @@ function withSums(cur: Windows, c: RowsWindow, spec: RowSpec, asked: string, ref
   return { ...cur, asked, leftOut, refused: groupsOut && leftOut > LEFT_OUT_MS.length ? GROUPS_LEFT_OUT : cur.refused, refusedSums }
 }
 
+/** A count put in the windows: its total, whether it was capped, and its sums and groups (withSums). */
+const withCount = (cur: Windows, c: Counted, asked: string): Windows => withSums({ ...cur, total: c.c.total ?? cur.total, capped: !!c.c.total_capped }, c.c, c.spec, asked, c.refusedSums)
+
 /** A window's spec: each level leaves out its groups collapsed, the last 1,000 (the server's most). */
 function withShut(spec: RowSpec, shut: string[][]): RowSpec {
   if (!spec.groups || !shut.length) return spec
@@ -190,20 +216,25 @@ const sameRow = (a: TableRow, b: TableRow) =>
   a.version === b.version &&
   String(a.ai_kept ?? "") === String(b.ai_kept ?? "")
 
-/** Whether a change of many rows only changed rows' cells, which their pages read again alone. */
-function onlyUpdated(m: Omit<Partial<RowsChanged>, "action">): boolean {
-  return !m.more && !m.moved && !m.created?.length && !m.deleted?.length && !m.restored?.length && Array.isArray(m.updated) && m.updated.length > 0
+/** Whether a change of many rows names some, in lists (a message that names none reads everything held again). */
+function namesRows(m: Omit<Partial<RowsChanged>, "action">): boolean {
+  const lists = [m.created, m.updated, m.deleted, m.restored]
+  return lists.every((l) => l === undefined || Array.isArray(l)) && lists.some((l) => !!l?.length)
 }
 
-/** Fresh copies put in place of the rows held: only rows already held change, in their places. */
-export function putBack(held: TableRow[], fresh: TableRow[]): TableRow[] {
+/**
+ * Fresh copies put in place of the rows held: only rows already held change, in their places. With merge, each
+ * held row is merged with its fresh copy (one holding the cells named alone: liveRows withCells); the row held
+ * itself, when nothing changed.
+ */
+export function putFresh(held: TableRow[], fresh: TableRow[], merge = (r: TableRow, f: TableRow) => (sameRow(f, r) ? r : f)): TableRow[] {
   const byId = new Map(fresh.map((r) => [r.id, r]))
   let changed = false
   const out = held.map((r) => {
     const f = byId.get(r.id)
-    if (!f || sameRow(f, r)) return r
-    changed = true
-    return f
+    const m = f ? merge(r, f) : r
+    changed ||= m !== r
+    return m
   })
   return changed ? out : held
 }
@@ -357,8 +388,8 @@ export function useTableRows(tableId: string, view?: RowView) {
 
   const stale = JSON.stringify(myWin.shut) !== shutKey && (myWin.rows.length > 0 || myWin.next !== "")
 
-  const latest = React.useRef({ tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, count, isCounted, grouped, reading })
-  latest.current = { tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, count, isCounted, grouped, reading }
+  const latest = React.useRef({ tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, count, isCounted, grouped, reading, truncated, viewRules, fields })
+  latest.current = { tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, count, isCounted, grouped, reading, truncated, viewRules, fields }
 
 
   // Back under one page, the bundle holds every row: pages read before go,
@@ -601,9 +632,11 @@ export function useTableRows(tableId: string, view?: RowView) {
   }, [countAgain])
 
   // Fresh copies put where the rows are held, the bundle's page in its cache.
-  const put = React.useCallback((fresh: TableRow[]) => {
+  // With merge, the answer holds the cells named alone (tables L1): merged into the rows held (liveRows withCells).
+  const put = React.useCallback((fresh: TableRow[], merge?: (held: TableRow, cells: TableRow) => TableRow) => {
     if (fresh.length === 0) return
     const { tableId, mutate } = latest.current
+    const putBack = (held: TableRow[], fresh: TableRow[]) => putFresh(held, fresh, merge)
     void mutate(
       (d) => {
         if (!d?.data?.rows) return d
@@ -624,19 +657,49 @@ export function useTableRows(tableId: string, view?: RowView) {
   }, [])
 
   const waiting = React.useRef<Job | null>(null)
+  // A window that failed (tables L1): the next message, or the topic back, reads the run again.
+  const missed = React.useRef(false)
+  // The rows a read by id that failed named, or that couldn't be placed (tables L1): kept, and read by id again
+  // with the next run (the next message, or the app back online). Only ever read again; nothing is written.
+  const unread = React.useRef<Job | null>(null)
+  // Where a burst's answers go (lib/tables/liveRun placeBurst): the rows held, the view's run, and its count.
+  const placing = React.useMemo<PlaceHost>(
+    () => ({ latest, put, setPinned, setRead, setWin, again: () => void ((waiting.current ??= newJob()).pages = true), missed: () => void (missed.current = true), countOf, counting, counted: withCount, notHeld }),
+    [put],
+  )
   const run = React.useCallback(
     async (job: Job) => {
-      const { tableId, mine, first, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs } = latest.current
+      if (unread.current) mergeById(job, unread.current)
+      unread.current = null
+      // V-693: a burst is planned, read by id and put in by its runner, in its chunk, fetched when its first
+      // message was heard (so it's here by now). A chunk that doesn't come keeps the burst, as a read that fails
+      // does: it's read with the next message, or once the app is back. Windows read again whole (the bundle,
+      // every page) bring their rows with them: no runner.
+      const v = latest.current
+      const burst = job.rows.size > 0 || !!job.made?.size || !!job.gone?.size
+      const live = burst && !(v.windowed && v.spec && v.windowSpec && (job.pages || job.bundle)) ? await liveChunk().catch(() => undefined) : null
+      if (live === undefined) mergeById((unread.current ??= newJob()), job)
+      const { tableId, mine, first, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, truncated, viewRules, fields } = latest.current
       if (windowed && spec && windowSpec) {
         // Rows held are read by id; one not held is past what's read, and
         // comes with its window. Rows made, deleted or moved, or a change too
         // big to name, read the windows again from the first, as far as they
         // were read, and put them in place at once.
-        const held = new Set([...myWin.rows, ...tail].map((r) => r.id))
-        const ids = [...job.rows].filter((id) => held.has(id))
-        const again = job.pages || job.bundle
-        // A row changed, held or not, may change what the bar sums, and the groups.
-        let resum = !again && (job.rows.size > 0 || !!job.sums) && (asks.length > 0 || !!spec.groups)
+        // Tables L1 (lib/tables/liveRows): cells changed are read alone and
+        // put in; rows deleted leave; rows made in the table's order are read
+        // by id and placed; a row whose change may move it is placed in the
+        // view's order, and only the windows it can move are read again.
+        // Rows made where rules place them, a view naming its reader, or one
+        // with groups collapsed (rows leave its windows), read them again.
+        const pinned = new Set(tail.map((r) => r.id))
+        const held = new Set([...myWin.rows.map((r) => r.id), ...pinned])
+        const plan = live?.planBurst(job, { held, pinned, rules: viewRules ?? null, fields: fields ?? null, sums: asks, fixed: shut.length > 0 || !jumps.current })
+        const moved = plan?.moved ?? NO_IDS
+        const again = job.pages || job.bundle || !!plan?.unplaced
+        const made = plan?.made ?? NO_IDS
+        const gone = job.gone ?? NO_IDS
+        const ask = plan?.ask ?? null
+        let resum = !again && (!!plan?.resum || !!job.sums) && (asks.length > 0 || !!spec.groups)
         const s = summed.current
         const wait = s.at + RESUM_MS - Date.now()
         if (resum && wait > 0) {
@@ -651,12 +714,19 @@ export function useTableRows(tableId: string, view?: RowView) {
           // A read that fails keeps what's held: the next change, or the
           // tab's next focus (the bundle), reads it again.
           const count = counting(spec, asks)
-          const [, rows, fresh, sums] = await Promise.all([
+          const [, rows, fresh, sums, order] = await Promise.all([
             job.bundle ? mutate().catch(() => undefined) : undefined,
             again || job.shut ? readWindowsAgain(tableId, windowSpec, myWin.from, Math.max(myWin.rows.length, WINDOW_ROWS), again ? count : null, computedRefs).catch(() => null) : null,
-            ids.length ? rowsByIds(tableId, ids).catch(() => null) : null,
+            live?.readAsked(tableId, ask),
             resum ? countOf(tableId, count, computedRefs).catch(() => null) : null,
+            !again && moved.size && viewRules && fields ? rulesChunk().then((m) => m.viewOrder(fields, viewRules)).catch(() => undefined) : null,
           ])
+          // A read that failed never leaves cells stale unsaid: its rows are read by id again with the next run.
+          const failed = (ask && !fresh) || order === undefined
+          if (failed) mergeById((unread.current ??= newJob()), job)
+          // The run read again (with any rows kept from before): once it fails, the next run reads it again too.
+          if (again || job.shut) missed.current = !rows
+          if (!again && !failed && !missed.current && (fresh || gone.size) && live) await live.placeBurst(placing, { fresh: fresh?.rows ?? NO_ROWS, narrowed: !!fresh?.cells, gone, made, moved: fresh ? moved : NO_IDS }, order ?? null, WINDOW_ROWS)
           if (rows) {
             setWin((cur) => {
               if (cur.tableId !== tableId || cur.key !== key) return cur
@@ -667,7 +737,7 @@ export function useTableRows(tableId: string, view?: RowView) {
                   ? cur
                   : { ...cur, rows: notHeld(rows.rows, [latest.current.tail]), next: rows.next, round: cur.round + 1, shut, ...(cur.stopped && { refused: null, stopped: false }) }
               const c = rows.counted
-              return c ? withSums({ ...read, total: c.c.total ?? cur.total, capped: !!c.c.total_capped }, c.c, c.spec, askKey, c.refusedSums) : read
+              return c ? withCount(read, c, askKey) : read
             })
           }
           if (sums) {
@@ -675,26 +745,27 @@ export function useTableRows(tableId: string, view?: RowView) {
             // A row changed group: the windows hold it where it was, and every group after would be a row off.
             const sizes = (gs?: GroupCount[] | null) => JSON.stringify(gs?.map((g) => g.count))
             // The queue's loop runs it next.
-            if (sums.c.groups && sizes(sums.c.groups) !== sizes(myWin.groups)) (waiting.current ??= { bundle: false, pages: false, rows: new Set() }).shut = true
+            if (shut.length && sums.c.groups && sizes(sums.c.groups) !== sizes(myWin.groups)) (waiting.current ??= newJob()).shut = true
           }
-          if (fresh) put(fresh)
         } finally {
           refreshing.current -= job.bundle ? 1 : 0
         }
         return
       }
       const count = mine.rows.length
-      const everyPage = job.pages && count > 0
+      // Rows made past the bundle's page: where they go, the bundle and the pages say.
+      const everyPage = (job.pages || (truncated && !!job.made?.size)) && count > 0
       // Rows held are read by id (one in the bundle's page read the bundle: 534
       // ms at 100,000 rows); a row not held is new, and the bundle says so.
       const held = new Set([...first, ...mine.rows].map((r) => r.id))
-      let bundleToo = job.bundle
-      const ids: string[] = []
-      for (const id of job.rows) {
-        if (held.has(id)) ids.push(id)
-        else bundleToo = true
-      }
-      if (everyPage && bundleToo) ids.length = 0
+      // A row not held is new, and the bundle says so; rows made in a table
+      // held whole are read by id and put in its order, and rows deleted
+      // leave without a read (tables L1).
+      let bundleToo = job.bundle || (truncated && !!job.made?.size) || missed.current
+      for (const id of job.rows.keys()) if (!held.has(id) && !job.made?.has(id)) bundleToo = true
+      if (job.gone?.size) live?.leaveHeld(placing, { tableId, mutate }, job.gone)
+      const made = bundleToo ? NO_IDS : (job.made ?? NO_IDS)
+      const ask = everyPage && bundleToo ? null : (live?.planBurst({ rows: job.rows, made }, { held, pinned: NO_IDS, rules: null, fields: null, sums: [], fixed: false }).ask ?? null)
       refreshing.current += bundleToo ? 1 : 0
       try {
         // As above: a read that fails keeps what's held until the next.
@@ -703,21 +774,22 @@ export function useTableRows(tableId: string, view?: RowView) {
           everyPage
             ? readPages((offset, limit) => listRows(tableId, offset, limit), { pageSize: ROW_PAGE, from: ROW_PAGE, to: ROW_PAGE + count, concurrency: PAGES_AT_ONCE }).catch(() => null)
             : null,
-          ids.length ? rowsByIds(tableId, ids).catch(() => null) : null,
+          live?.readAsked(tableId, ask),
         ])
         if (all) setRead((r) => (r.tableId === tableId ? { tableId, rows: all.items, ended: all.ended } : r))
-        if (fresh) put(fresh)
+        if (ask && !fresh) mergeById((unread.current ??= newJob()), job)
+        if (fresh && live) live.placeHeld(placing, { tableId, mutate }, fresh, made, held)
       } finally {
         refreshing.current -= bundleToo ? 1 : 0
       }
     },
-    [put],
+    [placing],
   )
 
   const draining = React.useRef<Promise<void> | null>(null)
   const queue = React.useCallback(
     (add: (j: Job) => void): Promise<void> => {
-      const j = waiting.current ?? (waiting.current = { bundle: false, pages: false, rows: new Set() })
+      const j = waiting.current ?? (waiting.current = { bundle: false, pages: false, rows: new Map() })
       add(j)
       if (!draining.current) {
         draining.current = (async () => {
@@ -745,7 +817,7 @@ export function useTableRows(tableId: string, view?: RowView) {
   const refresh = React.useCallback(
     (rowId?: string) =>
       queue((j) => {
-        if (rowId) j.rows.add(rowId)
+        if (rowId) nameCells(j.rows, rowId, null)
         else j.bundle = j.pages = true
       }),
     [queue],
@@ -769,7 +841,7 @@ export function useTableRows(tableId: string, view?: RowView) {
   // row ledger's "changed") names them: rows only changed are read again
   // where they're held; rows made, deleted, brought back or moved, and a
   // change too big to name, read everything held again.
-  const heardJob = React.useRef<Job>({ bundle: false, pages: false, rows: new Set() })
+  const heardJob = React.useRef<Job>({ bundle: false, pages: false, rows: new Map() })
   const heardTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const heard = React.useCallback(
     (message: string) => {
@@ -797,21 +869,29 @@ export function useTableRows(tableId: string, view?: RowView) {
       // changed, or given a page (its record's doc), is read again too.
       const commented = commentsMessageRow(data)
       if (commented) {
-        j.rows.add(commented)
+        nameCells(j.rows, commented, null)
         rowCommentsChanged(commented)
-      } else if ((data?.action === "updated" || data?.action === "page") && typeof data.row_id === "string" && data.row_id) j.rows.add(data.row_id)
+      } else if ((data?.action === "updated" || data?.action === "page") && typeof data.row_id === "string" && data.row_id) nameCells(j.rows, data.row_id, data.action === "updated" && data.fields)
+      // A row made or deleted alone (tables L1): placed by id, or dropped.
+      else if ((data?.action === "created" || data?.action === "deleted") && typeof data.row_id === "string" && data.row_id) (data.action === "created" ? (j.made ??= new Set()) : (j.gone ??= new Set())).add(data.row_id)
       // Who edits the table changed (V-170): the bundle says again whether its reader does.
       else if (data?.action === "created" || data?.action === "table" || data?.action === "editing") j.bundle = true
-      else if (data?.action === "changed" && onlyUpdated(data)) for (const id of data.updated ?? []) j.rows.add(id)
-      else j.bundle = j.pages = true
+      else if (data?.action === "changed" && !data.more && !data.moved && namesRows(data)) {
+        for (const id of data.updated ?? []) nameCells(j.rows, id, (data.fields as Record<string, unknown> | undefined)?.[id])
+        for (const id of [...(data.created ?? []), ...(data.restored ?? [])]) (j.made ??= new Set()).add(id)
+        for (const id of data.deleted ?? []) (j.gone ??= new Set()).add(id)
+      } else j.bundle = j.pages = true
+      if (missed.current) j.pages = true
+      // The burst's runner, fetched once as the first message is heard: the settle hides the fetch (V-693).
+      void liveChunk().catch(() => undefined)
       if (heardTimer.current) clearTimeout(heardTimer.current)
       heardTimer.current = setTimeout(() => {
         const settled = heardJob.current
-        heardJob.current = { bundle: false, pages: false, rows: new Set() }
+        heardJob.current = { bundle: false, pages: false, rows: new Map() }
         void queue((next) => {
           next.bundle ||= settled.bundle
           next.pages ||= settled.pages
-          for (const id of settled.rows) next.rows.add(id)
+          mergeById(next, settled)
         })
       }, HEARD_SETTLE_MS)
     },
@@ -824,6 +904,24 @@ export function useTableRows(tableId: string, view?: RowView) {
     [],
   )
   useMqttTopic({ topic: bundle?.mqtt_topic || "", onMessage: heard, onLive: () => void queue((j) => (j.bundle = j.pages = true)) })
+  // A read that failed while the app was offline is read again once it's back (lib/connectivity): its rows by id,
+  // a window's run again. The topic's socket can outlive a short drop, so no topic back, and maybe no message, would.
+  // A run still under way when the app is back (its read's failure, or its chunk tried again, comes later) ends
+  // first, so what it keeps is read too. Only a read is run again, once each time the app is back.
+  React.useEffect(() => {
+    let on = true
+    const stop = subscribeConnectivity(() => {
+      if (isAppOffline()) return
+      const back = () => {
+        if (on && (unread.current || missed.current) && !isAppOffline()) void queue((j) => (j.pages ||= missed.current))
+      }
+      void Promise.resolve(draining.current).then(back, back)
+    })
+    return () => {
+      on = false
+      stop()
+    }
+  }, [queue])
 
   /**
    * The view reached places (the last in sight, and the first): a window view

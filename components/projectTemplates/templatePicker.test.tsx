@@ -5,9 +5,10 @@ import type { TemplateSummary } from "@/lib/projectTemplates"
 const builtIn: TemplateSummary = { id: "client-project", name: "Client project", description: "Kickoff to invoice.", built_in: true, task_count: 13, preview: ["Kickoff call", "Collect brand assets"], can_delete: false }
 const mine: TemplateSummary = { id: "11111111-1111-4111-8111-111111111111", name: "Retainer", description: "", built_in: false, task_count: 4, preview: ["Monthly report"], created_by: "Maya", can_delete: true }
 let templates: TemplateSummary[] = [builtIn, mine]
+let isError = false
 const calls: string[] = []
 vi.mock("@/hooks/useProjectTemplates", () => ({
-  useProjectTemplates: () => ({ templates, isLoading: false, isError: false }),
+  useProjectTemplates: () => ({ templates, isLoading: false, isError }),
   addTemplate: async (t: { name: string }) => {
     calls.push(`add ${t.name}`)
     return { ...mine, id: "22222222-2222-4222-8222-222222222222", name: t.name }
@@ -29,6 +30,7 @@ afterEach(() => {
   calls.length = 0
   toasts.length = 0
   templates = [builtIn, mine]
+  isError = false
 })
 
 describe("the template picker", () => {
@@ -57,6 +59,25 @@ describe("the template picker", () => {
   it("falls back to blank when the chosen template is gone", () => {
     const onChange = vi.fn()
     render(<TemplatePicker value="33333333-3333-4333-8333-333333333333" onChange={onChange} />)
+    expect(onChange).toHaveBeenCalledWith("")
+  })
+
+  // UX-PROJECTS-H1 (PROJECTS-24): "Start from a template" opens on one.
+  it("chooses the first built-in template when opened on any template", async () => {
+    const { ANY_TEMPLATE } = await import("@/lib/projectTemplateStart")
+    const onChange = vi.fn()
+    render(<TemplatePicker value={ANY_TEMPLATE} onChange={onChange} />)
+    expect(onChange).toHaveBeenCalledWith("client-project")
+    expect(onChange).not.toHaveBeenCalledWith("")
+  })
+
+  // B63 F3: a failed read leaves nothing to pick; opened on any template it falls back to blank, never keeps the mark.
+  it("falls back to blank when opened on any template and the templates can't be read", async () => {
+    const { ANY_TEMPLATE } = await import("@/lib/projectTemplateStart")
+    templates = []
+    isError = true
+    const onChange = vi.fn()
+    render(<TemplatePicker value={ANY_TEMPLATE} onChange={onChange} />)
     expect(onChange).toHaveBeenCalledWith("")
   })
 

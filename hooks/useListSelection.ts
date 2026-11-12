@@ -9,17 +9,15 @@ export const ListSelectionContext = createContext<SelectionStore | null>(null)
 const noStore = () => () => {}
 
 /**
- * Whether this task is highlighted and whether it is selected. Read as one
- * number, so a key press re-renders the two rows it changes and no other.
+ * Whether this task is selected: a key press that picks or unpicks re-renders
+ * the rows it changes and no other. The highlight (the keys' place) is no
+ * state of a row: hooks/useListKeyboard paints it on the row as
+ * data-highlighted="true", and a row's look for it is CSS on that attribute
+ * (the lit: variant, app/globals.css), so J and K draw no row.
  */
-export function useRowState(id: string): { highlighted: boolean; selected: boolean } {
+export function useRowSelected(id: string): boolean {
   const store = useContext(ListSelectionContext)
-  const bits = useSyncExternalStore(
-    store?.subscribe ?? noStore,
-    () => (store ? (store.get().highlighted === id ? 1 : 0) | (store.get().selected.has(id) ? 2 : 0) : 0),
-    () => 0,
-  )
-  return { highlighted: (bits & 1) === 1, selected: (bits & 2) === 2 }
+  return useSyncExternalStore(store?.subscribe ?? noStore, () => !!store?.get().selected.has(id), () => false)
 }
 
 /** The selected tasks' ids (a new set only when the selection changes). */

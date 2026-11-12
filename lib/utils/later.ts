@@ -10,6 +10,7 @@ import { format } from "date-fns"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { clockTime } from "@/lib/utils/date/clock"
 import { route } from "@/lib/conversation/route"
+import { dayAt, nextMonday } from "@/lib/messages/schedulePresets"
 
 export type LaterItemType = "post" | "comment" | "chat" | "task" | "doc" | "project" | "board" | "reminder"
 
@@ -24,18 +25,6 @@ interface ReminderChoice {
 /** The hour a reminder for a day comes: 9:00. */
 export const MORNING_HOUR = 9
 
-function atHour(d: Date, hour: number): Date {
-  const x = new Date(d)
-  x.setHours(hour, 0, 0, 0)
-  return x
-}
-
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d)
-  x.setDate(x.getDate() + n)
-  return x
-}
-
 function time(d: Date): string {
   return clockTime(d)
 }
@@ -48,20 +37,18 @@ function weekday(d: Date): string {
 export function reminderChoices(now: Date): ReminderChoice[] {
   const inAnHour = new Date(now.getTime() + 60 * 60 * 1000)
   inAnHour.setSeconds(0, 0)
-  const tomorrow = atHour(addDays(now, 1), MORNING_HOUR)
-  // Next Monday; on a Monday, the one after.
-  const toMonday = ((8 - now.getDay()) % 7) || 7
-  const nextWeek = atHour(addDays(now, toMonday), MORNING_HOUR)
+  const tomorrow = dayAt(now, 1, MORNING_HOUR)
+  const nextWeek = dayAt(nextMonday(now), 0, MORNING_HOUR)
 
   const choices: ReminderChoice[] = [{ key: "hour", label: "In 1 hour", hint: time(inAnHour), at: inAnHour }]
   // "This evening" only while it is still ahead and not almost the same as "in 1 hour".
-  const evening = atHour(now, 18)
+  const evening = dayAt(now, 0, 18)
   if (evening.getTime() - now.getTime() > 2 * 60 * 60 * 1000) {
     choices.push({ key: "evening", label: "This evening", hint: time(evening), at: evening })
   }
   choices.push({ key: "tomorrow", label: "Tomorrow morning", hint: `${weekday(tomorrow)} ${time(tomorrow)}`, at: tomorrow })
   // Tomorrow is Monday: "next week" would say the same thing twice.
-  if (toMonday !== 1) {
+  if (now.getDay()) {
     choices.push({ key: "week", label: "Next week", hint: `${weekday(nextWeek)} ${time(nextWeek)}`, at: nextWeek })
   }
   return choices
@@ -75,8 +62,8 @@ function sameDay(a: Date, b: Date): boolean {
 export function reminderLabel(at: Date, now: Date): { text: string; due: boolean } {
   if (at.getTime() <= now.getTime()) return { text: "Due", due: true }
   if (sameDay(at, now)) return { text: `Today, ${time(at)}`, due: false }
-  if (sameDay(at, addDays(now, 1))) return { text: `Tomorrow, ${time(at)}`, due: false }
-  const days = (atHour(at, 0).getTime() - atHour(now, 0).getTime()) / 86_400_000
+  if (sameDay(at, dayAt(now, 1, 0))) return { text: `Tomorrow, ${time(at)}`, due: false }
+  const days = (dayAt(at, 0, 0).getTime() - dayAt(now, 0, 0).getTime()) / 86_400_000
   if (days < 7) return { text: `${weekday(at)}, ${time(at)}`, due: false }
   return { text: shortDate(at, now), due: false }
 }
@@ -101,12 +88,12 @@ export type ReminderTone = "later" | "today" | "overdue"
 export function reminderPill(at: Date, now: Date): { text: string; tone: ReminderTone } {
   const hm = clockTime
   if (at.getTime() <= now.getTime()) {
-    const when = sameDay(at, now) ? hm(at) : sameDay(at, addDays(now, -1)) ? "Yesterday" : format(at, "d MMM")
+    const when = sameDay(at, now) ? hm(at) : sameDay(at, dayAt(now, -1, 0)) ? "Yesterday" : format(at, "d MMM")
     return { text: `Overdue · ${when}`, tone: "overdue" }
   }
   if (sameDay(at, now)) return { text: `Today ${hm(at)}`, tone: "today" }
-  if (sameDay(at, addDays(now, 1))) return { text: `Tomorrow ${hm(at)}`, tone: "later" }
-  const days = (atHour(at, 0).getTime() - atHour(now, 0).getTime()) / 86_400_000
+  if (sameDay(at, dayAt(now, 1, 0))) return { text: `Tomorrow ${hm(at)}`, tone: "later" }
+  const days = (dayAt(at, 0, 0).getTime() - dayAt(now, 0, 0).getTime()) / 86_400_000
   if (days < 7) return { text: `${weekday(at)} ${hm(at)}`, tone: "later" }
   return { text: format(at, "d MMM"), tone: "later" }
 }

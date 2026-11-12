@@ -7,7 +7,7 @@ import { SwitchRow } from "@/components/ui/settingsSection"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { DateField } from "@/components/ui/date-field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCalendarList } from "@/lib/calendar/calendarList"
+import { mayAddEventTo, useCalendarList } from "@/lib/calendar/calendarList"
 import { projectHue } from "@/lib/projectHue"
 import { ZonePicker } from "@/components/ui/zonePicker"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
@@ -17,21 +17,27 @@ import { FindTimeSuggestions } from "@/components/calendar/findTimeSuggestions"
 import { AwayCheckbox, EventOptionCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox"
 import { GuestRows } from "@/components/calendar/form/guestRows"
 import { ReminderRows } from "@/components/calendar/form/reminderRows"
+import { defaultRemindersFor } from "@/lib/calendar/reminders"
 import { HueRow } from "@/components/calendar/form/hueRow"
+import { FilesRow } from "@/components/calendar/form/filesRow"
 import { fieldLabel, fieldRow, inlineChoice } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
-import { formProblem, mayAddToGoogle, meets, withAllDay, withStart, type EventFormValues, type FormProblem, type OOODecline } from "@/lib/calendar/eventForm"
+import { mayAddToGoogle, problemNow, meets, withAllDay, withEndZone, withStart, withZone, type EventFormValues, type FormProblem, type OOODecline } from "@/lib/calendar/eventForm"
+import { keepsOtherZone } from "@/lib/calendar/ownZone"
+import { onDeviceClock, wallOf } from "@/lib/utils/date/wallTime"
+import { browserTZ } from "@/lib/utils/timeZone"
 import { inHours, theirTime, usePeopleHours, zoneDiffers } from "@/lib/calendar/peopleHours"
 import { AlertTriangle, Globe, ListTodo, Pin, X } from "@/lib/icons"
 import { ToggleChip } from "@/components/ui/toggleChip"
 import { format } from "date-fns"
-import { clockTime } from "@/lib/utils/date/clock"
+import { clockRange, clockTime } from "@/lib/utils/date/clock"
 import { zoneCity } from "@/lib/utils/zones"
 import { Button } from "@/components/ui/button"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { taskGlyphStatus } from "@/components/calendar/HueBlock"
 import { PickTask } from "@/components/task/lazyTaskFinder"
 import { blockDueBy, blockTaskOf } from "@/lib/calendar/taskBlock"
+import { BlockWaits } from "@/components/calendar/blockWaits"
 import type { CalendarEventTask } from "@/types/calendar"
 
 export interface EventFormProps {
@@ -50,6 +56,8 @@ export interface EventFormProps {
   /** A new event: free times to pick from, and a copy in Google Calendar. */
   creating?: boolean
   googleConnected?: boolean
+  /** The reader's default reminders per calendar, for a new event's. */
+  defaultReminders?: unknown
   /** What stopped a save (its host says it when Create or Save is pressed); from then on the form says, at its field, what stops a save as the form stands. */
   problem?: FormProblem | null
   /** The own time, by kind, a save keeping the event's guests can't make it, in the server's words (its read's own_time_refused): offered off, saying why. */
@@ -78,12 +86,12 @@ const PLACES = ["Home", "Office"]
  * task have no guests and don't repeat; a server with the old stores keeps
  * the fields it has. A new event can be made time for one of your tasks (B1).
  */
-export function EventForm({ values: v, onChange, full, organiser, exclude = [], creating, googleConnected, problem: said, ownTimeRefused, titleClassName, autoFocusTitle, layout = "dialog" }: EventFormProps) {
+export function EventForm({ values: v, onChange, full, organiser, exclude = [], creating, googleConnected, defaultReminders, problem: said, ownTimeRefused, titleClassName, autoFocusTitle, layout = "dialog" }: EventFormProps) {
   const id = React.useId()
   const set = (patch: Partial<EventFormValues>) => onChange({ ...v, ...patch })
   const meeting = meets(v)
   // Once a save was stopped, the problem is said as the form stands, for every host: put right, the alert goes (DB-51).
-  const problem = said ? formProblem(v) : null
+  const problem = problemNow(v, said)
   // Focus time and time for a task run from a time to a time.
   const timed = v.kind === "focus" || v.kind === "task_block"
   // A block is named for its task until it's given a name; it has nobody on it.
@@ -91,6 +99,11 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
     set({ kind: "task_block", task, allDay: false, guests: [], rule: "", ...(!v.title.trim() ? { title: task.task_name ?? "" } : {}) })
   const [otherEndZone, setOtherEndZone] = React.useState(!!v.endZone)
   const length = Math.round((v.end.getTime() - v.start.getTime()) / 60000) || 30
+  // Its times are read and picked on its own zones' clocks (V-642), the reader's own under them where those read otherwise.
+  const endZone = v.endZone || v.zone
+  const here = browserTZ()
+  const yours = keepsOtherZone(v.zone, endZone, here) ? `${clockRange(v.start, v.end)} your time` : ""
+  const endSaid = [problem?.field === "end" && `${id}-problem`, yours && `${id}-yours`].filter(Boolean).join(" ")
 
   return (
     <Layout.Provider value={layout}>
@@ -148,27 +161,39 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
       ) : (
         <>
           <Row label="Starts" htmlFor={`${id}-start`}>
-            <DateTimePicker id={`${id}-start`} aria-label="Start" value={v.start} onChange={(d) => onChange(withStart(v, d))} />
+            <DateTimePicker id={`${id}-start`} aria-label="Start" zone={v.zone} named={keepsOtherZone(v.zone, v.zone, here)} value={v.start} onChange={(d) => onChange(withStart(v, d))} />
           </Row>
           <Row label="Ends" htmlFor={`${id}-end`}>
             <DateTimePicker
               id={`${id}-end`}
               aria-label="End"
+              zone={endZone}
+              named={keepsOtherZone(endZone, endZone, here)}
               since={v.start}
               value={v.end}
               onChange={(d) => set({ end: d })}
               aria-invalid={problem?.field === "end" || undefined}
-              aria-describedby={problem?.field === "end" ? `${id}-problem` : undefined}
+              aria-describedby={endSaid || undefined}
             />
             {problem?.field === "end" ? <Problem id={id} message={problem.message} /> : null}
-            {meeting ? <GuestHours guests={v.guests} start={v.start} end={v.end} /> : null}
+            {yours ? (
+              <p id={`${id}-yours`} className="pt-1.5 text-meta tabular-nums text-ink-3" data-your-time="">
+                {yours}
+              </p>
+            ) : null}
+            {meeting ? <GuestHours guests={v.guests} start={v.start} end={v.end} saidYours={!!yours} /> : null}
           </Row>
           {full ? (
             <Row label="Time zone">
-              <div className="grid gap-0.5">
-                <ZonePicker tz={v.zone} onTz={(zone) => set({ zone })} className="-ml-2 w-fit max-w-full" />
+              {/* Two zones say which is which before each picker, in this form's chunk, not the shared picker's (the booking page loads that); each picker's name says it too. */}
+              <div className={cn("grid gap-0.5", otherEndZone && "grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1")}>
+                {otherEndZone ? <ZoneSays>Starts in</ZoneSays> : null}
+                <ZonePicker tz={v.zone} onTz={(zone) => onChange(withZone(v, zone))} label={otherEndZone ? "Starts in" : undefined} className={cn("w-fit max-w-full", !otherEndZone && "-ml-2")} />
                 {otherEndZone ? (
-                  <ZonePicker tz={v.endZone || v.zone} onTz={(endZone) => set({ endZone })} label="Ends in" className="-ml-2 w-fit max-w-full" />
+                  <>
+                    <ZoneSays>Ends in</ZoneSays>
+                    <ZonePicker tz={endZone} onTz={(zone) => onChange(withEndZone(v, zone))} label="Ends in" className="w-fit max-w-full" />
+                  </>
                 ) : (
                   <button type="button" onClick={() => setOtherEndZone(true)} className="w-fit text-meta text-ink-3 hover:text-ink-2 hover:underline" data-touch-target="">
                     Ends in another time zone
@@ -182,7 +207,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
 
       {full && (meeting || v.kind === "working_location") ? (
         <Row label="Repeat" htmlFor={`${id}-repeat`}>
-          <RepeatControl id={`${id}-repeat`} start={v.allDay ? new Date(`${v.startDate}T12:00:00`) : v.start} rule={v.rule} onChange={(rule) => set({ rule })} />
+          <RepeatControl id={`${id}-repeat`} start={v.allDay ? new Date(`${v.startDate}T12:00:00`) : onDeviceClock(wallOf(v.start, v.zone))} rule={v.rule} onChange={(rule) => set({ rule })} />
         </Row>
       ) : null}
 
@@ -221,6 +246,12 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
         </Row>
       ) : null}
 
+      {full && meeting ? (
+        <Row label="Linked" align="start">
+          <FilesRow files={v.files} onChange={(files) => set({ files })} />
+        </Row>
+      ) : null}
+
       <Row label="Notes" htmlFor={`${id}-notes`} align="start">
         <textarea
           id={`${id}-notes`}
@@ -234,15 +265,22 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
 
       {full && v.kind !== "working_location" ? (
         <Row label="Reminders" htmlFor={`${id}-reminders`} align="start">
-          <ReminderRows id={`${id}-reminders`} reminders={v.reminders} allDay={v.allDay} onChange={(reminders) => set({ reminders })} />
+          <ReminderRows
+            id={`${id}-reminders`}
+            reminders={v.reminders}
+            email={v.reminderEmail}
+            defaults={v.reminderDefaults ? { minutes: v.reminderDefaults, email: v.reminderEmail } : defaultRemindersFor(defaultReminders, v.calendarId, v.allDay)}
+            allDay={v.allDay}
+            onChange={(reminders, reminderEmail) => set({ reminders, reminderEmail })}
+          />
         </Row>
       ) : null}
 
-      <CalendarRow value={v.calendarId} editing={!creating || !full} onChange={(calendarId) => set({ calendarId })} />
+      <CalendarRow value={v.calendarId} editing={!creating || !full} onChange={(calendarId) => set({ calendarId })} problem={problem?.field === "calendar" ? problem.message : undefined} problemId={id} />
       {full && meeting ? (
         <>
           <Row label="Colour">
-            <HueRow value={v.hue} onChange={(hue) => set({ hue })} />
+            <HueRow value={v.hue} onChange={(hue) => set({ hue })} sample={v.title} />
           </Row>
           <Row label="Show as" htmlFor={`${id}-show-as`}>
             <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -361,6 +399,15 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
   )
 }
 
+/** "Starts in" / "Ends in" before a zone picker, quiet; the picker's own name says it to a screen reader. */
+function ZoneSays({ children }: { children: string }) {
+  return (
+    <span className="text-ui-sm text-ink-3" aria-hidden="true">
+      {children}
+    </span>
+  )
+}
+
 /** One property: a label on the left and its value on the right (stacked on a phone), in the columns of where the form sits. */
 function Row({ label, htmlFor, align = "center", children }: { label: string; htmlFor?: string; align?: "center" | "start"; children: React.ReactNode }) {
   const layout = React.useContext(Layout)
@@ -387,12 +434,13 @@ function Row({ label, htmlFor, align = "center", children }: { label: string; ht
 /**
  * The time at each guest's end (calendar A3), for those who keep hours: one
  * quiet line, "10:00 your time · 05:30 for Jonas (London)", when a guest's
- * clock reads otherwise; where they work that day, by their working
+ * clock reads otherwise (its "your time" left to the line above where the
+ * form already said it, V-642); where they work that day, by their working
  * locations (head 5d); then who it is outside the working hours of,
  * "That's 21:00 for Jonas, outside their working hours", three at most and
  * then how many more. Notes, not refusals: the event can still be saved.
  */
-function GuestHours({ guests, start, end }: { guests: EventFormValues["guests"]; start: Date; end: Date }) {
+function GuestHours({ guests, start, end, saidYours }: { guests: EventFormValues["guests"]; start: Date; end: Date; saidYours: boolean }) {
   const members = guests.filter((g) => g.uuid)
   const people = usePeopleHours(members.map((g) => g.uuid), format(start, "yyyy-MM-dd"))
   if (!people || end <= start) return null
@@ -408,7 +456,7 @@ function GuestHours({ guests, start, end }: { guests: EventFormValues["guests"];
         <p className="flex items-start gap-1.5 text-meta text-ink-3" data-guest-times="">
           <Globe className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           <span>
-            {[`${clockTime(start)} your time`, ...elsewhere.slice(0, 3).map((g) => `${theirTime(start, hours[g.uuid].tz)} for ${first(g)} (${zoneCity(hours[g.uuid].tz)})`)].join(" · ")}
+            {[...(saidYours ? [] : [`${clockTime(start)} your time`]), ...elsewhere.slice(0, 3).map((g) => `${theirTime(start, hours[g.uuid].tz)} for ${first(g)} (${zoneCity(hours[g.uuid].tz)})`)].join(" · ")}
             {elsewhere.length > 3 ? ` · ${elsewhere.length - 3} more` : ""}
           </span>
         </p>
@@ -456,7 +504,10 @@ function TaskRow({ task, creating, dueBy, problem, problemId, onPick, onClear }:
     <Row label="Task">
       <div className="flex min-w-0 items-center gap-1" data-form-task="">
         {!creating ? (
-          <span className="flex min-h-8 min-w-0 items-center gap-2">{shown}</span>
+          <span className="grid min-w-0">
+            <span className="flex min-h-8 min-w-0 items-center gap-2">{shown}</span>
+            {task ? <BlockWaits task={task} /> : null}
+          </span>
         ) : (
           <>
             <PickTask dueBy={dueBy} onPick={(t) => onPick(blockTaskOf(t))}>
@@ -524,11 +575,20 @@ function Problem({ id, message }: { id: string; message: string }) {
 /**
  * Which calendar it goes on (calendar A6): your own, or a project's you may
  * add to, in its colour. A new event chooses; an event already made says
- * where it is (moving it to another calendar isn't here yet).
+ * where it is (moving it to another calendar isn't here yet). One Google or
+ * Outlook lets OneCamp only read is no choice (V-594); a save the server
+ * refused for that says so here, in its words, brought into view (above a
+ * dialog's footer) with the focus on the picker, so another is a key away.
  */
-function CalendarRow({ value, editing, onChange }: { value: string; editing: boolean; onChange: (id: string) => void }) {
+function CalendarRow({ value, editing, onChange, problem, problemId }: { value: string; editing: boolean; onChange: (id: string) => void; problem?: string; problemId: string }) {
   const list = useCalendarList()
-  const writable = list.filter((c) => c.kind !== "personal" && c.access !== "view")
+  const picker = React.useRef<HTMLButtonElement>(null)
+  React.useEffect(() => {
+    if (!problem) return
+    document.getElementById(`${problemId}-problem`)?.closest("[data-property-row]")?.scrollIntoView({ block: "nearest" })
+    picker.current?.focus({ preventScroll: true })
+  }, [problem, problemId])
+  const writable = list.filter((c) => c.kind !== "personal" && mayAddEventTo(c))
   const hueOfCal = (c?: { container_kind?: string; container_id?: string }) => (c?.container_kind === "project" && c.container_id ? projectHue(c.container_id) : OWN_HUE)
   const current = list.find((c) => c.id === value)
   const swatch = (hue: string) => <span aria-hidden="true" className={cn(HUE_CLASS[hue as keyof typeof HUE_CLASS], "size-2 shrink-0 rounded-[3px] bg-hue")} />
@@ -539,13 +599,14 @@ function CalendarRow({ value, editing, onChange }: { value: string; editing: boo
           {swatch(hueOfCal(current))}
           {current && current.kind !== "personal" ? current.name : "OneCamp · Personal"}
         </span>
+        {problem ? <Problem id={problemId} message={problem} /> : null}
       </Row>
     )
   }
   return (
     <Row label="Calendar" htmlFor="event-calendar">
       <Select value={value || "own"} onValueChange={(id) => onChange(id === "own" ? "" : id)}>
-        <SelectTrigger id="event-calendar" className={inlineChoice} aria-label="Calendar" dense>
+        <SelectTrigger ref={picker} id="event-calendar" className={inlineChoice} aria-label="Calendar" dense aria-invalid={problem ? true : undefined} aria-describedby={problem ? `${problemId}-problem` : undefined}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -559,6 +620,7 @@ function CalendarRow({ value, editing, onChange }: { value: string; editing: boo
           ))}
         </SelectContent>
       </Select>
+      {problem ? <Problem id={problemId} message={problem} /> : null}
     </Row>
   )
 }

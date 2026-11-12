@@ -112,6 +112,9 @@ const CASES: { name: string; data: PushNotificationData; expected: string }[] = 
   { name: "a change to one instance opens that instance", data: { type: "calendar", type_id: "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d_20261020T081500Z" }, expected: "/app/calendar/event/0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d_20261020T081500Z" },
   { name: "an id with a path in it opens the calendar alone", data: { type: "calendar", type_id: "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d/../../admin" }, expected: "/app/calendar" },
   { name: "approval opens Home, where approvals lead", data: { type: "approval" }, expected: "/app/home" },
+  // Send me a test's notice (A4 H3) has no place of its own: it is sent from Settings > Notifications, and a notice
+  // routed to the page being read shows no preview there (components/fcm/FCMHandler).
+  { name: "a test notice (Send me a test) opens the app, so its preview shows where it was sent from", data: { type: "notify_test" }, expected: "/app" },
 ]
 
 /** Payloads that must never produce a path with a missing segment. */

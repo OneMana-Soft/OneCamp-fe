@@ -3,13 +3,16 @@
 // A custom field's value, to read: options as pills in their colours, a tick
 // for a checkbox, a link for a URL, text for the rest. The list, the board's
 // cards (cardFields.tsx) and the panel (for people who can't change it) show
-// values this way.
+// values this way. A field the server hides from its reader (V-698) reads as
+// the words in place of any value, a kept one too.
 
-import { Check } from "@/lib/icons"
+import { AlertTriangle, Check } from "@/lib/icons"
 import { formatFieldValue, optionOf, type FieldValue, type TaskField } from "@/lib/tasks/fields"
+import { fieldText, formulaShown } from "@/lib/tasks/formulaShown"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Chip } from "@/components/ui/chip"
 import { campHueOf } from "@/lib/campHue"
+import { HiddenFieldValue, fieldHidden } from "@/components/task/hiddenField"
 
 // An option reads as a neutral chip with a 6px dot in its colour (design v3,
 // work.md W35): the colour names the option without the tinted pill that
@@ -23,17 +26,33 @@ export function OptionPill({ label, color, className }: { label: string; color?:
   )
 }
 
+/** A formula that can't be worked out (J-F): a warning chip with the server's why; compact, its icon, the why in its tip. */
+export function FormulaError({ why, compact, className }: { why: string; compact?: boolean; className?: string }) {
+  return (
+    <Chip tone="sun" className={cn("max-w-full gap-1", className)}>
+      <span data-formula-error="" title={why} className="inline-flex min-w-0 items-center gap-1">
+        <AlertTriangle className="size-3 shrink-0" aria-hidden />
+        <span className={compact ? "sr-only" : "truncate"}>{why}</span>
+      </span>
+    </Chip>
+  )
+}
+
+/** compact: a list's 72px column, where words would be cut to a few letters (the lock's and a formula error's in their tips). */
 export function FieldValueView({
   field,
   value,
   nameOf,
   className,
+  compact,
 }: {
   field: TaskField
   value: FieldValue | undefined
   nameOf?: (id: string) => string | undefined
   className?: string
+  compact?: boolean
 }) {
+  if (fieldHidden(field)) return <HiddenFieldValue compact={compact} className={className} />
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) return null
   switch (field.type) {
     case "select": {
@@ -57,6 +76,12 @@ export function FieldValueView({
           <span className="sr-only">Yes</span>
         </span>
       ) : null
+    case "formula": {
+      // Worked out by the server, read-only everywhere; an error in its words.
+      const shown = formulaShown(field, value)
+      if (shown.kind === "error") return <FormulaError why={shown.message} compact={compact} className={className} />
+      break
+    }
     case "url":
       return (
         <a
@@ -70,9 +95,7 @@ export function FieldValueView({
           {formatFieldValue(field, value)}
         </a>
       )
-    default: {
-      const text = formatFieldValue(field, value, nameOf)
-      return text ? <span className={cn("truncate tabular-nums", className)}>{text}</span> : null
-    }
   }
+  const text = fieldText(field, value, nameOf)
+  return text ? <span className={cn("truncate tabular-nums", className)}>{text}</span> : null
 }

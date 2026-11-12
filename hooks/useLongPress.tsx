@@ -32,7 +32,7 @@ const EDGE_PX = 30;
  * mousedown a phone sends after every tap no longer starts a second one.
  * Releasing a hold that fired sends a click too; that click is swallowed.
  */
-export function useLongPress(
+export function useLongPress<T extends HTMLElement = HTMLDivElement>(
     callback: () => void,
     {
         threshold = 500,
@@ -44,7 +44,7 @@ export function useLongPress(
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const startTimeRef = useRef<number>(0);
     const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const targetRef = useRef<HTMLDivElement | null>(null);
+    const targetRef = useRef<T | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
     // Each press's token: a press fires only if nothing has ended it since.
     const pressRef = useRef(0);

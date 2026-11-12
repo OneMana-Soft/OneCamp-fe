@@ -18,6 +18,7 @@ const legacy = {
   event_end_time: "2026-10-27T09:30:00Z",
   event_created_by: SAM,
   event_participants: [MAYA],
+  event_guests: [{ user_uuid: MAYA.user_uuid, response: "needs_action", role: "required" }],
 }
 const api = {
   id: INSTANCE,
@@ -55,11 +56,14 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
 }))
 const makeRequest = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest }) }))
+// The toasts it shows, and where its Open Trash goes.
+const toasted = vi.fn()
+vi.mock("@/hooks/use-toast", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/use-toast")>()), toast: (...args: unknown[]) => toasted(...args) }))
+const pushed = vi.fn()
+vi.mock("next/navigation", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/navigation")>()), useRouter: () => ({ push: pushed }) }))
 const dispatch = vi.fn()
 vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => dispatch }))
 vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn(), cache: new Map() }) }))
-vi.mock("@/components/ai/RescheduleDialog", () => ({ default: () => null }))
-vi.mock("@/components/ai/MeetingPrepDialog", () => ({ default: () => null }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
 
 import EventInfoPanel from "./eventInfoPanel"
@@ -76,6 +80,8 @@ afterEach(() => {
   cleanup()
   makeRequest.mockReset()
   dispatch.mockReset()
+  toasted.mockReset()
+  pushed.mockReset()
 })
 
 function panel() {
@@ -143,27 +149,38 @@ describe("an instance of a repeating event in its panel", () => {
     expect(within(facts).getByText("Repeats").nextElementSibling?.textContent).toBe("Weekly on Tuesday")
   })
 
-  it("asks which events a delete is for, and sends that scope", async () => {
+  // CAL-40: the one way the grid deletes (lib/calendar/deleteEvent): its scope, then "Tell your guests it's
+  // cancelled?" (Maya is on it), then the Trash, at the version read.
+  it("asks which events a delete is for, then whether to tell its guests, and sends that scope to the Trash", async () => {
+    makeRequest.mockResolvedValue({})
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
-    fireEvent.click(await screen.findByRole("radio", { name: "This and following events" }))
+    fireEvent.click(await screen.findByRole("radio", { name: "This and following events" }, { timeout: 8000 }))
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Delete" }))
     })
+    const ask = await screen.findByRole("dialog", { name: "Tell your guests it's cancelled?" }, { timeout: 8000 })
+    expect(makeRequest).not.toHaveBeenCalled()
+    await act(async () => void fireEvent.click(within(ask).getByRole("button", { name: "Send" })))
     await waitFor(() => expect(makeRequest).toHaveBeenCalled())
     expect(makeRequest.mock.calls[0][0]).toMatchObject({
       method: "DELETE",
       apiEndpoint: "/calendar/events",
       appendToUrl: `/${INSTANCE}?scope=following&sequence=3`,
     })
+    // Moved to the Trash, with the way to it: an instance has no Undo.
+    await waitFor(() => expect(toasted).toHaveBeenCalledWith(expect.objectContaining({ title: "Moved “Stand-up” to the Trash", description: "This and the following events." })))
+    const said = toasted.mock.calls.map(([t]) => t).find((t) => t.title === "Moved “Stand-up” to the Trash")
+    expect(said.action.props.children).toBe("Open Trash")
   })
 
   it("deletes nothing when the question is closed", async () => {
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
-    await act(async () => {
-      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
-    })
+    // The question comes with the delete's chunk.
+    const cancel = await screen.findByRole("button", { name: "Cancel" }, { timeout: 8000 })
+    await act(async () => void fireEvent.click(cancel))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull())
     expect(makeRequest).not.toHaveBeenCalled()
   })
 

@@ -16,15 +16,12 @@ import { ChevronLeft, ChevronRight } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PLAN_RESOLUTIONS, periodOf, periodsOfYear, whenOf, whenWords, type PlanPick, type PlanResolution, type ProjectPlan } from "@/lib/work/projectPlan"
 
-/** Keys 1 to 4 are the levels, as a task's priority picker has them; 5 takes the priority off. */
-const PRIORITY_VALUES = ["low", "medium", "high", "urgent", ""] as const
-
 /** The priority's or the dates' picker on the menu's surface (a sheet on a phone), the dates' a little wider. */
 export function PlanPopover({ field, plan, onPick }: { field: "priority" | "dates"; plan: ProjectPlan; onPick: PlanPick }) {
   return (
     <PopoverContent className={cn(menuSurface, field === "dates" && "w-72")} align="start">
       {field === "priority" ? (
-        <PriorityMenuContent current={plan.priority} values={PRIORITY_VALUES} onSelect={(v) => onPick({ priority: v || null }, { priority: v })} />
+        <PriorityMenuContent current={plan.priority} onSelect={(v) => onPick({ priority: v || null }, { priority: v })} />
       ) : (
         <DatesPicker plan={plan} onPick={onPick} />
       )}

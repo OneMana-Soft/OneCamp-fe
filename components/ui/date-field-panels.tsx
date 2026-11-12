@@ -7,6 +7,7 @@ import { clockTime } from "@/lib/utils/date/clock"
 import { parseEventText } from "@/lib/calendar/parseEventText"
 import { Calendar } from "@/components/ui/calendar"
 import { TimeList } from "@/components/ui/date-time-picker"
+import { pinsSheetTop } from "@/components/ui/sheetPins"
 import { SHEET_MONTH } from "@/components/ui/sheetMonth"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
@@ -158,10 +159,10 @@ export function DatePanel({ day, from, to, clearable, sheet, onPick, onClear }: 
  */
 export function TimePanel({ minutes, since, after, sheet, onPick }: { minutes: number | null; since?: number; after?: number; sheet?: boolean; onPick: (minutes: number) => void }) {
   const [text, setText] = React.useState("")
-  const typed = React.useMemo(() => (text.trim() ? parseEventText(text).startMinutes : undefined), [text])
+  const typed = React.useMemo(() => (text.trim() ? parseEventText(text, undefined, { clock: true }).startMinutes : undefined), [text])
   return (
     <>
-      <div className={sheet ? "sticky top-0 z-[1] bg-pop px-3 pb-1.5 pt-1" : "px-2 pt-2"}>
+      <div ref={sheet ? pinsSheetTop : undefined} className={sheet ? "sticky top-0 z-[1] bg-pop px-3 pb-1.5 pt-1" : "px-2 pt-2"}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}

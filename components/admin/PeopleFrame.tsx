@@ -6,9 +6,8 @@ import type { LucideIcon } from "lucide-react"
 import { MoreHorizontal } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { LazySearchInput } from "@/components/ui/lazy-search-input"
-import { seatWords } from "@/lib/people/seatWords"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotSearch, SpotWelcome } from "@/components/ui/graphics"
@@ -494,51 +493,6 @@ export function PeopleFab({ icon: Icon, label, onClick }: { icon: LucideIcon; la
   )
 }
 
-
-/**
- * The plan's seats: "14 of 25" over a 120x4 track. At 90 % or more the fill
- * turns sun and the words say how many places are left. The fill moves by
- * scaleX, never by width. Only drawn when the server reports a limit (the
- * free plan); a paid licence reports none and shows nothing.
- */
-export function SeatMeter({ used, limit, upgradeUrl }: { used: number; limit: number; upgradeUrl?: string }) {
-  if (!limit || limit <= 0) return null
-  const { words, near, ratio } = seatWords(used, limit)
-  const label = `${used} of ${limit} seats used. Free plan, seats lift on purchase`
-  const body = (
-    <span data-seat-meter="" data-near={near ? "true" : undefined} className="people-meter">
-      <span className="people-meter-words">
-        <span className="font-medium tabular-nums text-foreground">{words}</span>
-        {!near && <span className="text-ink-3"> seats</span>}
-      </span>
-      <span className="people-meter-track" aria-hidden="true">
-        <span className="people-meter-fill" style={{ transform: `scaleX(${ratio})` }} />
-      </span>
-    </span>
-  )
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {upgradeUrl ? (
-          <a
-            href={upgradeUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={label}
-            className="rounded-md focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            {body}
-          </a>
-        ) : (
-          <span tabIndex={0} role="img" aria-label={label} className="rounded-md focus-visible:outline-2 focus-visible:outline-ring">
-            {body}
-          </span>
-        )}
-      </TooltipTrigger>
-      <TooltipContent>Free plan · seats lift on purchase</TooltipContent>
-    </Tooltip>
-  )
-}
 
 /** "Loading more…" under a list that pages as it is scrolled. Words, not a spinner. */
 export function PeopleMoreLine({ sentinelRef, loading }: { sentinelRef: React.Ref<HTMLDivElement>; loading: boolean }) {

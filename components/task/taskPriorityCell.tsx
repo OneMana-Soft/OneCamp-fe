@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils/helpers/cn"
  * A priority (design v3, work.md W02): three ink bars filled to the level,
  * urgent the danger square, never a hue. Alone in rows and cards, named on
  * hover, none only on a hovered row ("tip"); its word follows in the panel
- * and pickers ("word").
+ * and pickers ("word"), in their ink.
  */
 export function TaskPriorityCell({
   priority,
@@ -44,7 +44,7 @@ export function TaskPriorityCell({
   return (
     <span data-priority-level={level} className={cn("inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-[450] text-foreground", className)}>
       <PriorityGlyph level={level} size={size} />
-      <span className={cn(level === 0 && "text-ink-3")}>{name}</span>
+      <span>{name}</span>
     </span>
   )
 }

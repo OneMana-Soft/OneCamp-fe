@@ -3,7 +3,7 @@
  * viewer's zone, and the calendar file a booked guest takes away. Pure.
  */
 import { browserTZ } from "@/lib/utils/timeZone"
-import { clockTime, dateTimeFormat } from "@/lib/utils/date/clock"
+import { clockTime, dateTimeFormat, wallClock } from "@/lib/utils/date/clock"
 
 export interface WorkingHours {
   days: number[] // 0 Sunday … 6 Saturday
@@ -19,10 +19,9 @@ export interface Slot {
 
 export const defaultHours = (tz: string = browserTZ()): WorkingHours => ({ days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", tz })
 
-/** "2026-10-06": the calendar day an instant falls on in a zone. */
+/** "2026-10-06": the calendar day an instant falls on in a zone; one this runtime can't read is the device's, as the clock falls back. */
 export function dayKey(iso: string | Date, tz: string): string {
-  // Kept by the one cache: the booking page asked for a new one per slot (CAL-BUG-20).
-  return dateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso))
+  return new Date(wallClock(new Date(iso), { timeZone: tz })).toISOString().slice(0, 10)
 }
 
 /** Slots by the day they fall on in the viewer's zone, in order. */

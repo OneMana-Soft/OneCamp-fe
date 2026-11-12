@@ -91,7 +91,7 @@ export function TaskStatusPriorityControl({
             <PopoverTrigger asChild>
               <button type="button" data-touch-target="" className={cn(propertyValue, "w-fit")} disabled={!isAdmin} aria-label={`Priority: ${selectedPriority?.label ?? "none"}. Change priority`}>
                 <span key={selectedPriority?.value ?? "none"} className={cn("inline-flex", changed.current && "[animation:work-glyph-in_220ms_var(--ease-spring)_both]")}>
-                  <TaskPriorityCell priority={selectedPriority?.value ?? ""} />
+                  <TaskPriorityCell priority={selectedPriority?.value ?? ""} className={cn(!selectedPriority?.value && "text-ink-3")} />
                 </span>
               </button>
             </PopoverTrigger>

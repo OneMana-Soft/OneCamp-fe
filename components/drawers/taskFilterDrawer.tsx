@@ -3,6 +3,8 @@
 import * as React from "react"
 import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
 import { taskViewScope } from "@/lib/tasks/views"
+import { insightsHref } from "@/lib/board/boardQuery"
+import { InsightsButton } from "@/components/task/insightsLink"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -251,9 +253,15 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                     a third of the sheet empty under the buttons, and on a short
                     phone its tabs ran down over them. */}
                 <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 w-full flex-1 flex-col">
-                    <DrawerHeader className="shrink-0 text-left">
-                        <DrawerTitle>Sort and filter</DrawerTitle>
-                        <DrawerDescription></DrawerDescription>
+                    <DrawerHeader className="flex shrink-0 flex-row items-start justify-between gap-2 text-left">
+                        <div className="min-w-0">
+                            <DrawerTitle>Sort and filter</DrawerTitle>
+                            <DrawerDescription></DrawerDescription>
+                        </div>
+                        {/* Insights (L32): My tasks' report, the reader's own work, narrowed to these filters. */}
+                        <span className="-mr-2 shrink-0">
+                            <InsightsButton href={insightsHref(undefined, taskFiltersAndSorts?.filters ?? [], "", "")} onClick={() => setOpenState(false)} />
+                        </span>
                     </DrawerHeader>
                     <div className="flex min-h-0 flex-1 flex-col">
                         <div className="grid min-h-0 flex-1 grid-cols-9 grid-rows-[minmax(0,1fr)] border-t border-b">

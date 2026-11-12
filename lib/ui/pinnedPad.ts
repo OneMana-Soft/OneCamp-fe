@@ -1,12 +1,5 @@
 import { useEffect, type RefObject } from "react"
-
-/** The scroll container a sticky element pins to: its nearest ancestor that scrolls (overflow auto or scroll). */
-function scrollerOf(el: HTMLElement): HTMLElement | null {
-  for (let p = el.parentElement; p; p = p.parentElement) {
-    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p
-  }
-  return null
-}
+import { scrollerOf } from "./scroller"
 
 /**
  * A bar pinned over the top of its page's scroller (position: sticky, top 0)
@@ -30,7 +23,7 @@ export function usePinnedPad(ref: RefObject<HTMLElement | null>): void {
     let padded: HTMLElement | null = null
     const pad = () => {
       if (getComputedStyle(el).position === "sticky") {
-        padded ??= scrollerOf(el)
+        padded ??= scrollerOf(el.parentElement)
         if (padded) padded.style.scrollPaddingTop = `${el.offsetHeight}px`
       } else if (padded) {
         padded.style.scrollPaddingTop = ""

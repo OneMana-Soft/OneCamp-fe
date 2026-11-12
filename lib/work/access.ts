@@ -39,7 +39,7 @@ export function accessHeldBack(taskUUID: string | undefined, t?: TaskLike | null
 }
 
 // A list's tasks don't carry their project's access: the page's project does.
-const accessFor = (t: TaskLike, p?: ProjectLike | null) => accessOf(t.task_project?.project_access || !p ? t.task_project : p)
+export const ruleProject = (t: TaskLike, p?: ProjectLike | null) => (t.task_project?.project_access || !p ? t.task_project : p)
 
 /**
  * Whether the reader may comment on t, and so react to its comments (the server asks NeedComment for both): the task's own answer when it carries
@@ -48,13 +48,13 @@ const accessFor = (t: TaskLike, p?: ProjectLike | null) => accessOf(t.task_proje
 export function canCommentTask(t?: TaskLike | null, p?: ProjectLike | null): boolean {
   if (!t) return false
   if (t.task_access) return t.task_access.comment
-  return accessFor(t, p).comment
+  return accessOf(ruleProject(t, p)).comment
 }
 
 /** Whether the reader (me) may change t. */
 export function canEditTask(t?: TaskLike | null, me?: string, p?: ProjectLike | null): boolean {
   if (!t) return false
   if (t.task_access) return t.task_access.edit
-  const e = accessFor(t, p).edit_tasks
+  const e = accessOf(ruleProject(t, p)).edit_tasks
   return e === "all" || (e === "assigned" && !!me && t.task_assignee?.user_uuid === me)
 }

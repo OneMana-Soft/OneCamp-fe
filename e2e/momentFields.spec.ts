@@ -1,7 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { SAM, expectEveryCallAnswered, expectHomeSettled, stubBackend } from "./stubbedApp"
+import { inScheme, SCHEMES } from "./screens"
 import { animationsSettled } from "./settled"
+import { expectPinWhole } from "./sheetFade"
+import { SAM, expectEveryCallAnswered, expectHomeSettled, reviewShot, stubBackend } from "./stubbedApp"
 
 // EVERY DAY AND TIME FROM THE SHARED PICKERS (21 Oct 2026). The owner, 18 Oct:
 // Pause's Custom was the browser's own date-time box, mm/dd/yyyy with a clock
@@ -81,7 +83,17 @@ for (const s of SCREENS) {
     // (a panel shrunk to the sheet scrolled it away with them).
     await fields.getByRole("button", { name: /^Time, / }).click()
     await expect(page.getByRole("listbox", { name: "Time" })).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByLabel("Type a time"), "the box to type a time").toBeInViewport()
+    const typed = page.getByLabel("Type a time")
+    await expect(typed, "the box to type a time").toBeInViewport()
+    if (s.touch) {
+      // Halfway down the hours: the box whole over them, the foot fading (e2e/sheetFade), light and dark. Shot
+      // upright: held sideways, Home's orbit beside the sheet never stops, and a shot waits for a still page.
+      for (const scheme of SCHEMES) {
+        await inScheme(page, scheme)
+        await expectPinWhole(page, typed, "top")
+        if (s.width < 640) await reviewShot(page, "sheet-pin-time", scheme)
+      }
+    }
     await page.keyboard.press("Escape")
     await expect(page.getByRole("listbox", { name: "Time" })).toHaveCount(0)
     await expect(pause).toBeEnabled()
@@ -161,7 +173,7 @@ for (const h of HOSTS) {
       await page.getByRole("button", { name: "Send later" }).click({ timeout: 30_000 })
       await page.getByRole("menuitem", { name: /Custom time/ }).click({ timeout: 30_000 })
     }
-    const fields = page.getByRole("group", { name: "Custom time" })
+    const fields = page.getByRole("group", { name: "Pick a date and time" })
     await fields.getByRole("button", { name: new RegExp(`^${h.half}, `) }).click({ timeout: 30_000 })
     // A phone's sheet of its own, titled; a computer's popover by the field.
     const picker = h.touch
@@ -194,7 +206,7 @@ test("Reschedule's popover, on a phone held sideways, stays on the screen", asyn
   await expect(page.getByText("Nearly, after lunch.").first()).toBeVisible({ timeout: 120_000 })
   await page.getByText(/1 message scheduled for/).first().click({ timeout: 60_000 })
   await page.getByRole("button", { name: "Reschedule" }).click({ timeout: 30_000 })
-  const popover = page.locator("[data-radix-popper-content-wrapper]").filter({ has: page.getByRole("group", { name: "Custom time" }) })
+  const popover = page.locator("[data-radix-popper-content-wrapper]").filter({ has: page.getByRole("group", { name: "Pick a date and time" }) })
   await expect(popover).toBeVisible({ timeout: 30_000 })
   await animationsSettled(popover, { subtree: true, timeout: 15_000 })
   const box = (await popover.locator("[data-overlay]").boundingBox())!

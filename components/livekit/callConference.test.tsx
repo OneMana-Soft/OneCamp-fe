@@ -31,7 +31,7 @@ const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 const setCallTranscription = vi.fn(() => Promise.resolve(undefined))
 const actInCall = vi.fn(() => Promise.resolve({ affected: 1 }))
-vi.mock("@/services/callService", () => ({ setCallTranscription: (...a: unknown[]) => setCallTranscription(...(a as [])), actInCall: (...a: unknown[]) => actInCall(...(a as [])) }))
+vi.mock("@/services/callControlService", () => ({ setCallTranscription: (...a: unknown[]) => setCallTranscription(...(a as [])), actInCall: (...a: unknown[]) => actInCall(...(a as [])) }))
 const persistTranscriptLine = vi.fn(() => Promise.resolve())
 vi.mock("@/services/transcriptService", () => ({ persistTranscriptLine: (...a: unknown[]) => persistTranscriptLine(...(a as [])), reportTranscriptionCapability: vi.fn(() => Promise.resolve()) }))
 vi.mock("@/lib/utils/streamFetch", () => ({ authedStreamFetch: vi.fn() }))
@@ -92,7 +92,8 @@ vi.mock("@livekit/components-react", () => ({
     return <div>{props.children}</div>
   },
   GridLayout: () => null,
-  RoomAudioRenderer: () => null,
+  // Where the call's sound plays: a companion has none (meet-04).
+  RoomAudioRenderer: () => <div data-room-audio="" />,
   LayoutContextProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useTracks: () => [],
   useLocalParticipant: () => ({ localParticipant: lp, isMicrophoneEnabled: true, isCameraEnabled: false, isScreenShareEnabled: false }),
@@ -395,11 +396,209 @@ describe("CALL-BUG-9: Record only where it works", () => {
     expect(screen.queryByRole("button", { name: "Record" })).toBeNull()
   })
 
+  // Record asks first (UX-CALLS-H1): the start is the confirm's, on purpose.
   it("says why a recording didn't start", async () => {
     const toggleRecording = vi.fn(() => Promise.reject(Object.assign(new Error("x"), { response: { status: 409, data: { msg: "A recording is already running." } } })))
     await act(async () => render(call({ isAdmin: true, toggleRecording })))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Record" })))
+    await act(async () => {
+      await (confirm.mock.calls[0][0] as { onConfirm: () => Promise<unknown> }).onConfirm()
+    })
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't start the recording", description: "A recording is already running." })))
+  })
+})
+
+describe("CALLS-07: a recording asks first and tells everyone (UX-CALLS-H1)", () => {
+  const recording = (by: string, egressID: string) => metadata({ isRecording: true, recordingStartedBy: by, egressID })
+  const notice = () => document.querySelector("[data-recording-notice]")
+
+  it("Record asks first, saying everyone is told and where the recording goes; Stop asks nothing", async () => {
+    const toggleRecording = vi.fn(() => Promise.resolve())
+    await act(async () => render(call({ isAdmin: true, toggleRecording, place: "in #launch" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Record" })))
+    expect(toggleRecording).not.toHaveBeenCalled()
+    const asked = confirm.mock.calls[0][0] as { title: string; description: string; confirmText: string; onConfirm: () => Promise<unknown> }
+    expect(asked).toMatchObject({ title: "Record this call?", confirmText: "Start recording" })
+    expect(asked.description).toBe("Everyone in it is told, and can leave. The recording goes to #launch's recordings, where its members can watch it.")
+    let started: unknown
+    await act(async () => {
+      started = asked.onConfirm()
+    })
+    // The recording comes on, as the server writes it, while the start is still answering: started here, so
+    // this screen gets no notice.
+    room.metadata = recording("Sam Rivera", "EG_mine")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await act(async () => {
+      await started
+    })
+    expect(toggleRecording).toHaveBeenCalledWith(false)
+    expect(document.querySelector("[data-recording-pill]")).toBeTruthy()
+    expect(notice(), "the person who started it isn't told they did").toBeNull()
+
+    confirm.mockClear()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Stop recording" })))
+    expect(confirm).not.toHaveBeenCalled()
+    expect(toggleRecording).toHaveBeenLastCalledWith(true)
+  })
+
+  it("everyone else is shown who started recording, with Got it and Leave call, once per recording", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    expect(notice()).toBeNull()
+    room.metadata = recording("Maya Chen", "EG_1")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()?.textContent).toContain("Maya Chen started recording")
+    expect(notice()?.textContent).toContain("Everything said and shown from now is recorded. Leave if you don't want to be in it.")
+    await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Got it" })))
+    expect(notice()).toBeNull()
+    // The same recording again (the room's metadata changes for something else): read already.
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_1", muteOnEntry: true })
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()).toBeNull()
+    // A new recording is news again, and Leave call leaves.
+    room.metadata = metadata({})
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    room.metadata = recording("Jonas Weber", "EG_2")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()?.textContent).toContain("Jonas Weber started recording")
+    await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Leave call" })))
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+  })
+
+  // The server writes a recording in two steps (initializers/livekitInit/connectLivekit.go): who started it first,
+  // its egress id seconds later, once the egress has started (CR-B66 F1, its probes P1 and P2).
+  const startedBy = (by: string) => metadata({ isRecording: true, recordingStartedBy: by })
+  const pill = () => document.querySelector("[data-recording-pill]")
+
+  it("Got it before the recording's id lands is Got it for that recording: nobody is told twice", async () => {
+    await act(async () => render(call({})))
+    room.metadata = startedBy("Maya Chen")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()?.textContent).toContain("Maya Chen started recording")
+    await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Got it" })))
+    expect(notice()).toBeNull()
+    room.metadata = recording("Maya Chen", "EG_1")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice(), "told twice about one recording").toBeNull()
+    // And a new recording after it is news again.
+    room.metadata = metadata({})
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    room.metadata = startedBy("Jonas Weber")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()?.textContent).toContain("Jonas Weber started recording")
+  })
+
+  it("a recording that ends before its id lands leaves the next one news", async () => {
+    await act(async () => render(call({})))
+    room.metadata = startedBy("Maya Chen")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Got it" })))
+    room.metadata = metadata({})
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    room.metadata = startedBy("Jonas Weber")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()?.textContent, "a second recording, id-less like the first, read as the first").toContain("Jonas Weber started recording")
+  })
+
+  it("its starter, whose start answers before the id lands, isn't told they started it, and their pill says it was them", async () => {
+    const toggleRecording = vi.fn(() => Promise.resolve())
+    await act(async () => render(call({ isAdmin: true, toggleRecording, place: "in #launch" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Record" })))
+    const asked = confirm.mock.calls[0][0] as { onConfirm: () => Promise<unknown> }
+    let started: unknown
+    await act(async () => {
+      started = asked.onConfirm()
+    })
+    room.metadata = startedBy("Sam Rivera")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await act(async () => {
+      await started
+    })
+    room.metadata = recording("Sam Rivera", "EG_mine")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice(), "the starter told they started it").toBeNull()
+    // Said to its starter as Meet and Teams say it, in the words shown and the words read out alike.
+    expect(pill()?.textContent).toContain("Recording · started by you")
+    expect(pill()?.textContent).not.toContain("Sam Rivera")
+  })
+
+  // CR-B68 T1 (its survivors M17, M14 and M16): a refused start takes back the mark it put down; what was read
+  // before the id landed is carried to that id, so a recording that follows it with no off between is news; and
+  // the notice read before the id landed is never drawn again, not even for the render where the id lands.
+  it("a refused start takes back its mark: someone else's recording after it is news, and their pill doesn't say you", async () => {
+    const toggleRecording = vi.fn(() => Promise.reject(Object.assign(new Error("x"), { response: { status: 409, data: { msg: "A recording is already running." } } })))
+    await act(async () => render(call({ isAdmin: true, toggleRecording, place: "in #launch" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Record" })))
+    let started: unknown
+    await act(async () => {
+      started = await (confirm.mock.calls[0][0] as { onConfirm: () => Promise<unknown> }).onConfirm()
+    })
+    // Refused (CALL-BUG-9 says why; the same words just said by the test above aren't said twice).
+    expect(toggleRecording).toHaveBeenCalledWith(false)
+    expect(started).toBe(false)
+    room.metadata = startedBy("Maya Chen")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()?.textContent, "someone else's recording read as this screen's own start").toContain("Maya Chen started recording")
+    expect(pill()?.textContent).toContain("started by Maya Chen")
+    expect(pill()?.textContent).not.toContain("by you")
+  })
+
+  it("Got it before the id lands carries to the id, so a recording right after it, with no off between, is news", async () => {
+    await act(async () => render(call({})))
+    room.metadata = startedBy("Maya Chen")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Got it" })))
+    room.metadata = recording("Maya Chen", "EG_1")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(notice()).toBeNull()
+    // Maya's recording ends and Jonas starts one in one batch: this screen never draws the call unrecorded.
+    await act(async () => {
+      room.metadata = metadata({})
+      room.emit("roomMetadataChanged", room.metadata)
+      room.metadata = startedBy("Jonas Weber")
+      room.emit("roomMetadataChanged", room.metadata)
+    })
+    expect(notice()?.textContent, "the next recording read as the one before it").toContain("Jonas Weber started recording")
+  })
+
+  it("Got it before the id lands keeps the notice shut as the id lands: it isn't drawn again, even for one render", async () => {
+    await act(async () => render(call({})))
+    room.metadata = startedBy("Maya Chen")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Got it" })))
+    const drawn: Element[] = []
+    const see = (records: MutationRecord[]) => {
+      for (const r of records) {
+        for (const n of Array.from(r.addedNodes)) {
+          if (n instanceof Element && (n.matches("[data-recording-notice]") || n.querySelector("[data-recording-notice]"))) drawn.push(n)
+        }
+      }
+    }
+    const watch = new MutationObserver(see)
+    watch.observe(document.body, { childList: true, subtree: true })
+    room.metadata = recording("Maya Chen", "EG_1")
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    see(watch.takeRecords())
+    watch.disconnect()
+    expect(drawn, "the notice drawn again as the id landed").toEqual([])
+    expect(notice()).toBeNull()
+  })
+
+  it("the pill's dot lands once, through the save dot's class (the global reduced-motion rule stills it)", async () => {
+    room.metadata = recording("Maya Chen", "EG_1")
+    await act(async () => render(call({})))
+    const dot = pill()?.querySelector("[aria-hidden='true']")
+    expect(dot?.className).toContain("content-save-land")
+    expect(dot?.className).toContain("bg-destructive")
+  })
+
+  it("every call notice answers Esc as Got it: the captions notice as the recording's", async () => {
+    room.metadata = metadata({ transcription: { on: true, by: "Maya Chen", since: 1, where: "server", kept: false } })
+    await act(async () => render(call({})))
+    const captions = () => document.querySelector("[data-captions-notice]")
+    expect(captions()).toBeTruthy()
+    await act(async () => fireEvent.keyDown(captions() as HTMLElement, { key: "Escape" }))
+    expect(captions(), "Esc puts the captions notice away").toBeNull()
   })
 })
 
@@ -847,5 +1046,101 @@ describe("V-385: a call's stage keeps news nobody asked for off it", () => {
     expect(stage()!.hasAttribute("data-work-surface"), "on its own page").toBe(true)
     await act(async () => view.rerender(call({ embedded: true })))
     expect(stage()!.hasAttribute("data-work-surface"), "in a side pane").toBe(false)
+  })
+})
+
+// A companion (meet-04): another device of someone in the call, for the chat,
+// the hands and the reactions, or to present a screen. The server draws its
+// identity and its grant leaves out the microphone and the camera; the call
+// offers neither and plays no sound, so the two devices never echo.
+describe("a companion's call", () => {
+  const companionToken = `x.${Buffer.from(JSON.stringify({ sub: "0x1a2b~c~0123456789ab", name: "Maya Chen" })).toString("base64url")}.y`
+  const screenStream = () => {
+    const video = { kind: "video", readyState: "live", stop: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn() }
+    return { video, stream: { getTracks: () => [video], getVideoTracks: () => [video], getAudioTracks: () => [] } as unknown as MediaStream }
+  }
+
+  it("renders no audio, has no microphone or camera controls, and never runs a recogniser", async () => {
+    await act(async () => render(call({ token: companionToken, audio: false, video: false })))
+    expect(document.querySelector("[data-room-audio]")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Mute" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /Turn camera/ })).toBeNull()
+    expect(FakeRecognition.made).toHaveLength(0)
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+    expect(lp.setCameraEnabled).not.toHaveBeenCalled()
+  })
+
+  it("a person's own call still plays the call's sound and offers the microphone", async () => {
+    await act(async () => render(call()))
+    expect(document.querySelector("[data-room-audio]")).not.toBeNull()
+    expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy()
+  })
+
+  it("DUPLICATE_IDENTITY ends on the moved screen, never as a plain leave", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    await act(async () => (liveKitProps.onConnected as () => void)())
+    await act(async () => (liveKitProps.onDisconnected as (r: DisconnectReason) => void)(DisconnectReason.DUPLICATE_IDENTITY))
+    expect(onDisconnect).toHaveBeenLastCalledWith({ moved: true })
+  })
+
+  it("present-only publishes the screen it was handed, and nothing else", async () => {
+    const { video, stream } = screenStream()
+    await act(async () => render(call({ token: companionToken, audio: false, video: false, screen: stream })))
+    await waitFor(() => expect(lp.publishTrack).toHaveBeenCalledWith(video, expect.objectContaining({ source: Track.Source.ScreenShare })))
+    expect(lp.publishTrack).toHaveBeenCalledTimes(1)
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+  })
+
+  it("present-only through a share hold says why and leaves, never a silent failure", async () => {
+    lp.permissions = { canPublish: true, canPublishSources: [] }
+    lp.permissions.canPublishSources = [Track.sourceToProto(Track.Source.ScreenShareAudio)]
+    const onDisconnect = vi.fn()
+    const { video, stream } = screenStream()
+    await act(async () => render(call({ token: companionToken, audio: false, video: false, screen: stream, onDisconnect })))
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledWith({ removed: { reason: "share_held" } }))
+    expect(lp.publishTrack).not.toHaveBeenCalled()
+    expect(video.stop).toHaveBeenCalled()
+  })
+
+  it("a share hold put on while present-only shares says why, not a plain leave (CR-262 P1)", async () => {
+    lp.permissions = { canPublish: true, canPublishSources: [] }
+    const onDisconnect = vi.fn()
+    const { stream } = screenStream()
+    await act(async () => render(call({ token: companionToken, audio: false, video: false, screen: stream, onDisconnect })))
+    await waitFor(() => expect(lp.publishTrack).toHaveBeenCalled())
+    lp.permissions = { canPublish: true, canPublishSources: [Track.sourceToProto(Track.Source.ScreenShareAudio)] }
+    await act(async () => {
+      room.emit("participantPermissionsChanged", undefined, lp)
+      room.emit("localTrackUnpublished", { source: Track.Source.ScreenShare }, lp)
+    })
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalled())
+    expect(onDisconnect).toHaveBeenLastCalledWith({ removed: { reason: "share_held" } })
+  })
+
+  it("a share hold whose word comes just after the share was taken down still says why", async () => {
+    lp.permissions = { canPublish: true, canPublishSources: [] }
+    const onDisconnect = vi.fn()
+    const { stream } = screenStream()
+    await act(async () => render(call({ token: companionToken, audio: false, video: false, screen: stream, onDisconnect })))
+    await waitFor(() => expect(lp.publishTrack).toHaveBeenCalled())
+    await act(async () => room.emit("localTrackUnpublished", { source: Track.Source.ScreenShare }, lp))
+    expect(onDisconnect, "no plain leave before the server's word").not.toHaveBeenCalled()
+    lp.permissions = { canPublish: true, canPublishSources: [Track.sourceToProto(Track.Source.ScreenShareAudio)] }
+    await act(async () => room.emit("participantPermissionsChanged", undefined, lp))
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    expect(onDisconnect).toHaveBeenLastCalledWith({ removed: { reason: "share_held" } })
+  })
+
+  it("present-only's own stop is a plain leave", async () => {
+    lp.permissions = { canPublish: true, canPublishSources: [] }
+    const onDisconnect = vi.fn()
+    const { stream } = screenStream()
+    await act(async () => render(call({ token: companionToken, audio: false, video: false, screen: stream, onDisconnect })))
+    await waitFor(() => expect(lp.publishTrack).toHaveBeenCalled())
+    await act(async () => room.emit("localTrackUnpublished", { source: Track.Source.ScreenShare }, lp))
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalled(), { timeout: 3000 })
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    expect(onDisconnect.mock.lastCall?.[0], "no reason: a plain leave").toBeUndefined()
   })
 })

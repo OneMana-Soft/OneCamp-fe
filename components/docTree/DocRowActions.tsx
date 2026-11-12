@@ -17,6 +17,7 @@
 // that comes first keeps "⋯" as it is until the code lands, then opens it.
 
 import * as React from "react"
+import { useLatch } from "@/hooks/useLatch"
 
 import type { DocRowMenuProps, RowActs } from "@/components/docTree/DocRowMenu"
 import { useMakingDoc } from "@/components/doc/useCreateDoc"
@@ -80,10 +81,7 @@ export const DocRowActions = React.memo(function DocRowActions({ row, ctx }: { r
   const menuOpen = useTreeSelect(store, (s) => s.menuFor === row.id)
   const making = useMakingDoc()
   // Once asked for, the menu stays: its trigger keeps focus's way back.
-  const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => {
-    if (menuOpen) setMounted(true)
-  }, [menuOpen])
+  const mounted = useLatch(menuOpen)
 
   const canEdit = row.canEdit !== false
   const title = row.title || "Untitled"
@@ -127,7 +125,7 @@ export const DocRowActions = React.memo(function DocRowActions({ row, ctx }: { r
           {making === `tree:${row.id}` ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
         </button>
       )}
-      {mounted || menuOpen ? (
+      {mounted ? (
         <rowMenu.Part doc={doc} canEdit={canEdit} node={node} act={act} onAddInside={addInside} open={menuOpen} onOpenChange={setOpen} />
       ) : (
         moreButton(title, ask)

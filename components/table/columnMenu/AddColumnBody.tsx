@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { PopoverContent } from "@/components/ui/popoverOnDemand"
 import { OverlayBody, OverlayFooter, OverlayHeader } from "@/components/ui/overlay"
+import { fieldInSightRef } from "@/lib/ui/fieldInSight"
 import type { FieldType, TableField } from "@/services/tableService"
 import { FormulaEditor } from "@/components/table/FormulaEditor"
 import { RelationSettings, RollupSettings, relationDraftOf, relationReady, rollupConfigOf, rollupReady, type RelationDraft, type RollupDraft } from "@/components/table/LinkSettings"
@@ -100,18 +101,21 @@ export function AddColumnBody({
             <SubHeader title={fieldKind(step).label} onBack={() => setStep(null)} />
           </OverlayHeader>
           {/* The settings scroll; Add column stays in view under them. */}
-          <OverlayBody className="space-y-2">
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Column name"
-              aria-label="Column name"
-              className="h-8 w-full rounded-lg bg-raised px-2.5 text-ui text-ink shadow-e1 outline-none focus:focus-halo"
-            />
-            {step === "formula" && <FormulaEditor tableId={tableId} fields={fields} value={formula} onChange={setFormula} />}
-            {step === "relation" && <RelationSettings tableId={tableId} draft={relation} onChange={setRelation} />}
-            {step === "rollup" && <RollupSettings fields={fields} draft={rollup} onChange={setRollup} />}
+          <OverlayBody>
+            {/* On a phone the menu is a sheet on the keyboard: the name and a formula typed in stay in sight above it. */}
+            <div ref={fieldInSightRef} className="space-y-2">
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Column name"
+                aria-label="Column name"
+                className="h-8 w-full rounded-lg bg-raised px-2.5 text-ui text-ink shadow-e1 outline-none focus:focus-halo"
+              />
+              {step === "formula" && <FormulaEditor tableId={tableId} fields={fields} value={formula} onChange={setFormula} />}
+              {step === "relation" && <RelationSettings tableId={tableId} draft={relation} onChange={setRelation} />}
+              {step === "rollup" && <RollupSettings fields={fields} draft={rollup} onChange={setRollup} />}
+            </div>
           </OverlayBody>
           <OverlayFooter className="flex justify-end gap-1.5 pt-2">
             <Button type="button" size="sm" variant="ghost" onClick={onClose}>

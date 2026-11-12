@@ -5,7 +5,7 @@ import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState 
 import { useDispatch } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
 import { AdminGet } from "@/services/endpoints/admin"
 import { UserListResponseInterface, UserActivateOrDeactivateInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
@@ -18,11 +18,13 @@ import { AdminUserList, RestLine, memberColumns, type MemberRow } from "./AdminU
 import { UserPlus } from "@/lib/icons"
 import { ErrorState } from "@/components/ui/error-state"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
-import { PeopleAction, PeopleFab, PeopleFirstRun, PeopleFrame, PeopleNoMatch, SeatMeter, peopleCount, quoted } from "./PeopleFrame"
+import { PeopleAction, PeopleFab, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
+import { SeatMeter } from "./plan/SeatMeter"
+import { LimitNote } from "./plan/LimitNote"
+import { seatNoteDue } from "@/lib/people/seatWords"
+import { usePlan } from "@/hooks/usePlan"
 import type { AdminListResponseInterface } from "@/types/user"
 
-import { seatSummary } from "@/lib/utils/seatSummary"
-import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 
 type Show = "all" | "active" | "deactivated"
@@ -53,9 +55,7 @@ const UserCard = () => {
   const dispatch = useDispatch()
 
   // Seats on a free licence; limit 0 (every paid licence) shows nothing.
-  const seatUsage = useFetch<{ data: { used: number; limit: number; upgrade_url?: string } }>(GetEndpointUrl.AdminSeats)
-  const upgradeUrl = seatUsage.data?.data?.upgrade_url
-  const seats = seatUsage.data?.data ? seatSummary(seatUsage.data.data.used, seatUsage.data.data.limit) : null
+  const plan = usePlan()
 
   // Who is an admin, so the Role column can say so and Make admin is offered
   // only to those who are not. The admin list is short; one page of 500.
@@ -137,7 +137,7 @@ const UserCard = () => {
         failureTitle: `Couldn't deactivate ${nameFor(email)}`,
       })
       .catch(() => setAllUsers(previous))
-      .finally(() => void seatUsage.mutate())
+      .finally(() => void plan.mutate())
   }
 
   const handleActivate = useStableCallback((email: string, userId: string) => {
@@ -157,7 +157,7 @@ const UserCard = () => {
         failureTitle: `Couldn't reactivate ${nameFor(email)}`,
       })
       .catch(() => setAllUsers(previous))
-      .finally(() => void seatUsage.mutate())
+      .finally(() => void plan.mutate())
   })
 
   /**
@@ -295,24 +295,11 @@ const UserCard = () => {
     }
   }
 
-  // The plan's seats: the meter on the toolbar while there is room; once the
-  // plan is full, a line before the rows too, since that is what an admin
-  // needs to know before inviting anyone.
-  const seatData = seatUsage.data?.data
-  const fullLine =
-    seats && seats.tone === "full" ? (
-      <p role="status" className="text-sm text-danger-ink">
-        {seats.text}{" "}
-        {upgradeUrl && (
-          <>
-            <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              Remove the limit
-            </a>
-            <span className="mt-1 block text-xs text-muted-foreground">{UPGRADE_STEPS}</span>
-          </>
-        )}
-      </p>
-    ) : null
+  // The plan's seats: the meter on the toolbar, or from 80% the limit note
+  // above the rows instead, as an admin needs it before inviting (DB-134 F1).
+  const limitNote = seatNoteDue(plan.used, plan.limit) ? (
+    <LimitNote.Part asAdmin variant="card" used={plan.used} limit={plan.limit} links={plan.links} />
+  ) : null
 
   return (
     <PeopleFrame
@@ -333,7 +320,7 @@ const UserCard = () => {
         inputRef: searchRef,
       }}
       filter={<SegmentedControl aria-label="Show members" value={show} onValueChange={setShow} options={SHOW} />}
-      meter={seatData && seatData.limit > 0 ? <SeatMeter used={seatData.used} limit={seatData.limit} upgradeUrl={upgradeUrl} /> : undefined}
+      meter={plan.limit > 0 && !limitNote ? <SeatMeter used={plan.used} limit={plan.limit} href={plan.upgradeUrl} /> : undefined}
       // The tab's one primary action, with its key. Members had none: adding
       // people meant knowing to go to Invitations.
       action={
@@ -342,7 +329,7 @@ const UserCard = () => {
         </PeopleAction>
       }
       fab={<PeopleFab icon={UserPlus} label="Invite people" onClick={openInvite} />}
-      notice={fullLine ?? undefined}
+      notice={limitNote ?? undefined}
       columns={["Role", ...(columns.twoFactor ? ["Two-factor"] : []), ...(columns.lastActive ? ["Last active"] : [])]}
       cols={["120px", ...(columns.twoFactor ? ["100px"] : []), ...(columns.lastActive ? ["88px"] : [])].join(" ")}
       loading={initialLoading}

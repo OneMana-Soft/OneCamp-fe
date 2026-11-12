@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { callLength, elapsed } from "./callCard"
+import { elapsed } from "./callCard"
+import { callLength } from "@/lib/calls/callLength"
 import { pinTestClock } from "@/lib/testing/testClock"
 
 pinTestClock(new Date("2026-11-05T09:30:00Z"))

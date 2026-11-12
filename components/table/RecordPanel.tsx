@@ -3,7 +3,7 @@
 import * as React from "react"
 import "./table.css"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp, Link2, Loader2, Maximize2, MessageSquare, Minimize2, Trash2, X } from "@/lib/icons"
+import { ChevronDown, ChevronUp, Link2, Loader2, Maximize2, MessageSquare, Minimize2, MoreHorizontal, Trash2, X } from "@/lib/icons"
 import dynamic from "next/dynamic"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { tablePath } from "@/lib/tables/route"
@@ -33,6 +33,10 @@ import { ix } from "@/lib/ui/interactive"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useToast } from "@/hooks/use-toast"
 import { useRecordAsPage } from "@/components/table/rowPage/recordWidth"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useSheetMode } from "@/components/ui/overlayMode"
+import { fieldInSightRef } from "@/lib/ui/fieldInSight"
 
 // A row's comments are a chunk of their own: the editor and the thread cards
 // load when a record opens, never with the grid. So is its page (T2), whose
@@ -85,12 +89,18 @@ function AiCellNote({ tableId, field, row, onFilled }: { tableId: string; field:
   )
 }
 
+/** Whether a key comes from a field being typed in, which keeps J, K and Escape. */
+const typingIn = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+
 /**
  * A row opened as a record (content.md T15): a panel at the right, 480 px on
  * the sheet with e3, the primary field as its title and every other field as
  * a label-and-value line, each value the same editor the grid uses and saved
  * through the same path (useCellCommit). J and K (or the arrows in its header)
- * step through the rows the view shows; Escape closes it.
+ * step through the rows the view shows; Escape closes it. On a phone
+ * (useSheetMode) it is the shared sheet (components/ui/drawer, TABLES-BOARDS-25):
+ * the grabber, a swipe down or the scrim closes it; its head steps and closes,
+ * Copy link and Delete are in its More menu, and Comment is pinned in its foot.
  */
 export function RecordPanel({
   tableId,
@@ -165,6 +175,13 @@ export function RecordPanel({
   const { copy } = useCopyToClipboard()
   // A record opens beside the grid, or as a page across the window (T2).
   const [asPage, setAsPage] = useRecordAsPage()
+  // A phone's sheet, or the panel beside the grid (the one sheet rule, components/ui/overlayMode).
+  const sheet = useSheetMode()
+  // Each press of the sheet's Comment, with the row it was made on: that row's comments bring their box up for the
+  // whole row, at their mount too (a press before their chunk came in). A press goes as the record leaves its row, in
+  // render: the next row's comments mount in that same commit, before any effect here could let it go.
+  const [press, setPress] = React.useState({ rowId, n: 0 })
+  if (press.n && press.rowId !== rowId) setPress({ rowId, n: 0 })
   React.useEffect(() => {
     setCommentOn(null)
     setCellCounts({})
@@ -179,7 +196,6 @@ export function RecordPanel({
   )
 
   React.useEffect(() => {
-    const typingIn = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
     const onKey = (e: KeyboardEvent) => {
       if (!typingIn(e.target) && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "j" || e.key === "k")) {
         e.preventDefault()
@@ -187,16 +203,24 @@ export function RecordPanel({
       }
     }
     window.addEventListener("keydown", onKey)
-    // Esc closes it, after a picker open in it; not from a field.
-    const stopEscape = onEscape("panel", (e) => (typingIn(e.target) ? false : onClose()))
+    // Esc closes it, after a picker open in it; not from a field. On a phone the sheet's own Escape does (Radix).
+    const stopEscape = sheet ? undefined : onEscape("panel", (e) => (typingIn(e.target) ? false : onClose()))
     return () => {
       window.removeEventListener("keydown", onKey)
-      stopEscape()
+      stopEscape?.()
     }
-  }, [onClose, step])
+  }, [onClose, step, sheet])
 
   React.useEffect(() => {
     panelRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  // A row's body in the sheet (each row's is new, key={row.id}; the sheet's body stays): a row stepped to opens at
+  // its top, as beside the grid, where the row's body is the scroller; and the field typed in stays in sight.
+  const sheetRowRef = React.useCallback((el: HTMLDivElement | null) => {
+    const body = el?.closest<HTMLElement>("[data-sheet-body]")
+    if (body) body.scrollTop = 0
+    return fieldInSightRef(el)
   }, [])
 
   if (!row) return null
@@ -226,31 +250,153 @@ export function RecordPanel({
       },
     })
 
+  const label = title ? `${title}, a row of ${tableName}` : `A row of ${tableName}`
+  const where = place >= 0 ? `${tableName} · ${formatLocale(place + 1, {})} of ${formatLocale(of, {})}` : tableName
+  const copyLink = () => void copy(`${window.location.origin}${tablePath(tableId, { row: row.id })}`, "A link to this row is on your clipboard.")
+  const steps = (
+    <>
+      <Button variant="ghost" size="icon-sm" aria-label="Previous row (K)" disabled={!stepTo(-1)} onClick={() => step(-1)}>
+        <ChevronUp className="size-4" />
+      </Button>
+      <Button variant="ghost" size="icon-sm" aria-label="Next row (J)" disabled={!stepTo(1)} onClick={() => step(1)}>
+        <ChevronDown className="size-4" />
+      </Button>
+    </>
+  )
+  const close = (
+    <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
+      <X className="size-4" />
+    </Button>
+  )
+  const body = (
+    // On a phone, the field being typed in stays in sight over the keyboard (the phone pair).
+    <div key={row.id} ref={sheet ? sheetRowRef : undefined} className={cn("table-sub-in", sheet ? "px-4 pb-6 pt-1" : "min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-2")}>
+      <div className={cn(asPage && "mx-auto w-full max-w-[760px]")}>
+      {primary ? (
+        <PanelTitle
+          key={`${row.id}:${title}`}
+          label={primary.name}
+          value={title}
+          readOnly={readOnly || primary.type === "formula" || primary.type === "rollup"}
+          onCommit={(v) => void commit.commitCell(row, primary.id, v)}
+        />
+      ) : null}
+      <dl className="space-y-0.5">
+        {rest.map((f) => {
+          const Glyph = fieldKind(f.type).glyph
+          return (
+            <div key={f.id} className="grid min-h-9 grid-cols-[148px_minmax(0,1fr)] items-start gap-2 max-sm:grid-cols-1 max-sm:gap-0.5">
+              <dt className="group/field flex h-9 items-center gap-1.5 text-ui-sm text-ink-3">
+                <Glyph className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{f.name}</span>
+                <CellCommentButton field={f} count={cellCounts[f.id] ?? 0} onClick={() => setCommentOn(f.id)} />
+              </dt>
+              <dd className="-mx-3 flex min-h-9 items-stretch rounded-lg transition-colors hover:bg-hover focus-within:bg-raised focus-within:shadow-e1 [&>*]:min-h-9 [&>*]:w-full">
+                <Cell
+                  field={f}
+                  value={values[f.id]}
+                  cellId={`panel:${f.id}`}
+                  readOnly={readOnly}
+                  ctx={ctx}
+                  onCommit={(v) => commit.commitCell(row, f.id, v)}
+                  onLink={(change) => void commit.linkCell(row.id, f.id, change)}
+                />
+              </dd>
+              {f.description?.trim() ? (
+                // What the field is for, under its value: a dt may have several dds.
+                <dd className="col-start-2 -mt-0.5 whitespace-pre-wrap break-words pb-1 text-meta text-ink-3 max-sm:col-start-1" data-field-description="">
+                  {f.description.trim()}
+                </dd>
+              ) : null}
+              {aiPromptOf(parseFieldConfig(f)) ? <AiCellNote tableId={tableId} field={f} row={row} onFilled={onChange} /> : null}
+            </div>
+          )
+        })}
+      </dl>
+      <RowPage tableId={tableId} rowId={row.id} page={row.page} />
+      <RowComments
+        rowId={row.id}
+        fields={fields}
+        target={commentOn}
+        onTargetDone={() => setCommentOn(null)}
+        focusThread={focusThread}
+        onCellCounts={setCellCounts}
+        compose={press.n}
+      />
+      <p className="mt-6 text-meta text-ink-3">
+        {row.updated_at ? `Edited ${relativeTime(row.updated_at)}` : null}
+        {row.created_at ? ` · Added ${relativeTime(row.created_at)}` : null}
+      </p>
+      <RowHistory tableId={tableId} rowId={row.id} fields={fields} />
+      </div>
+    </div>
+  )
+
+  if (sheet) {
+    return (
+      // Tall, but the page behind stays put: scaling a table's whole grid back and forth on every record
+      // opened and closed cost each step a repaint, and moved the rows under the next tap as it settled.
+      <Drawer open onOpenChange={(open) => !open && onClose()} detent="large" shouldScaleBackground={false}>
+        <DrawerContent
+          data-record-panel=""
+          aria-describedby={undefined}
+          // Escape from a field it is typed in stays the field's, as beside the grid.
+          onEscapeKeyDown={(e) => typingIn(e.target) && e.preventDefault()}
+          header={
+            <div className="flex w-full items-center gap-1" data-touch-group="">
+              <DrawerTitle className="sr-only">{label}</DrawerTitle>
+              {steps}
+              <span className="min-w-0 flex-1 truncate text-center text-ui-sm text-ink-3">{where}</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="More for this row">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={copyLink}>
+                    <Link2 /> Copy a link to this row
+                  </DropdownMenuItem>
+                  {canManage ? (
+                    <DropdownMenuItem variant="destructive" onSelect={remove}>
+                      <Trash2 /> Delete this row
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {close}
+            </div>
+          }
+          footer={
+            <Button size="lg" className="w-full gap-2" onClick={() => { setCommentOn(null); setPress((p) => ({ rowId, n: p.n + 1 })) }}>
+              <MessageSquare className="size-4" aria-hidden="true" /> Comment
+            </Button>
+          }
+        >
+          {body}
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
     <aside
       ref={panelRef}
       tabIndex={-1}
       role="dialog"
       data-escape-own=""
-      aria-label={title ? `${title}, a row of ${tableName}` : `A row of ${tableName}`}
+      aria-label={label}
       data-record-panel=""
       data-record-as-page={asPage ? "" : undefined}
       className={cn(
-        "content-float fixed inset-y-2 right-2 z-[var(--z-popover)] flex flex-col overflow-hidden rounded-[16px] bg-sheet shadow-e3 outline-none [--float-from-y:0px] max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:h-[88dvh] max-sm:w-full max-sm:rounded-b-none max-sm:shadow-sheet",
+        "content-float fixed inset-y-2 right-2 z-[var(--z-popover)] flex flex-col overflow-hidden rounded-[16px] bg-sheet shadow-e3 outline-none [--float-from-y:0px]",
         asPage ? "left-2 sm:w-auto" : "w-[min(480px,calc(100vw-16px))]",
       )}
     >
       <header className="flex h-12 shrink-0 items-center gap-1 px-3" data-touch-group="">
         <TableGlyph id={tableId} size="sm" />
-        <span className="ml-1.5 min-w-0 flex-1 truncate text-ui-sm text-ink-3">
-          {place >= 0 ? `${tableName} · ${formatLocale(place + 1, {})} of ${formatLocale(of, {})}` : tableName}
-        </span>
-        <Button variant="ghost" size="icon-sm" aria-label="Previous row (K)" disabled={!stepTo(-1)} onClick={() => step(-1)}>
-          <ChevronUp className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Next row (J)" disabled={!stepTo(1)} onClick={() => step(1)}>
-          <ChevronDown className="size-4" />
-        </Button>
+        <span className="ml-1.5 min-w-0 flex-1 truncate text-ui-sm text-ink-3">{where}</span>
+        {steps}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -265,7 +411,7 @@ export function RecordPanel({
           variant="ghost"
           size="icon-sm"
           aria-label="Copy a link to this row"
-          onClick={() => void copy(`${window.location.origin}${tablePath(tableId, { row: row.id })}`, "A link to this row is on your clipboard.")}
+          onClick={copyLink}
         >
           <Link2 className="size-4" />
         </Button>
@@ -274,69 +420,9 @@ export function RecordPanel({
             <Trash2 className="size-4" />
           </Button>
         ) : null}
-        <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
+        {close}
       </header>
-      <div key={row.id} className="table-sub-in min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-2">
-        <div className={cn(asPage && "mx-auto w-full max-w-[760px]")}>
-        {primary ? (
-          <PanelTitle
-            key={`${row.id}:${title}`}
-            label={primary.name}
-            value={title}
-            readOnly={readOnly || primary.type === "formula" || primary.type === "rollup"}
-            onCommit={(v) => void commit.commitCell(row, primary.id, v)}
-          />
-        ) : null}
-        <dl className="space-y-0.5">
-          {rest.map((f) => {
-            const Glyph = fieldKind(f.type).glyph
-            return (
-              <div key={f.id} className="grid min-h-9 grid-cols-[148px_minmax(0,1fr)] items-start gap-2 max-sm:grid-cols-1 max-sm:gap-0.5">
-                <dt className="group/field flex h-9 items-center gap-1.5 text-ui-sm text-ink-3">
-                  <Glyph className="size-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">{f.name}</span>
-                  <CellCommentButton field={f} count={cellCounts[f.id] ?? 0} onClick={() => setCommentOn(f.id)} />
-                </dt>
-                <dd className="-mx-3 flex min-h-9 items-stretch rounded-lg transition-colors hover:bg-hover focus-within:bg-raised focus-within:shadow-e1 [&>*]:min-h-9 [&>*]:w-full">
-                  <Cell
-                    field={f}
-                    value={values[f.id]}
-                    cellId={`panel:${f.id}`}
-                    readOnly={readOnly}
-                    ctx={ctx}
-                    onCommit={(v) => commit.commitCell(row, f.id, v)}
-                    onLink={(change) => void commit.linkCell(row.id, f.id, change)}
-                  />
-                </dd>
-                {f.description?.trim() ? (
-                  // What the field is for, under its value: a dt may have several dds.
-                  <dd className="col-start-2 -mt-0.5 whitespace-pre-wrap break-words pb-1 text-meta text-ink-3 max-sm:col-start-1" data-field-description="">
-                    {f.description.trim()}
-                  </dd>
-                ) : null}
-                {aiPromptOf(parseFieldConfig(f)) ? <AiCellNote tableId={tableId} field={f} row={row} onFilled={onChange} /> : null}
-              </div>
-            )
-          })}
-        </dl>
-        <RowPage tableId={tableId} rowId={row.id} page={row.page} />
-        <RowComments
-          rowId={row.id}
-          fields={fields}
-          target={commentOn}
-          onTargetDone={() => setCommentOn(null)}
-          focusThread={focusThread}
-          onCellCounts={setCellCounts}
-        />
-        <p className="mt-6 text-meta text-ink-3">
-          {row.updated_at ? `Edited ${relativeTime(row.updated_at)}` : null}
-          {row.created_at ? ` · Added ${relativeTime(row.created_at)}` : null}
-        </p>
-        <RowHistory tableId={tableId} rowId={row.id} fields={fields} />
-        </div>
-      </div>
+      {body}
     </aside>
   )
 }

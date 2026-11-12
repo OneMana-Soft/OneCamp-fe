@@ -98,12 +98,26 @@ describe("TaskFieldsSection", () => {
   })
 
   it("offers an admin a first field, and nobody else an empty section", async () => {
+    canManage = false
     const { unmount } = render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit={false} members={[]} />)
     expect(screen.queryByText("Fields")).toBeNull()
     unmount()
+    canManage = true
     render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit members={[]} />)
     fireEvent.click(screen.getByRole("button", { name: /Add a field/ }))
     expect(await screen.findByText("Fields dialog")).toBeTruthy()
+  })
+
+  it("offers the fields dialog only to those the server lets manage fields, not to all who may change the task", () => {
+    // The fields read's can_edit is the server's NeedManage, as on every field write; canEdit is the task's.
+    canManage = false
+    const { unmount } = render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit members={[]} />)
+    expect(screen.queryByRole("button", { name: /Add a field|Edit fields/ })).toBeNull()
+    unmount()
+    fields = [channel]
+    render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{ "f-channel": "aaaa1111" }} canEdit members={[]} />)
+    expect(screen.getByText("Channel")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Add a field|Edit fields/ })).toBeNull()
   })
 })
 
@@ -168,5 +182,47 @@ describe("the panel's values read one way", () => {
     fireEvent.click(screen.getByLabelText("Budget"))
     expect((screen.getByLabelText("Budget") as HTMLInputElement).placeholder).toBe("Add an amount…")
     expect(screen.getByText("INR")).toBeTruthy()
+  })
+})
+
+// V-698W: the server keeps a money field's values from anyone not an admin of
+// its project and marks the field hidden: true for them, and refuses their
+// writes (403). The panel takes its word: the words in place of a value, no
+// box, no control, and no write, whatever the field's type.
+describe("a field the server hides from its reader (V-698W)", () => {
+  const WORDS = "Only project admins see money"
+  const dueOn: TaskField = { ...base, id: "f-due", name: "Launch day", type: "date", filter_id: "field_x4" }
+
+  it("says only project admins see money in place of the value, with no box or control, and sends nothing", () => {
+    fields = [
+      { ...budget, hidden: true },
+      { ...signed, hidden: true },
+      { ...dueOn, hidden: true },
+    ]
+    // A value kept from before (the device's copy, a late answer) is never shown either.
+    const { container } = render(
+      <TaskFieldsSection taskUUID="t" projectUUID="p" values={{ "f-budget": 1250000, "f-signed": true, "f-due": "2026-10-14" }} canEdit members={[]} />,
+    )
+    expect(screen.getAllByText(WORDS)).toHaveLength(3)
+    expect(screen.getByText("Budget")).toBeTruthy()
+    expect(screen.queryByText(/12,?500/)).toBeNull()
+    expect(screen.queryByText(/14 Oct/)).toBeNull()
+    expect(screen.queryByLabelText("Budget")).toBeNull()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    expect(container.querySelectorAll("[data-task-fields] input, [data-task-fields] [role=combobox]")).toHaveLength(0)
+    // Edit fields stays the admins' (canEdit here is the task's); no field row is a button.
+    expect(screen.queryByRole("button", { name: /Budget|Signed off|Launch day/ })).toBeNull()
+    expect(post).not.toHaveBeenCalled()
+    expect(setField).not.toHaveBeenCalled()
+  })
+
+  it("leaves an admin's money field as it was: its value, and a box to change it", () => {
+    fields = [{ ...budget, hidden: false }]
+    render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{ "f-budget": 1250000 }} canEdit members={[]} />)
+    expect(screen.queryByText(WORDS)).toBeNull()
+    // The editor writes the amount as it is typed: 12500.
+    expect(screen.getByText("12500")).toBeTruthy()
+    fireEvent.click(screen.getByLabelText("Budget"))
+    expect(screen.getByLabelText("Budget").tagName).toBe("INPUT")
   })
 })

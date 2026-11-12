@@ -7,6 +7,7 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { goArmed, isTyping } from "@/lib/goKeys"
 import { LIST_FIELDS, listKey, rangeOf, stepAcross, stepIn, type ListField } from "@/lib/listKeys"
 import { onEscape } from "@/lib/keys/onEscape"
+import { listNavIn } from "@/lib/ui/listNav"
 import type { SelectionStore } from "@/lib/listSelection"
 
 const ITEM = "[data-task-id]"
@@ -38,11 +39,16 @@ export function useListKeyboard({
 }) {
   const dispatch = useDispatch()
   const app = useStore<RootState>()
+  usePaintedPlace(containerRef, store)
   useEffect(() => {
     const box = containerRef.current
     if (!enabled || !box) return
     const idsIn = (root: ParentNode) => Array.from(root.querySelectorAll<HTMLElement>(ITEM), (el) => el.dataset.taskId ?? "").filter(Boolean)
     const elOf = (id: string) => box.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)
+    // A windowed list draws only some rows: its order and reveal are its own (lib/ui/listNav); else the page's rows.
+    const nav = () => listNavIn(box)
+    const order = () => nav()?.order() ?? idsIn(box)
+    const has = (id: string) => nav()?.has(id) ?? elOf(id) !== null
     const itemOf = (t: EventTarget | null) => (t instanceof Element && box.contains(t) ? (t.closest<HTMLElement>(ITEM)?.dataset.taskId ?? null) : null)
     const viewOf = (el: Element) => el.closest("[data-split-view]")?.getAttribute("data-split-view") ?? null
     const activeView = () => String(app.getState().split?.active ?? -1)
@@ -64,12 +70,14 @@ export function useListKeyboard({
       if (el.closest("[role=dialog],[role=menu],[role=listbox],[role=combobox]")) return false
       if (el.closest("[data-right-panel]")) {
         const open = panelTask()
-        return mine && open !== null && elOf(open) !== null
+        return mine && open !== null && has(open)
       }
       return viewOf(el) !== null && viewOf(el) === viewOf(box)
     }
 
     const reveal = (id: string) => {
+      const list = nav()
+      if (list) return list.reveal(id)
       const el = elOf(id)
       if (!el) return
       el.scrollIntoView({ block: "nearest", inline: "nearest" })
@@ -81,13 +89,13 @@ export function useListKeyboard({
       const s = store.get()
       if (extend) {
         const from = s.anchor ?? s.highlighted ?? id
-        store.addRun(rangeOf(idsIn(box), from, id), from)
+        store.addRun(rangeOf(order(), from, id), from)
       }
       store.highlight(id)
       reveal(id)
       // A task open in the panel follows the highlight.
       const open = panelTask()
-      if (open && open !== id && elOf(open)) dispatch(openRightPanel({ taskUUID: id }))
+      if (open && open !== id && has(open)) dispatch(openRightPanel({ taskUUID: id }))
     }
 
     const onKey = (e: KeyboardEvent) => {
@@ -95,12 +103,12 @@ export function useListKeyboard({
       const action = listKey(e)
       if (!action || !ours(e.target)) return
       const s = store.get()
-      const current = (s.highlighted && elOf(s.highlighted) ? s.highlighted : null) ?? itemOf(e.target)
+      const current = (s.highlighted && has(s.highlighted) ? s.highlighted : null) ?? itemOf(e.target)
       switch (action.type) {
         case "move": {
           // On a board, up and down stay in the column; ← and → cross.
           const column = current ? elOf(current)?.closest("[data-column]") : null
-          const next = stepIn(idsIn(column && box.contains(column) ? column : box), current, action.by)
+          const next = stepIn(column && box.contains(column) ? idsIn(column) : order(), current, action.by)
           if (!next) return
           e.preventDefault()
           go(next, action.extend)
@@ -155,7 +163,7 @@ export function useListKeyboard({
         const s = store.get()
         if (e.shiftKey) {
           const from = s.anchor ?? s.highlighted ?? id
-          store.addRun(rangeOf(idsIn(box), from, id), from)
+          store.addRun(rangeOf(order(), from, id), from)
         } else store.toggle(id)
       }
       store.highlight(id)
@@ -170,10 +178,11 @@ export function useListKeyboard({
       const open = panelTask()
       if (open === shown) return
       shown = open
-      const el = open && !hidden() ? elOf(open) : null
-      if (!open || !el || store.get().highlighted === open) return
+      if (!open || hidden() || !has(open) || store.get().highlighted === open) return
       store.highlight(open)
-      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+      const list = nav()
+      if (list) list.reveal(open, false)
+      else elOf(open)?.scrollIntoView({ block: "nearest", inline: "nearest" })
     })
 
     // Esc clears the selection; with none, it lets go of the highlight and passes the press on.
@@ -197,4 +206,55 @@ export function useListKeyboard({
       box.removeEventListener("click", onClick, true)
     }
   }, [enabled, containerRef, store, onEdit, fields, dispatch, app])
+}
+
+/** A row's light select box (GroupedTaskList), drawn while no Checkbox is. */
+const LIGHT_BOX = "[data-row-box]"
+
+/**
+ * The keys' place, painted with no render (FLUIDITY-24): whatever draws the
+ * highlighted task carries data-highlighted="true", also as rows land later.
+ * Rows style it with CSS (lit:). Only [data-task-id]: menus have their own.
+ * The row that holds the focus has its light box as Tab's stop (tabIndex 0,
+ * as the Checkbox it drew there had); every other light box keeps -1.
+ */
+function usePaintedPlace(containerRef: RefObject<HTMLElement | null>, store: SelectionStore) {
+  useEffect(() => {
+    const box = containerRef.current
+    if (!box) return
+    const reach = (at: EventTarget | null) => {
+      const row = at instanceof Element && box.contains(at) ? at.closest(ITEM) : null
+      for (const el of box.querySelectorAll<HTMLElement>(`${LIGHT_BOX}[tabindex="0"]`)) if (el.closest(ITEM) !== row) el.tabIndex = -1
+      if (row) for (const el of row.querySelectorAll<HTMLElement>(`${LIGHT_BOX}[tabindex="-1"]`)) if (el.closest(ITEM) === row) el.tabIndex = 0
+    }
+    const paint = () => {
+      const id = store.get().highlighted
+      for (const el of box.querySelectorAll<HTMLElement>(`${ITEM}[data-highlighted]`)) if (el.dataset.taskId !== id) el.removeAttribute("data-highlighted")
+      if (id) for (const el of box.querySelectorAll<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]:not([data-highlighted])`)) el.setAttribute("data-highlighted", "true")
+    }
+    paint()
+    reach(document.activeElement)
+    const onFocusIn = (e: FocusEvent) => reach(e.target)
+    const onFocusOut = (e: FocusEvent) => reach(e.relatedTarget)
+    box.addEventListener("focusin", onFocusIn)
+    box.addEventListener("focusout", onFocusOut)
+    let was = store.get().highlighted
+    const unsubscribe = store.subscribe(() => {
+      if (store.get().highlighted === was) return
+      was = store.get().highlighted
+      paint()
+    })
+    // Rows (and light boxes) that land later, painted before the screen is.
+    const landed = new MutationObserver(() => {
+      paint()
+      reach(document.activeElement)
+    })
+    landed.observe(box, { childList: true, subtree: true, attributeFilter: ["data-task-id"] })
+    return () => {
+      unsubscribe()
+      landed.disconnect()
+      box.removeEventListener("focusin", onFocusIn)
+      box.removeEventListener("focusout", onFocusOut)
+    }
+  }, [containerRef, store])
 }

@@ -87,6 +87,12 @@ export function bytes(contentType, body) {
 // The app shell's reads whose "nothing" is not an empty object.
 const SHELL_FIXTURES = [
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
+  // Who knows about some words: the server always names its people, [] when
+  // no one (whoKnows.go), so the fake's "nothing" is that shape, not {}.
+  [/\/people\/who-knows$/, (_path, url) => ({
+    msg: "ok",
+    data: { query: url.searchParams.get("q") ?? "", considered: 0, people: [], you_hidden: false },
+  })],
 ]
 
 /**

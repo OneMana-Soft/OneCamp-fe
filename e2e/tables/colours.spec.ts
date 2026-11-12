@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { openKeyboard, type KeyboardKind } from "../keyboard"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
 
@@ -205,5 +206,51 @@ test("at 1280, a rule colours Amount's cell where it passes Budget, and a scale 
   await page.reload()
   await expect(cell(6, "amount")).toHaveAttribute("data-tint", "berry", { timeout: 60_000 })
   await expect(cell(0, "budget")).toHaveAttribute("data-tint", "sky-4")
+  await sam.close()
+})
+
+/** Where a field in a dialog that is a sheet is against the keyboard's top and the sheet's pinned footer, and whether a
+ *  finger at its middle meets it, read in one frame: "in sight", or what was read. */
+const sightOf = (field: Locator) =>
+  field.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    const vv = window.visualViewport!
+    const footer = el.closest("[data-v3-sheet]")!.querySelector("[data-overlay-footer]")!.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    const s = { bottom: Math.round(r.bottom), keyboardTop: Math.round(vv.height + vv.offsetTop), footerTop: Math.round(footer.top), meets: !!hit && el.contains(hit) }
+    return s.bottom <= s.keyboardTop && s.bottom <= s.footerTop && s.meets ? "in sight" : JSON.stringify(s)
+  })
+
+test("at 390 with touch, a rule's Value being typed in stays in sight over the keyboard, either kind, as a record's field does", async ({ browser }, testInfo) => {
+  // The rules dialog is a sheet on a phone and stands on the keyboard (app/phone.css): its body, the one scroller, gets
+  // shorter while the field stays where it was. Colour rules keeps the field typed in in sight (lib/ui/fieldInSight).
+  // Five fields: a phone shows the table as a list.
+  const server = table(2)
+  const sam = await server.open(browser, testInfo, SAM, { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  const { page } = sam
+  await expect(page.locator("[data-table-list]")).toBeVisible({ timeout: 30_000 })
+  await page.getByRole("button", { name: "Row height and colour" }).tap()
+  await page.getByRole("menuitemradio", { name: "By rules…" }).tap()
+  const dialog = page.getByRole("dialog", { name: "Colour rows and cells" })
+  await expect(dialog).toHaveAttribute("data-v3-sheet", "")
+  const body = dialog.locator("[data-overlay-body]")
+  for (let i = 0; i < 3; i++) await dialog.getByRole("button", { name: "Add a rule" }).tap()
+  const value = dialog.getByRole("textbox", { name: "Value" }).last()
+  for (const kind of ["visual", "resize"] as KeyboardKind[]) {
+    // The body at its end, the last rule's Value low on the screen: where the keyboard will be.
+    await body.evaluate((el) => (el.scrollTop = el.scrollHeight))
+    const at = (await value.boundingBox())!
+    expect(at.y + at.height, "the field sits where the keyboard comes").toBeGreaterThan(844 - 336)
+    await value.tap()
+    await expect(value).toBeFocused()
+    const close = await openKeyboard(page, kind)
+    await expect.poll(() => sightOf(value), { message: `the rule's Value, over the ${kind} keyboard` }).toBe("in sight")
+    // It still edits there: the same Value each time, what the last kind typed replaced.
+    await page.keyboard.press("ControlOrMeta+a")
+    await page.keyboard.type(`Line ${kind}`)
+    await expect(value).toHaveValue(`Line ${kind}`)
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await close()
+  }
   await sam.close()
 })

@@ -9,7 +9,7 @@ import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { DashboardRoutes } from "@/services/endpoints/projects.dashboards"
-import type { Dashboard, Place, Widget, WidgetData } from "@/lib/dashboards"
+import { flowPlaces, ordered, type Dashboard, type Place, type Widget, type WidgetData } from "@/lib/dashboards"
 
 const base = DashboardRoutes.Dashboards
 export const dashboardsKey = (project?: string) => (project ? `${DashboardRoutes.Project}/${project}/dashboards` : base)
@@ -111,4 +111,16 @@ export function useDashboard(id: string) {
     restoreWidget,
     arrange,
   }
+}
+
+/**
+ * Adds a widget to a dashboard from elsewhere (Add to dashboard, B9-b4): read
+ * as it stands, the widget goes in its next free place, as the dashboard's own
+ * Add widget puts it. The server checks the keeper and the widget again.
+ */
+export async function addWidgetTo(id: string, w: Pick<Widget, "kind" | "title" | "query" | "w" | "h">): Promise<Widget> {
+  const one = await axiosInstance.get<OneAnswer>(dashboardKey(id))
+  const at = flowPlaces([...ordered(one.data.data.widgets ?? []), { id: "", w: w.w, h: w.h }]).at(-1)!
+  const res = await axiosInstance.post<{ data: Widget }>(`${dashboardKey(id)}/widgets`, { ...w, x: at.x, y: at.y })
+  return res.data.data
 }

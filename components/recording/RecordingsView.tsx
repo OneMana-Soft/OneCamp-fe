@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useDispatch } from "react-redux"
 import { DateRange } from "react-day-picker"
-import { format, subDays } from "date-fns"
+import { subDays } from "date-fns"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
 import { useMedia } from "@/context/MediaQueryContext"
@@ -17,6 +17,7 @@ import { PageContainer } from "@/components/ui/pageContainer"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { RecordingListRecording } from "@/components/recording/recordingListRecording"
 import type { RecordingInfoInterface, RecordingPaginationResRaw } from "@/types/recording"
+import { recordingFileName } from "@/lib/calls/recordingFileName"
 
 const PAGE_SIZE = 20
 
@@ -107,7 +108,6 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
 
     const open = (rec: RecordingInfoInterface) => {
         const { media, transcript } = playerUrls(rec)
-        const date = new Date(rec.recording_stared_at)
         dispatch(
             openUI({
                 key: "recordingPlayer",
@@ -116,7 +116,7 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                     mediaGetUrl: media,
                     transcriptGetUrl: transcript,
                     fileSize: rec.recording_size,
-                    fileName: `Recording ${Number.isNaN(date.getTime()) ? "" : format(date, "yyyy-MM-dd HH.mm")}`.trim() + ".mp4",
+                    fileName: recordingFileName(rec.recording_stared_at),
                     recordedAt: rec.recording_stared_at,
                     status: rec.recording_status,
                 },

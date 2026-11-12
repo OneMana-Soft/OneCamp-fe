@@ -25,10 +25,12 @@ interface Props {
     messageText?: string
     /** The pressed message, lifted above the sheet (C61). */
     preview?: MessageSheetPreview | null
+    /** The thread's root on its own phone page (the thread page's drawers). */
+    inThread?: boolean
 }
 
 /** A message's actions on a phone: the v3 sheet (components/drawers/messageActionSheet). */
-export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard, grpId, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText, preview }: Props) {
+export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard, grpId, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText, preview, inThread }: Props) {
     const threadPath = `${app_grp_chat_path}/${grpId}/${chatUUID}`
     return (
         <MessageActionSheet
@@ -36,6 +38,7 @@ export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState,
             onOpenChange={setOpenState}
             preview={preview}
             threadPath={threadPath}
+            inThread={inThread}
             forwardPath={`${app_message_forward_path}/${chat_forward_type}/${chatUUID}`}
             laterTarget={{ itemType: "chat", itemId: chatUUID, link: threadPath, title: htmlToPreviewText(messageText) || "A message" }}
             onReply={onReply}
@@ -49,6 +52,7 @@ export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState,
             isAdmin={isAdmin}
             messageText={messageText}
             pin={{ conversation: { kind: "group", id: grpId }, messageId: chatUUID }}
+            followRoot={chatUUID}
         />
     )
 }

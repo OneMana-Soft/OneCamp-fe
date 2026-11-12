@@ -638,7 +638,8 @@ const endpointMessages: Partial<Record<string, { success: string; error: string 
 
 
 export const usePost = () => {
-    const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+    const [, setIsSubmitting] = useState<boolean>(false)
+    const busy = React.useRef(false)
     const { toast } = useToast()
 
     const makeRequest = React.useCallback(async <T, R = GenericResponse>(options: UsePostOptions<T>): Promise<R | undefined> => {
@@ -655,6 +656,7 @@ export const usePost = () => {
         const ownsErrorToast = !options.quiet && !!(showToast || options.showErrorToast)
         const config = ownsErrorToast || options.quiet || options.showErrorToast === false ? { suppressErrorToast: true } : undefined
 
+        busy.current = true
         setIsSubmitting(true)
         try {
             const method = options.method || "POST"
@@ -707,16 +709,12 @@ export const usePost = () => {
             
             throw e; // Re-throw to allow component-level catch (e.g. for optimistic rollbacks)
         } finally {
+            busy.current = false
             setIsSubmitting(false)
         }
     }, [toast]);
 
-    // MEMOISED: callers list `post` in their hooks' dependencies, so a new
-    // object each render re-ran them, and an effect that sets state looped
-    // (GitHubIssueSearchDialog: "Maximum update depth exceeded", the whole
-    // app's error screen). makeRequest is stable; only isSubmitting moves.
-    return React.useMemo(
-        () => ({ makeRequest, isSubmitting }),
-        [makeRequest, isSubmitting],
-    )
+    // One object for life: a new one re-ran all keyed on `post` (loops; V-791). The state
+    // draws the caller again; isSubmitting reads busy, set outside render (usePostFlip.test).
+    return React.useMemo(() => ({ makeRequest, get isSubmitting() { return busy.current } }), [makeRequest])
 }

@@ -7,12 +7,12 @@ import path from "node:path"
 // on, they go on as the camera and microphone publish, and the picker offers
 // every choice in words.
 
-const runner = vi.hoisted(() => ({ made: 0, ctx: null as null | { lightened: () => void }, background: vi.fn(async () => undefined), noise: vi.fn(async () => undefined), watch: vi.fn(() => () => undefined) }))
+const runner = vi.hoisted(() => ({ made: 0, ctx: null as null | { lightened: () => void }, camera: vi.fn(async () => undefined), noise: vi.fn(async () => undefined), watch: vi.fn(() => () => undefined) }))
 vi.mock("./effectsRunner", () => ({
   makeRunner: (ctx: { lightened: () => void }) => {
     runner.made++
     runner.ctx = ctx
-    return { background: runner.background, noise: runner.noise, watch: runner.watch }
+    return { camera: runner.camera, noise: runner.noise, watch: runner.watch }
   },
 }))
 
@@ -61,7 +61,7 @@ describe("a call's effects", () => {
     await act(async () => publish({ source: "camera", track: camera }))
     await act(async () => publish({ source: "microphone", track: mic }))
     expect(runner.made).toBe(1)
-    expect(runner.background).toHaveBeenCalledWith(camera, { kind: "blur", strength: "light" })
+    expect(runner.camera).toHaveBeenCalledWith(camera, { background: { kind: "blur", strength: "light" }, touchUp: "off", lowLight: false })
     expect(runner.noise).toHaveBeenCalledWith(mic, "strong")
     // And the strain watch runs while they are on.
     expect(runner.watch).toHaveBeenCalled()
@@ -85,9 +85,39 @@ describe("a call's effects", () => {
     const { result } = renderHook(() => useCallEffects(room))
     expect(runner.made).toBe(0)
     await act(async () => result.current.setBackground({ kind: "backdrop", id: "lake" }))
-    expect(runner.background).toHaveBeenCalledWith(camera, { kind: "backdrop", id: "lake" })
+    expect(runner.camera).toHaveBeenCalledWith(camera, { background: { kind: "backdrop", id: "lake" }, touchUp: "off", lowLight: false })
     expect(JSON.parse(window.localStorage.getItem("onecamp.call.effects")!)).toMatchObject({ background: { kind: "backdrop", id: "lake" } })
     expect(result.current.effects.background).toEqual({ kind: "backdrop", id: "lake" })
+  })
+
+  it("put a touch-up and low light on the live camera as one look with its background, remembered, and watched", async () => {
+    const camera = {}
+    const mic = {}
+    const { room } = fakeRoom([
+      { source: "camera", track: camera },
+      { source: "microphone", track: mic },
+    ])
+    const { result } = renderHook(() => useCallEffects(room))
+    await act(async () => result.current.setTouchUp("smooth"))
+    expect(runner.made).toBe(1)
+    expect(runner.camera).toHaveBeenLastCalledWith(camera, { background: { kind: "none" }, touchUp: "smooth", lowLight: false })
+    await act(async () => result.current.setLowLight(true))
+    expect(runner.camera).toHaveBeenLastCalledWith(camera, { background: { kind: "none" }, touchUp: "smooth", lowLight: true })
+    // The camera's look changed, not the sound: the microphone is left alone.
+    expect(runner.noise).not.toHaveBeenCalled()
+    expect(JSON.parse(window.localStorage.getItem("onecamp.call.effects")!)).toMatchObject({ touchUp: "smooth", lowLight: true })
+    expect(result.current.effects).toMatchObject({ touchUp: "smooth", lowLight: true })
+    // The strain watch runs while they are on.
+    expect(runner.watch).toHaveBeenCalled()
+  })
+
+  it("put a touch-up chosen on this device on as the camera publishes, with no background", async () => {
+    window.localStorage.setItem("onecamp.call.effects", JSON.stringify({ touchUp: "subtle", lowLight: true }))
+    const camera = {}
+    const { room, publish } = fakeRoom()
+    renderHook(() => useCallEffects(room))
+    await act(async () => publish({ source: "camera", track: camera }))
+    expect(runner.camera).toHaveBeenCalledWith(camera, { background: { kind: "none" }, touchUp: "subtle", lowLight: true })
   })
 })
 
@@ -140,9 +170,11 @@ describe("the call route's first load", () => {
 describe("the picker", () => {
   const picker = (over: Partial<Parameters<typeof EffectsPicker>[0]> = {}) => {
     const props = {
-      effects: { background: { kind: "none" as const }, noise: "standard" as const },
+      effects: { background: { kind: "none" as const }, noise: "standard" as const, touchUp: "off" as const, lowLight: false },
       onBackground: vi.fn(),
       onNoise: vi.fn(),
+      onTouchUp: vi.fn(),
+      onLowLight: vi.fn(),
       backdrop: vi.fn(async (id: string) => `blob:${id}`),
       picture: { url: null, onChoose: vi.fn(), onForget: vi.fn() },
       ...over,
@@ -176,10 +208,43 @@ describe("the picker", () => {
     expect(p.onNoise).toHaveBeenCalledWith("strong")
   })
 
+  it("offers a touch-up in three levels and low light as a switch, both off at first, between the background and the sound", () => {
+    picker()
+    const touchUp = screen.getByRole("radiogroup", { name: "Touch-up" })
+    expect(within(touchUp).getAllByRole("radio").map((r) => [r.textContent, r.getAttribute("aria-checked")])).toEqual([
+      ["Off", "true"],
+      ["Subtle", "false"],
+      ["Smooth", "false"],
+    ])
+    expect(screen.getByText("Softens skin. Your eyes and edges stay sharp.")).toBeTruthy()
+    const low = screen.getByRole("switch", { name: "Low light" })
+    expect(low.getAttribute("aria-checked")).toBe("false")
+    expect(screen.getByText("Brightens you when your room is dark.")).toBeTruthy()
+    const headings = screen.getAllByRole("heading").map((h) => h.textContent)
+    expect(headings).toEqual(["Background", "Touch-up and light", "Noise reduction"])
+  })
+
+  it("hands on a touch-up level and low light", () => {
+    const p = picker()
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Touch-up" })).getByRole("radio", { name: "Smooth" }))
+    expect(p.onTouchUp).toHaveBeenCalledWith("smooth")
+    fireEvent.click(screen.getByRole("switch", { name: "Low light" }))
+    expect(p.onLowLight).toHaveBeenCalledWith(true)
+  })
+
+  it("shows the touch-up and low light chosen, as the CPU watch leaves them", () => {
+    picker({ effects: { background: { kind: "none" }, noise: "standard", touchUp: "subtle", lowLight: true }, note: "Lighter for now: this device is busy." })
+    expect(within(screen.getByRole("radiogroup", { name: "Touch-up" })).getByRole("radio", { name: "Subtle" }).getAttribute("aria-checked")).toBe("true")
+    expect(screen.getByRole("switch", { name: "Low light" }).getAttribute("aria-checked")).toBe("true")
+  })
+
   it("says why backgrounds can't run here, and still offers the noise levels", () => {
     picker({ unavailable: "This browser can't change your background." })
     expect(screen.getByText("This browser can't change your background.")).toBeTruthy()
     expect(screen.getByRole("radio", { name: "Light blur" }).hasAttribute("disabled")).toBe(true)
+    // The touch-up and low light run the same way, so they can't either.
+    expect(within(screen.getByRole("radiogroup", { name: "Touch-up" })).getByRole("radio", { name: "Smooth" }).hasAttribute("disabled")).toBe(true)
+    expect(screen.getByRole("switch", { name: "Low light" }).hasAttribute("disabled") || screen.getByRole("switch", { name: "Low light" }).getAttribute("aria-disabled") === "true").toBe(true)
     expect(within(screen.getByRole("radiogroup", { name: "Noise reduction" })).getByRole("radio", { name: /^Off/ }).hasAttribute("disabled")).toBe(false)
   })
 
@@ -190,7 +255,7 @@ describe("the picker", () => {
   })
 
   it("rings the chosen tile outside its edge, so a pale backdrop's choice still shows", () => {
-    picker({ effects: { background: { kind: "backdrop", id: "lake" }, noise: "standard" } })
+    picker({ effects: { background: { kind: "backdrop", id: "lake" }, noise: "standard", touchUp: "off", lowLight: false } })
     const lagoon = screen.getByRole("radio", { name: "Lagoon" })
     expect(lagoon.getAttribute("aria-checked")).toBe("true")
     expect(lagoon.className).toContain("ring-offset-2")
@@ -198,7 +263,7 @@ describe("the picker", () => {
   })
 
   it("offers to change or remove one's own picture once there is one", () => {
-    const p = picker({ effects: { background: { kind: "picture" }, noise: "standard" }, picture: { url: "data:image/jpeg;base64,AAAA", onChoose: vi.fn(), onForget: vi.fn() } })
+    const p = picker({ effects: { background: { kind: "picture" }, noise: "standard", touchUp: "off", lowLight: false }, picture: { url: "data:image/jpeg;base64,AAAA", onChoose: vi.fn(), onForget: vi.fn() } })
     expect(screen.getByRole("radio", { name: "Your picture" }).getAttribute("aria-checked")).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: "Remove it" }))
     expect(p.picture.onForget).toHaveBeenCalled()

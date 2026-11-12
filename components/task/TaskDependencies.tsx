@@ -10,24 +10,33 @@ import * as React from "react"
 import { inlineAdd } from "@/lib/ui/fieldRow"
 import { panelSection } from "@/lib/ui/propertyRow"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
-import { statusOptionOf } from "@/lib/taskStatus"
+import { statusOptionOf, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { ProjectTaskPick } from "@/components/task/ProjectTaskPick"
+import { useProjectTaskChoices } from "@/components/task/projectTaskChoices"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useFetch } from "@/hooks/useFetch"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { Loader2, Lock, Plus, X } from "@/lib/icons"
 import { HIDDEN_TASK_NAME } from "@/lib/work/hiddenTask"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { DEPENDENCY_KINDS, KIND_LABEL, MAX_LAG, parseLag, wayOf, waySentence, wayShort, type DependencyKind, type DependencyWay } from "@/lib/tasks/dependency"
-import type { TimelineData } from "@/lib/timeline"
-import { timelineKey } from "@/lib/timelineKey"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { DependencyTask } from "@/types/task"
+
+/** A row's remove button: shown on hover or focus, always on a touch screen. */
+export const rowRemove =
+  "pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-danger-ink focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+
+/** A picker row's lead (ProjectTaskPick): the task's status, as its row in the list draws it. */
+export const statusLead = (options: StatusOption[]) =>
+  function StatusLead(t: TaskStatusFields) {
+    const o = statusOptionOf(t, options)
+    return o ? <TaskStatusCell status={o} label="tip" className="mr-2" /> : null
+  }
 
 export function TaskDependencies({
   taskUUID,
@@ -50,13 +59,12 @@ export function TaskDependencies({
   const { options } = useProjectStatuses(projectUUID)
   const [open, setOpen] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  // What it could wait on: the project's tasks, from the timeline's list, read when the picker opens.
-  const project = useFetch<{ data: TimelineData }>(open ? timelineKey(projectUUID) : "")
   const taken = React.useMemo(
     () => new Set([taskUUID, ...waitingOn.map((t) => t.task_uuid), ...blocking.map((t) => t.task_uuid)]),
     [taskUUID, waitingOn, blocking],
   )
-  const choices = (project.data?.data.tasks ?? []).filter((t) => !taken.has(t.task_uuid) && t.task_status !== "canceled" && !t.task_uuid.startsWith("temp-"))
+  // What it could wait on: the project's tasks, read when the picker opens.
+  const pick = useProjectTaskChoices(projectUUID, open, taken)
 
   const change = async (waiting: string, on: string, remove: boolean, way?: DependencyWay) => {
     setBusy(true)
@@ -104,37 +112,21 @@ export function TaskDependencies({
           <p className="text-sm text-muted-foreground">It doesn&apos;t wait on another task.</p>
         )}
         {canEdit && (
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className={cn(inlineAdd, "w-fit")} disabled={busy} title="A task this one can't start without. The timeline draws it as an arrow.">
-                <Plus className="h-3.5 w-3.5" aria-hidden />
-                Add a task it waits on
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Find a task in this project" />
-                <CommandList>
-                  <CommandEmpty>{project.isLoading ? "Loading…" : "No task to pick."}</CommandEmpty>
-                  <CommandGroup>
-                    {choices.map((t) => (
-                      <CommandItem
-                        key={t.task_uuid}
-                        value={`${t.task_name} ${t.task_uuid}`}
-                        onSelect={() => {
-                          setOpen(false)
-                          void change(taskUUID, t.task_uuid, false)
-                        }}
-                      >
-                        {(() => { const o = statusOptionOf(t, options); return o ? <TaskStatusCell status={o} label="tip" className="mr-2" /> : null })()}
-                        <span className="truncate">{t.task_name}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          <ProjectTaskPick
+            open={open}
+            onOpenChange={setOpen}
+            {...pick}
+            lead={statusLead(options)}
+            onPick={(t) => {
+              setOpen(false)
+              void change(taskUUID, t.task_uuid, false)
+            }}
+          >
+            <Button type="button" variant="ghost" size="sm" className={cn(inlineAdd, "w-fit")} disabled={busy} title="A task this one can't start without. The timeline draws it as an arrow.">
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              Add a task it waits on
+            </Button>
+          </ProjectTaskPick>
         )}
       </div>
     </div>
@@ -168,11 +160,12 @@ function DependencyGroup({
   return (
     <div className="grid">
       <p className="mb-0.5 text-meta text-ink-3">{title}</p>
-      {tasks.map((t) => {
-        // One the reader may not see (WA2): no way in, none to take it off.
+      {tasks.map((t, i) => {
+        // One the reader may not see (WA2): no way in, none to take it off. It comes with no id (V-678), so its row
+        // is keyed by its place in the list.
         if (t.task_hidden) {
           return (
-            <div key={t.task_uuid} data-dependency="" data-hidden-task="" className="flex h-[30px] items-center gap-2 text-sm text-ink-3">
+            <div key={`hidden-${i}`} data-dependency="" data-hidden-task="" className="flex h-[30px] items-center gap-2 text-sm text-ink-3">
               <Lock aria-hidden className="mx-0.5 size-3" />
               <span className="flex-1 truncate">{HIDDEN_TASK_NAME}</span>
             </div>
@@ -196,7 +189,7 @@ function DependencyGroup({
               onClick={() => onRemove(t.task_uuid)}
               disabled={busy}
               aria-label={removeLabel(t.task_name)}
-              className="pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-danger-ink focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+              className={rowRemove}
             >
               <X className="h-3.5 w-3.5" />
             </button>

@@ -10,6 +10,7 @@
 
 import type { ProjectStatusKind } from "@/components/ui/graphics/projectStatusGlyph"
 import { STATUS_COLORS } from "@/lib/taskStatus"
+import { MONTHS_SHORT } from "@/lib/utils/date/months"
 
 export type PlanResolution = "day" | "month" | "quarter" | "half" | "year"
 
@@ -103,6 +104,9 @@ export interface PlanMember {
   user_project_role?: string
 }
 
+/** Who may lead a project: someone of the workspace (never a guest or a bot) who can edit in it (never a viewer or a commenter). */
+export const mayLead = (m: PlanMember): boolean => !m.is_external && !m.is_bot && m.user_project_role !== "viewer" && m.user_project_role !== "commenter"
+
 /** A picker's change and the parts as they'll read until the server answers; keepOpen leaves its picker open. */
 export type PlanPick = (change: PlanChange, shown: Partial<ProjectPlan>, keepOpen?: boolean) => void
 
@@ -150,13 +154,11 @@ export function periodOf(day: string, resolution: PlanResolution): { first: stri
   }
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
 /** The periods a picker offers for a year at a resolution coarser than a day: each with its words and a day inside it. */
 export function periodsOfYear(year: number, resolution: Exclude<PlanResolution, "day">): { label: string; day: string }[] {
   switch (resolution) {
     case "month":
-      return MONTHS.map((label, i) => ({ label, day: iso(year, i, 1) }))
+      return MONTHS_SHORT.map((label, i) => ({ label, day: iso(year, i, 1) }))
     case "quarter":
       return [0, 1, 2, 3].map((i) => ({ label: `Q${i + 1}`, day: iso(year, i * 3, 1) }))
     case "half":
@@ -178,9 +180,9 @@ export function whenWords(w: PlanWhen | null | undefined): string {
     case "quarter":
       return `Q${Math.floor((m - 1) / 3) + 1} ${y}`
     case "month":
-      return `${MONTHS[m - 1]} ${y}`
+      return `${MONTHS_SHORT[m - 1]} ${y}`
     default:
-      return `${d} ${MONTHS[m - 1]} ${y}`
+      return `${d} ${MONTHS_SHORT[m - 1]} ${y}`
   }
 }
 

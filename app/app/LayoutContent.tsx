@@ -7,7 +7,7 @@ import { AdminBanners } from "@/components/banner/AdminBanners";
 import { FeaturesNotice } from "@/components/banner/FeaturesNotice";
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { evenOut, setRoom, setSizes } from "@/store/slice/splitActions";
+import { evenOut, setHere, setRoom, setSizes } from "@/store/slice/splitActions";
 import { useDispatch } from "react-redux";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
@@ -21,7 +21,7 @@ import { PreloadPanels, RightPanel } from "@/components/rightPanel/rightPanel";
 import { lazyPart } from "@/lib/lazy/lazyPart";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
-import { useRef, useEffect, useLayoutEffect, useState } from "react";
+import { memo, useRef, useEffect, useLayoutEffect, useState } from "react";
 import { RIGHT_PANEL_MIN_PX, rightPanelKind, rightPanelMaxSize, rightPanelMinSize, rightPanelOpenSize } from "@/lib/ui/rightPanelSize";
 import { usePathname } from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
@@ -31,7 +31,7 @@ import { useSplitView } from "@/hooks/useSplitView";
 import { useGoKeys } from "@/hooks/useGoKeys";
 import { FocusPill, MeetingSplit, SplitArrange, SplitPane, TuckedViews } from "@/components/split/lazy";
 import { Seam } from "@/components/split/Seam";
-import { MAIN, MAIN_KEY, MAX_PANES, keyOf } from "@/lib/split";
+import { MAIN, MAIN_KEY, MAX_PANES, keyOf, paneFromHref } from "@/lib/split";
 import { MIN_VIEW_PX, SEAM_PX, shares, shownViews, viewRow, viewsThatFit } from "@/lib/splitLayout";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 
@@ -115,10 +115,21 @@ function PageSheet({ isAdmin, keysHere, focusPill, split, children }: { isAdmin?
   );
 }
 
-// The query is read in this leaf, so a write to it (a date, a tab, a filter)
-// doesn't render the shell (app/app/shellAddress.test.ts).
+// The address is read in leaves, not the memo shell (shellRenders.test):
+// FollowRoute keeps the history depth (lib/navigation/back) and split's here.
 function OpenFromUrl() {
   useOpenFromUrl();
+  return null;
+}
+
+function FollowRoute() {
+  const pathname = usePathname();
+  const dispatch = useDispatch();
+  useEffect(() => followHistory(), []);
+  useEffect(() => {
+    noteRouteChange();
+    dispatch(setHere(paneFromHref(pathname)));
+  }, [pathname, dispatch]);
   return null;
 }
 
@@ -126,12 +137,18 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       <OpenFromUrl />
-      <Shell>{children}</Shell>
+      <FollowRoute />
+      <ShellAt>{children}</ShellAt>
     </>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function ShellAt({ children }: { children: React.ReactNode }) {
+  const path = usePathname()
+  return <Shell meeting={path.split('/')[2] == "meet" ? path : ""}>{children}</Shell>;
+}
+
+const Shell = memo(function Shell({ meeting, children }: { meeting: string; children: React.ReactNode }) {
   // While the on-screen keyboard is up, the app fits what is left of the
   // screen (lib/ui/visualViewport.ts). Outside React: nothing re-renders.
   useEffect(() => followKeyboard(), []);
@@ -139,9 +156,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   // finish or a moment anywhere in it finds them in (lib/celebrateSoon).
   useEffect(() => warmBurstsWhenIdle(), []);
   const media = useMedia();
-  const pathname = usePathname()
-  const path = pathname.split('/')
-  const inMeeting = path.length > 2 && path[2] == "meet"
+  const inMeeting = !!meeting
   // The phone's frame or the computer's. A call's page keeps the one it
   // opened in until it is left: a new frame mounts the page anew and hangs
   // up the call (lib/ui/meetingFrame).
@@ -173,12 +188,6 @@ function Shell({ children }: { children: React.ReactNode }) {
   const rightPanelRef = useRef<ImperativePanelHandle>(null);
   const [isDragging, setIsDragging] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // How far back the app's own history goes, so a back arrow on a page opened
-  // from a notification or a link goes up a level instead of out of the app
-  // (lib/navigation/back.ts). The router has written history by now.
-  useEffect(() => followHistory(), []);
-  useEffect(() => noteRouteChange(), [pathname]);
 
   // The right panel: 452px by default, never under 360, at most 60% of the
   // group, and its width kept in pixels (lib/ui/rightPanelSize).
@@ -275,8 +284,6 @@ function Shell({ children }: { children: React.ReactNode }) {
     g.setLayout(now.map((x, i) => (i < n ? each : x)))
   }, [evened])
 
-  const isTaskPage = !!(path.length > 2 && path[2] === "task" && path[3]);
-
   // What the right panel shows, with its own error boundary.
   const panelBody = (
     <div key={panelKey} className="shell-content-swap min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
@@ -289,7 +296,6 @@ function Shell({ children }: { children: React.ReactNode }) {
   if (isMobile) {
     return (
       <MobileNavigationBar
-        disableBottomPadding={isTaskPage}
         banners={
           <NoticeStack shown={1}>
             <AdminBanners isAdmin={isAdmin} />
@@ -310,7 +316,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   // its Chat opens it (MeetingSplit). Always the same frame, so opening the
   // conversation never remounts the call, which would hang it up.
   if (inMeeting) {
-    return <MeetingSplit pathname={pathname} enabled={splitOn}>{children}</MeetingSplit>;
+    return <MeetingSplit pathname={meeting} enabled={splitOn}>{children}</MeetingSplit>;
   }
 
   const pageSheet = (
@@ -464,4 +470,4 @@ function Shell({ children }: { children: React.ReactNode }) {
       {!tablet && <KeysTipLoader />}
     </DesktopNavigationBar>
   );
-}
+});

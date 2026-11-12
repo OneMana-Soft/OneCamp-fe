@@ -67,15 +67,16 @@ describe("standalone links on the signed-out pages", () => {
   })
 })
 
-// The trust line (F1): the product's claim, with this server's own address.
-// Never a literal domain (app/noHardcodedDeployment.test.ts): the host is read
-// from the page's location.
+// The trust line (F1): this server's own address, and what is true of where
+// it runs (authShellHosting.test: the claim waits for the server's word, since
+// SHELL-05). Never a literal domain (app/noHardcodedDeployment.test.ts): the
+// host is read from the page's location.
 describe("the trust line", () => {
-  it("names the host the page is on and says the data stays on it", () => {
+  it("names the host the page is on, and claims nothing the server hasn't said", () => {
     render(<AuthShell>form</AuthShell>)
     const line = document.querySelector("[data-trust-line]")!
     expect(line.textContent).toContain(window.location.host)
-    expect(line.textContent).toContain("self-hosted, your data stays on this server")
+    expect(line.textContent).not.toContain("self-hosted, your data stays on this server")
   })
 
   it("is at the foot of the split shape too, beside the hero", () => {

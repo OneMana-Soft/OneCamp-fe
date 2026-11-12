@@ -497,6 +497,17 @@
   display: none;
 }
 
+/* ---- a board's slides ------------------------------------------------------
+   While slides run on a phone the slide has the board to itself, as a
+   follower's does: Excalidraw's own editing chrome (its top bar, the shape
+   toolbar with the column of library, lock and hand under it, and its bottom
+   bar, Undo and Redo) steps away, and the board's own tools and the
+   Presenting pill stay. components/board/boardSlides marks the board's page,
+   and Back to canvas brings the chrome back (miro-28, DESIGN-BUILD-126 F1). */
+[data-slides-on] .excalidraw :is(.App-top-bar, .App-bottom-bar) {
+  display: none;
+}
+
 /* ---- on a call's stage ---------------------------------------------------- */
 
 /* Someone who can't draw gets no toolbar: on a phone the canvas still drew

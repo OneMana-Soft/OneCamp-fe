@@ -191,3 +191,58 @@ describe("a shared screen on a phone's stage (V-233)", () => {
     expect([short.strip.below, short.strip.w, short.focus.tile.w]).toEqual([false, 104, 254])
   })
 })
+
+describe("your call's ring, while you're alone in it (slack-06 H2; V-779)", () => {
+  // The ring's place (CallerRinging's RING_PLACE) stands where the one you call will be. It held the stage through an
+  // override of your pin, so a board put up while it rang (a board call started with a person, nobody answering on the
+  // demo) sat in the strip, and "Show the board" couldn't move it: the focus is your pin, else what is presented, else
+  // the ring, else the spotlight, the speaker and the first tile.
+  const ring = "ring:caller"
+  const board = "board:b1"
+  const you = "p1|camera"
+  const call = { mode: "speaker" as const, tiles: [you], ring, speaker: you, viewport: at(1280, 720) }
+
+  it("holds the stage while nothing is presented; a board put up takes it, the ring first in the strip; your pin beats both", () => {
+    const ringing = layout(call)
+    expect(ringing.focus.keys).toEqual([ring])
+    expect(ringing.strip.keys).toEqual([you])
+    const up = layout({ ...call, presenting: [board], board })
+    expect(up.focus.keys).toEqual([board])
+    expect([up.strip.keys, up.strip.more, up.strip.below]).toEqual([[ring, you], 0, false])
+    // Pressing the ring's place pins it: back on the stage, the board in the strip; and the board's place pins the board.
+    const back = layout({ ...call, presenting: [board], board, pin: ring })
+    expect([back.focus.keys, back.strip.keys]).toEqual([[ring], [board, you]])
+    expect(layout({ ...call, presenting: [board], board, pin: board }).focus.keys).toEqual([board])
+    // Your own pin, on your tile, beats the ring too; a spotlight doesn't.
+    expect(layout({ ...call, pin: you }).focus.keys).toEqual([you])
+    expect(layout({ ...call, spotlight: you }).focus.keys).toEqual([ring])
+    // Once someone answers, no ring: as before.
+    expect(layout({ ...call, ring: null, presenting: [board], board }).strip.keys).toEqual([you])
+  })
+
+  it("a share that begins while it rings takes the stage the same way", () => {
+    const sharing = layout({ ...call, presenting: [share("p1")] })
+    expect(sharing.focus.keys).toEqual([share("p1")])
+    expect(sharing.strip.keys).toEqual([ring, you])
+    expect(layout({ ...call, presenting: [share("p1")], pin: ring }).focus.keys).toEqual([ring])
+  })
+
+  it("is one of the grid's places, after what is presented and before the people", () => {
+    expect(layout({ ...call, mode: "grid", presenting: [board], board }).grid!.keys).toEqual([board, ring, you])
+    expect(layout({ ...call, mode: "grid" }).grid!.keys).toEqual([ring, you])
+  })
+
+  it("on a phone a board keeps the stage's width while it rings, the ring and you in a row under it as under a share; the ring's end gives the board all of it", () => {
+    const phone = { ...call, viewport: at(366, 640), presenting: [board], board }
+    const up = layout(phone)
+    expect([up.focus.keys, up.focus.tile.w, up.strip.below, up.strip.keys, up.strip.more, up.strip.tile]).toEqual([[board], 366, true, [ring, you], 0, { w: 85, h: 85 }])
+    const answered = layout({ ...phone, ring: null })
+    expect([answered.focus.keys, answered.focus.tile.w, answered.strip.keys, answered.strip.more]).toEqual([[board], 366, [], 0])
+    // A share on a phone's stage while it rings: the same row.
+    const sharing = layout({ ...call, viewport: at(366, 640), presenting: [share("p1")] })
+    expect([sharing.focus.tile.w, sharing.strip.below, sharing.strip.keys]).toEqual([366, true, [ring, you]])
+    // The ring pinned back on a phone: the board and you beside it, as beside a person.
+    const back = layout({ ...phone, pin: ring })
+    expect([back.focus.keys, back.strip.below, back.strip.keys]).toEqual([[ring], false, [board, you]])
+  })
+})

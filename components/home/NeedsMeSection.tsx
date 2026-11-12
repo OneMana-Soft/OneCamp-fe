@@ -159,17 +159,47 @@ export function NeedsMeSection({
     if (cleared) celebrateOnce("needs-me", spotRef.current, { count: 10 })
   }, [cleared])
 
+  // The rows in the order J and K walk them, across the groups.
+  const rowEls = () => [...(listRef.current?.querySelectorAll<HTMLElement>("[data-needs-kind]") ?? [])]
+  const indexOf = (rows: HTMLElement[], id: string) => rows.findIndex((r) => r.parentElement?.dataset.flipKey === id)
+  // A finished row leaving with the focus (E, A, D, a sent reply, a click on
+  // its own button) hands it on, never to the page (V-912): to the row that
+  // takes its place, the one before if it was the last, or the all-clear
+  // line. A row Undo brings back (at -1) takes it back from the page or the
+  // toasts, where ⌥T and Enter leave it. Focus put elsewhere stays there.
+  const place = useRef<{ id: string; at: number } | null>(null)
+  const clearRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const p = place.current
+    const returned = p?.at === -1
+    if (!p || returned !== live.some((i) => i.id === p.id)) return
+    const rows = rowEls()
+    const to = returned ? rows[indexOf(rows, p.id)] : (rows[Math.min(p.at, rows.length - 1)] ?? clearRef.current)
+    // Emptied where a workspace with no channels shows its own: the all-clear line comes a render later.
+    if (!to && !returned) return
+    place.current = null
+    const now = document.activeElement
+    if (now === document.body || (returned && now?.closest(".toast-viewport"))) to?.focus({ preventScroll: true })
+  })
+
+  // The row leaves, and the focus it holds goes on (above).
+  const leave = (item: NeedsItem) => {
+    const at = indexOf(rowEls(), item.id)
+    if (at >= 0) place.current = { id: item.id, at }
+    resolved.mark(item)
+  }
   const finish = (item: NeedsItem, what: string) => {
     resolvedHere.current = true
     setSaid(what)
     resolve(item.id, () => {
-      if (!undone.current.delete(item.id)) resolved.mark(item)
+      if (!undone.current.delete(item.id)) leave(item)
     })
   }
 
-  // Undo: the row comes back where it was.
+  // Undo: the row comes back where it was, with the focus (above).
   const back = (id: string) => {
     if (phase(id)) undone.current.add(id)
+    place.current = { id, at: -1 }
     resolved.unmark(id)
     setSaid("Undone")
   }
@@ -185,7 +215,7 @@ export function NeedsMeSection({
     try {
       await onUndoDone?.(item)
     } catch {
-      resolved.mark(item)
+      leave(item)
       toast({ title: "Couldn't undo", description: item.title, tone: "error" })
     }
   }
@@ -269,7 +299,7 @@ export function NeedsMeSection({
       const go = listKey(e)
       const row = e.currentTarget
       if (go?.type === "move") {
-        const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-needs-kind]") ?? [])]
+        const rows = rowEls()
         rows[rows.indexOf(row) + go.by]?.focus()
       } else if (go?.type === "open") row.querySelector<HTMLAnchorElement>("a[href]")?.click()
       else return
@@ -403,7 +433,7 @@ export function NeedsMeSection({
         noChannels && !cleared ? (
           noChannels
         ) : (
-          <div className={cn("flex min-h-24 items-center gap-3.5 py-2.5", cleared && "hub-fade-in")} role="status" data-needs-empty={cleared ? "cleared" : "empty"}>
+          <div className={cn("-mx-2.5 flex min-h-24 items-center gap-3.5 rounded-lg px-2.5 py-2.5", cleared && "hub-fade-in")} role="status" data-needs-empty={cleared ? "cleared" : "empty"} ref={clearRef} tabIndex={-1}>
             <ClearSpot springRef={spotRef} />
             <div>
               <p className="text-heading font-semibold">{cleared ? "All clear. Nice work." : "Nothing needs you right now"}</p>

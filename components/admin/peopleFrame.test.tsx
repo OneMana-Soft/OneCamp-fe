@@ -33,7 +33,8 @@ const external = [{ user_uuid: "x1", user_email_id: "jordan@harborbank.example",
 function answer(url: string): Answer {
   if (state.mode === "loading") return { data: undefined, isLoading: true }
   const empty = state.mode === "empty"
-  if (url.startsWith("/admin/seats")) return { data: { data: { used: 2, limit: 25 } } }
+  // The plan's one answer (usePlan), which the seat meter reads.
+  if (url.startsWith("/admin/plan")) return { data: { data: { plan: "free", used: 2, limit: 25, free_plan: true, locked: [], controls: [] } } }
   if (url.startsWith("/admin/getAllUsersList")) return { data: { data: empty ? [] : people, has_more: false } }
   if (url.startsWith("/admin/getAllAdminUsers")) return { data: { data: empty ? [] : people, has_more: false } }
   if (url.startsWith("/admin/getAllTeamList")) return { data: { data: empty ? [] : teams, has_more: false } }

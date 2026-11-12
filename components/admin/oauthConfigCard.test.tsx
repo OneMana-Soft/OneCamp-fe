@@ -63,7 +63,8 @@ describe("sign-in providers", () => {
     const on = await screen.findByText("Set up")
     expect(on.closest("[data-state-word]")?.getAttribute("data-state-word")).toBe("success")
     expect(on.querySelector("svg")).toBeNull()
-    expect(screen.getByText("Not set up")).toBeTruthy()
+    // GitHub, and the Microsoft app this server never set (calendar B7).
+    expect(screen.getAllByText("Not set up")).toHaveLength(2)
   })
 
   it("holds edits in one save bar, and sends only the provider that changed", async () => {

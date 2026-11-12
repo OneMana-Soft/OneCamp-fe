@@ -4,7 +4,7 @@
 
 import { ParticipantEvent, type LocalParticipant } from "livekit-client"
 import { speakingLowersHand, type CallFeedback } from "@/lib/calls/hands"
-import { actInCall } from "@/services/callService"
+import { actInCall } from "@/services/callControlService"
 import { publicCall } from "@/services/publicApi"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { showCallFailure } from "./VideoControls"

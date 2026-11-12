@@ -1,0 +1,16 @@
+{
+  "about": [
+    "A first intent's latency (FLUIDITY-LEAD-16, 6 Nov 2026; H2 'tooltips on demand'): from a hover or a Tab onto a control to its popup on screen, on a cold load (as soon as the trigger is on screen) and once the page has settled (Home useful, 2.5 s, and the popup's script in, or 4 s). The control is the sidebar's 'New project' tooltip on /app/home at 1280 (surfaces.mjs --only intent --device desktop), at 1x and 4x; each intent has a tab of its own.",
+    "A hover's popup waits the trigger's delay (Tooltip's 400 ms) by design: its target is that delay and a few frames; OverDelayMs is what is left over it. A Tab shows at once. Wire: the same cold intents with every script asked for from the intent on held one round trip (the harness's rtt, 150 ms), since this harness serves scripts from localhost.",
+    "Report only: these rows say what an intent costs; none fails a run."
+  ],
+  "budgets": {
+    "hoverColdMs": { "scenario": "intent", "owner": "fluidity", "source": "A pointer's first move onto the trigger as soon as it is on screen, to the tooltip placed on screen.", "max": 2000, "target": 450, "enforce": false },
+    "hoverColdOverDelayMs": { "scenario": "intent", "owner": "fluidity", "source": "hoverColdMs less the trigger's 400 ms delay: what a cold hover waits beyond the design's own wait.", "max": 1600, "target": 50, "enforce": false },
+    "tabColdMs": { "scenario": "intent", "owner": "fluidity", "source": "A real Tab onto the trigger (from the focusable before it) as soon as it is on screen, to the tooltip placed on screen. Focus shows a tooltip at once.", "max": 1500, "target": 50, "enforce": false },
+    "hoverIdleMs": { "scenario": "intent", "owner": "fluidity", "source": "The same hover once the page has settled.", "max": 1000, "target": 450, "enforce": false },
+    "tabIdleMs": { "scenario": "intent", "owner": "fluidity", "source": "The same Tab once the page has settled.", "max": 500, "target": 50, "enforce": false },
+    "hoverColdWireMs": { "scenario": "intent", "owner": "fluidity", "source": "hoverColdMs with scripts asked for from the intent on held one round trip (150 ms).", "max": 2000, "target": 450, "enforce": false },
+    "tabColdWireMs": { "scenario": "intent", "owner": "fluidity", "source": "tabColdMs with scripts asked for from the intent on held one round trip (150 ms).", "max": 1500, "target": 50, "enforce": false }
+  }
+}

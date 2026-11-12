@@ -14,10 +14,13 @@ import {
   newEventValues,
   nextHour,
   patchChanges,
+  problemNow,
   remindersChanged,
   whenOf,
   withAllDay,
+  withEndZone,
   withStart,
+  withZone,
 } from "./eventForm"
 
 // The reader's day: Thu 15 Oct 2026, 10:20 on their clock.
@@ -200,8 +203,49 @@ describe("all day", () => {
   })
 
   it("keeps an event that ends at midnight on its own day", () => {
-    const v = newEventValues("UTC", NOW, { start: new Date(2026, 9, 20, 22), end: new Date(2026, 9, 21, 0) })
+    const v = newEventValues(Intl.DateTimeFormat().resolvedOptions().timeZone, NOW, { start: new Date(2026, 9, 20, 22), end: new Date(2026, 9, 21, 0) })
     expect(withAllDay(v, true).lastDate).toBe("2026-10-20")
+  })
+
+  // V-642: its days are the days in its own zone, wherever it is read. 8 PM on Friday in New York is Saturday in Kolkata.
+  it("turns times into their days in the event's own zone, and back into the times they had there", () => {
+    const v = { ...newEventValues("America/New_York", NOW, { start: new Date("2026-11-07T01:00:00Z"), end: new Date("2026-11-07T02:00:00Z") }), title: "Late call" }
+    const on = withAllDay(v, true)
+    expect([on.startDate, on.lastDate]).toEqual(["2026-11-06", "2026-11-06"])
+    const off = withAllDay({ ...on, startDate: "2026-11-09", lastDate: "2026-11-09" }, false)
+    expect([off.start, off.end]).toEqual([new Date("2026-11-10T01:00:00Z"), new Date("2026-11-10T02:00:00Z")])
+  })
+})
+
+// V-642: another zone keeps an event's times on the clock, as Google's form does: 7:30 AM in New York becomes 7:30 AM in
+// London. An end kept in a zone of its own stays where it is until its own zone changes.
+describe("another zone", () => {
+  const flight = (endZone = "") => ({
+    ...newEventValues("America/New_York", NOW, { start: new Date("2026-11-06T12:30:00Z"), end: new Date("2026-11-06T13:30:00Z") }),
+    endZone,
+  })
+
+  it("keeps the start's time on the clock, and the end's while it keeps the start's zone", () => {
+    expect(withZone(flight(), "Europe/London")).toMatchObject({ zone: "Europe/London", endZone: "", start: new Date("2026-11-06T07:30:00Z"), end: new Date("2026-11-06T08:30:00Z") })
+  })
+
+  it("leaves an end in a zone of its own where it is, and keeps its time on its clock when its zone changes", () => {
+    const tokyo = withZone(flight("Europe/London"), "Asia/Tokyo")
+    expect(tokyo).toMatchObject({ zone: "Asia/Tokyo", endZone: "Europe/London", start: new Date("2026-11-05T22:30:00Z"), end: new Date("2026-11-06T13:30:00Z") })
+    // 1:30 PM in London becomes 1:30 PM in Los Angeles.
+    expect(withEndZone(tokyo, "America/Los_Angeles")).toMatchObject({ endZone: "America/Los_Angeles", end: new Date("2026-11-06T21:30:00Z") })
+  })
+
+  it("saves the same instants when its zone is picked again", () => {
+    const was = flight("Europe/London")
+    expect(patchChanges(eventPatch(withEndZone(withZone(was, "America/New_York"), "Europe/London"), was, 4, true))).toBe(false)
+  })
+
+  it("ends after it starts by its instants, though its clocks read 8:30 AM in New York and 1:00 PM in London", () => {
+    // 21 Oct: 8:30 AM in New York is 12:30Z and 1:00 PM in London 12:00Z, so it ends before it starts.
+    const v = { ...flight("Europe/London"), title: "Launch review", start: new Date("2026-10-21T12:30:00Z"), end: new Date("2026-10-21T12:00:00Z") }
+    expect(formProblem(v)).toEqual({ field: "end", message: "It has to end after it starts" })
+    expect(formProblem({ ...v, end: new Date("2026-10-21T13:30:00Z") })).toBeNull()
   })
 })
 
@@ -324,5 +368,23 @@ describe("zones where the runtime reads each name as given (WebKit)", () => {
     const v = f.eventValues(api({ start: { at: new Date(2026, 9, 16, 9, 15).toISOString(), zone: "Europe/London" }, end: { at: new Date(2026, 9, 16, 10, 35).toISOString(), zone: "Europe/Dublin" } }), null, "UTC")
     expect(v).toMatchObject({ zone: "Europe/London", endZone: "Europe/Dublin" })
     expect(f.eventInput(v).end).toMatchObject({ zone: "Europe/Dublin" })
+  })
+})
+
+// V-594: a calendar the server refused (409 calendar_read_only) is said at the
+// form's Calendar row while it is still the one picked; the form's own
+// problems come first, and picking another calendar puts it right.
+describe("a refused calendar", () => {
+  const refused = { field: "calendar" as const, message: "This calendar is read-only in Google. Put the event on another calendar.", calendar: "cal-g" }
+  it("is said while it is the one picked, and goes when another is", () => {
+    const v = { ...newEventValues("Europe/London", NOW), title: "Sync", calendarId: "cal-g" }
+    expect(problemNow(v, refused)).toEqual(refused)
+    expect(problemNow({ ...v, calendarId: "cal-2" }, refused)).toBeNull()
+    expect(problemNow({ ...v, calendarId: "" }, refused)).toBeNull()
+    expect(problemNow({ ...v, title: "" }, refused)).toEqual({ field: "title", message: "Give it a title" })
+    expect(problemNow(v, null)).toBeNull()
+    // A save stopped by the form itself says the form's problem as it stands, as before.
+    expect(problemNow({ ...v, title: "" }, { field: "title", message: "Give it a title" })).toEqual({ field: "title", message: "Give it a title" })
+    expect(problemNow(v, { field: "title", message: "Give it a title" })).toBeNull()
   })
 })

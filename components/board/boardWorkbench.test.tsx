@@ -13,12 +13,11 @@ vi.mock("@excalidraw/excalidraw", () => ({
   serializeAsJSON: (...a: unknown[]) => xl.serializeAsJSON(...a),
   loadFromBlob: (...a: unknown[]) => xl.loadFromBlob(...a),
 }))
-const saved = vi.hoisted(() => ({ downloadFile: vi.fn(), printTitled: vi.fn(), recordBoardExport: vi.fn() }))
+const saved = vi.hoisted(() => ({ downloadFile: vi.fn(), recordBoardExport: vi.fn() }))
 vi.mock("@/lib/export/download", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/export/download")>()),
   downloadFile: (...a: unknown[]) => saved.downloadFile(...a),
 }))
-vi.mock("@/lib/export/print", () => ({ printTitled: (...a: unknown[]) => saved.printTitled(...a) }))
 // What the Export dialog tells the admin log (miro-44), heard here instead of the network.
 vi.mock("@/components/board/exportRecord", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/board/exportRecord")>()),
@@ -168,7 +167,9 @@ describe("the board's selection", () => {
 })
 
 describe("the board's style", () => {
-  it("is clean for a board that opens empty, hand-drawn for one with a drawing, and kept once chosen", () => {
+  // TABLES-BOARDS-16 (UX-TB-H1): a board with a drawing and no stored style read as hand-drawn here, which made every
+  // board made in the app hand-drawn from its second open. Clean until someone chooses hand-drawn.
+  it("is clean for a board that opens empty or with a drawing, and kept once chosen", () => {
     const empty = provider()
     const { result } = renderHook(() => useBoardStyle(empty, true))
     expect(result.current[0]).toBe("clean")
@@ -177,7 +178,7 @@ describe("the board's style", () => {
     expect(empty.document.getMap("boardMeta").get("style")).toBe("sketch")
     const drawn = provider()
     drawn.document.getMap("elements").set("x", { id: "x" })
-    expect(renderHook(() => useBoardStyle(drawn, true)).result.current[0]).toBe("sketch")
+    expect(renderHook(() => useBoardStyle(drawn, true)).result.current[0]).toBe("clean")
   })
 })
 
@@ -186,6 +187,48 @@ describe("the workbench", () => {
     const s = boardScene()
     render(<BoardWorkbench api={s.api} provider={provider()} boardId="b1" editable synced quiet={false} command={null} style="clean" />)
     expect(s.writes.some((w) => w.appState?.currentItemRoughness === 0 && w.appState?.currentItemFontFamily === 6 && w.captureUpdate === "NEVER")).toBe(true)
+  })
+
+  // TABLES-BOARDS-16 (UX-TB-H1): a board reopened with a drawing made its new notes in the hand-drawn face. The style
+  // was put on the canvas before Excalidraw had loaded its own scene, whose load puts back its defaults (Excalifont,
+  // roughness 1), so a new note's words and a new shape came out hand-drawn on a clean board.
+  it("gives new shapes the board's style after Excalidraw's own scene has loaded, so its defaults can't undo it", async () => {
+    const s = boardScene([], { isLoading: true })
+    render(<BoardWorkbench api={s.api} provider={provider()} boardId="b1" editable synced quiet={false} command={null} style="clean" />)
+    // Excalidraw's own scene loads, in its own defaults: the hand-drawn face (5) and a sketched line (1).
+    s.loaded({ currentItemFontFamily: 5, currentItemRoughness: 1 })
+    await act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
+    expect(s.appState()).toMatchObject({ currentItemFontFamily: 6, currentItemRoughness: 0 })
+  })
+
+  // A style chosen once the scene is up (here, or by someone else on the board) reaches new shapes too, both ways
+  // (CODE-REVIEWER-248 T6: the effect keyed on the canvas alone kept the first style).
+  it("gives new shapes a style chosen after the scene has loaded, and the clean one again when it's chosen back", async () => {
+    const s = boardScene([], { isLoading: true })
+    const p = provider()
+    const at = (style: "clean" | "sketch") => <BoardWorkbench api={s.api} provider={p} boardId="b1" editable synced quiet={false} command={null} style={style} />
+    const view = render(at("clean"))
+    s.loaded({ currentItemFontFamily: 5, currentItemRoughness: 1 })
+    const frame = () => act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
+    await frame()
+    expect(s.appState()).toMatchObject({ currentItemFontFamily: 6, currentItemRoughness: 0 })
+    view.rerender(at("sketch"))
+    await frame()
+    expect(s.appState()).toMatchObject({ currentItemFontFamily: 5, currentItemRoughness: 1 })
+    view.rerender(at("clean"))
+    await frame()
+    expect(s.appState()).toMatchObject({ currentItemFontFamily: 6, currentItemRoughness: 0 })
+  })
+
+  it("writes a note in the clean face while the board's style isn't known yet (TABLES-BOARDS-16)", async () => {
+    const s = boardScene()
+    const p = provider()
+    const view = render(<BoardWorkbench api={s.api} provider={p} boardId="b1" editable synced quiet={false} command={null} style={null} />)
+    // The workbench's own pieces come first: vitest's mocker can't take a mocked import() while another resolves (lib/testing/lazyCode).
+    await act(() => new Promise((r) => setTimeout(r, 300)))
+    view.rerender(<BoardWorkbench api={s.api} provider={p} boardId="b1" editable synced quiet={false} command={{ kind: "note", at: 1 }} style={null} />)
+    await waitFor(() => expect(s.elements().some((e) => e.type === "text")).toBe(true))
+    expect(s.elements().find((e) => e.type === "text")?.fontFamily).toBe(6)
   })
 
   it("opens the template picker and the Frames panel on the page's presses", async () => {
@@ -532,44 +575,47 @@ describe("the board's exports and its file in (miro-36)", () => {
   it("prints each frame on a page, in the Frames panel's order, and takes the pages away after", async () => {
     xl.exportToSvg.mockImplementation(async () => document.createElementNS("http://www.w3.org/2000/svg", "svg"))
     let pagesWhilePrinting = 0
-    saved.printTitled.mockImplementation((_title: string, done?: () => void) => {
+    // The print dialog, standing in (lib/export/print): what it prints, under what title, then closed.
+    let title = ""
+    const print = vi.spyOn(window, "print").mockImplementation(() => {
       pagesWhilePrinting = document.querySelectorAll("[data-board-print] section svg").length
-      done?.()
+      title = document.title
+      window.dispatchEvent(new Event("afterprint"))
     })
     const s = boardScene(retro() as never)
     render(<BoardWorkbench api={s.api} provider={ordered()} boardId="b1" editable synced quiet={false} command={{ kind: "export", at: 1 }} style="clean" title="Launch retro" />)
     expect(await screen.findByText(/Each frame on a page, in the Frames panel's order \(2 pages\)/)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Export" }))
-    await waitFor(() => expect(saved.printTitled).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
     expect(xl.exportToSvg.mock.calls.map((c) => (c[0] as { exportingFrame?: { id: string } }).exportingFrame?.id)).toEqual(["f2", "f1"])
-    expect(saved.printTitled).toHaveBeenCalledWith("Launch retro", expect.any(Function))
+    expect(title).toBe("Launch retro")
     expect(pagesWhilePrinting).toBe(2)
     expect(document.querySelector("[data-board-print]")).toBeNull()
     expect(saved.recordBoardExport.mock.calls).toEqual([["b1", "pdf"]])
     xl.exportToSvg.mockReset()
-    saved.printTitled.mockReset()
+    print.mockRestore()
     saved.recordBoardExport.mockReset()
   })
 
   it("keeps the printed pages until the dialog says it closed, and the next export takes away any left", async () => {
     // A browser whose print() returns before its dialog draws (iOS Safari) reads the pages later.
     xl.exportToSvg.mockImplementation(async () => document.createElementNS("http://www.w3.org/2000/svg", "svg"))
-    saved.printTitled.mockImplementation(() => {})
+    const print = vi.spyOn(window, "print").mockImplementation(() => {})
     const s = boardScene(retro() as never)
     const view = render(<BoardWorkbench api={s.api} provider={ordered()} boardId="b1" editable synced quiet={false} command={{ kind: "export", at: 1 }} style="clean" title="Launch retro" />)
     await screen.findByText(/Each frame on a page/)
     fireEvent.click(screen.getByRole("button", { name: "Export" }))
-    await waitFor(() => expect(saved.printTitled).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
     expect(document.querySelectorAll("[data-board-print]")).toHaveLength(1)
     view.rerender(<BoardWorkbench api={s.api} provider={ordered()} boardId="b1" editable synced quiet={false} command={{ kind: "export", at: 2 }} style="clean" title="Launch retro" />)
     await screen.findByText(/Each frame on a page/)
     fireEvent.click(screen.getByRole("button", { name: "Export" }))
-    await waitFor(() => expect(saved.printTitled).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(2))
     expect(document.querySelectorAll("[data-board-print]")).toHaveLength(1)
     expect(document.querySelectorAll("style[data-board-print-style]")).toHaveLength(1)
     document.querySelectorAll("[data-board-print], style[data-board-print-style]").forEach((n) => n.remove())
     xl.exportToSvg.mockReset()
-    saved.printTitled.mockReset()
+    print.mockRestore()
   })
 
   it("lays an .excalidraw file's drawing on the board as copies, one undo step", async () => {

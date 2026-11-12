@@ -7,6 +7,8 @@ import type { ReactNode } from "react"
 // A read that failed answers its error, by the start of its address.
 const fetched = vi.hoisted(() => ({ byUrl: {} as Record<string, unknown>, failing: {} as Record<string, unknown> }))
 vi.mock("@/hooks/useFetch", () => ({
+  // Outlook's tile (calendar B7) asks who you are only while Outlook is off; nobody here.
+  useFetchOnlyOnce: () => ({ data: undefined }),
   useFetch: (url: string) => ({
     data: fetched.byUrl[url],
     isError: url ? Object.entries(fetched.failing).find(([start]) => url.startsWith(start))?.[1] : undefined,
@@ -149,6 +151,44 @@ describe("calendars beside yours in the panel", () => {
 // layer hands the calendar what it has once, not again on every render: a
 // new empty list each time had the calendar and the layer redraw each other
 // without end.
+// V-594: a calendar moved from Google or Outlook that is see-only there says
+// so on its menu, by its provider's name; one that isn't, and one an older
+// server sends without a source, say nothing new.
+describe("a calendar read-only in its provider, in the panel", () => {
+  it("says Read-only in Google or Outlook on its menu", async () => {
+    panel(others({
+      mine: [
+        { id: "c5", name: "Team holidays", kind: "external", access: "manage", mine: true, source: "google", read_only: true },
+        { id: "c6", name: "Board", kind: "external", access: "manage", mine: true, source: "microsoft", read_only: true },
+        { id: "c7", name: "Family", kind: "external", access: "manage", mine: true, source: "google" },
+      ],
+    }), { onDialog: vi.fn() })
+    openMenu(screen.getByRole("button", { name: "Team holidays options" }))
+    const said = (await screen.findByText("Read-only in Google")).closest("[data-calendar-read-only]")
+    expect(said).toBeTruthy()
+    // A status atop the menu, not an action (DESIGN-BUILD-123 F1): first, no menu item and never focused, with
+    // the lock the private line uses (16 px, ink-3), and a hairline under it before the actions.
+    expect(screen.getByRole("menu").firstElementChild).toBe(said)
+    expect(said!.closest("[role='menuitem']")).toBeNull()
+    expect(said!.hasAttribute("tabindex")).toBe(false)
+    expect(screen.queryByRole("menuitem", { name: "Read-only in Google" })).toBeNull()
+    const lock = said!.querySelector("svg")
+    expect(lock?.getAttribute("aria-hidden")).toBe("true")
+    expect(lock?.getAttribute("class")).toMatch(/\bsize-4\b.*\btext-ink-3\b/)
+    expect(said!.nextElementSibling?.getAttribute("role")).toBe("separator")
+    expect(screen.getAllByRole("menuitem")[0].textContent).toBe("Show only this")
+    cleanup()
+    panel(others({ mine: [{ id: "c6", name: "Board", kind: "external", access: "manage", mine: true, source: "microsoft", read_only: true }] }), { onDialog: vi.fn() })
+    openMenu(screen.getByRole("button", { name: "Board options" }))
+    expect(await screen.findByText("Read-only in Outlook")).toBeTruthy()
+    cleanup()
+    panel(others({ mine: [{ id: "c7", name: "Family", kind: "external", access: "manage", mine: true, source: "google" }] }), { onDialog: vi.fn() })
+    openMenu(screen.getByRole("button", { name: "Family options" }))
+    expect(await screen.findByRole("menuitem", { name: "Show in another app" })).toBeTruthy()
+    expect(document.querySelector("[data-calendar-read-only]")).toBeNull()
+  })
+})
+
 // Calendar B8: a calendar read from an address is yours, under My calendars;
 // its menu says how it was last read, reads it now, or removes it (asked
 // first), never shares it or gives it a link; one that couldn't be read says so.

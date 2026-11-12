@@ -1,7 +1,7 @@
 "use client"
 import { lazyPart } from "@/lib/lazy/lazyPart"
 
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { displayNameOf } from "@/lib/personName"
@@ -120,7 +120,7 @@ export function SelfAvatar() {
  * "In focus until 4:00 PM" and End replaces the sliders; paused shows a
  * hollow pause badge and "Paused · 1 h left".
  */
-export function SidebarFoot() {
+export const SidebarFoot = memo(function SidebarFoot() {
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const profile = self.data?.data
   const status = useOwnStatus(profile?.user_uuid)
@@ -200,7 +200,7 @@ export function SidebarFoot() {
       )}
     </div>
   )
-}
+})
 
 
 /**

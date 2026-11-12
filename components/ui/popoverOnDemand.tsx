@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
+import { useLatch } from "@/hooks/useLatch"
 import { lazyView } from "@/lib/lazy/lazyView"
 import type { Held, HeldContentProps } from "@/components/ui/popoverHeld"
 
@@ -82,7 +83,6 @@ export const PopoverContent = React.forwardRef<HTMLDivElement, HeldContentProps>
   const held = useHeld()
   const ui = part.useLoaded(held.open)
   // Kept from its first open, so a close plays out.
-  const [opened, setOpened] = React.useState(held.open)
-  if (held.open && !opened) setOpened(true)
+  const opened = useLatch(held.open)
   return ui && opened ? <ui.HeldContent ref={ref} held={held} {...props} /> : null
 })

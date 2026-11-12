@@ -251,6 +251,71 @@ describe("a chunk's modules", () => {
   })
 })
 
+// Which modules Turbopack scope-hoists into one factory is the chunker's (V-902, UX-CHAT-H1 49f971a3f: an unchanged
+// confirm module hoisted into the unchanged Forward icon's read +10..+34 B canonical on three routes). A merged
+// factory makes each module under its own id, "301,302,e=>{…}", and registers each one's exports under it,
+// "e.s([…],301)". Built in a folder of its own, beside the task page.
+const FORWARD = `#0=>{"use strict";let #1=(0,#0.i(413409).default)("Forward",[["polyline",{points:"15 17 20 12 15 7",key:"1w3sku"}],["path",{d:"M4 18v-2a4 4 0 0 1 4-4h12",key:"jmiej9"}]]);#0.s(["Forward",0,#1])}`
+const CONFIRM = `#0=>{"use strict";var #1=#0.i(204410),#2=#0.i(681264);#0.s(["DeleteConfirm",0,function({children:#3,className:#4}){let[#5,#6]=(0,#2.useState)(!1);return(0,#1.jsxs)("div",{role:"group","aria-label":"Delete this message?",className:#4,children:[#3,(0,#1.jsx)("button",{type:"button",disabled:#5,onClick:()=>#6(!0),children:"Delete"})]})}])}`
+/** Two factories as Turbopack writes them once it hoists the second into the first: one opening, each export under its id. */
+const hoist = ([a, b]: [number, number], first: string, second: string) => {
+  const own = (f: string, id: number) => f.replace(/\]\)\}$/, `],${id})}`)
+  return `${own(first, a).slice(0, -1)};${own(second, b).slice(own(second, b).indexOf('"use strict";') + 13)}`
+}
+const forward = named(FORWARD, ["e", "t"])
+const confirm = named(CONFIRM, ["e", "n", "r", "a", "o", "s", "l"])
+const thread = { thread: { ...layout, "[project]/app/thread/page": ["thread0"] } }
+const alone = build("alone", { chunks: { ...before, thread0: chunk([301, forward], [302, confirm]) }, routes: thread })
+const hoisted = build("hoisted", { chunks: { ...before, thread0: chunk(["301,302", hoist([301, 302], forward, confirm)]) }, routes: thread })
+
+describe("a module Turbopack hoists into another (V-902)", () => {
+  it("reads as each module alone: a merged factory's part per module, its export without its id", () => {
+    const { mods } = chunkModules(chunk(["301,302", hoist([301, 302], forward, confirm)]))
+    expect([...mods.keys()]).toEqual(["301", "302"])
+    expect(mods.get("301")).toBe(chunkModules(chunk([301, forward])).mods.get("301"))
+    expect(mods.get("302")).toBe(chunkModules(chunk([302, confirm])).mods.get("302"))
+    // A module alone may register its exports under its own id too.
+    expect(chunkModules(chunk([301, forward.replace(/\]\)\}$/, "],301)}")])).mods.get("301")).toBe(mods.get("301"))
+  })
+
+  it("leaves a route's canonical bytes where they were when an unchanged module is hoisted, so it never reads REAL", () => {
+    const a = canonicalWeights(alone).get("app/thread/page.tsx")
+    const b = canonicalWeights(hoisted).get("app/thread/page.tsx")
+    expect(b?.modules).toBe(a?.modules)
+    expect(b?.hash).toBe(a?.hash)
+    expect(b?.canon).toBe(a?.canon)
+    expect(row(canonDiff(alone, hoisted).rows, "app/thread/page.tsx")?.verdict).not.toBe("REAL")
+  })
+
+  it("stays within the band when the hoisted module takes an import from the module it joined", () => {
+    // Merged, the confirm module names the first module's jsx runtime instead of importing its own.
+    const RULE = `#0=>{"use strict";var #1=#0.i(204410);let #2=()=>(0,#1.jsx)("hr",{className:"my-2 border-line"});#0.s(["Rule",0,#2])}`
+    const rule = named(RULE, ["e", "n", "c"])
+    const shared = hoist([303, 302], rule, confirm).replace(`var n=e.i(204410),r=e.i(681264);`, `var r=e.i(681264);`)
+    const P = build("ruleAlone", { chunks: { ...before, thread0: chunk([303, rule], [302, confirm]) }, routes: thread })
+    const Q = build("ruleHoisted", { chunks: { ...before, thread0: chunk(["303,302", shared]) }, routes: thread })
+    const d = row(canonDiff(P, Q).rows, "app/thread/page.tsx")
+    expect(d?.modules).toEqual({ before: 3, after: 3 })
+    expect(Math.abs(d?.canonical.delta ?? 99)).toBeLessThanOrEqual(BAND)
+  })
+
+  it("still sees a change in a hoisted module's code", () => {
+    const changed = build("hoistedChanged", {
+      chunks: { ...before, thread0: chunk(["301,302", hoist([301, 302], forward, confirm.replace("Delete this message?", "Delete this message for everyone?"))]) },
+      routes: thread,
+    })
+    expect(canonicalWeights(changed).get("app/thread/page.tsx")?.hash).not.toBe(canonicalWeights(alone).get("app/thread/page.tsx")?.hash)
+  })
+
+  it("reads a shorthand property as the pair it stands for: a local the minifier named after its key", () => {
+    // The lazyChunk provider of UX-CHAT-H1: "{d:e,s:n,h:s}" one build, "{d:e,s,h:i}" the next.
+    expect(maskNames("value:r.useMemo(()=>({d:e,s,h:i}),[e,s,i])")).toBe(maskNames("value:r.useMemo(()=>({d:e,s:n,h:s}),[e,n,s])"))
+    expect(maskNames("({d:e,s})")).toBe("({_,_})")
+    // A conditional is no object: "a?b:c" keeps its colon.
+    expect(maskNames("[a?b:c,d]")).toBe("[_?_:_,_]")
+  })
+})
+
 describe("the command", () => {
   it("prints the summary, then every route with its shipped and canonical deltas and its verdict", () => {
     const tool = path.join(path.dirname(fileURLToPath(import.meta.url)), "../scripts/fluidity/canondiff.mjs")

@@ -17,7 +17,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { OverlayBody } from "@/components/ui/overlay"
 import { useSheetMode } from "@/components/ui/overlayMode"
-import { DateTimeField } from "@/components/ui/date-time-field"
+import { WhenField } from "@/components/ui/when-field"
 import { useToast } from "@/hooks/use-toast"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { formatSendAt, quarterUp, toLocalInputValue } from "@/lib/messages/schedulePresets"
@@ -115,18 +115,18 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
         </button>
       </div>
       {customOpen ? (
-        <div ref={customRef} data-schedule-custom="" className="flex flex-col gap-1.5 px-2 pb-1">
-          {/* The app's date and time fields (D14), not the browser's box: on a
-              phone each opens as a panel of this sheet, Pause in its footer. */}
-          <DateTimeField
-            aria-label="Pause until"
-            aria-describedby={problem ? problemId : undefined}
+        <div ref={customRef} data-schedule-custom="" className="px-2 pb-1">
+          {/* The time in words, or the app's date and time fields (D14), not
+              the browser's box: on a phone each opens as a panel of this
+              sheet, Pause in its footer. Its week, in its own words. */}
+          <WhenField
             value={custom}
-            min={toLocalInputValue(now)}
-            max={toLocalInputValue(new Date(now.getTime() + MAX_PAUSE_MS))}
             onChange={setCustom}
+            onPick={(at) => void (busy || onPick(at))}
+            within={{ max: new Date(now.getTime() + MAX_PAUSE_MS), problem: pauseUntilProblem }}
+            messageId={problemId}
+            fieldsLabel="Pause until"
           />
-          {problem ? <p id={problemId} className="px-0.5 text-meta text-ink-2">{problem}</p> : null}
         </div>
       ) : null}
       <p className="px-2 pt-1 text-meta text-ink-3">Messages still arrive in OneCamp.</p>

@@ -49,6 +49,7 @@ import type { ForecastPages } from "@/lib/work/forecastsRead"
 import type { Milestone } from "@/lib/work/milestones"
 import { nextMilestone } from "@/lib/work/myMilestones"
 import { openUI } from "@/store/slice/uiSlice"
+import { ANY_TEMPLATE } from "@/lib/projectTemplateStart"
 import { app_project_path } from "@/types/paths"
 import { ix } from "@/lib/ui/interactive"
 import { useProjectHue } from "@/lib/projectHue"
@@ -735,7 +736,7 @@ export function ProjectsOverview() {
                 <Plus className="!size-3.5" />
                 New project
               </Button>
-              <Button size="sm" variant="secondary" onClick={newProject}>
+              <Button size="sm" variant="secondary" onClick={() => dispatch(openUI({ key: "createProject", data: { templateId: ANY_TEMPLATE } }))}>
                 Start from a template
               </Button>
             </div>

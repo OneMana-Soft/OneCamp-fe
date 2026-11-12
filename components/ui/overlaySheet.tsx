@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import type { HandedOn } from "@/lib/keys/escape"
 import { sheetEdge, useSheetMark } from "@/components/ui/sheetMark"
 import { TitledBy } from "@/components/ui/sheetTitle"
+import { useReturnFocus } from "@/components/ui/returnFocus"
 
 /**
  * A SHEET OVER THE PAGE, on the shell's scrim: the tablet's channel list and
@@ -15,7 +16,7 @@ import { TitledBy } from "@/components/ui/sheetTitle"
  * behind (REVIEW-FE-SHELL). This is a modal of the app's own, on Radix
  * Dialog: while it is open focus stays inside it (Tab and Shift+Tab go round
  * it), the page behind is out of reach, a tap on the scrim or Escape closes
- * it, and closing gives focus back to where it was.
+ * it, and a key that closes it gives focus back (components/ui/returnFocus).
  *
  * In place, not in a portal: the shell's CSS places the scrim (.shell-scrim)
  * and the sheet (`className`). Opening focuses the sheet itself, so a
@@ -48,6 +49,7 @@ export function OverlaySheet({
   className,
   children,
   onClick,
+  onFocusCapture,
   ...rest
 }: {
   open: boolean
@@ -60,9 +62,7 @@ export function OverlaySheet({
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
   const sheet = React.useRef<HTMLDivElement>(null)
   const marks = useSheetMark(sheet)
-  // What had focus when it opened: Radix gives focus back to a Dialog's
-  // Trigger, and these sheets open from anywhere, with none.
-  const returnTo = React.useRef<HTMLElement | null>(null)
+  const back = useReturnFocus({ onFocusCapture })
   const [titledBy, setTitledBy] = React.useState<string | null>(null)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
@@ -75,14 +75,10 @@ export function OverlaySheet({
         data-overlay-sheet={escape === "own" ? "own-escape" : ""}
         tabIndex={-1}
         onOpenAutoFocus={(e) => {
-          returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
           e.preventDefault()
           sheet.current?.focus()
         }}
-        onCloseAutoFocus={(e) => {
-          e.preventDefault()
-          if (returnTo.current?.isConnected) returnTo.current.focus()
-        }}
+        {...back}
         onEscapeKeyDown={escape === "own" ? handOn : undefined}
         // A surface takes focus to hold it, and draws no ring for it, as the shared drawer's sheet.
         className={cn("outline-none", className)}

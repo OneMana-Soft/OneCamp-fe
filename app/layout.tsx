@@ -61,15 +61,13 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "OneCamp",
     title: "OneCamp",
-    description:
-      "Chat, documents, tasks, boards, calendar and video calls. One install, on your server, with no per-seat pricing.",
+    description: "Chat, docs, tasks, boards, calendar and video calls in one app.",
     ...(appUrl ? { url: appUrl } : {}),
   },
   twitter: {
     card: "summary_large_image",
     title: "OneCamp",
-    description:
-      "Chat, documents, tasks, boards, calendar and video calls. One install, on your server, with no per-seat pricing.",
+    description: "Chat, docs, tasks, boards, calendar and video calls in one app.",
   },
 };
 

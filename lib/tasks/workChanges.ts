@@ -12,8 +12,12 @@
  * Permission model: it grants nothing. The server answers each reader only
  * the entries they may see, and a change to a task only a few may see comes
  * as its project's re-read, naming nothing; this applies what it is told to
- * what this member already has open.
+ * what this member already has open. A field change told with no value (a
+ * money field's, which only the project's admins read: V-698) writes nothing
+ * and reads the task again (lib/tasks/fieldMessage).
  */
+
+import { applyFieldMessage } from "@/lib/tasks/fieldMessage"
 
 /** One entry, as GET /work/changes answers it and a Task_Changed message carries it. */
 export interface WorkEntry {
@@ -39,6 +43,10 @@ export interface TaskPatchers {
   setTaskField(taskId: string, projectId: string, fieldId: string, value: unknown): void
   deleteTask(taskId: string, projectId: string): void
   rereadProject(projectId: string): void
+  /** The task's panel read again: a field change told with no value. */
+  rereadTask(taskId: string): void
+  /** V-762: whether the project's fields read a task's built-ins (a formula field), whose changes come with no formula's new value. */
+  readsBuiltins(projectId: string): boolean
 }
 
 /** What the feed reads, keeps and changes; read answers "gone" for a place the log no longer has (410). */
@@ -86,11 +94,22 @@ export function signalOfMessage(data: unknown): WorkSignal {
  * Applies entries in the log's order. Changes of fields in place wait to go
  * to their project's lists together (one change to each list for the lot);
  * anything else for that project (a move, a field value, a delete) lets them
- * go first, so nothing lands out of order.
+ * go first, so nothing lands out of order. Each project, and each task's
+ * panel, is read again at most once for the lot. A task's built-ins changed
+ * (in place, or moved) in a project whose formulas read them (V-762) read the
+ * project and that task again, after the lot's patches.
  */
 export function applyEntries(entries: WorkEntry[], to: TaskPatchers): void {
   const waiting = new Map<string, Map<string, TaskPatch>>()
   const reread = new Set<string>()
+  const rereadTasks = new Set<string>()
+  // The tasks whose built-ins changed, by project (V-762).
+  const builtins = new Map<string, Set<string>>()
+  const changed = (project: string, task: string) => {
+    let tasks = builtins.get(project)
+    if (!tasks) builtins.set(project, (tasks = new Set()))
+    tasks.add(task)
+  }
   const flush = (project: string) => {
     const patches = waiting.get(project)
     if (!patches) return
@@ -101,6 +120,11 @@ export function applyEntries(entries: WorkEntry[], to: TaskPatchers): void {
     if (reread.has(project)) return
     reread.add(project)
     to.rereadProject(project)
+  }
+  const rereadTaskOnce = (task: string) => {
+    if (rereadTasks.has(task)) return
+    rereadTasks.add(task)
+    to.rereadTask(task)
   }
 
   for (const e of entries) {
@@ -120,15 +144,24 @@ export function applyEntries(entries: WorkEntry[], to: TaskPatchers): void {
         const diff = e.diff
         if (!diff || Object.keys(diff).length === 0) break
         if (typeof diff.field_id === "string") {
+          const field = diff.field_id
           flush(project)
-          to.setTaskField(task, project, diff.field_id, diff.value ?? null)
+          applyFieldMessage(diff, {
+            write: (value) => to.setTaskField(task, project, field, value),
+            reread: () => {
+              rereadOnce(project)
+              rereadTaskOnce(task)
+            },
+          })
         } else if ("task_status" in diff) {
           flush(project)
           to.moveTask({ ...diff, task_uuid: task }, project)
+          changed(project, task)
         } else {
           let forProject = waiting.get(project)
           if (!forProject) waiting.set(project, (forProject = new Map()))
           forProject.set(task, { ...forProject.get(task), ...diff, task_uuid: task })
+          changed(project, task)
         }
         break
       }
@@ -138,6 +171,11 @@ export function applyEntries(entries: WorkEntry[], to: TaskPatchers): void {
     }
   }
   for (const project of [...waiting.keys()]) flush(project)
+  for (const [project, tasks] of builtins) {
+    if (!to.readsBuiltins(project)) continue
+    rereadOnce(project)
+    tasks.forEach(rereadTaskOnce)
+  }
 }
 
 /**

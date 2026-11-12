@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, type RefObject } from "react"
+import { listenTouches } from "@/lib/ui/touches"
 
 // One finger is the surface's; two or more are a pinch, which stays the browser's.
 const claim = (e: Event) => {
@@ -19,12 +20,6 @@ const claim = (e: Event) => {
 export function useClaimTouches(ref: RefObject<Element | null>, on: boolean) {
   useEffect(() => {
     const el = ref.current
-    if (!on || !el) return
-    el.addEventListener("touchstart", claim, { passive: false })
-    el.addEventListener("touchmove", claim, { passive: false })
-    return () => {
-      el.removeEventListener("touchstart", claim)
-      el.removeEventListener("touchmove", claim)
-    }
+    if (on && el) return listenTouches(el, { start: claim, move: claim }, true)
   }, [ref, on])
 }

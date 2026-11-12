@@ -38,6 +38,21 @@ describe("another calendar's events on the grid", () => {
     const e = m.asGridEvent({ id: "e2", calendar_id: "c1", title: "Offsite", start: { date: "2026-11-05" }, end: { date: "2026-11-07" }, all_day: true, hue: "moss", kind: "out_of_office" }, project)
     expect(e).toMatchObject({ event_all_day: true, event_start_date: "2026-11-05", event_end_date: "2026-11-07", event_hue: "moss", event_is_away: true })
   })
+
+  // V-643: its card says Private as the reader's own events' do.
+  it("keeps an event's visibility", () => {
+    const e = m.asGridEvent({ id: "e3", calendar_id: "c1", title: "1:1", start: { at: "2026-10-21T09:00:00Z" }, end: { at: "2026-10-21T09:30:00Z" }, all_day: false, visibility: "private" }, project)
+    expect(e.event_visibility).toBe("private")
+  })
+
+  // gcal-15: a reader of the calendar above busy-only joins its event's call room; a Busy block comes without one.
+  it("keeps where a member joins its call room, and none for a Busy block", () => {
+    const room = { join: "/app/meet/e/e4", guest_links: true }
+    const e = m.asGridEvent({ id: "e4", calendar_id: "c1", title: "Roadmap review", start: { at: "2026-10-21T09:00:00Z" }, end: { at: "2026-10-21T09:30:00Z" }, all_day: false, room }, project)
+    expect(e.event_room).toEqual(room)
+    const busy = m.asGridEvent({ id: "e5", calendar_id: "c1", title: "Busy", start: { at: "2026-10-21T11:00:00Z" }, end: { at: "2026-10-21T11:30:00Z" }, all_day: false, visibility: "private" }, project)
+    expect(busy.event_room ?? null).toBeNull()
+  })
 })
 
 describe("a calendar's colour", () => {

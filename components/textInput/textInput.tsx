@@ -23,6 +23,7 @@ import { withEditedMark } from "@/lib/chat/editedMark";
 import { ChatComposerShell } from "@/components/textInput/chatComposerShell";
 import { PhoneComposerShell } from "@/components/textInput/phoneComposerShell";
 import { COMPOSER_TOOL, type ComposerAgent } from "@/components/textInput/composerTools";
+import type { ChipSchedule } from "@/components/textInput/useUndoSchedule";
 import { canRenderStatically, mentionUserUUID } from "@/lib/utils/staticRichText";
 import { useDispatch } from "react-redux";
 import { useProfileHoverWithin } from "@/hooks/useProfileHover";
@@ -129,8 +130,8 @@ interface MinimalTiptapProps
   agents?: ComposerAgent[]
   /** Opens the AI draft (the aiSlot's popover), from "+" or ⌘J. */
   onDraftWithAI?: () => void
-  /** Takes back a message just scheduled (the scheduled chip's Undo). */
-  onUndoSchedule?: (at: Date) => void
+  /** The scheduled chip's message in the queue: its Undo, and whether it is still there. */
+  chipSchedule?: ChipSchedule
 }
 
 // The composer's buttons on a touch screen: 40px, from the 32px they are under a
@@ -344,7 +345,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             compact = false,
             agents,
             onDraftWithAI,
-            onUndoSchedule,
+            chipSchedule,
             expanded,
             onExpandedChange,
           ...props
@@ -451,10 +452,12 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
           await buttonOnclick?.(latestHtml);
           throttleRef.current?.cancel();
       });
+      // What the schedule answered: false when it didn't go (no chip then).
       const scheduleNow = useStableCallback(async (at: Date) => {
           const latestHtml = flushPendingChange();
-          await onSchedule?.(latestHtml, at);
+          const went = await onSchedule?.(latestHtml, at);
           throttleRef.current?.cancel();
+          return went;
       });
       const secondaryNow = useStableCallback(async () => {
           const latestHtml = flushPendingChange();
@@ -636,6 +639,8 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
               nothingToSend={nothingToSend}
               buttonLabel={buttonLabel}
               onSend={sendNow}
+              onSchedule={wrappedOnSchedule}
+              chipSchedule={chipSchedule}
               onUpload={attachmentOnclick ? attachNow : undefined}
               onFiles={onActionFiles ? filesNow : undefined}
               agents={agents}
@@ -680,7 +685,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
               buttonLabel={buttonLabel}
               onSend={sendNow}
               onSchedule={wrappedOnSchedule}
-              onUndoSchedule={onUndoSchedule}
+              chipSchedule={chipSchedule}
               onUpload={attachmentOnclick ? attachNow : undefined}
               onFiles={onActionFiles ? filesNow : undefined}
               agents={agents}

@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, type SheetDetent } from "./drawer"
 import { SheetCancel, SheetGroup } from "./sheet-menu"
+import { OverlayBody } from "./overlay"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 
 // Design v3, mobile C5 and C7: one sheet for every drawer on the phone.
@@ -32,6 +33,8 @@ function Sheet({ detent, children }: { detent?: SheetDetent; children?: React.Re
 }
 
 const sheet = () => document.querySelector("[data-vaul-drawer]") as HTMLElement
+// Read by glob: where there are no pins yet, the pins test fails on what it asserts, not on an import.
+const pinsModule = Object.values(import.meta.glob("./sheetPins.ts", { eager: true }) as Record<string, Record<string, unknown>>)[0] ?? {}
 
 describe("the sheet's surface", () => {
   it("is the pop step at e4 with no border, marked for the r20 corners", () => {
@@ -328,6 +331,122 @@ describe("one sheet", () => {
     }
     for (const d of ["app", "components", "hooks", "lib"]) walk(join(ROOT, d))
     expect(own).toEqual(["components/ui/drawer.tsx"])
+  })
+})
+
+// A drawer taller than the phone stopped on a whole row and read as its end:
+// the calendar's options at 390x844 showed "Show weekends" last, with Week
+// numbers, Week starts on and Done below and no sign of them (V-619, 6 Nov
+// 2026). The sheet's scroller fades the edge it has more past, with the
+// column fade every scroller has (app/interaction.css, data-edge-fade="block").
+// The browser half is e2e/sheetEdgeFade.spec.ts, at 390 with touch and in WebKit.
+describe("an edge with more past it fades", () => {
+  it("is the sheet body's: the column fade, so a drawer taller than the phone never ends on a row", () => {
+    render(<Sheet detent="medium" />)
+    const body = sheet().querySelector("[data-sheet-body]") as HTMLElement
+    expect(body.getAttribute("data-edge-fade"), "the sheet's body draws no fade").toBe("block")
+  })
+
+  it("is the held body's where the sheet holds one: that body is the sheet's scroller", () => {
+    render(
+      <Drawer open onOpenChange={() => {}}>
+        <DrawerContent header={<DrawerTitle>Sheet</DrawerTitle>} footer={<button type="button">Save</button>}>
+          <OverlayBody>
+            <p>content</p>
+          </OverlayBody>
+        </DrawerContent>
+      </Drawer>,
+    )
+    const held = sheet().querySelector("[data-overlay-body]") as HTMLElement
+    expect(held.closest("[data-sheet-body]")?.hasAttribute("data-overlay-holds-body")).toBe(true)
+    expect(held.getAttribute("data-edge-fade"), "a held body, the sheet's one scroller, draws no fade").toBe("block")
+  })
+
+  it("leaves a body out of a sheet as it was", () => {
+    render(
+      <div data-overlay="float">
+        <OverlayBody>
+          <p>content</p>
+        </OverlayBody>
+      </div>,
+    )
+    expect(document.querySelector("[data-overlay-body]")!.hasAttribute("data-edge-fade")).toBe(false)
+  })
+
+  // A part that stays at an edge while the rest scrolls under it is that
+  // edge: a fade there faded the part (the emoji sheet's search, a picker's
+  // filter, the event sheet's answer bar, a menu's group that destroys).
+  it("keeps an edge whole where a part is pinned to it, marked by the part (no :has())", () => {
+    const pins = pinsModule as Record<string, unknown>
+    expect(typeof pins.pinsSheetTop, "no pinsSheetTop in components/ui/sheetPins").toBe("function")
+    expect(typeof pins.pinsSheetFoot, "no pinsSheetFoot in components/ui/sheetPins").toBe("function")
+    const top = pins.pinsSheetTop as (el: HTMLElement | null) => (() => void) | undefined
+    const foot = pins.pinsSheetFoot as (el: HTMLElement | null) => (() => void) | undefined
+    render(
+      <Sheet detent="medium">
+        <div data-testid="head" className="sticky top-0" />
+        <div data-testid="bar" className="sticky bottom-0" />
+      </Sheet>,
+    )
+    const body = sheet().querySelector("[data-sheet-body]") as HTMLElement
+    const undoTop = top(screen.getByTestId("head"))
+    const undoFoot = foot(screen.getByTestId("bar"))
+    expect([body.hasAttribute("data-pinned-top"), body.hasAttribute("data-pinned-foot")]).toEqual([true, true])
+    // The part marks itself too, for the band over what scrolls under it (app/phone.css).
+    expect([screen.getByTestId("head").hasAttribute("data-pins-top"), screen.getByTestId("bar").hasAttribute("data-pins-foot")]).toEqual([true, true])
+    undoTop?.()
+    undoFoot?.()
+    expect([body.hasAttribute("data-pinned-top"), body.hasAttribute("data-pinned-foot")]).toEqual([false, false])
+    expect([screen.getByTestId("head").hasAttribute("data-pins-top"), screen.getByTestId("bar").hasAttribute("data-pins-foot")]).toEqual([false, false])
+    expect(top(null)).toBeUndefined()
+  })
+
+  // The pins load with the parts that pin (a picker, a menu), never with the
+  // first load, which carries the drawer and components/ui/moreMarks (V-619:
+  // moreMarks pinning brought lib/ui/markAttribute to every route).
+  it("is pinned by each sheet part that sticks to an edge, and the first load carries no pin", () => {
+    for (const [file, pin] of [
+      ["components/drawers/emojiPickerDrawer.tsx", 'data-pinned-top=""'],
+      ["components/drawers/emojiPickerDrawer.tsx", 'data-pins-top=""'],
+      ["components/ui/comboboxMenu.tsx", "pinsSheetTop"],
+      ["components/ui/date-field-panels.tsx", "pinsSheetTop"],
+      ["components/ui/sheet-menu.tsx", "pinsSheetFoot"],
+      ["components/calendar/eventPopover.tsx", 'data-pinned-foot={info.asks ? "" : undefined}'],
+    ]) expect(readFileSync(join(ROOT, file), "utf8"), `${file} sticks to the sheet's edge under its fade`).toContain(pin)
+    for (const file of ["components/ui/drawer.tsx", "components/ui/moreMarks.ts"]) expect(readFileSync(join(ROOT, file), "utf8"), file).not.toMatch(/sheetPins|markAttribute/)
+  })
+
+  it("draws no fade over a pinned part: the existing rule's guard, each edge on its own, no second fade", () => {
+    const css = readFileSync(join(ROOT, "app/interaction.css"), "utf8")
+    const block = css.slice(css.indexOf('[data-edge-fade="block"] {'))
+    expect(block).toMatch(/^\[data-edge-fade="block"\] \{[^}]*\}\s*(\/\*[\s\S]*?\*\/\s*)?\[data-edge-fade="block"\]\[data-pinned-top\],\s*\[data-pinned-top\] \[data-edge-fade="block"\] \{\s*--ix-fade-s: 0px !important;\s*\}\s*\[data-edge-fade="block"\]\[data-pinned-foot\],\s*\[data-pinned-foot\] \[data-edge-fade="block"\] \{\s*--ix-fade-e: 0px !important;\s*\}/)
+    // One column fade in the app: the guard holds its edges at none, never draws its own mask.
+    expect(css.match(/mask-image: linear-gradient\(to bottom/g)?.length).toBe(4)
+  })
+
+  it("pins a menu's foot under its group that destroys, which stays there (app/phone.css C7)", () => {
+    render(
+      <Sheet detent="menu">
+        <SheetGroup label="Doc">
+          <DrawerItem label="Share" onClick={() => {}} />
+        </SheetGroup>
+        <SheetGroup label="Delete">
+          <DrawerItem label="Delete doc" onClick={() => {}} destructive />
+        </SheetGroup>
+        <SheetCancel />
+      </Sheet>,
+    )
+    expect(sheet().querySelector("[data-sheet-body]")!.hasAttribute("data-pinned-foot"), "the menu's danger group is under the fade").toBe(true)
+    cleanup()
+    render(
+      <Sheet detent="medium">
+        <SheetGroup label="Delete">
+          <DrawerItem label="Delete doc" onClick={() => {}} destructive />
+        </SheetGroup>
+      </Sheet>,
+    )
+    // Off a menu the group scrolls with the rest, and the foot fades as any.
+    expect(sheet().querySelector("[data-sheet-body]")!.hasAttribute("data-pinned-foot")).toBe(false)
   })
 })
 

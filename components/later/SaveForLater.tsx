@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import dynamic from "next/dynamic"
 import { springPop } from "@/lib/spring"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,21 +13,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Bookmark, CalendarClock, Check, Clock, Trash2 } from "@/lib/icons"
-import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
-import { type LaterItemType, reminderChoices, reminderLabel } from "@/lib/utils/later"
+import { type LaterTarget, useRemindMe } from "@/components/later/useRemindMe"
+import { reminderChoices, reminderLabel } from "@/lib/utils/later"
 import { cn } from "@/lib/utils/helpers/cn"
 
-// Remind me's own date and time, loaded when it is first asked for.
-const ReminderPicker = dynamic(() => import("@/components/later/reminderPicker"), { ssr: false })
-
-/** The thing being saved, as the Later list will show and open it. */
-export interface LaterTarget {
-  itemType: LaterItemType
-  itemId: string
-  link: string
-  title: string
-  context?: string
-}
+export type { LaterTarget }
 
 /**
  * Save for later, with an optional reminder. One button: a bookmark that
@@ -45,9 +34,7 @@ export function SaveForLaterButton({
   onOpenChange?: (open: boolean) => void
   className?: string
 }) {
-  const saved = useSavedEntry(target.itemType, target.itemId)
-  const { save, remind, done, remove } = useLaterActions()
-  const [picking, setPicking] = useState(false)
+  const { saved, saveWith: saveNow, remind, done, remove, picking, remindMe, picker } = useRemindMe(target)
   const [menuOpen, setMenuOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const now = new Date()
@@ -64,19 +51,7 @@ export function SaveForLaterButton({
     }
   }
 
-  const saveWith = (at: Date | null) =>
-    run(() =>
-      saved
-        ? remind(saved.id, at)
-        : save({
-            item_type: target.itemType,
-            item_id: target.itemId,
-            link: target.link,
-            title: target.title,
-            context: target.context,
-            remind_at: at ? at.toISOString() : null,
-          }),
-    )
+  const saveWith = (at: Date | null) => run(() => saveNow(at))
 
   // Saved is the bookmark filled in the accent, and it springs the moment it
   // fills (hub.md L4). No sparks: saving is routine. A bookmark already filled
@@ -149,7 +124,7 @@ export function SaveForLaterButton({
               <span className="ml-3 whitespace-nowrap text-xs tabular-nums text-muted-foreground">{c.hint}</span>
             </DropdownMenuItem>
           ))}
-          <DropdownMenuItem onSelect={() => setPicking(true)}>
+          <DropdownMenuItem onSelect={remindMe}>
             <CalendarClock className="h-4 w-4" />
             Pick a date and time…
           </DropdownMenuItem>
@@ -174,16 +149,7 @@ export function SaveForLaterButton({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      {picking ? (
-        <ReminderPicker
-          initial={saved?.remind_at ? new Date(saved.remind_at) : undefined}
-          onClose={() => setPicking(false)}
-          onPick={(at) => {
-            setPicking(false)
-            void saveWith(at)
-          }}
-        />
-      ) : null}
+      {picker}
     </>
   )
 }

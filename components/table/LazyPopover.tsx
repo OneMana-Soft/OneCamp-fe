@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useLatch } from "@/hooks/useLatch"
 import { Popover, PopoverAnchor, PopoverTrigger } from "@/components/ui/popover"
 
 /**
@@ -32,18 +33,14 @@ export function LazyPopover({
   anchor?: boolean
   children: React.ReactNode
 }) {
-  const [armed, setArmed] = React.useState(false)
-  React.useEffect(() => {
-    if (open) setArmed(true)
-  }, [open])
+  const armed = useLatch(open)
 
-  if (!armed && !open) {
+  if (!armed) {
     if (anchor) return trigger
     return React.cloneElement(trigger, {
       onClick: (e: React.MouseEvent) => {
         trigger.props.onClick?.(e)
         if (e.defaultPrevented) return
-        setArmed(true)
         onOpenChange(true)
       },
     })

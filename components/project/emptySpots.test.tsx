@@ -35,7 +35,11 @@ describe("the goal a project serves", () => {
 const read = (f: string) => readFileSync(join(__dirname, "../..", f), "utf8")
 describe("empty lists have their spot", () => {
   it.each([
-    ["components/project/projectTaskTable.tsx", /illustration=\{<SpotTasks hue=\{projectHue\} \/>\}/],
+    // No tasks yet is one empty state, the list's, the board's and the phone list's (PROJECTS-24).
+    ["components/project/noProjectTasks.tsx", /illustration=\{<SpotTasks hue=\{useProjectHue\(projectId\)\} \/>\}/],
+    ["components/project/projectTaskTable.tsx", /<NoProjectTasks /],
+    ["components/project/projectTaskKanban.tsx", /<NoProjectTasks /],
+    ["components/project/projectTaskList.tsx", /<NoProjectTasks /],
     // Nothing assigned is one empty state, the table's and the phone list's (R2b).
     ["components/myTask/nothingAssigned.tsx", /illustration=\{<SpotTasks \/>\}/],
     ["components/myTask/myTaskTable.tsx", /<NothingAssigned \/>/],

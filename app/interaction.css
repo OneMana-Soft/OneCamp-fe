@@ -475,15 +475,32 @@ body {
       animation-range: 0 24px, calc(100% - 24px) 100%;
     }
     /* A column that scrolls (data-edge-fade="block"), such as a held slot's
-       body, fades its top and bottom the same way, so a row the slot cuts
-       reads as more below, never a hard cut through a name (DESIGN-BUILD-16,
-       25 Oct). The fade alone: a column's rows aren't tabs to come to rest on. */
+       body, or a sheet's (components/ui/drawer: the calendar's options at
+       390x844 ended on a whole row, read as their end, V-619), fades its top
+       and bottom the same way, so a row the slot cuts reads as more below,
+       never a hard cut through a name (DESIGN-BUILD-16, 25 Oct). The fade
+       alone: a column's rows aren't tabs to come to rest on. */
     [data-edge-fade="block"] {
       -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
       mask-image: linear-gradient(to bottom, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
       /* Stated here too, for the same reason (app/motionCost). */
       animation-duration: auto;
       animation-timeline: scroll(self block);
+    }
+    /* A part pinned to an edge, which the rest scrolls under (a sheet's
+       search over its grid, a picker's filter, an answer bar, a menu's group
+       that destroys), is that edge: its fade is held at none, never the part
+       faded (V-619). The part marks the sheet's body, or the sheet says so
+       for what it draws itself (components/ui/sheetPins); a held body in it
+       is its scroller. Important: it holds over the scroll's own value, and
+       each edge on its own. */
+    [data-edge-fade="block"][data-pinned-top],
+    [data-pinned-top] [data-edge-fade="block"] {
+      --ix-fade-s: 0px !important;
+    }
+    [data-edge-fade="block"][data-pinned-foot],
+    [data-pinned-foot] [data-edge-fade="block"] {
+      --ix-fade-e: 0px !important;
     }
   }
 

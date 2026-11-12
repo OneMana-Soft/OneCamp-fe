@@ -1,4 +1,5 @@
 @reference "../../../app/globals.css";
+@import './partials/codeTokens.css';
 @import './partials/code.css';
 @import './partials/placeholder.css';
 @import './partials/lists.css';
@@ -54,16 +55,6 @@
   --mt-accent-yellow-subtler: #f8e6a0;
   --mt-accent-red-subtler: #ffd5d2;
   --mt-accent-purple-subtler: #dfd8fd;
-
-  --hljs-string: #aa430f;
-  --hljs-title: #b08836;
-  --hljs-comment: #999999;
-  --hljs-keyword: #0c5eb1;
-  --hljs-attr: #3a92bc;
-  --hljs-literal: #c82b0f;
-  --hljs-name: #259792;
-  --hljs-selector-tag: #c8500f;
-  --hljs-number: #3da067;
 }
 
 .dark {
@@ -100,16 +91,6 @@
   --mt-accent-yellow-subtler: #533f04;
   --mt-accent-red-subtler: #5d1f1a;
   --mt-accent-purple-subtler: #352c63;
-
-  --hljs-string: #da936b;
-  --hljs-title: #f1d59d;
-  --hljs-comment: #aaaaaa;
-  --hljs-keyword: #6699cc;
-  --hljs-attr: #90cae8;
-  --hljs-literal: #f2777a;
-  --hljs-name: #5fc0a0;
-  --hljs-selector-tag: #e8c785;
-  --hljs-number: #b6e7b6;
 }
 
 .minimal-tiptap-editor .ProseMirror {

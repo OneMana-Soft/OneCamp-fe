@@ -207,7 +207,10 @@ function part<K extends Part>(name: K) {
     return <Drawn {...props} />
   }
   function Lazy(props: React.ComponentProps<(typeof Menu)[K]>) {
-    return menu ? <Loaded {...props} /> : <React.Suspense fallback={null}><Loaded {...props} /></React.Suspense>
+    // The tree it first drew, kept: a menu opened before its chunk landed stays in its Suspense, else its next draw would swap
+    // it for the bare part and React would build the open menu again (its text, highlight and focus lost).
+    const [early] = React.useState(() => !menu)
+    return early ? <React.Suspense fallback={null}><Loaded {...props} /></React.Suspense> : <Loaded {...props} />
   }
   Lazy.displayName = name
   return Lazy

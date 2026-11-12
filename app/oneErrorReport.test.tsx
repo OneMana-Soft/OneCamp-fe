@@ -166,8 +166,12 @@ const NOT_A_READ = new Map<string, string>([
   ["components/ui/part-retry.tsx", "a part's code that couldn't come, not a read"],
 ])
 
-// Files whose reads go through a service that makes them with OWN_ERRORS.
-const QUIET_SERVICE = new Map<string, string>([["components/inbox/InboxPage.tsx", "services/inboxService.ts"]])
+// Files whose reads go through a service (or a hook) that makes them with OWN_ERRORS.
+const QUIET_SERVICE = new Map<string, string>([
+  ["components/inbox/InboxPage.tsx", "services/inboxService.ts"],
+  // A slide's poll card (miro-28): the board's polls are read by useSlidePolls, with OWN_ERRORS.
+  ["components/board/slidePoll.tsx", "components/board/useSlidePolls.ts"],
+])
 
 describe("every error state says it is there", () => {
   it("scans the whole app", () => {
@@ -191,6 +195,7 @@ describe("every error state says it is there", () => {
       const own = src.replace(/<(ErrorState|SettingsCardError|HubError|ConversationLoadError)\b[\s\S]*?\/>/g, "").replace(/<LoadFailedRow\b[\s\S]*?<\/LoadFailedRow>/g, "")
       if (!SAYS_A_LOAD_FAILED.test(own)) continue
       if (/useSaysLoadFailure\(|<SaysLoadFailure\b|OWN_ERRORS|suppressErrorToast/.test(src)) continue
+      if (QUIET_SERVICE.has(f) && /OWN_ERRORS|suppressErrorToast/.test(read(QUIET_SERVICE.get(f)!))) continue
       offenders.push(`${f}: says a load failed in its own words; draw ErrorState, or put <SaysLoadFailure /> beside the words, or make the read with OWN_ERRORS`)
     }
     expect(offenders).toEqual([])

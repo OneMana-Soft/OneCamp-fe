@@ -50,7 +50,7 @@ class Contained extends React.Component<{ id: string; children: React.ReactNode 
 }
 
 /** One contribution, loaded on first draw. */
-function Contribution({ contribution, ...props }: { contribution: SlotContribution } & SlotProps) {
+const Contribution = React.memo(function Contribution({ contribution, ...props }: { contribution: SlotContribution } & SlotProps) {
   if (!contribution.load) return null
   const C = lazyOf<SlotProps>(contribution.load)
   return (
@@ -60,10 +60,10 @@ function Contribution({ contribution, ...props }: { contribution: SlotContributi
       </React.Suspense>
     </Contained>
   )
-}
+})
 
-/** Every contribution to a slot, in order. Draws nothing when none is registered. */
-export function SlotOutlet({ slot, gate, docId, editor }: { slot: ShellSlot; gate: EditionGate; docId: string; editor?: Editor | null }) {
+/** Every contribution to a slot, in order; not drawn again with its host. Draws nothing when none is registered. */
+export const SlotOutlet = React.memo(function SlotOutlet({ slot, gate, docId, editor }: { slot: ShellSlot; gate: EditionGate; docId: string; editor?: Editor | null }) {
   useRegistryVersion()
   const contributions = slotFor(slot, gate)
   if (!contributions.length) return null
@@ -74,7 +74,7 @@ export function SlotOutlet({ slot, gate, docId, editor }: { slot: ShellSlot; gat
       ))}
     </>
   )
-}
+})
 
 /** The classes the 'rootClasses' contributions add to the doc's root. */
 export function rootClassesFor(gate: EditionGate, docId: string): string[] {

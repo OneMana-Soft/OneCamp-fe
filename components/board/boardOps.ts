@@ -22,7 +22,10 @@ import {
   type NoteSkeleton,
 } from "@/lib/board/notes"
 import { copyElements, type CopyableElement } from "@/lib/board/copyElements"
+import { framePreset, nextFrameName, placeInFrame } from "@/lib/board/frames"
 import { newElementId } from "@/lib/board/ids"
+import { freeFrameSpot } from "@/lib/board/placement"
+import { drawnBox } from "@/lib/board/scene"
 
 /** An element as the tools read and write it. */
 export interface SceneElement {
@@ -143,16 +146,26 @@ function fittedNote(convert: Convert, sk: NoteSkeleton): SceneElement[] {
 /**
  * Adds notes as one undo step, selected, and returns their containers' ids
  * in order. The skeletons go through Excalidraw's own converter (lazy), which
- * lays out and wraps their words, each at the size that fits its note.
+ * lays out and wraps their words, each at the size that fits its note. Every
+ * way a note is added comes here (a press, a phone's Add a note, Tab's next,
+ * a pasted list), so each joins the frame it lands in: one pick for them all
+ * by lib/board/frames' placeInFrame, after the await, on the board as it is
+ * then, which moves them in together and grows the frame once, in the same
+ * step, never below a size someone gave it in the wait (V-683).
  */
-export async function addNotes(api: Api, notes: NoteSkeleton[], opts: { select?: boolean; frameId?: string | null } = {}): Promise<string[]> {
+export async function addNotes(api: Api, notes: NoteSkeleton[], opts: { select?: boolean } = {}): Promise<string[]> {
   if (notes.length === 0) return []
   const convert = await loadConvert()
-  const made = notes.flatMap((sk) => fittedNote(convert, sk))
-  if (opts.frameId) for (const el of made) el.frameId = opts.frameId
+  const fitted = notes.flatMap((sk) => fittedNote(convert, sk))
   const ids = notes.map((n) => n.id)
+  const before = scene(api)
+  const laid = drawnBox(fitted.filter((el) => ids.includes(el.id)))!
+  const { frame, box, grown } = placeInFrame(before, laid)
+  const dx = box.x - laid.x
+  const dy = box.y - laid.y
+  const made = fitted.map((el) => ({ ...el, x: el.x + dx, y: el.y + dy, ...(frame ? { frameId: frame.id } : {}) }))
   api.updateScene({
-    elements: [...scene(api), ...made] as never,
+    elements: [...(frame && grown ? before.map((el) => (el.id === frame.id ? bumped(el, grown) : el)) : before), ...made] as never,
     ...(opts.select === false ? {} : { appState: { selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) } as never }),
     captureUpdate: CAPTURE.IMMEDIATELY,
   })
@@ -213,13 +226,26 @@ export function frameElement(o: { id: string; x: number; y: number; width: numbe
   }
 }
 
-/** Adds a frame as one undo step, selected. */
-export function addFrame(api: Api, frame: SceneElement): void {
-  api.updateScene({
-    elements: [...scene(api), frame] as never,
-    appState: { selectedElementIds: { [frame.id]: true } } as never,
-    captureUpdate: CAPTURE.IMMEDIATELY,
-  })
+/**
+ * A frame at one of the sizes frames start at (FRAME_PRESETS: 16:9, A4, phone…), named as the next frame, added as
+ * one undo step and brought into view, selected: in the middle of what the person is looking at when nothing is
+ * there, else in the nearest free space beside what is (lib/board/placement freeFrameSpot, as Miro lays a new
+ * frame), so nothing is ever under it and the Frames panel, Lay out and a move agree with the board (V-605). To frame
+ * what's there, draw one (F), or drag notes in. The Frame tool's list and the Frames panel's (a phone's way in) both
+ * lay it with this. Returns it, or null for no such size.
+ */
+export function addPresetFrame(api: Api & Pick<ExcalidrawImperativeAPI, "getAppState" | "scrollToContent">, presetId: string): SceneElement | null {
+  const p = framePreset(presetId)
+  if (!p) return null
+  const mid = viewMiddle(api)
+  const live = scene(api).filter((e) => !e.isDeleted)
+  const names = live.filter((e) => e.type === "frame").map((e) => e.name)
+  const want = { x: Math.round(mid.x - p.width / 2), y: Math.round(mid.y - p.height / 2), width: p.width, height: p.height }
+  const at = freeFrameSpot(want, live.map((e) => drawnBox([e])!))
+  const frame = frameElement({ id: newElementId("frame"), ...want, ...at, name: nextFrameName(names), preset: p.id })
+  changeElements(api, () => null, { add: [frame], select: [frame.id] })
+  api.scrollToContent([frame] as never, { fitToContent: true, animate: true })
+  return frame
 }
 
 /**
