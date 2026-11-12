@@ -415,7 +415,7 @@ export default function BoardSlides({
     isMobile ? "size-11" : "size-8",
   )
   const bar = (
-    <SlideBar deck={deck} slide={slide} step={step} arrow={arrow} className={cn("flex min-w-0 items-center", isMobile ? "gap-0.5" : "gap-1")}>
+    <SlideBar deck={deck} slide={slide} step={step} arrow={arrow} fingerSized={isMobile} className={cn("flex min-w-0 items-center", !isMobile && "gap-1")}>
       <button
         type="button"
         data-touch-target
@@ -423,11 +423,12 @@ export default function BoardSlides({
         onClick={() => onOutline(!outline)}
         title={outline ? "Close the outline" : "Open the outline"}
         className={cn(
-          "flex min-w-0 max-w-[24ch] items-center gap-1.5 rounded-[14px] px-2.5 text-ui-sm font-medium tabular-nums text-ink outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-ink-3",
-          isMobile ? "h-11" : "h-8",
+          "flex min-w-0 max-w-[24ch] items-center gap-1.5 rounded-[14px] text-ui-sm font-medium tabular-nums text-ink outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-ink-3",
+          isMobile ? "h-11 px-1" : "h-8 px-2.5",
         )}
       >
-        {/* On a phone the words alone: at 390 "2 of 3 · Q4 numbers" (119 px of Inter) needs the icon's 22 px too (DB-133 F2). */}
+        {/* On a phone the words alone: at 390 "2 of 3 · Q4 numbers" (119 px of Inter) needs the icon's 22 px too (DB-133 F2),
+            and, beside Add a poll, the padding, the slide group's gaps (its arrows' touch spacing too) and the divider (presenterBar). */}
         {!isMobile && <ListOrdered aria-hidden />}
         <span className="truncate">{slideWords(deck, slide)}</span>
       </button>
@@ -441,10 +442,14 @@ export default function BoardSlides({
     </button>
   )
   const divider = <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line-2" />
+  // On a phone the bar is five 44 px controls and the name in 354 px (the dock's 366 less the surface's 12), as Chromium
+  // lays it at 390 with touch. The slide group's arrows are 44 px, so it is no touch group (SlideBar fingerSized): as
+  // one, phone.css F3b stood them 12 px from the name under a finger. With those 24 px, the divider's 9 and the name's
+  // desktop padding, "2 of 3 · Q4 numbers" had 81 of its 119 px; without them 126 (the arrows' own air sets it apart).
   const presenterBar = (
     <>
       {bar}
-      {divider}
+      {!isMobile && divider}
       {mayAddPoll && (
         <button
           ref={pollAnchor}

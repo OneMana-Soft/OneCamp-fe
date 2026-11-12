@@ -88,11 +88,13 @@ export function slideWords(deck: readonly Slide[], slide: string): string {
 
 /**
  * Previous, the caller's control for the slide (`children`), and Next, in one group whose taps meet and never cover a
- * neighbour's (phone.css F3). `arrow` draws the two buttons in the caller's surface.
+ * neighbour's (phone.css F3). `arrow` draws the two buttons in the caller's surface. Arrows drawn at a finger's size
+ * (`fingerSized`, 44 px: a phone's board) reach no further than their own box, so theirs is no touch group: under a
+ * finger F3b would stand them 12 px apart whatever the caller's classes say, and a phone's bar has no pixels to spare.
  */
-export function SlideBar({ deck, slide, step, arrow, className, children }: { deck: readonly Slide[]; slide: string; step: (by: 1 | -1) => void; arrow: string; className?: string; children: React.ReactNode }) {
+export function SlideBar({ deck, slide, step, arrow, fingerSized = false, className, children }: { deck: readonly Slide[]; slide: string; step: (by: 1 | -1) => void; arrow: string; fingerSized?: boolean; className?: string; children: React.ReactNode }) {
   return (
-    <div role="group" aria-label="Slides" data-touch-group="32" className={className ?? "flex shrink-0 items-center gap-1"}>
+    <div role="group" aria-label="Slides" data-touch-group={fingerSized ? undefined : "32"} className={className ?? "flex shrink-0 items-center gap-1"}>
       <button type="button" data-touch-target className={arrow} aria-label="Previous slide" disabled={stepSlide(deck, slide, -1) === null} onClick={() => step(-1)}>
         <ChevronLeft aria-hidden />
       </button>
