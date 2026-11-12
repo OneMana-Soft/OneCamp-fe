@@ -628,6 +628,11 @@ for (const theme of SHOT_THEMES) {
           "/task/createSubTask",
         ])
         await reviewShot(page, "offline-made-task", theme)
+        // Its linked tasks wait in the panel's offline words (the Points row's), never a failure (main, 12 Nov).
+        const links = panel.locator("[data-task-links]")
+        await links.scrollIntoViewIfNeeded()
+        await expect(links.locator("[data-part-later]")).toHaveText("Linked tasks show when you're back online")
+        await reviewShot(page, "offline-made-links", theme)
         // The comment made offline, waiting under its task (DESIGN-BUILD-30's owed shot).
         await panel.getByText("Bring the badges").first().scrollIntoViewIfNeeded()
         await reviewShot(page, "offline-made-comment", theme)

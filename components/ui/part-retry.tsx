@@ -1,6 +1,7 @@
 "use client"
 
-import { RefreshCw } from "@/lib/icons"
+import type { ComponentProps } from "react"
+import { RefreshCw, WifiOff } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -25,5 +26,22 @@ export function PartRetry({ what, retry, className }: { what: string; retry: () 
         <span className="whitespace-nowrap">Try again</span>
       </span>
     </button>
+  )
+}
+
+/**
+ * A part of a screen that waits for the network, said calmly in its own room:
+ * when it comes ("Set points when you're back online"), never a failure and
+ * never Try again, since only the network can bring it. For a read offline
+ * with nothing kept for it, or one of something made on this device that the
+ * server hasn't got yet (lib/offline/offlineId madeOffline). A read that
+ * failed online is PartRetry's.
+ */
+export function PartLater({ children, className, ...rest }: ComponentProps<"span">) {
+  return (
+    <span data-part-later="" className={cn("inline-flex min-h-8 min-w-0 items-center gap-1.5 py-1 text-meta leading-snug text-ink-3", className)} {...rest}>
+      <WifiOff className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0">{children}</span>
+    </span>
   )
 }
