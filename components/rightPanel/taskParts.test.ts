@@ -14,4 +14,12 @@ describe("a task panel's parts", () => {
     expect(parts).toEqual(expect.arrayContaining(["tagPicker", "cycleField", "milestoneField", "approvalCard", "TaskVisibilityRow"]))
     expect(parts.filter((part) => !ON_PRESS.includes(part) && !warmed.includes(`${part}.warm()`))).toEqual([])
   })
+
+  // offlineTasks:674 (12 Nov): the panel's header draws a tooltip (RightPanelTaskHeader), whose Radix code is a chunk
+  // of its own fetched once a tooltip is on screen (ui/tooltip warmTooltip). A phone's board draws none, so a task
+  // opened in the sheet with no network asked for it and missed: it comes with the panel's parts.
+  it("the tooltips' code comes with them, as the panel's header draws one", () => {
+    const warmed = /export const warmTaskParts = \(\) =>\s*Promise\.all\(\[([^\]]*)\]\)/.exec(PANEL)?.[1] ?? ""
+    expect(warmed).toContain("warmTooltip()")
+  })
 })
