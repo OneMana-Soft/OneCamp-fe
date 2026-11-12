@@ -497,6 +497,43 @@ describe("a poll on a presented slide", () => {
     await waitFor(() => expect(document.activeElement).toBe(addAPoll()))
   })
 
+  // miro-28's Add a poll made the phone's bar five 44 px controls and the name, and at 390 "2 of 3 · Q4 numbers" (119 px
+  // of Inter) was cut (DB-133 F2). Chromium at 390 with touch gives the bar 354 px; the group's gap there is its classes'
+  // only when it is no touch group, for under a finger phone.css F3b sets a touch group's (12 px for "32") whatever its
+  // classes say: that is what kept the name cut once the classes' gaps were gone. On a phone the bar drops its divider,
+  // the slide group is no touch group and has no gap, and the name's padding is the phone's own, so the name gets 126 px;
+  // every control stays 44 px. A computer's bar is as it was, its arrows a touch group of 32 px controls.
+  it("on a phone, the presenter's bar holds the slides, Add a poll, Go to canvas and End slides at 44 px, with no divider and no touch spacing", async () => {
+    mobile = true
+    withPolls()
+    await waitFor(() => expect(addAPoll()).not.toBeNull())
+    const bar = screen.getByRole("toolbar", { name: "Slide controls" })
+    expect(within(bar).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual([
+      "Previous slide",
+      "2 of 3 · Q4 numbers",
+      "Next slide",
+      "Add a poll",
+      "Go to canvas",
+      "End slides",
+    ])
+    for (const b of within(bar).getAllByRole("button")) expect(b.className).toMatch(/\b(size-11|h-11)\b/)
+    expect(bar.querySelector(":scope > [aria-hidden=true]")).toBeNull()
+    const slides = within(bar).getByRole("group", { name: "Slides" })
+    expect(slides.hasAttribute("data-touch-group"), "under a finger a touch group's gap is phone.css F3b's, not its classes'").toBe(false)
+    expect(slides.className).not.toMatch(/\bgap-/)
+    expect(within(bar).getByRole("button", { name: /^2 of 3/ }).className).toMatch(/\bpx-1\b/)
+  })
+
+  it("on a computer, the presenter's bar keeps its divider and its spacing", async () => {
+    withPolls()
+    await waitFor(() => expect(addAPoll()).not.toBeNull())
+    const bar = screen.getByRole("toolbar", { name: "Slide controls" })
+    expect(bar.querySelectorAll(":scope > [aria-hidden=true]")).toHaveLength(1)
+    expect(within(bar).getByRole("group", { name: "Slides" }).className).toMatch(/\bgap-1\b/)
+    expect(within(bar).getByRole("group", { name: "Slides" }).getAttribute("data-touch-group")).toBe("32")
+    expect(within(bar).getByRole("button", { name: /^2 of 3/ }).className).toMatch(/\bpx-2\.5\b/)
+  })
+
   it("a failed read puts its card on the slide, with Try again", async () => {
     const { http } = withPolls({ fails: true })
     const card = await region()
