@@ -17,6 +17,11 @@ import path from "path"
 // LiveKit and nowhere else.
 
 const LK = process.env.H3_LIVEKIT_URL ?? "ws://127.0.0.1:7991"
+// No gate starts that server: with no H3_LIVEKIT_URL, the tests that connect to LiveKit (one describe) skip and say
+// how to run it. The bare address's test connects nowhere, so it runs either way.
+const NO_LIVEKIT = !process.env.H3_LIVEKIT_URL
+const NEEDS_LIVEKIT =
+  "needs a LiveKit dev server, which no gate starts: run `docker run --rm --network host livekit/livekit-server --dev`, then set H3_LIVEKIT_URL=ws://127.0.0.1:7880"
 // LiveKit's --dev keys, which the dev server prints for anyone: no secret of ours.
 const KEY = process.env.H3_LIVEKIT_KEY ?? "devkey"
 const SECRET = process.env.H3_LIVEKIT_SECRET ?? "secret"
@@ -192,119 +197,123 @@ async function scene(page: Page, name: string, { grid = false } = {}) {
 
 test.describe.configure({ mode: "serial" })
 
-test("draws the call's stage for twelve people, starts once, and ends when the call does", async ({ browser }) => {
-  test.setTimeout(240_000)
-  const room = `h3fe-${randomUUID().slice(0, 8)}`
-  const cast = await people(browser, room, 12)
-  const tokens = { wide: recorderToken(room), mid: recorderToken(room), phone: recorderToken(room) }
-  const wide = await recorder(browser, 1920, 1080, ticket(tokens.wide))
-  const { page, said } = wide
+test.describe("against a LiveKit dev server", () => {
+  test.skip(NO_LIVEKIT, NEEDS_LIVEKIT)
 
-  // The grid of twelve, 4x3, each with their picture and their plate, and the address bare again.
-  await expect(stage(page)).toHaveAttribute("data-recording-stage", "live", { timeout: 60_000 })
-  await expect(page.locator("[data-stage-grid] [data-stage-tile]")).toHaveCount(12, { timeout: 60_000 })
-  await expect(page.locator("[data-stage-grid] video")).toHaveCount(12, { timeout: 60_000 })
-  for (let i = 1; i <= 12; i++) await expect(page.locator("[data-name-plate]", { hasText: new RegExp(`^Person ${i}$`) })).toHaveCount(1)
-  expect(page.url()).toMatch(/\/call-recording-layout$/)
-  await expect.poll(() => said).toEqual(["START_RECORDING"])
-  // No pager, pin, menu or link: the recording shows no controls (the strip's +N is a place, as on the call).
-  await expect(stage(page).locator("button:not([data-stage-more]), a, [data-stage-pager]")).toHaveCount(0)
-  await scene(page, "grid", { grid: true })
-  const mid = await recorder(browser, 1280, 720, ticket(tokens.mid))
-  const phone = await recorder(browser, 390, 844, ticket(tokens.phone))
-  await expect(mid.page.locator("[data-stage-grid] video")).toHaveCount(12, { timeout: 60_000 })
-  await expect(phone.page.locator("[data-stage-tile]").first()).toBeVisible({ timeout: 60_000 })
-  await scene(mid.page, "grid", { grid: true })
-  await scene(phone.page, "grid", { grid: true })
+  test("draws the call's stage for twelve people, starts once, and ends when the call does", async ({ browser }) => {
+    test.setTimeout(240_000)
+    const room = `h3fe-${randomUUID().slice(0, 8)}`
+    const cast = await people(browser, room, 12)
+    const tokens = { wide: recorderToken(room), mid: recorderToken(room), phone: recorderToken(room) }
+    const wide = await recorder(browser, 1920, 1080, ticket(tokens.wide))
+    const { page, said } = wide
 
-  // The spotlight (Call Control): everyone's stage, and the recording's, with the strip and "+N". In 1080 less the
-  // gutter (1056), seven places and "+N" fit the strip.
-  await roomService("UpdateRoomMetadata", { room, metadata: JSON.stringify({ spotlight: { identity: "p3", by: "Host" } }) })
-  await expect(page.locator("[data-stage-focus] [data-stage-tile]")).toHaveCount(1, { timeout: 30_000 })
-  await expect(page.locator("[data-stage-focus] [data-name-plate]")).toHaveText("Person 3")
-  await expect(page.locator("[data-stage-strip] [data-stage-tile]")).toHaveCount(7)
-  await expect(page.locator("[data-stage-more]")).toHaveText("+4")
-  await scene(page, "spotlight")
-  await scene(mid.page, "spotlight")
-  await scene(phone.page, "spotlight")
+    // The grid of twelve, 4x3, each with their picture and their plate, and the address bare again.
+    await expect(stage(page)).toHaveAttribute("data-recording-stage", "live", { timeout: 60_000 })
+    await expect(page.locator("[data-stage-grid] [data-stage-tile]")).toHaveCount(12, { timeout: 60_000 })
+    await expect(page.locator("[data-stage-grid] video")).toHaveCount(12, { timeout: 60_000 })
+    for (let i = 1; i <= 12; i++) await expect(page.locator("[data-name-plate]", { hasText: new RegExp(`^Person ${i}$`) })).toHaveCount(1)
+    expect(page.url()).toMatch(/\/call-recording-layout$/)
+    await expect.poll(() => said).toEqual(["START_RECORDING"])
+    // No pager, pin, menu or link: the recording shows no controls (the strip's +N is a place, as on the call).
+    await expect(stage(page).locator("button:not([data-stage-more]), a, [data-stage-pager]")).toHaveCount(0)
+    await scene(page, "grid", { grid: true })
+    const mid = await recorder(browser, 1280, 720, ticket(tokens.mid))
+    const phone = await recorder(browser, 390, 844, ticket(tokens.phone))
+    await expect(mid.page.locator("[data-stage-grid] video")).toHaveCount(12, { timeout: 60_000 })
+    await expect(phone.page.locator("[data-stage-tile]").first()).toBeVisible({ timeout: 60_000 })
+    await scene(mid.page, "grid", { grid: true })
+    await scene(phone.page, "grid", { grid: true })
 
-  // A share takes the focus from the spotlight, as on the call.
-  await cast.evaluate(() => (window as unknown as { shareScreen: () => Promise<void> }).shareScreen())
-  await expect(page.locator("[data-stage-focus] [data-name-plate]")).toContainText("Person 2 is presenting", { timeout: 30_000 })
-  await expect(page.locator("[data-stage-more]")).toHaveText("+5")
-  await scene(page, "share")
-  await scene(mid.page, "share")
-  await scene(phone.page, "share")
-  expect(said).toEqual(["START_RECORDING"])
+    // The spotlight (Call Control): everyone's stage, and the recording's, with the strip and "+N". In 1080 less the
+    // gutter (1056), seven places and "+N" fit the strip.
+    await roomService("UpdateRoomMetadata", { room, metadata: JSON.stringify({ spotlight: { identity: "p3", by: "Host" } }) })
+    await expect(page.locator("[data-stage-focus] [data-stage-tile]")).toHaveCount(1, { timeout: 30_000 })
+    await expect(page.locator("[data-stage-focus] [data-name-plate]")).toHaveText("Person 3")
+    await expect(page.locator("[data-stage-strip] [data-stage-tile]")).toHaveCount(7)
+    await expect(page.locator("[data-stage-more]")).toHaveText("+4")
+    await scene(page, "spotlight")
+    await scene(mid.page, "spotlight")
+    await scene(phone.page, "spotlight")
 
-  // The call ends: the page says END_RECORDING, once, so the egress stops.
-  await roomService("DeleteRoom", { room })
-  await expect.poll(() => said, { timeout: 30_000 }).toEqual(["START_RECORDING", "END_RECORDING"])
-  await page.waitForTimeout(1_000)
-  expect(said).toEqual(["START_RECORDING", "END_RECORDING"])
+    // A share takes the focus from the spotlight, as on the call.
+    await cast.evaluate(() => (window as unknown as { shareScreen: () => Promise<void> }).shareScreen())
+    await expect(page.locator("[data-stage-focus] [data-name-plate]")).toContainText("Person 2 is presenting", { timeout: 30_000 })
+    await expect(page.locator("[data-stage-more]")).toHaveText("+5")
+    await scene(page, "share")
+    await scene(mid.page, "share")
+    await scene(phone.page, "share")
+    expect(said).toEqual(["START_RECORDING"])
 
-  // Each recorder's token went to LiveKit's signal socket, and in no other request's address, header or body.
-  for (const [seen, secret] of [[wide, tokens.wide], [mid, tokens.mid], [phone, tokens.phone]] as const) {
-    expect(seen.sockets.some((u) => toLiveKit(u) && u.includes(secret))).toBe(true)
-    expect(await sentElsewhere(seen, secret)).toEqual([])
-  }
-  await Promise.all([cast.close(), page.close(), mid.page.close(), phone.page.close()])
-})
+    // The call ends: the page says END_RECORDING, once, so the egress stops.
+    await roomService("DeleteRoom", { room })
+    await expect.poll(() => said, { timeout: 30_000 }).toEqual(["START_RECORDING", "END_RECORDING"])
+    await page.waitForTimeout(1_000)
+    expect(said).toEqual(["START_RECORDING", "END_RECORDING"])
 
-/** How the stage draws faces, plates and the focus's picture: what the call's tile (TileBody) decides. */
-const tiles = (page: Page) =>
-  page.evaluate(() => ({
-    stripFacesNamed: [...document.querySelectorAll("[data-stage-strip] [data-camera-off]")].map((f) => !!f.textContent?.includes("Person 1")),
-    invitedMarked: [...document.querySelectorAll("[data-name-plate]")].filter((p) => p.textContent?.includes("Person 2")).map((p) => !!p.textContent?.includes("invited")),
-    focusFit: [...document.querySelectorAll("[data-stage-focus] video")].map((v) => getComputedStyle(v).objectFit),
-  }))
+    // Each recorder's token went to LiveKit's signal socket, and in no other request's address, header or body.
+    for (const [seen, secret] of [[wide, tokens.wide], [mid, tokens.mid], [phone, tokens.phone]] as const) {
+      expect(seen.sockets.some((u) => toLiveKit(u) && u.includes(secret))).toBe(true)
+      expect(await sentElsewhere(seen, secret)).toEqual([])
+    }
+    await Promise.all([cast.close(), page.close(), mid.page.close(), phone.page.close()])
+  })
 
-test("draws the call's own tile: a face named in the grid and by its plate alone in the strip, the Invited mark, and the focus's picture fitted", async ({ browser }) => {
-  test.setTimeout(120_000)
-  const room = `h3fe-${randomUUID().slice(0, 8)}`
-  const cast = await people(browser, room, 3, { off: [1], invited: [2] })
-  const wide = await recorder(browser, 1920, 1080, ticket(recorderToken(room)))
-  const phone = await recorder(browser, 390, 844, ticket(recorderToken(room)))
-  for (const { page } of [wide, phone]) {
-    await expect(page.locator("[data-stage-grid] [data-stage-tile]")).toHaveCount(3, { timeout: 60_000 })
-    await expect(page.locator("[data-stage-grid] video")).toHaveCount(2, { timeout: 60_000 })
-  }
-  // In the grid, Person 1's face says their name as well as the plate (the call's grid tile, "md").
-  await expect(wide.page.locator("[data-stage-grid] [data-camera-off]", { hasText: "Person 1" })).toHaveCount(1)
-  await scene(wide.page, "faces")
-  await scene(phone.page, "faces")
+  /** How the stage draws faces, plates and the focus's picture: what the call's tile (TileBody) decides. */
+  const tiles = (page: Page) =>
+    page.evaluate(() => ({
+      stripFacesNamed: [...document.querySelectorAll("[data-stage-strip] [data-camera-off]")].map((f) => !!f.textContent?.includes("Person 1")),
+      invitedMarked: [...document.querySelectorAll("[data-name-plate]")].filter((p) => p.textContent?.includes("Person 2")).map((p) => !!p.textContent?.includes("invited")),
+      focusFit: [...document.querySelectorAll("[data-stage-focus] video")].map((v) => getComputedStyle(v).objectFit),
+    }))
 
-  // The spotlight on Person 3: Person 1's face goes to the strip, where the call's small tile drops the face's name.
-  await roomService("UpdateRoomMetadata", { room, metadata: JSON.stringify({ spotlight: { identity: "p3", by: "Host" } }) })
-  for (const { page } of [wide, phone]) {
-    await expect(page.locator("[data-stage-focus] [data-name-plate]")).toHaveText("Person 3", { timeout: 30_000 })
-    await expect(page.locator("[data-stage-strip] [data-stage-tile]")).toHaveCount(2)
-    await expect.poll(() => tiles(page)).toEqual({ stripFacesNamed: [false], invitedMarked: [true], focusFit: ["contain"] })
-  }
-  await scene(wide.page, "faces-spotlight")
-  await scene(phone.page, "faces-spotlight")
-  await Promise.all([cast.close(), wide.page.close(), phone.page.close()])
-})
+  test("draws the call's own tile: a face named in the grid and by its plate alone in the strip, the Invited mark, and the focus's picture fitted", async ({ browser }) => {
+    test.setTimeout(120_000)
+    const room = `h3fe-${randomUUID().slice(0, 8)}`
+    const cast = await people(browser, room, 3, { off: [1], invited: [2] })
+    const wide = await recorder(browser, 1920, 1080, ticket(recorderToken(room)))
+    const phone = await recorder(browser, 390, 844, ticket(recorderToken(room)))
+    for (const { page } of [wide, phone]) {
+      await expect(page.locator("[data-stage-grid] [data-stage-tile]")).toHaveCount(3, { timeout: 60_000 })
+      await expect(page.locator("[data-stage-grid] video")).toHaveCount(2, { timeout: 60_000 })
+    }
+    // In the grid, Person 1's face says their name as well as the plate (the call's grid tile, "md").
+    await expect(wide.page.locator("[data-stage-grid] [data-camera-off]", { hasText: "Person 1" })).toHaveCount(1)
+    await scene(wide.page, "faces")
+    await scene(phone.page, "faces")
 
-test("draws an empty room's empty stage, and still starts", async ({ browser }) => {
-  const room = `h3fe-${randomUUID().slice(0, 8)}`
-  const { page, said } = await recorder(browser, 1920, 1080, ticket(recorderToken(room)))
-  await expect(stage(page)).toHaveAttribute("data-recording-stage", "live", { timeout: 60_000 })
-  await expect(page.locator("[data-stage-grid]")).toBeVisible()
-  await expect(page.locator("[data-stage-tile]")).toHaveCount(0)
-  await expect.poll(() => said).toEqual(["START_RECORDING"])
-  await scene(page, "empty")
-  await page.close()
-})
+    // The spotlight on Person 3: Person 1's face goes to the strip, where the call's small tile drops the face's name.
+    await roomService("UpdateRoomMetadata", { room, metadata: JSON.stringify({ spotlight: { identity: "p3", by: "Host" } }) })
+    for (const { page } of [wide, phone]) {
+      await expect(page.locator("[data-stage-focus] [data-name-plate]")).toHaveText("Person 3", { timeout: 30_000 })
+      await expect(page.locator("[data-stage-strip] [data-stage-tile]")).toHaveCount(2)
+      await expect.poll(() => tiles(page)).toEqual({ stripFacesNamed: [false], invitedMarked: [true], focusFit: ["contain"] })
+    }
+    await scene(wide.page, "faces-spotlight")
+    await scene(phone.page, "faces-spotlight")
+    await Promise.all([cast.close(), wide.page.close(), phone.page.close()])
+  })
 
-test("a token LiveKit refuses draws nothing and never starts", async ({ browser }) => {
-  const { page, said } = await recorder(browser, 1920, 1080, ticket("not-a-token"))
-  await expect(stage(page)).toHaveAttribute("data-recording-stage", "failed", { timeout: 60_000 })
-  await expect(page.locator("[data-stage-grid], [data-stage-tile], [data-name-plate]")).toHaveCount(0)
-  expect(page.url()).toMatch(/\/call-recording-layout$/)
-  await page.waitForTimeout(2_000)
-  expect(said).toEqual([])
-  await page.close()
+  test("draws an empty room's empty stage, and still starts", async ({ browser }) => {
+    const room = `h3fe-${randomUUID().slice(0, 8)}`
+    const { page, said } = await recorder(browser, 1920, 1080, ticket(recorderToken(room)))
+    await expect(stage(page)).toHaveAttribute("data-recording-stage", "live", { timeout: 60_000 })
+    await expect(page.locator("[data-stage-grid]")).toBeVisible()
+    await expect(page.locator("[data-stage-tile]")).toHaveCount(0)
+    await expect.poll(() => said).toEqual(["START_RECORDING"])
+    await scene(page, "empty")
+    await page.close()
+  })
+
+  test("a token LiveKit refuses draws nothing and never starts", async ({ browser }) => {
+    const { page, said } = await recorder(browser, 1920, 1080, ticket("not-a-token"))
+    await expect(stage(page)).toHaveAttribute("data-recording-stage", "failed", { timeout: 60_000 })
+    await expect(page.locator("[data-stage-grid], [data-stage-tile], [data-name-plate]")).toHaveCount(0)
+    expect(page.url()).toMatch(/\/call-recording-layout$/)
+    await page.waitForTimeout(2_000)
+    expect(said).toEqual([])
+    await page.close()
+  })
 })
 
 test("the bare address, or a token in the query, draws nothing, connects nowhere and never starts", async ({ browser }) => {
