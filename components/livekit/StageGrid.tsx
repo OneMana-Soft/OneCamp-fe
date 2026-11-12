@@ -5,7 +5,7 @@
 // The stage measures its own room for tiles (useContentBox) and hands it to
 // stageLayout, which says what goes where.
 
-import { useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
+import { Fragment, useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
 import { ChevronLeft, ChevronRight } from "@/lib/icons"
 import { PAGER_H, STAGE_GAP, type Size, type StageKey, type StageLayout } from "@/lib/calls/stageLayout"
 
@@ -66,18 +66,74 @@ export function StageGrid({ grid, cell, onPage }: { grid: NonNullable<StageLayou
   )
 }
 
+/** A place on the stage as a tile draws it: its corners, its ground and its edge (StageTile, the board's and the ring's places, "+N"). */
+export const STAGE_PLACE = "rounded-[14px] bg-[#16171A] ring-1 ring-inset ring-white/[0.06]"
+
+/** A strip place's keyboard ring, drawn inside it: the strip clips anything outside a place (as StageTile draws its own). */
+export const PLACE_FOCUS = "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+
 /** The strip's last place, at the strip's place size: how many more are in the call than it shows, which opens the grid of everyone. */
 export function StageMore({ more, onShow, style }: { more: number; onShow: () => void; style?: CSSProperties }) {
   return (
     <button
       type="button"
       aria-label={`Show everyone (${more} more)`}
-      className="grid shrink-0 place-items-center rounded-[14px] bg-[#16171A] text-ui-sm font-semibold tabular-nums text-[#EEEEF0] ring-1 ring-inset ring-white/[0.06] transition-colors hover:bg-[#1D1E22] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      className={`${STAGE_PLACE} grid shrink-0 place-items-center text-title-2 font-semibold tabular-nums text-[#EEEEF0] transition-colors hover:bg-[#1D1E22] ${PLACE_FOCUS}`}
       style={style}
       onClick={onShow}
       data-stage-more=""
     >
       +{more}
     </button>
+  )
+}
+
+/**
+ * What is in focus, `cols` by `rows`, and the strip beside it or under it (stageLayout's `below`): whoever fits,
+ * each in a place of the strip's place size, then "+N". The call's stage and its recording draw it; each says
+ * what is in a cell and a place (the call's are buttons that show them; the recording's, only the tile).
+ */
+export function StageFocus({
+  stage,
+  cell,
+  place,
+  more,
+}: {
+  stage: StageLayout
+  cell: (key: StageKey) => ReactNode
+  place: (key: StageKey, style: CSSProperties) => ReactNode
+  more: (style: CSSProperties) => ReactNode
+}) {
+  if (stage.focus.keys.length === 0) return null
+  // Every place in the strip is the size the layout says: a phone's are square, so a face and its plate both fit.
+  const style: CSSProperties = { width: stage.strip.tile.w, height: stage.strip.tile.h }
+  const below = stage.strip.below
+  return (
+    <div className={below ? "flex h-full w-full flex-col gap-2" : "flex h-full w-full gap-2"}>
+      <div
+        className="hub-fade-in relative grid min-h-0 min-w-0 flex-1 gap-2"
+        key={stage.focus.keys.join(",")}
+        data-stage-focus=""
+        style={{ gridTemplateColumns: `repeat(${stage.focus.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${stage.focus.rows}, minmax(0, 1fr))` }}
+      >
+        {stage.focus.keys.map((key) => (
+          <div key={key} className="relative min-h-0 min-w-0">
+            {cell(key)}
+          </div>
+        ))}
+      </div>
+      {stage.strip.keys.length > 0 || stage.strip.more > 0 ? (
+        <div
+          className={below ? "flex shrink-0 gap-2 overflow-hidden justify-center" : "flex shrink-0 gap-2 overflow-hidden h-full flex-col"}
+          style={below ? { height: stage.strip.tile.h } : { width: stage.strip.w }}
+          data-stage-strip={below ? "below" : "beside"}
+        >
+          {stage.strip.keys.map((key) => (
+            <Fragment key={key}>{place(key, style)}</Fragment>
+          ))}
+          {stage.strip.more > 0 ? more(style) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }

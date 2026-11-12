@@ -18,9 +18,20 @@ const LAYOUT = read("app/app/LayoutContent.tsx")
 describe("the shell and the address's query", () => {
   it("reads the query in one leaf, OpenFromUrl, beside the shell", () => {
     expect(LAYOUT).toMatch(/function OpenFromUrl\(\) \{\s*useOpenFromUrl\(\);\s*return null;\s*\}/)
-    expect(LAYOUT).toMatch(/<OpenFromUrl \/>\s*<Shell>\{children\}<\/Shell>/)
+    expect(LAYOUT).toMatch(/<OpenFromUrl \/>\s*<FollowRoute \/>\s*<ShellAt>\{children\}<\/ShellAt>/)
     const shell = LAYOUT.slice(LAYOUT.indexOf("function Shell("))
     expect(shell).not.toMatch(/useSearchParams|useOpenFromUrl\(\)/)
+  })
+
+  // H1 (5 Nov 2026): nor the path. What follows it is written in a leaf
+  // (FollowRoute), and the one thing the shell takes from it, a call's page,
+  // comes as a prop from ShellAt; the shell is memo (shellRenders.test.tsx).
+  it("reads the path in two leaves, never in the shell", () => {
+    expect(LAYOUT).toMatch(/function FollowRoute\(\) \{\s*const pathname = usePathname\(\);/)
+    expect(LAYOUT).toMatch(/const Shell = memo\(function Shell\(/)
+    const shell = LAYOUT.slice(LAYOUT.indexOf("function Shell("))
+    expect(shell).not.toMatch(/usePathname/)
+    expect(read("hooks/useSplitView.ts")).not.toMatch(/usePathname/)
   })
 
   it("calls no hook that reads the query", () => {

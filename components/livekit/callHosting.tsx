@@ -10,7 +10,7 @@
  */
 
 import * as React from "react"
-import { ParticipantEvent, RoomEvent, type Participant, type RemoteParticipant, type Room } from "livekit-client"
+import { RoomEvent, type Participant, type RemoteParticipant, type Room } from "livekit-client"
 import dynamic from "next/dynamic"
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -18,9 +18,9 @@ import { Ellipsis } from "@/lib/icons"
 import { handOf } from "@/lib/calls/handsCore"
 import type { CallHold } from "@/lib/calls/holds"
 import type { Knock } from "@/lib/calls/lobby"
-import { NO_PART, heldFor, partOf, type CallAction, type CallPart, type CallTarget, type PersonAction } from "@/lib/calls/control"
+import { heldFor, partOf, type CallAction, type CallTarget, type PersonAction } from "@/lib/calls/control"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
-import { actInCall } from "@/services/callService"
+import { actInCall } from "@/services/callControlService"
 import { CALL_TOPIC, boardNotice, controlNotice, readBoardPacket, readCallMetadata, readControlPacket, type CallBoard } from "./callState"
 import { holdNotice, letThroughDone, readHoldPacket } from "./callHolds"
 import { guestName } from "./callLevels"
@@ -30,21 +30,6 @@ import { callToast } from "./callSurface"
 // A person's menu items: a click away, so loaded when first wanted (warmMenu).
 const PersonMenuItems = dynamic(() => import("./PersonMenuItems"), { ssr: false })
 const warmMenu = () => void import("./PersonMenuItems")
-
-/** Someone's part in the call, kept current as the server changes it. */
-export function useCallPart(participant: Participant | undefined): CallPart {
-  const [part, setPart] = React.useState<CallPart>(() => (participant ? partOf(participant.attributes) : NO_PART))
-  React.useEffect(() => {
-    if (!participant) return
-    const update = () => setPart(partOf(participant.attributes))
-    update()
-    participant.on(ParticipantEvent.AttributesChanged, update)
-    return () => {
-      participant.off(ParticipantEvent.AttributesChanged, update)
-    }
-  }, [participant])
-  return part
-}
 
 /** A LiveKit participant as an action's target: their part, and what they have on. Pure. */
 export function targetOf(p: Participant): CallTarget & { name: string } {

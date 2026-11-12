@@ -38,11 +38,11 @@ describe("a long press on a block", () => {
       vi.advanceTimersByTime(500)
       expect(asked).toHaveBeenCalledWith(expect.objectContaining({ via: "press", blocks: [5] }))
       finger("pointerup")
-      fireEvent.click(item)
+      fireEvent.click(item, { detail: 1 })
       expect(ran).not.toHaveBeenCalled()
       // The next touch is a tap of its own, and keeps its click.
       fireEvent.touchStart(item)
-      fireEvent.click(item)
+      fireEvent.click(item, { detail: 1 })
       expect(ran).toHaveBeenCalledTimes(1)
     } finally {
       item.remove()

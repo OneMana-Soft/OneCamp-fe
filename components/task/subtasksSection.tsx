@@ -11,6 +11,8 @@ import { celebrateRing } from "@/lib/celebrateSoon"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { Bar } from "@/components/ui/progress"
 import { DueLabel } from "@/components/task/DueLabel"
+import { TaskStatusCell } from "@/components/task/taskStatusCell"
+import { isClosedStatus, statusOptionOf, type StatusOption } from "@/lib/taskStatus"
 import { TaskTitle } from "@/components/task/TaskCheck"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import TaskSubTaskAssignee from "@/components/task/taskSubTaskAssignee"
@@ -30,6 +32,16 @@ type SubtasksSectionProps = {
     onUpdateAssignee: (task_uuid: string, userInfo?: UserProfileDataInterface) => void
     onOpen: (task_uuid: string) => void
     onCreateSubtask: (subtaskData: NewSubTaskDraft) => void
+    /** Whether one can be added here; not under a subtask (the depth rule, J-H). isAdmin when unset. */
+    canAdd?: boolean
+    /** The task is an epic (J-H), these its project's statuses: its tasks show their own, and the closed ones count done, as the server counts them. */
+    epic?: StatusOption[]
+}
+
+/** What the list calls its rows: a task's subtasks, or an epic's tasks. */
+const WORDS = {
+    sub: { title: "Subtasks", done: "subtasks done", add: "Add subtask", field: "New subtask", hint: "Subtask name, then Enter" },
+    epic: { title: "Tasks in this epic", done: "tasks done", add: "Add a task to this epic", field: "New task in this epic", hint: "Task name, then Enter" },
 }
 
 const EMPTY_DRAFT: NewSubTaskDraft = { task_name: "", task_assignee_uuid: "", task_due_date: undefined, task_start_date: undefined, task_assignee: undefined }
@@ -41,9 +53,10 @@ const EMPTY_DRAFT: NewSubTaskDraft = { task_name: "", task_assignee_uuid: "", ta
  * strikes its title, with no sparks (eight bursts in a panel of subtasks
  * would be noise); ticking the last open one is the Ring tier, from the
  * bar's end. "+ Add subtask" becomes a field; Enter adds and keeps a field
- * for the next.
+ * for the next. An epic's (J-H) are its tasks, "Tasks in this epic", each
+ * with its status in the box's place.
  */
-export function SubtasksSection({ isAdmin, restricted = false, subtasks, projectMembers, onToggleStatus, onRename, onUpdateAssignee, onOpen, onCreateSubtask }: SubtasksSectionProps) {
+export function SubtasksSection({ isAdmin, restricted = false, subtasks, projectMembers, onToggleStatus, onRename, onUpdateAssignee, onOpen, onCreateSubtask, canAdd = isAdmin, epic }: SubtasksSectionProps) {
     const [adding, setAdding] = useState(false)
     const [draft, setDraft] = useState("")
     const [draftKey, setDraftKey] = useState(0)
@@ -52,7 +65,8 @@ export function SubtasksSection({ isAdmin, restricted = false, subtasks, project
     const [justDone, setJustDone] = useState<Set<string>>(() => new Set())
 
     const total = subtasks.length
-    const done = subtasks.filter((s) => s.task_status === "done").length
+    const done = subtasks.filter((s) => (epic ? isClosedStatus(s.task_status) : s.task_status === "done")).length
+    const words = epic ? WORDS.epic : WORDS.sub
 
     const toggle = useCallback(
         (task: TaskInfoInterface) => {
@@ -77,19 +91,19 @@ export function SubtasksSection({ isAdmin, restricted = false, subtasks, project
         setDraftKey((k) => k + 1)
     }
 
-    if (total === 0 && !isAdmin) return null
+    if (total === 0 && !canAdd) return null
 
     return (
         <section className="mb-6" data-subtasks="">
             <div className="mb-1 flex h-7 items-center gap-2">
-                <h3 className={panelSection}>Subtasks</h3>
+                <h3 className={panelSection}>{words.title}</h3>
                 {total > 0 && (
                     <>
                         <span className="text-meta tabular-nums text-ink-3">
                             {done} of {total}
                         </span>
                         <span className="relative inline-flex w-16">
-                            <Bar value={(done / total) * 100} size={4} label={`${done} of ${total} subtasks done`} />
+                            <Bar value={(done / total) * 100} size={4} label={`${done} of ${total} ${words.done}`} />
                             <span ref={barEnd} aria-hidden className="absolute right-0 top-1/2 size-0" data-subtask-bar-end="" />
                         </span>
                     </>
@@ -104,6 +118,7 @@ export function SubtasksSection({ isAdmin, restricted = false, subtasks, project
                         isAdmin={isAdmin}
                         locked={!restricted && !!subtask.task_restricted}
                         projectMembers={projectMembers}
+                        status={epic && statusOptionOf(subtask, epic)}
                         justDone={justDone.has(subtask.task_uuid)}
                         onToggle={toggle}
                         onRename={onRename}
@@ -113,9 +128,10 @@ export function SubtasksSection({ isAdmin, restricted = false, subtasks, project
                 ))}
             </ul>
 
-            {isAdmin &&
+            {canAdd &&
                 (adding ? (
                     <AddRow
+                        words={words}
                         key={draftKey}
                         value={draft}
                         onChange={setDraft}
@@ -132,14 +148,14 @@ export function SubtasksSection({ isAdmin, restricted = false, subtasks, project
                         className="-ml-1 flex h-[30px] w-full items-center gap-2 rounded-md px-1 text-sm text-ink-3 transition-colors hover:bg-hover hover:text-foreground"
                     >
                         <Plus className="size-4" aria-hidden />
-                        Add subtask
+                        {words.add}
                     </button>
                 ))}
         </section>
     )
 }
 
-function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange: (v: string) => void; onAdd: () => void; onCancel: () => void }) {
+function AddRow({ words, value, onChange, onAdd, onCancel }: { words: (typeof WORDS)["sub"]; value: string; onChange: (v: string) => void; onAdd: () => void; onCancel: () => void }) {
     const ref = useRef<HTMLInputElement>(null)
     useEffect(() => ref.current?.focus(), [])
     return (
@@ -164,8 +180,8 @@ function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange:
                 onBlur={() => {
                     if (!value.trim()) onCancel()
                 }}
-                placeholder="Subtask name, then Enter"
-                aria-label="New subtask"
+                placeholder={words.hint}
+                aria-label={words.field}
                 className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none ring-brand/40 placeholder:text-ink-3 focus-visible:ring-1"
             />
         </div>
@@ -177,6 +193,8 @@ type SubtaskItemProps = {
     isAdmin: boolean
     locked: boolean
     projectMembers: UserProfileDataInterface[]
+    /** An epic's task's status, shown in place of the done box. */
+    status?: StatusOption | false
     justDone: boolean
     onToggle: (task: TaskInfoInterface) => void
     onRename: (task_uuid: string, name: string) => void
@@ -184,11 +202,11 @@ type SubtaskItemProps = {
     onOpen: (task_uuid: string) => void
 }
 
-const SubtaskItem = React.memo(function SubtaskItem({ subtask, isAdmin, locked, projectMembers, justDone, onToggle, onRename, onUpdateAssignee, onOpen }: SubtaskItemProps) {
+const SubtaskItem = React.memo(function SubtaskItem({ subtask, isAdmin, locked, projectMembers, status, justDone, onToggle, onRename, onUpdateAssignee, onOpen }: SubtaskItemProps) {
     const isCompleted = subtask.task_status === "done"
     return (
         <li className="group/sub -ml-1 flex h-[30px] items-center gap-2 rounded-md px-1 transition-colors hover:bg-hover" data-subtask={subtask.task_uuid}>
-            <SubtaskBox checked={isCompleted} spring={justDone && isCompleted} disabled={!isAdmin} name={subtask.task_name} onToggle={() => onToggle(subtask)} />
+            {status ? <TaskStatusCell status={status} label="tip" /> : <SubtaskBox checked={isCompleted} spring={justDone && isCompleted} disabled={!isAdmin} name={subtask.task_name} onToggle={() => onToggle(subtask)} />}
             {subtask.task_key && <span data-subtask-key="" className="shrink-0 text-meta font-[510] tabular-nums text-ink-3">{subtask.task_key}</span>}
             <RestrictedMark restricted={locked} />
             <div className="min-w-0 flex-1 text-sm font-[450]">

@@ -6,8 +6,18 @@ import type { ImportPeople, InviteRun } from "@/services/importService"
 let people: ImportPeople | undefined
 let loading = false
 const refetch = vi.fn()
+// The plan answers its own key (/admin/plan), for the way past the limit.
+const PLAN_LINKS = {
+  licence: "https://shop.example/buy?plan=lifetime",
+  cloud: "https://shop.example/buy?plan=cloud",
+  account: "https://shop.example/account",
+  pricing: "https://shop.example/pricing",
+}
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => ({ data: url ? people : undefined, isError: false, isLoading: loading, mutate: refetch }),
+  useFetch: (url: string) =>
+    url === "/admin/plan"
+      ? { data: { data: { plan: "free", used: 23, limit: 25, free_plan: true, locked: [], controls: [], links: PLAN_LINKS } }, mutate: vi.fn() }
+      : { data: url ? people : undefined, isError: false, isLoading: loading, mutate: refetch },
 }))
 const sent: string[][] = []
 let answer: Partial<InviteRun> = {}
@@ -57,7 +67,8 @@ describe("Invite the people who came across", () => {
   it("ticks only as many as the plan has room for", async () => {
     people = offer(2)
     render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
-    expect(screen.getByText("Your free plan has room for 2 more people (23 of 25 places taken).")).toBeTruthy()
+    // The team is bigger than the room: said with both numbers (ADMIN-02).
+    expect(await screen.findByRole("status")).toHaveTextContent("3 people came across, and your free plan has room for 2 more (23 of 25 places taken).")
     const boxes = screen.getAllByRole("checkbox")
     expect(boxes.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "true", "false"])
     expect((boxes[2] as HTMLButtonElement).disabled).toBe(true)
@@ -68,11 +79,28 @@ describe("Invite the people who came across", () => {
     await waitFor(() => expect(sent).toEqual([["p1@acme.test", "p2@acme.test"]]))
   })
 
-  it("can't invite anyone into a full plan, and says so", () => {
+  it("can't invite anyone into a full plan, and says so", async () => {
     people = offer(0)
     render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
-    expect(screen.getByText(/Your free plan is full/)).toBeTruthy()
+    expect(await screen.findByText(/Your free plan is full/)).toBeTruthy()
     expect((screen.getByRole("button", { name: "Invite 0 people" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  // The limit is a note with the way past it, not a red line (ADMIN-02).
+  it("a full plan names the team and the limit, and leads to removing it", async () => {
+    people = offer(0, 60)
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    const note = (await screen.findByRole("status")).closest("[data-seat-limit-note]") as HTMLElement
+    expect(note).toHaveTextContent("Your free plan is full: all 25 places are taken")
+    expect(note.querySelector(".text-danger-ink")).toBeNull()
+    expect(screen.getByRole("link", { name: "Remove the 25-person limit" })).toHaveAttribute("href", PLAN_LINKS.licence)
+  })
+
+  it("a plan with room for everyone says so quietly", () => {
+    people = offer(20, 3)
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(screen.getByText("Your free plan has room for 20 more people (5 of 25 places taken).")).toBeTruthy()
+    expect(document.querySelector("[data-seat-limit-note]")).toBeNull()
   })
 
   it("says when the plan filled up partway", async () => {

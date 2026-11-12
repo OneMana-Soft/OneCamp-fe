@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { RowProp } from "@/components/task/GroupedTaskList"
 import type { ListDisplay } from "@/components/task/WorkToolbar"
 import { ExportCSVButton } from "@/components/task/ExportCSVButton"
+import { AddViewToDashboard } from "@/components/dashboards/addViewToDashboard"
 import { WorkSegmented } from "@/components/task/WorkTabs"
 import { useProjectFields } from "@/hooks/useProjectFields"
 import { useTaskViews } from "@/hooks/useTaskViews"
@@ -81,13 +82,14 @@ export function DisplayMenuBody<TData>({
         <Section title="Views">
           <ul className="-mx-1 grid gap-px">
             {views.slice(0, 9).map((v, i) => (
-              <li key={v.id}>
-                <button type="button" onClick={() => apply(v.state)} className="flex h-[30px] w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-press">
+              <li key={v.id} className="group flex items-center gap-0.5">
+                <button type="button" onClick={() => apply(v.state)} className="flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-press">
                   <Bookmark className="size-3.5 text-ink-3" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{v.name}</span>
                   {active?.id === v.id && <span aria-label="Showing" className="size-1.5 rounded-full bg-brand" />}
                   <span className="kbd">{i + 1}</span>
                 </button>
+                <AddViewToDashboard view={v} project={projectId} className="pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100" />
               </li>
             ))}
           </ul>
@@ -153,19 +155,18 @@ export function DisplayMenuBody<TData>({
           })}
         </div>
       </Section>
-      {projectId && (
-        // Insights (B9-b1): the project's report, narrowed to this list's
-        // filters and search. Due this week is the list's own filter, so the
-        // report can't keep it, and says so.
-        <Link
-          href={insightsHref(projectId, state.columnFilters, typeof state.globalFilter === "string" ? state.globalFilter : "", active?.name ?? "")}
-          className="-mx-1 mt-3 flex min-h-[30px] items-center gap-2 rounded-md px-2 text-sm hover:bg-press"
-        >
-          <BarChart3 className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate">Insights for this view</span>
-          {state.columnFilters.some((f) => f.id === DUE_WEEK) && <span className="shrink-0 text-xs text-ink-3">without due this week</span>}
-        </Link>
-      )}
+      {/* Insights (B9-b1, L32): the project's report, or My tasks' (the
+          reader's own work), narrowed to this list's filters and search. Due
+          this week is the list's own filter, so the report can't keep it, and
+          says so. */}
+      <Link
+        href={insightsHref(projectId, state.columnFilters, typeof state.globalFilter === "string" ? state.globalFilter : "", active?.name ?? "")}
+        className="-mx-1 mt-3 flex min-h-[30px] items-center gap-2 rounded-md px-2 text-sm hover:bg-press"
+      >
+        <BarChart3 className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">Insights for this view</span>
+        {state.columnFilters.some((f) => f.id === DUE_WEEK) && <span className="shrink-0 text-xs text-ink-3">without due this week</span>}
+      </Link>
       <div className="-mx-3 mt-3 flex items-center justify-between border-t border-line px-2 pt-2">
         {naming === null ? (
           <Button variant="ghost" size="sm" onClick={() => setNaming("")}>

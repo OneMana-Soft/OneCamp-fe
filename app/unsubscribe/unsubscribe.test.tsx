@@ -15,6 +15,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }))
 vi.mock("@/components/themeProvider/theme-toggle", () => ({ ThemeToggle: () => null }))
+// The trust line's word on where it runs (authShellHosting.test): not this page's subject.
+vi.mock("@/lib/auth/useSignInFacts", () => ({ useHosting: () => null }))
 
 import UnsubscribePage from "./page"
 

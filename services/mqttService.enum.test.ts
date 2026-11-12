@@ -43,8 +43,27 @@ describe("MQTT message types match the backend", () => {
     expect(MqttMessageType.ReadMoved).toBe(46)
   })
 
+  it("Calendar_Live is 48 (MESSAGE_CALENDAR_LIVE, the integrator's allotment)", () => {
+    expect(MqttMessageType.Calendar_Live).toBe(48)
+  })
+
   it("Call_State is 42 (MESSAGE_CALL_STATE; 41 is chat's Pin)", () => {
     expect(MqttMessageType.Call_State).toBe(42)
+  })
+
+  it("Call_Ring is 49 (MESSAGE_CALL_RING, INTEGRATOR-112's allotment; 48 is the calendar's)", () => {
+    expect((MqttMessageType as unknown as Record<string, number>).Call_Ring).toBe(49)
+  })
+
+  // The handler raises each ring as a window event, writing its name itself
+  // (no import on every page); lib/calls/ring holds the name.
+  it("the handler passes MESSAGE_CALL_RING on as the ring's window event", async () => {
+    const { readFileSync } = await import("fs")
+    const { CALL_RING_EVENT } = await import("@/lib/calls/ring")
+    const handler = readFileSync("hooks/useMqttMessageHandler.ts", "utf8")
+    const at = handler.indexOf("case MqttMessageType.Call_Ring")
+    expect(at, "the handler has no case for Call_Ring").toBeGreaterThan(-1)
+    expect(handler.slice(at, at + 400)).toContain(`new CustomEvent("${CALL_RING_EVENT}"`)
   })
 
   it("Project_Statuses is 43 (MESSAGE_PROJECT_STATUSES)", () => {

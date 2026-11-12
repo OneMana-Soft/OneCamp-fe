@@ -34,7 +34,8 @@ import { resolve as resolveImport } from "../../scripts/fluidity/reach.mjs"
 // DateTimeField: Pause until, Remind me, Schedule send and Send later were
 // the browser's datetime-local box, mm/dd/yyyy with its own clock, until 21
 // Oct. No form keeps a browser box (app/interaction.test.ts rule 11 holds
-// the whole tree to it).
+// the whole tree to it). Since H3 (5 Nov) those four write WhenField, the
+// time in words over the same DateTimeField: a moment's pair all the same.
 
 pinTestClock()
 const LOAD = { timeout: 8000 }
@@ -49,7 +50,7 @@ afterEach(async () => {
 })
 
 type Host = "page" | "dialog" | "popover" | "sheet" | "menu"
-type Field = "DateField" | "TimeField" | "DatePicker" | "DateTimeField"
+type Field = "DateField" | "TimeField" | "DatePicker" | "DateTimeField" | "WhenField"
 
 /**
  * Every form that asks for a date or a time, where its field sits, read from
@@ -88,16 +89,20 @@ const FORMS: Array<{ file: string; host: Host; field: Field; via?: string }> = [
   { file: "components/work/backlog/ScheduleDialog.tsx", host: "dialog", field: "DateField" },
   // A milestone's target day (linear-16).
   { file: "components/work/milestones/MilestoneDialog.tsx", host: "dialog", field: "DateField" },
+  { file: "components/work/releases/ProjectReleases.tsx", host: "dialog", field: "DateField" },
+  { file: "components/work/releases/ReleaseSheet.tsx", host: "sheet", field: "DateField" },
   { file: "components/work/rules/RuleBuilder.tsx", host: "dialog", field: "TimeField" },
-  { file: "components/notifications/PauseNotificationsDialog.tsx", host: "sheet", field: "DateTimeField" },
-  { file: "components/later/reminderPicker.tsx", via: "components/later/SaveForLater.tsx", host: "sheet", field: "DateTimeField" },
-  { file: "components/messages/scheduleSendButton.tsx", host: "popover", field: "DateTimeField" },
-  { file: "components/messages/scheduleSendButton.tsx", via: "components/messages/scheduledMessagesBar.tsx", host: "popover", field: "DateTimeField" },
-  { file: "components/messages/scheduleSendButton.tsx", via: "components/textInput/composerTools.tsx", host: "menu", field: "DateTimeField" },
+  { file: "components/notifications/PauseNotificationsDialog.tsx", host: "sheet", field: "WhenField" },
+  { file: "components/later/reminderPicker.tsx", via: "components/later/useRemindMe.tsx", host: "sheet", field: "WhenField" },
+  { file: "components/messages/scheduleSendButton.tsx", host: "popover", field: "WhenField" },
+  { file: "components/messages/scheduleSendButton.tsx", via: "components/messages/scheduledMessagesBar.tsx", host: "popover", field: "WhenField" },
+  { file: "components/messages/scheduleSendButton.tsx", via: "components/textInput/composerTools.tsx", host: "menu", field: "WhenField" },
 ]
 
 /** The module each field comes from. */
-const MODULE: Record<Field, string> = { DateField: "date-field", TimeField: "date-field", DatePicker: "date-field", DateTimeField: "date-time-field" }
+const MODULE: Record<Field, string> = { DateField: "date-field", TimeField: "date-field", DatePicker: "date-field", DateTimeField: "date-time-field", WhenField: "when-field" }
+/** A moment's pair: a day and a time together, by itself or under the time in words. */
+const pairOf = (f: Field) => f === "DateTimeField" || f === "WhenField"
 /** A browser date or time box, in any of its forms. */
 const BOX = /\btype=\{?["'`](?:date|time|datetime-local|month|week)["'`]/
 
@@ -199,7 +204,7 @@ describe("every form's day and time come from the shared pickers", () => {
         const rel = join(dir, name)
         if (statSync(join(ROOT, rel)).isDirectory()) walk(rel)
         else if (name.endsWith(".tsx") && !/\.(test|spec)\.tsx$/.test(name) && !rel.startsWith("components/ui/") && !listed.has(rel)) {
-          if (/<(DateField|TimeField|DatePicker|DateTimeField)\b/.test(read(rel))) unlisted.push(rel)
+          if (/<(DateField|TimeField|DatePicker|DateTimeField|WhenField)\b/.test(read(rel))) unlisted.push(rel)
         }
       }
     }
@@ -210,7 +215,7 @@ describe("every form's day and time come from the shared pickers", () => {
 
 const MODES: ScreenName[] = ["a phone in portrait", "a phone in landscape", "a tablet", "a computer"]
 /** Each place a field sits, and whether a form there asks for one field or a day and a time together. */
-const CASES = Array.from(new Set(FORMS.map((f) => `${f.host} ${f.field === "DateTimeField" ? "pair" : "one"}`))).map((c) => {
+const CASES = Array.from(new Set(FORMS.map((f) => `${f.host} ${pairOf(f.field) ? "pair" : "one"}`))).map((c) => {
   const [host, way] = c.split(" ")
   return { host: host as Host, pair: way === "pair" }
 })
@@ -220,7 +225,7 @@ for (const mode of MODES) {
   describe(`on ${mode}`, () => {
     for (const { host, pair } of CASES) {
       for (const kind of ["date", "time"] as const) {
-        const forms = FORMS.filter((f) => f.host === host && (f.field === "DateTimeField") === pair).map((f) => (f.via ?? f.file).split("/").pop())
+        const forms = FORMS.filter((f) => f.host === host && pairOf(f.field) === pair).map((f) => (f.via ?? f.file).split("/").pop())
         const what = pair ? `a moment's ${kind}` : `the ${kind}`
         it(`opens ${what} ${phone ? (host === "sheet" ? "as a panel of the sheet" : "in a sheet of its own") : "by its field"}, ${host === "page" ? "on a page" : `in a ${host}`} (${[...new Set(forms)].join(", ")})`, { timeout: 20000 }, async () => {
           undo = putOnScreen(SCREENS[mode])

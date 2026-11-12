@@ -32,6 +32,7 @@ const SpaceDocs = dynamic(() => import("@/components/docTree/SpaceDocs"), { load
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTabInAddress } from "@/components/task/keptTabs"
 import { app_task_path } from "@/types/paths"
+import { ReleasesTab } from "@/components/work/releases/ReleasesTab"
 
 /**
  * Mobile project detail tab bar: the Tasks list, the Board (one column per
@@ -40,7 +41,7 @@ import { app_task_path } from "@/types/paths"
  * `SectionTabs` primitive (Notion-style underline) so the look matches
  * channel / chat / activity tabs.
  */
-type Tab = "task" | "board" | "backlog" | "timeline" | "updates" | "attachment" | "docs"
+type Tab = "task" | "board" | "backlog" | "timeline" | "releases" | "updates" | "attachment" | "docs"
 
 // ?tab= names the desktop's tabs (list, kanban, attachments) or the phone's
 // own; a link to a project's board opens its board on a phone too. The
@@ -52,12 +53,13 @@ const FROM_ADDRESS: Record<string, Tab> = {
     board: "board",
     backlog: "backlog",
     timeline: "timeline",
+    releases: "releases",
     updates: "updates",
     attachments: "attachment",
     attachment: "attachment",
     docs: "docs",
 }
-const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", backlog: "backlog", timeline: "timeline", updates: "updates", attachment: "attachments", docs: "docs" }
+const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", backlog: "backlog", timeline: "timeline", releases: "releases", updates: "updates", attachment: "attachments", docs: "docs" }
 
 export function ProjectListTabs({ projectId }: { projectId: string }) {
     const params = useSearchParams()
@@ -115,6 +117,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 { value: "board", label: "Board" },
                 { value: "backlog", label: "Backlog" },
                 { value: "timeline", label: "Timeline" },
+                { value: "releases", label: "Releases" },
                 { value: "updates", label: "Updates" },
                 { value: "attachment", label: "Attachments" },
                 { value: "docs", label: "Docs & Files" },
@@ -143,11 +146,15 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                     onOpenTask={(taskUUID) => router.push(`${app_task_path}/${taskUUID}`)}
                 />
             </SectionTabsContent>
+            <SectionTabsContent value="releases" className="flex-1 min-h-0 overflow-y-auto">
+                <ReleasesTab projectId={projectId} />
+            </SectionTabsContent>
             <SectionTabsContent value="updates" className="flex-1 min-h-0 overflow-y-auto">
                 <ProjectUpdates projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="attachment" className="flex-1 min-h-0">
-                <ProjectListTabContent selectedTab="attachment" projectId={projectId} />
+                {/* Linking a doc or board is for whoever may add files, as on a computer. */}
+                <ProjectListTabContent selectedTab="attachment" projectId={projectId} canLink={access.add_files} />
             </SectionTabsContent>
             <SectionTabsContent value="docs" className="flex-1 min-h-0 overflow-y-auto">
                 <SpaceDocs space={`project:${projectId}` as const} name={info?.project_name} />

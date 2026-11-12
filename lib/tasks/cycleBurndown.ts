@@ -1,4 +1,6 @@
-/** A cycle's burndown and the project's velocity on the client, as charts and notes. Pure. */
+/** A cycle's or a release's burndown, and the project's velocity, on the client, as charts and notes. Pure.
+ * One code for both (jira-04): a release's burndown (GET /project/{p}/releases/{r}/burndown) has the cycle's
+ * shape, with no ideal (null) when it has no target day, and no velocity. */
 
 import { shortDate } from "@/lib/utils/date/dateWords"
 import type { NormalizedChart, NormalizedSeries } from "@/lib/utils/chartSpec"
@@ -9,13 +11,14 @@ import { cycleLabel, type Cycle, type CycleState } from "@/lib/tasks/cycles"
 // zone, and what the project's latest completed cycles finished.
 
 /** Scope and remaining run only to today (or the day the cycle was
- * completed); ideal covers every day. Hour series are null unless a task has
- * an estimate, and point series unless the project estimates in points. */
+ * completed); ideal covers every day, and is null where there's no last day to
+ * pace to (a release with no target day). Hour series are null unless a task
+ * has an estimate, and point series unless the project estimates in points. */
 export interface Burndown {
   days: string[]
   scope: number[]
   remaining: number[]
-  ideal: number[]
+  ideal: number[] | null
   scope_hours?: number[] | null
   remaining_hours?: number[] | null
   ideal_hours?: number[] | null
@@ -58,14 +61,17 @@ export interface BurndownView {
 
 export type BurndownUnit = "tasks" | "hours" | "points"
 
+/** Whose burndown it is, for its words: "In the cycle", "Released with…". */
+export type BurndownOf = "cycle" | "release"
+
 const UNIT_NAMES: Record<BurndownUnit, string> = { tasks: "Tasks", hours: "Hours", points: "Points" }
 
 const dayLabel = (day: string) => shortDate(new Date(`${day}T00:00:00`))
 
-/** The series for a unit, and the unit they're in: hours only when the cycle has them, points only when its project counts them. */
-function unitSeries(b: Burndown, unit: BurndownUnit): { unit: BurndownUnit; remaining: number[]; scope: number[]; ideal: number[] } {
-  if (unit === "hours" && b.remaining_hours && b.scope_hours && b.ideal_hours) return { unit, remaining: b.remaining_hours, scope: b.scope_hours, ideal: b.ideal_hours }
-  if (unit === "points" && b.remaining_points && b.scope_points && b.ideal_points) return { unit, remaining: b.remaining_points, scope: b.scope_points, ideal: b.ideal_points }
+/** The series for a unit, and the unit they're in: hours only when the cycle has them, points only when its project counts them; ideal null with no last day. */
+function unitSeries(b: Burndown, unit: BurndownUnit): { unit: BurndownUnit; remaining: number[]; scope: number[]; ideal: number[] | null } {
+  if (unit === "hours" && b.remaining_hours && b.scope_hours) return { unit, remaining: b.remaining_hours, scope: b.scope_hours, ideal: b.ideal_hours ?? null }
+  if (unit === "points" && b.remaining_points && b.scope_points) return { unit, remaining: b.remaining_points, scope: b.scope_points, ideal: b.ideal_points ?? null }
   return { unit: "tasks", remaining: b.remaining, scope: b.scope, ideal: b.ideal }
 }
 
@@ -76,15 +82,16 @@ export const burndownUnits = (b: Burndown): BurndownUnit[] => [
   ...(b.scope_points ? (["points"] as const) : []),
 ]
 
-/** The burndown as a line chart: the ideal pace as a dashed guide, the scope
- * when it changed during the cycle, and the work remaining up to today. */
-export function burndownChart(b: Burndown, unit: BurndownUnit): NormalizedChart {
+/** The burndown as a line chart: the ideal pace as a dashed guide (none
+ * without a last day), the scope when it changed, and the work remaining up to today. */
+export function burndownChart(b: Burndown, unit: BurndownUnit, of: BurndownOf = "cycle"): NormalizedChart {
   const { unit: shown, remaining, scope, ideal } = unitSeries(b, unit)
   const pad = (v: number[]) => [...v, ...Array(Math.max(b.days.length - v.length, 0)).fill(0)]
-  const series: NormalizedSeries[] = [{ name: "Ideal pace", values: ideal, dashed: true }]
-  if (new Set(scope).size > 1) series.push({ name: "In the cycle", values: pad(scope), upTo: scope.length })
+  const series: NormalizedSeries[] = ideal ? [{ name: "Ideal pace", values: ideal, dashed: true }] : []
+  if (new Set(scope).size > 1) series.push({ name: `In the ${of}`, values: pad(scope), upTo: scope.length })
   series.push({ name: "Still to do", values: pad(remaining), upTo: remaining.length })
-  return { type: "line", title: "Still to do each day, against an even pace", unit: UNIT_NAMES[shown], labels: b.days.map(dayLabel), series }
+  const title = ideal ? "Still to do each day, against an even pace" : "Still to do each day"
+  return { type: "line", title, unit: UNIT_NAMES[shown], labels: b.days.map(dayLabel), series }
 }
 
 /** What each recent completed cycle finished, as bars. */
@@ -109,19 +116,23 @@ function velocityUnit(v: Velocity, unit: BurndownUnit): BurndownUnit {
 const amount = (n: number, unit: BurndownUnit) =>
   unit === "hours" ? `${Math.round(n * 10) / 10} h` : unit === "points" ? pointsText(n) : `${n} ${n === 1 ? "task" : "tasks"}`
 
-/** Where the cycle stands against the ideal pace, in a sentence, or null
- * before it has started. Whether anything is left is counted in tasks: a task
- * with no estimate is still work, whatever the hours say. */
-export function paceNote(b: Burndown, unit: BurndownUnit, state?: CycleState): string | null {
+/** Where the cycle (or the release) stands against the ideal pace, in a
+ * sentence, or null before it has started; with no ideal (no last day), only
+ * what's left. Whether anything is left is counted in tasks: a task with no
+ * estimate is still work, whatever the hours say. A release that's out is
+ * "completed", one past its target day "ended". */
+export function paceNote(b: Burndown, unit: BurndownUnit, state?: CycleState, of: BurndownOf = "cycle"): string | null {
   const { remaining, ideal, unit: shown } = unitSeries(b, unit)
   const today = remaining.length - 1
   if (today < 0 || state === "upcoming") return null
-  if (state === "completed") return b.open === 0 ? "Completed with everything done." : `Completed with ${amount(b.open, "tasks")} unfinished.`
+  const finished = of === "release" ? "Released" : "Completed"
+  if (state === "completed") return b.open === 0 ? `${finished} with everything done.` : `${finished} with ${amount(b.open, "tasks")} unfinished.`
   if (b.open === 0) return "Everything in it is done."
   const left = remaining[today]
   if (shown !== "tasks" && left === 0) return `${amount(b.open, "tasks")} left, none of them estimated.`
+  if (!ideal) return `${amount(left, shown)} left. With no target date, there's no pace to measure against.`
   const target = shown === "tasks" ? Math.round(ideal[today]) : Math.round(ideal[today] * 10) / 10
-  const when = state === "ended" ? "by its end" : "by today"
+  const when = state !== "ended" ? "by today" : of === "release" ? "by its target date" : "by its end"
   return left <= target
     ? `On pace: ${amount(left, shown)} left, and the ideal pace has ${amount(target, shown)} ${when}.`
     : `Behind pace: ${amount(left, shown)} left, where the ideal pace has ${amount(target, shown)} ${when}.`

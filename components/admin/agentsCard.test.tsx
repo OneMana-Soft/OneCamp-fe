@@ -111,4 +111,29 @@ describe("agents", () => {
     expect(inCard.className).toContain("bg-raised")
     expect(inCard.className).not.toContain("bg-brand")
   })
+
+  it("marks only what differs from asking first: Plans first, and Acts on its own in the warning ink", () => {
+    // ADMIN-16, DESIGN-BUILD-143 F1: asking first is the default, so it has no
+    // chip; an agent that changes the workspace without asking is the one an
+    // admin scans for.
+    responses.agents = {
+      data: [
+        { ...agent, id: "a1", name: "Release Captain", autonomy: "approval" },
+        { ...agent, id: "a2", name: "Planner", autonomy: "plan" },
+        { ...agent, id: "a3", name: "Lookout", autonomy: "auto" },
+        { ...agent, id: "a4", name: "Old agent" },
+      ],
+    }
+    responses.overview = undefined
+    const { container } = render(<AgentsCard />)
+    const chips = (name: string) => {
+      const card = [...container.querySelectorAll("[data-agent-card]")].find((c) => c.textContent?.includes(name)) as HTMLElement
+      return [...card.querySelectorAll(".tag:not([data-principal-tag])")].map((t) => [t.textContent, t.className.includes("text-warning-ink") ? "warning" : "quiet"])
+    }
+    expect(chips("Release Captain")).toEqual([])
+    expect(chips("Old agent")).toEqual([])
+    expect(chips("Planner")).toEqual([["Plans first", "quiet"]])
+    expect(chips("Lookout")).toEqual([["Acts on its own", "warning"]])
+    expect(screen.queryByText("Asks first")).toBeNull()
+  })
 })

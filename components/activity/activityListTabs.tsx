@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { Inbox as InboxIcon, SlidersHorizontal } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
+import { useSWRConfig } from "swr"
 import type { RootState } from "@/store/store"
 import { closeRightPanel, openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ActivityFeedList, type InboxPane } from "@/components/activity/activityFeedList"
@@ -15,7 +16,7 @@ import { ActivityFeedSkeleton } from "@/components/activity/activityFeedFrame"
 import { usePhone } from "@/hooks/usePhone"
 import { usePanelPlacement } from "@/components/navigationBar/tablet/useShellBand"
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
-import { clearActivityUnread } from "@/services/unreadCache"
+import { recountInbox } from "@/services/unreadCache"
 import { markActivitySeen } from "@/services/activityService"
 import InboxNudges from "@/components/ai/InboxNudges"
 import { useAIAvailable } from "@/hooks/useClientConfig"
@@ -37,6 +38,8 @@ import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE 
 import { isMention } from "@/lib/activity/notice"
 import { CHAT_THREADS_PATH, THREADS_UNREAD_KEY } from "@/lib/conversation/threadsKey"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { onAnswered } from "@/lib/http/answered"
+import { whenOnScreen } from "@/lib/ui/whenOnScreen"
 
 // The Threads tab's list loads the first time the tab opens, not with the Inbox.
 const ThreadsList = dynamic(() => import("@/components/activity/threadsList"), {
@@ -101,7 +104,9 @@ export function ActivityListTabs() {
         return VALID_TABS.includes(tabFromUrl as TabValue) ? (tabFromUrl as TabValue) : "all"
     })
     const [unreadOnly, setUnreadOnly] = useState(false)
-    const { read, mark } = useReadState()
+    const { read, markedUnread, counted, mark, keep } = useReadState()
+    // The Inbox badge (lib/activity/inboxBadge): the server's count.
+    const badge = useSelector((s: RootState) => s.users?.userSidebar?.totalUnreadActivityCount ?? 0)
     const [unreadKeys, setUnreadKeys] = useState<string[]>([])
 
     // The reading pane (STEP4 #6): the right panel, beside the Inbox, on any
@@ -117,16 +122,20 @@ export function ActivityListTabs() {
 
     // The SAME SWR key the list fetches for its first page, so the counts share
     // the cache (no extra request) and follow the server's read-state demotion.
-    const { data: firstPage } = useFetch<UnifiedActivityPaginationRes>(inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, INBOX_PAGE_SIZE))
+    const firstKey = inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, INBOX_PAGE_SIZE)
+    const { data: firstPage, mutate: readFirst } = useFetch<UnifiedActivityPaginationRes>(firstKey)
     const items = useMemo(() => collapseEchoes((firstPage?.data?.activities ?? []).filter(hasSubject)), [firstPage])
     const counts = useMemo(() => {
-        const unread = items.filter((a: UnifiedActivityItem) => isUnread(a, activityKey(a), read))
+        const unread = items.filter((a: UnifiedActivityItem) => isUnread(a, activityKey(a), read, markedUnread, counted))
         return {
             priority: unread.filter((a) => a.priority === "high").length,
             all: unread.length,
             mentions: unread.filter(isMention).length,
         }
-    }, [items, read])
+    }, [items, read, markedUnread, counted])
+    // What the server marks unread is kept as counted before the seen write
+    // clears it, on any tab (the feed's list keeps its older pages).
+    useEffect(() => keep(items), [items, keep])
 
     // The threads you follow that had a reply since you read them: a count of
     // their own (the Threads tab's), and nothing said if it can't be read.
@@ -162,40 +171,79 @@ export function ActivityListTabs() {
 
     // The tab lives in the address, so a reload, Back or a copied link opens it.
     // This checked /app/activity after the page moved to /app/inbox, and the
-    // address stopped following the tabs.
+    // address stopped following the tabs. The nav's Inbox link carries no tab:
+    // with something on the badge, it opens All, which lists what the badge
+    // counted, not the tab last open, where it may not be (C9).
     useEffect(() => {
-        if (pathname === INBOX_PATH && searchParams.get("tab") !== selectedTab) {
+        if (pathname !== INBOX_PATH) return
+        const asked = searchParams.get("tab")
+        if (asked === null && badge > 0 && selectedTab !== "all") {
+            setSelectedTab("all")
+            return
+        }
+        if (asked !== selectedTab) {
             const params = new URLSearchParams(searchParams.toString())
             params.set("tab", selectedTab)
             router.replace(`${pathname}?${params.toString()}`, { scroll: false })
         }
-    }, [selectedTab, pathname, router, searchParams])
-
-    // The badge clears as the Inbox opens, and again each time its first page
-    // answers while it's open: a notice that arrives now counts on the badge
-    // (the realtime handler can't tell that the Inbox is open), then is read
-    // in here and seen, so the badge said 1 beside the open Inbox.
-    useEffect(() => {
-        dispatch(setTotalUnreadActivityCount({ count: 0 }))
-        // The sidenav cache carries this number too (services/unreadCache.ts).
-        clearActivityUnread()
-    }, [dispatch, firstPage])
+    }, [selectedTab, pathname, router, searchParams, badge])
 
     // What the Inbox shows is seen. Reading the feed marks nothing on the
-    // server (Home reads it too), so the Inbox says so: once its first page
-    // is on screen, and again when a newer one arrives while it's open.
+    // server (Home reads it too), so the Inbox says so for each first page
+    // answered since it opened, with no newer read on its way (a live item
+    // reads one in). A page cached at the open is read again first: an item
+    // that came meanwhile would be seen uncounted (CR-B11 M2). The badge is
+    // the write's answer, never a 0 set before it; uncounted, it reads the
+    // count again. A failed write keeps it; the page is read again online (C5).
+    const [seenFailed, setSeenFailed] = useState(false)
+    // Only the latest write's answer counts: an earlier one can land after it.
+    const seenCalls = useRef(0)
+    const seen = useCallback(async () => {
+        const call = ++seenCalls.current
+        const count = await markActivitySeen()
+        if (call !== seenCalls.current) return
+        setSeenFailed(count === false)
+        if (count === false) return
+        if (count === null) recountInbox()
+        else dispatch(setTotalUnreadActivityCount({ count }))
+    }, [dispatch])
+    const { cache } = useSWRConfig()
+    const [answers, setAnswers] = useState(0)
+    const readAgain = useCallback(() => void (cache.get(firstKey)?.isValidating || readFirst()), [cache, firstKey, readFirst])
+    useEffect(() => onAnswered((url) => url === firstKey && setAnswers((n) => n + 1)), [firstKey])
+    const cachedAtOpen = useRef(!!firstPage)
     useEffect(() => {
-        if (firstPage) void markActivitySeen()
-    }, [firstPage])
+        if (cachedAtOpen.current) readAgain()
+        cachedAtOpen.current = false
+    }, [readAgain])
+    const shown = !!firstPage
+    // Nobody looks at a hidden tab: the write waits for it to show (lib/ui
+    // whenOnScreen, the DMs' rule), with no newer read on its way by then.
+    useEffect(() => {
+        if (!answers || !shown) return
+        return whenOnScreen(() => {
+            if (!cache.get(firstKey)?.isValidating) void seen()
+        })
+    }, [answers, shown, cache, firstKey, seen])
+    useEffect(() => {
+        if (!seenFailed) return
+        window.addEventListener("online", readAgain)
+        return () => window.removeEventListener("online", readAgain)
+    }, [seenFailed, readAgain])
 
     const feed = effectiveTab !== "ai"
     const threads = effectiveTab === "threads"
     // Mark all read: the feed's rows in view, or every thread you follow.
     const canMarkAll = threads ? threadCount > 0 : feed && unreadKeys.length > 0
+    // The feed's Mark all read is the Inbox seen too, so the badge follows it.
     const markAll = useCallback(() => {
         if (threads) void readAllThreads().catch(() => {})
-        else mark(unreadKeys, true)
-    }, [threads, mark, unreadKeys])
+        else {
+            // Every row the badge counted, in view or not: the seen write clears them all.
+            mark([...new Set([...unreadKeys, ...counted.keys()])], true)
+            void seen()
+        }
+    }, [threads, mark, unreadKeys, counted, seen])
 
     // Keys: 1-5 switch tabs, Shift+U marks all read (A1). Never while typing.
     useEffect(() => {
@@ -280,14 +328,19 @@ export function ActivityListTabs() {
                         <ThreadsList unreadOnly={unreadOnly} onShowAll={() => setUnreadOnly(false)} pane={pane} />
                     ) : feed ? (
                         <>
-                            {/* OneCamp AI's nudges, pinned atop Priority (the bell's
-                                successor, design v3 N1). Gated on AI by the component. */}
-                            {effectiveTab === "priority" && <InboxNudges />}
+                            {/* OneCamp AI's nudges, pinned atop All and Priority (the
+                                bell's successor, design v3 N1): the Inbox opens on All,
+                                and the badge counts the urgent ones (V-577). Gated on AI
+                                by the component. */}
+                            {(effectiveTab === "all" || effectiveTab === "priority") && <InboxNudges />}
                             <ActivityFeedList
                                 view={effectiveTab}
                                 onViewAll={viewAll}
                                 unreadOnly={unreadOnly}
                                 read={read}
+                                markedUnread={markedUnread}
+                                counted={counted}
+                                onCounted={keep}
                                 onToggleRead={mark}
                                 onUnreadKeys={setUnreadKeys}
                                 onShowAll={() => setUnreadOnly(false)}

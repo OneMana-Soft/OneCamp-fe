@@ -233,6 +233,60 @@ const allTasks = (p) => {
   if (!cache.has(p.id)) cache.set(p.id, tasksOf(p))
   return cache.get(p.id)
 }
+
+// Task writes the server keeps (fluid-23's, through the app's own write path),
+// so a read after a write answers what the write said; resetWorkspace forgets
+// them. A task made goes first in its project's list, where the app's own
+// optimistic copy went, under an id of the server's (never the app's temp-).
+let made = 0
+function addTask(p, fields) {
+  made++
+  const now = new Date().toISOString()
+  const id = `7a5c${String(PROJECTS.indexOf(p) + 1).padStart(4, "0")}-0000-4000-9000-${String(made).padStart(12, "0")}`
+  const t = { ...task(p, 0), uid: `0x${(0xf00000 + made).toString(16)}`, task_uuid: id, id, task_due_date: NONE, task_start_date: NONE, task_label: "", task_sub_task_count: 0, task_comment_count: 0, task_estimate_minutes: 0, task_created_at: now, task_status_since: now, ...fields }
+  allTasks(p).unshift(t)
+  return t
+}
+/** A task's fields changed, wherever it is; null when no project holds it. */
+function changeTask(id, fields) {
+  for (const p of PROJECTS) {
+    const t = allTasks(p).find((x) => x.task_uuid.toLowerCase() === String(id).toLowerCase())
+    if (t) return Object.assign(t, fields)
+  }
+  return null
+}
+const sentJSON = (req) => {
+  try {
+    return req.postDataJSON() ?? {}
+  } catch {
+    return {}
+  }
+}
+// What a write's field is called on the task: POST /task/bulk's op, or a one-task endpoint's payload.
+const BULK_FIELD = { status: "task_status", priority: "task_priority", due: "task_due_date" }
+/** POST /task/createTask: the task made (what the form sent), and its id. */
+function createTask(req) {
+  const b = sentJSON(req)
+  const p = PROJECTS.find((x) => x.id === b.task_project_uuid) ?? BIG_PROJECT
+  const assignee = SPEAKERS.find((u) => u.user_uuid === b.task_assignee_uuid) ?? ME
+  const t = addTask(p, { task_name: String(b.task_name ?? ""), task_status: b.task_status || "todo", task_priority: b.task_priority || "none", task_label: b.task_label || "", task_assignee: assignee })
+  return { msg: "ok", data: { task_uuid: t.task_uuid } }
+}
+/** POST /task/bulk ({ task_uuids, op, value }): each task changed, none refused. */
+function bulkWrite(req) {
+  const { task_uuids = [], op, value } = sentJSON(req)
+  const field = BULK_FIELD[op]
+  if (field) for (const id of task_uuids) changeTask(id, { [field]: value })
+  return { msg: "ok", data: { refused: [] } }
+}
+/** POST /task/updateTask<Field> ({ task_uuid, task_project_uuid, ... }): the task's field changed. */
+function oneWrite(req) {
+  const { task_uuid, task_assignee_uuid, ...fields } = sentJSON(req)
+  delete fields.task_project_uuid
+  if (task_assignee_uuid !== undefined) fields.task_assignee = SPEAKERS.find((u) => u.user_uuid === task_assignee_uuid) ?? null
+  if (task_uuid) changeTask(task_uuid, fields)
+  return { msg: "ok" }
+}
 export const projectInfo = (p) => ({
   uid: `0x${(PROJECTS.indexOf(p) + 1).toString(16)}`,
   project_uuid: p.id,
@@ -360,8 +414,17 @@ export function workFixtures() {
       },
     ],
     [/\/task\/views$/, ok([])],
-    [/\/task\/(time|recurrence|cycle|clientReview)\/[^/]+$/, ok(null)],
+    // A task with no approval request and no milestone: the server answers null.
+    // The catch-all's {} read as a request, and TaskApprovalCard threw on its
+    // missing decisions (the panel's "This panel hit a problem", whenever the
+    // read landed before the title drew: taskPanel's 2 of 5 on 5 Nov).
+    [/\/task\/(time|recurrence|cycle|clientReview|approval|milestone)\/[^/]+$/, ok(null)],
     [/\/project\/[^/]+\/fields$/, ok({ fields: [], can_edit: true })],
+    // No task templates: the server always names its list, [] when none
+    // (controllers/TaskTemplate list). The catch-all's {} had no templates,
+    // and the composer threw reading their length (the app's "couldn't
+    // recover" page as soon as C opened it).
+    [/\/project\/(?:[^/]+\/)?task-templates$/, ok({ templates: [], defaults: {}, can_manage: true, types: [] })],
     [/\/project\/[^/]+\/tags$/, ok([])],
     [/\/project\/[^/]+\/updates$/, ok({ updates: [], can_post: true })],
     [/\/project\/[^/]+\/goals$/, ok({ goals: [] })],
@@ -380,6 +443,10 @@ export function workFixtures() {
     ],
     [/\/user\/userProjectList$/, ok(PROJECTS.map(projectInfo))],
     [/\/notices$/, ok({ notices: [] })],
+    // The writes fluid-23 makes, kept for the reads after them.
+    [/\/task\/createTask$/, (path, url, req) => (req.method() === "POST" ? createTask(req) : undefined)],
+    [/\/task\/bulk$/, (path, url, req) => (req.method() === "POST" ? bulkWrite(req) : undefined)],
+    [/\/task\/updateTask(Status|Priority|Assignee|Label|DueDate)$/, (path, url, req) => (req.method() === "POST" ? oneWrite(req) : undefined)],
   ]
 }
 
@@ -447,6 +514,8 @@ const edited = new Map()
 /** Forgets every write: each run starts from the same table (surfaces.mjs calls it before a run). */
 export function resetWorkspace() {
   edited.clear()
+  cache.clear()
+  made = 0
   columnOrder.clear()
   tableViews.clear()
 }
@@ -713,10 +782,36 @@ function searchAnswer(text) {
     .map((p) => ({ type: "post", post: p }))
   return ok({ page: [...channels, ...tasks, ...posts], has_more: false })
 }
+// The server's kind for each result type, as POST /query/search counts them (lib/search/queryApi SCOPE_KINDS).
+const QUERY_KIND = { task: "task", channel: "channel", post: "message" }
+/**
+ * The search page's answer: POST /query/search {q, kinds?, sort?, after?,
+ * zone?} (controllers/SearchQuery/searchController.go) answers one page of
+ * hits, how many match in each kind (whatever kinds the page lists), how many
+ * the listing holds, and the query as read. The hits are the palette's
+ * (GET /search/unifiedSearch), the same shapes. The catch-all answered a POST
+ * {msg} with no page, so the phone's search said "Nothing matches".
+ */
+function queryAnswer(req) {
+  let body = {}
+  try {
+    body = req.postDataJSON() ?? {}
+  } catch {
+    // not JSON: an empty search
+  }
+  const q = String(body.q ?? "").trim()
+  const hits = q ? searchAnswer(q).data.page : []
+  const totals = {}
+  for (const r of hits) totals[QUERY_KIND[r.type]] = (totals[QUERY_KIND[r.type]] ?? 0) + 1
+  const kinds = Array.isArray(body.kinds) && body.kinds.length ? new Set(body.kinds) : null
+  const page = kinds ? hits.filter((r) => kinds.has(QUERY_KIND[r.type])) : hits
+  return ok({ page, totals, total: page.length, has_more: false, notes: [], query: { runs: true, issues: [], tokens: [], text: q } })
+}
 export function shellFixtures() {
   return [
     [/\/activity\/unified$/, (path, url) => activityPage(url)],
     [/\/search\/unifiedSearch\/.+$/, (path) => searchAnswer(decodeURIComponent(path.split("/unifiedSearch/")[1] || ""))],
+    [/\/query\/search$/, (path, url, req) => (req.method() === "POST" ? queryAnswer(req) : undefined)],
     [
       /\/user\/assignedTaskList$/,
       (path, url) => {

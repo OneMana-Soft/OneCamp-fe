@@ -57,7 +57,10 @@ function cors(request: Request) {
   }
 }
 
-async function openBoard(page: Page, testInfo: TestInfo, access: typeof ADMIN, server: Server) {
+/** The three columns the ordering tests were laid out on, before Backlog and In review showed by default (UX-PROJECTS-H1). */
+const THREE = { backlog: false, inReview: false }
+
+async function openBoard(page: Page, testInfo: TestInfo, access: typeof ADMIN, server: Server, columns: Record<string, boolean> | null = THREE) {
   const project = { project_uuid: P, project_name: "Q4 launch", project_is_admin: access.manage ? 1 : 0, project_is_member: 1, project_members: [SAM], project_access: access }
   await stubBackend(page, testInfo, {
     [`/project/taskListForKanban/${P}`]: {
@@ -110,6 +113,9 @@ async function openBoard(page: Page, testInfo: TestInfo, access: typeof ADMIN, s
   })
   // The keys tip would sit over the shots (onboarding/KeyboardTip).
   await page.addInitScript(() => localStorage.setItem("oc_keys_tip_seen", "1"))
+  // The board's columns as chosen (hooks/useBoardColumns, kept per board), once: a reload keeps what was chosen since.
+  if (columns)
+    await page.addInitScript(({ key, columns }) => localStorage.getItem(key) ?? localStorage.setItem(key, JSON.stringify(columns)), { key: `oc_board_columns:${P}`, columns })
   await page.goto(`/app/project/${P}?tab=kanban`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   await expect(page.locator('[data-board] [data-column="todo"] [data-task-id]').first()).toBeVisible({ timeout: 60_000 })
 }
@@ -204,6 +210,34 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("menuitem", { name: "Move left" }).click()
       await expect.poll(() => shown(page)).toEqual(["todo", "inProgress", "done"])
       await expect.poll(() => server.saved.at(-1)).toEqual(DEFAULT)
+    })
+  })
+}
+
+// UX-PROJECTS-H1 (PROJECTS-36): a board shows every open status and Done, so a
+// task moved to In review stays on it (In review was hidden at first, for every
+// board at once); Cancelled waits to be asked for. A column hidden is this
+// board's choice, kept across a reload.
+for (const theme of ["light", "dark"] as const) {
+  test.describe(`a new board's columns at 1280, ${theme}`, () => {
+    test.use({ viewport: { width: 1280, height: 860 }, colorScheme: theme })
+
+    test("shows Backlog, To do, In progress, In review and Done; a column hidden stays hidden after a reload", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      const server: Server = { order: DEFAULT, saved: [], refuse: false }
+      await openBoard(page, testInfo, ADMIN, server, null)
+      expect(await shown(page)).toEqual(["backlog", "todo", "inProgress", "inReview", "done"])
+      await shot(page, "defaults", theme)
+
+      await page.getByRole("button", { name: "Display" }).click()
+      await page.getByRole("menuitemcheckbox", { name: "In review" }).click()
+      await page.keyboard.press("Escape")
+      await expect.poll(() => shown(page)).toEqual(["backlog", "todo", "inProgress", "done"])
+      expect(await page.evaluate((k) => localStorage.getItem(k), `oc_board_columns:${P}`)).toBe(JSON.stringify({ inReview: false }))
+
+      await page.reload({ waitUntil: "domcontentloaded" })
+      await expect(page.locator('[data-board] [data-column="todo"] [data-task-id]').first()).toBeVisible({ timeout: 60_000 })
+      expect(await shown(page)).toEqual(["backlog", "todo", "inProgress", "done"])
     })
   })
 }

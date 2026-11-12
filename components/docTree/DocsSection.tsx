@@ -64,7 +64,7 @@ class TreeLoadBoundary extends React.Component<{ children: React.ReactNode }, { 
   }
 }
 
-export function DocsSection({ open, setOpen, active, onAdd }: { open: boolean; setOpen: (open: boolean) => void; active: boolean; onAdd: () => void }) {
+export const DocsSection = React.memo(function DocsNav({ open, setOpen, active, onAdd }: { open: boolean; setOpen: (open: boolean) => void; active: boolean; onAdd: () => void }) {
   return (
     <section aria-label="Docs" data-section="Docs">
       <div className="shell-sect">
@@ -101,4 +101,4 @@ export function DocsSection({ open, setOpen, active, onAdd }: { open: boolean; s
       )}
     </section>
   )
-}
+})

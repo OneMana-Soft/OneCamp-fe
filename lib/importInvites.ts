@@ -61,13 +61,17 @@ export function roomForAnother(selected: number, seats: SeatRoom): boolean {
   return seats.left === null || selected < seats.left
 }
 
-/** The plan's room in a sentence, or null when there is no limit. */
-export function seatLine(seats: SeatRoom): string | null {
+/** The plan's room in a sentence (naming how many came across when they don't fit), or null with no limit. */
+export function seatLine(seats: SeatRoom, people = 0): string | null {
   if (seats.left === null || !seats.limit) return null
   if (seats.left === 0) {
     return `Your free plan is full: all ${seats.limit} places are taken, so nobody can be invited until someone is deactivated or the limit is removed.`
   }
-  return `Your free plan has room for ${plural(seats.left, "more person", "more people")} (${seats.used} of ${seats.limit} places taken).`
+  const taken = `(${seats.used} of ${seats.limit} places taken)`
+  if (people > seats.left) {
+    return `${people} people came across, and your free plan has room for ${seats.left} more ${taken}.`
+  }
+  return `Your free plan has room for ${plural(seats.left, "more person", "more people")} ${taken}.`
 }
 
 /** Why the rest of the people who came across aren't listed, or "" when they all are. */

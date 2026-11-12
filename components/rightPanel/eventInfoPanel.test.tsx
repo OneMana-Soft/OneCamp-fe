@@ -28,6 +28,10 @@ let description = ""
 let more: Record<string, unknown> = {}
 // The calendar's own API (its one store, where events repeat): off unless a test turns it on.
 let repeats = false
+// The assistant (the server's ai feature): on unless a test turns it off.
+let ai = true
+// Where "Find a better time" moves the event to, when a test confirms a time in it.
+let movedTo: typeof times | null = null
 // What its calls kept (meet-02), and the list's reads again.
 let kept: unknown[] | undefined
 const readKept = vi.fn(async () => undefined)
@@ -38,7 +42,7 @@ const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, 
 // repeats are off, as on a server whose calendar isn't in its one store.
 // Guests' working hours (calendar A3): none kept here.
 vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({ hours: {}, where: {} }) }))
-vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => repeats }))
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: (f: string) => (f === "ai" ? ai : repeats) }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
@@ -58,25 +62,48 @@ vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest }) }))
 // A delete's Undo, as restoreService offers it (the toast's chunk loads on the offer); its restore is the real one.
 const offered = vi.fn()
 vi.mock("@/services/restoreService", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/restoreService")>()), offerUndo: (...args: unknown[]) => offered(...args) }))
+// The toasts it shows, and where its Open Trash goes.
+const toasted = vi.fn()
+vi.mock("@/hooks/use-toast", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/use-toast")>()), toast: (...args: unknown[]) => toasted(...args) }))
+const pushed = vi.fn()
+vi.mock("next/navigation", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/navigation")>()), useRouter: () => ({ push: pushed }) }))
 const dispatch = vi.fn()
 vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => dispatch }))
-// SWR's cache: a list already loaded (the calendar's month, Home's today).
+// SWR's cache: a list already loaded (the calendar's month, Home's today); its mutate, which asks every list again.
 let cache = new Map<string, unknown>()
-vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn(), cache }) }))
+const listsMutate = vi.fn()
+vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: listsMutate, cache }) }))
 // The assistant's dialogs, each a chunk the panel loads when it is idle or
 // the dialog is first opened: an open one says which it is.
-vi.mock("@/components/ai/RescheduleDialog", () => ({ default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Find a better time" /> : null) }))
+// Confirming a time moves the event there, as the server does, then tells the panel where to.
+vi.mock("@/components/ai/RescheduleDialog", () => ({
+  default: ({ open, onRescheduled }: { open: boolean; onRescheduled?: (to: { start: string; end: string }) => void }) =>
+    open ? (
+      <div role="dialog" aria-label="Find a better time">
+        {movedTo ? (
+          <button
+            type="button"
+            onClick={() => {
+              times = movedTo!
+              onRescheduled?.({ start: movedTo!.event_start_time, end: movedTo!.event_end_time })
+            }}
+          >
+            Move it
+          </button>
+        ) : null}
+      </div>
+    ) : null,
+}))
 vi.mock("@/components/ai/MeetingPrepDialog", () => ({ default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Prep brief" /> : null) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
-// The delete question, as the one helper the calendar's Delete key and menu ask with too.
-const askedToDelete = vi.fn()
-vi.mock("@/lib/calendar/confirmDelete", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/calendar/confirmDelete")>()
-  return { ...real, deleteEventConfirm: (e: Parameters<typeof real.deleteEventConfirm>[0]) => (askedToDelete(e), real.deleteEventConfirm(e)) }
-})
 
 import EventInfoPanel from "./eventInfoPanel"
 import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
+import { deleteApiEventRequest } from "@/lib/calendar/eventsApi"
+import { restoreEventRequest } from "@/lib/calendar/trash"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { NOT_EMAILED } from "@/lib/calendar/tellGuests"
+import { deletedTitle } from "@/services/restoreService"
 import { addCallRequest } from "@/lib/calendar/eventsApi"
 import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
 import { openUI } from "@/store/slice/uiSlice"
@@ -101,15 +128,19 @@ afterEach(() => {
   asked.length = 0
   makeRequest.mockReset()
   dispatch.mockReset()
-  askedToDelete.mockReset()
   booking = undefined
   description = ""
   more = {}
   repeats = false
+  ai = true
+  movedTo = null
   organiser = SAM
   kept = undefined
   readKept.mockClear()
   offered.mockReset()
+  toasted.mockReset()
+  pushed.mockReset()
+  listsMutate.mockClear()
 })
 
 /** An event's times, `fromMin` to `toMin` minutes from now. */
@@ -301,13 +332,23 @@ describe("an event in the side panel", () => {
     expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Prep brief", "Find a better time", "Delete event"])
   })
 
-  it("offers its organiser a call of its own while it hasn't ended, and adds one", () => {
+  // gcal-15: every event has its own room; a guest link goes on it while guest access and its rooms are on.
+  it("offers its organiser a guest link while it hasn't ended and guest access is on, and adds one", () => {
     times = around(60, 90)
+    more = { event_room: { join: "/app/meet/e/e1", guest_links: true } }
     panel({ onClose: vi.fn() })
     fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
-    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Add a call", "Prep brief", "Find a better time", "Delete event"])
-    fireEvent.click(screen.getByRole("menuitem", { name: "Add a call" }))
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Add a guest link", "Prep brief", "Find a better time", "Delete event"])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add a guest link" }))
     expect(makeRequest).toHaveBeenCalledWith(addCallRequest("e1"))
+  })
+
+  it("offers no guest link with guest access off", () => {
+    times = around(60, 90)
+    more = { event_room: { join: "/app/meet/e/e1", guest_links: false } }
+    panel({ onClose: vi.fn() })
+    fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Prep brief", "Find a better time", "Delete event"])
   })
 })
 
@@ -316,6 +357,35 @@ describe("an event in the side panel", () => {
 // V-34: the card's pencil, Edit event, opens the event editing, once, as
 // Google Calendar's does. Opened to read, it reads; a guest the organiser
 // doesn't let change it reads too: the pencil's ask never widens who edits.
+// V-643 (gcal-1a "visibility"): an event made private says so in its view,
+// beside its other facts, as Google's details do; the panel at 1280 and a
+// phone's own page are one view. Nothing for the calendar's default or public.
+describe("a private event's view", () => {
+  it("says Private with a lock, in the panel and on a phone's page", () => {
+    repeats = true
+    more = { visibility: "private" }
+    panel()
+    const facts = screen.getAllByRole("term")[0].closest("dl")!
+    const row = within(facts).getByText("Visibility").nextElementSibling as HTMLElement
+    expect(row.textContent).toBe("Private")
+    expect(row.querySelector("[data-visibility-line='private'] svg")).toBeTruthy()
+    cleanup()
+    panel({ onClose: vi.fn() })
+    expect(document.querySelector("[data-event-view] [data-visibility-line='private']")?.textContent).toBe("Private")
+  })
+
+  it("says nothing for one on the calendar's default, or public", () => {
+    repeats = true
+    for (const visibility of ["default", "public", undefined]) {
+      more = { visibility }
+      panel()
+      expect(screen.queryByText("Visibility")).toBeNull()
+      expect(document.querySelector("[data-visibility-line]")).toBeNull()
+      cleanup()
+    }
+  })
+})
+
 describe("an event opened by the card's pencil", () => {
   const asked = (editRequest?: number) =>
     render(
@@ -623,10 +693,11 @@ describe("a booked meeting", () => {
   const confirmed = () => dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
   const saveButton = () => within(screen.getByRole("button", { name: "Close panel" }).closest("[data-panel-actions]") as HTMLElement).getByRole("button", { name: "Save" })
 
-  it("names its guest before it is deleted, and whether they'll be told", () => {
+  it("names its guest before it is deleted, and whether they'll be told", async () => {
     booking = { guest_name: "Alex Kim", page_title: "Intro call", guest_told: false }
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
+    await waitFor(() => expect(confirmed()).toHaveLength(1))
     expect(confirmed()[0]).toMatchObject({
       title: "Delete this booked meeting?",
       description: "Alex Kim booked it through Intro call. They won't be told: this workspace doesn't send email, so let them know yourself.",
@@ -666,24 +737,107 @@ describe("a booked meeting", () => {
   })
 })
 
+// CAL-40: the panel deletes the one way the grid does (lib/calendar/deleteEvent): nothing is deleted for good,
+// so it never says it can't be undone; on the one store it goes to the Trash with Undo, asking "Tell your
+// guests it's cancelled?" first when anyone else is on it.
 describe("deleting", () => {
-  it("asks first, in the words the calendar's Delete key and menu ask with", () => {
+  const confirmations = () => dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
+  const press = () => fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
+  const MAYA_ON = { event_guests: [{ user_uuid: "5e1f0000-0000-4000-8000-000000000002", response: "needs_action", role: "required" }] }
+
+  it("asks first, in the words the calendar's Delete key and menu ask with, never that it can't be undone", async () => {
     panel()
-    fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
-    expect(askedToDelete).toHaveBeenCalledWith(expect.objectContaining({ event_uuid: "e1" }))
-    const asked = dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
-    expect(asked[0]).toMatchObject({ title: "Delete this event?", description: "It's removed from everyone's calendar. This can't be undone.", confirmText: "Delete event", destructive: true })
+    press()
+    await waitFor(() => expect(confirmations()).toHaveLength(1))
+    expect(confirmations()[0]).toMatchObject({ title: "Delete “Standup”?", description: "It's removed from everyone's calendar.", confirmText: "Delete event", destructive: true })
   })
 
   it("sends the request the calendar's Delete key and menu send", async () => {
     makeRequest.mockResolvedValue({})
     panel()
-    fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
-    const asked = dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
+    press()
+    await waitFor(() => expect(confirmations()).toHaveLength(1))
     await act(async () => {
-      await asked[0].onConfirm()
+      await confirmations()[0].onConfirm()
     })
     expect(makeRequest).toHaveBeenCalledWith(deleteEventRequest("e1"))
+  })
+
+  it("on the one store, sends it to the Trash at once with Undo when nobody else is on it, and closes", async () => {
+    repeats = true
+    makeRequest.mockResolvedValue({})
+    panel()
+    press()
+    await waitFor(() => expect(offered).toHaveBeenCalledTimes(1))
+    expect(confirmations()).toHaveLength(0)
+    expect(makeRequest).toHaveBeenCalledWith(deleteApiEventRequest("e1", "all"))
+    expect(offered.mock.calls[0][0]).toBe(deletedTitle("Standup"))
+    expect(dispatch).toHaveBeenCalledWith(closeRightPanel())
+  })
+
+  // CR-250 F4: the calendar and Home's today show it again, the panel being closed.
+  it("on the one store, its Undo restores it and every list of events reads again", async () => {
+    repeats = true
+    makeRequest.mockResolvedValue({})
+    panel()
+    press()
+    await waitFor(() => expect(offered).toHaveBeenCalledTimes(1))
+    listsMutate.mockClear()
+    await act(async () => {
+      await offered.mock.calls[0][1]()
+    })
+    expect(makeRequest).toHaveBeenLastCalledWith(restoreEventRequest("e1"))
+    expect(listsMutate).toHaveBeenCalledWith(expect.any(Function), undefined, { revalidate: true })
+    const lists = listsMutate.mock.calls[0][0] as (key: unknown) => boolean
+    expect(lists(`${GetEndpointUrl.GoogleCalendarEvents}?from=2026-10-12&to=2026-10-19`)).toBe(true)
+    expect(lists("/calendar/events/e1")).toBe(false)
+  })
+
+  it("on the one store, asks Tell your guests it's cancelled? when anyone else is on it, and closing it keeps the event", async () => {
+    repeats = true
+    more = MAYA_ON
+    panel()
+    press()
+    const ask = await screen.findByRole("dialog", { name: "Tell your guests it's cancelled?" }, { timeout: 8000 })
+    await act(async () => void fireEvent.keyDown(ask, { key: "Escape" }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Tell your guests it's cancelled?" })).toBeNull())
+    expect(makeRequest).not.toHaveBeenCalled()
+    expect(offered).not.toHaveBeenCalled()
+  })
+
+  it("on the one store, sends Don't send as notify=none, with Undo that says guests weren't emailed", async () => {
+    repeats = true
+    more = MAYA_ON
+    makeRequest.mockResolvedValue({})
+    panel()
+    press()
+    const ask = await screen.findByRole("dialog", { name: "Tell your guests it's cancelled?" }, { timeout: 8000 })
+    await act(async () => void fireEvent.click(within(ask).getByRole("button", { name: "Don't send" })))
+    await waitFor(() => expect(offered).toHaveBeenCalledTimes(1))
+    expect(makeRequest).toHaveBeenCalledWith(deleteApiEventRequest("e1", "all", undefined, "none"))
+    expect(offered.mock.calls[0][2]).toBe(NOT_EMAILED)
+  })
+
+  it("on the one store, a booked meeting asks its own question naming its guest, then offers Open Trash, not Undo", async () => {
+    repeats = true
+    booking = { guest_name: "Alex Kim", page_title: "Intro call", guest_told: true }
+    makeRequest.mockResolvedValue({})
+    panel()
+    press()
+    await waitFor(() => expect(confirmations()).toHaveLength(1))
+    expect(confirmations()[0]).toMatchObject({ title: "Delete this booked meeting?", confirmText: "Delete and tell Alex Kim", destructive: true })
+    expect(confirmations()[0].description).toMatch(/^Alex Kim booked it through Intro call\./)
+    await act(async () => {
+      await confirmations()[0].onConfirm()
+    })
+    expect(makeRequest).toHaveBeenCalledWith(deleteApiEventRequest("e1", "all"))
+    expect(offered).not.toHaveBeenCalled()
+    const said = toasted.mock.calls.map(([t]) => t).find((t) => t.title === deletedTitle("Standup"))
+    expect(said).toMatchObject({ description: "It's in your calendar's Trash." })
+    expect(said.action.props.children).toBe("Open Trash")
+    // Its Open Trash: the calendar, with its Trash open.
+    act(() => said.action.props.onClick())
+    expect(pushed).toHaveBeenCalledWith("/app/calendar?trash=1")
   })
 })
 
@@ -702,6 +856,16 @@ describe("the event panel's Join", () => {
     expect(order.slice(0, 4)).toEqual(["H2", "P", "A", "DL"])
   })
 
+  // gcal-15: a fresh event is joined in its own room, in the app, in this tab.
+  it("joins a fresh event's own room in the app", () => {
+    times = around(-5, 25)
+    more = { event_room: { join: "/app/meet/e/e1", guest_links: false } }
+    panel()
+    const join = within(document.querySelector("[data-event-view]") as HTMLElement).getByRole("link", { name: "Join call" })
+    expect(join.getAttribute("href")).toBe("/app/meet/e/e1")
+    expect(join.getAttribute("target")).toBeNull()
+  })
+
   it("offers none once it has ended, or for a link that isn't a call", () => {
     times = around(-60, -30)
     description = "<p>Dial in: https://meet.example.com/standup</p>"
@@ -712,5 +876,121 @@ describe("the event panel's Join", () => {
     description = "<p>Agenda: https://docs.example.com/d/1</p>"
     panel()
     expect(screen.queryByRole("link", { name: /Join call/ })).toBeNull()
+  })
+})
+
+// gcal-16: after a guest says no, the organiser is offered a better time under
+// the guests, through the one "Find a better time" (the menu's dialog). The
+// organiser alone sees it: never a guest, even one the organiser lets change
+// the event (mayEdit), nor a calendar's reader; never once the event is over,
+// on a Google copy or a calendar read from an address. Opening it writes
+// nothing; a time confirmed in it moves the event (the dialog's own path).
+describe("the organiser's offer of a better time after a decline", () => {
+  const answer = (p: { user_uuid: string }, response: string) => ({ user_uuid: p.user_uuid, role: "required", response })
+  const offer = () => document.querySelector<HTMLElement>("[data-reschedule-offer]")
+  /** Sam's standup, an hour from now: Jonas said no, Maya yes. */
+  const declinedByJonas = (also: object[] = []) => {
+    times = around(60, 90)
+    participants = [JONAS, MAYA]
+    more = { event_guests: [answer(JONAS, "declined"), answer(MAYA, "accepted"), ...also] }
+  }
+
+  it("says who can't go under the guests, and opens Find a better time", async () => {
+    declinedByJonas()
+    panel()
+    const o = offer()
+    expect(o?.textContent).toContain("Jonas can't go")
+    // Under the guests, before the notes.
+    const guests = document.querySelector("[data-event-guests]")!
+    expect(guests.compareDocumentPosition(o!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(o!.compareDocumentPosition(screen.getByRole("heading", { name: "Notes" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(within(o!).getByRole("button", { name: "Find a better time" }))
+    expect(await screen.findByRole("dialog", { name: "Find a better time" })).toBeTruthy()
+    // Opening it writes nothing.
+    expect(makeRequest).not.toHaveBeenCalled()
+  })
+
+  it("counts them when more than one can't go, and shows on the phone's own page too", () => {
+    declinedByJonas([{ email: "alex@example.com", name: "Alex Kim", role: "required", response: "declined" }])
+    panel({ onClose: vi.fn() })
+    expect(offer()?.textContent).toContain("2 people can't go")
+    expect(within(offer()!).getByRole("button", { name: "Find a better time" })).toBeTruthy()
+  })
+
+  it("isn't offered to a guest", () => {
+    declinedByJonas([answer(SAM, "accepted")])
+    organiser = MAYA
+    participants = [SAM, JONAS]
+    panel()
+    expect(screen.getByText("Jonas")).toBeTruthy()
+    expect(offer()).toBeNull()
+  })
+
+  it("isn't offered to a guest the organiser lets change the event", async () => {
+    repeats = true
+    declinedByJonas([answer(SAM, "accepted")])
+    organiser = MAYA
+    participants = [SAM, JONAS]
+    more = { ...more, guests_can_modify: true }
+    panel()
+    // Sam may change it (Edit event), and still isn't offered a better time: that is the organiser's.
+    expect(await screen.findByRole("button", { name: "Edit event" }, { timeout: 8000 })).toBeTruthy()
+    expect(offer()).toBeNull()
+  })
+
+  it("isn't offered once the event is over, with no decline, on a Google copy or a calendar read from an address", () => {
+    declinedByJonas()
+    times = around(-90, -60)
+    panel()
+    expect(offer()).toBeNull()
+    cleanup()
+    declinedByJonas()
+    more = { event_guests: [answer(JONAS, "tentative"), answer(MAYA, "accepted")] }
+    panel()
+    expect(offer()).toBeNull()
+    cleanup()
+    declinedByJonas()
+    eventId = "gcal-standup"
+    panel({ uuid: "gcal-standup" })
+    expect(screen.getByRole("heading", { name: "Standup" })).toBeTruthy()
+    expect(offer()).toBeNull()
+    cleanup()
+    eventId = "e1"
+    declinedByJonas()
+    more = { ...more, event_read_only: true }
+    panel()
+    expect(offer()).toBeNull()
+  })
+
+  it("still says who can't go with the assistant off, with no button that can't work", () => {
+    ai = false
+    declinedByJonas()
+    panel()
+    expect(offer()?.textContent).toContain("Jonas can't go")
+    expect(within(offer()!).queryByRole("button")).toBeNull()
+  })
+
+  // The assistant's dialogs draw nothing with it off, so neither is offered:
+  // not on the panel's row, not in the phone's menu.
+  it("offers neither of the assistant's actions with the assistant off, in the panel or the phone's menu", () => {
+    ai = false
+    panel()
+    for (const name of ["Prep brief", "Find a better time"]) expect(screen.queryByRole("button", { name })).toBeNull()
+    expect(screen.getByRole("button", { name: "Delete event" })).toBeTruthy()
+    cleanup()
+    panel({ onClose: vi.fn() })
+    fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Delete event"])
+  })
+
+  it("goes once a time is confirmed in Find a better time, while the event is at that time", async () => {
+    declinedByJonas()
+    movedTo = around(180, 210)
+    panel()
+    fireEvent.click(within(offer()!).getByRole("button", { name: "Find a better time" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Move it" }))
+    await waitFor(() => expect(offer()).toBeNull())
+    // Jonas's answer still stands in the list (the server keeps it): only the offer went.
+    expect(document.querySelector('[data-guest-row="declined"]')).toBeTruthy()
   })
 })

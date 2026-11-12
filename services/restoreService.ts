@@ -1,9 +1,9 @@
 /**
  * What a delete keeps for its Undo (V-78): a project's field, status, cycle,
  * milestone, form (a table's too) or link (basecamp-16), a time entry, a
- * draft invoice, the workspace's plan status or label.
+ * draft invoice, the workspace's plan status or label, or a release (P10-1b).
  */
-export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice" | "project_status" | "project_label"
+export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice" | "project_status" | "project_label" | "release"
 
 /**
  * Brings back what a delete took: POST /restore/{kind}/{id} on the caller's

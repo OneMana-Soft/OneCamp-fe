@@ -6,7 +6,8 @@ import { SAM, SHOT_THEMES, reviewShot, stubBackend, withStatus } from "./stubbed
 // Yours opens with its widgets worked out (a number, a weekly chart and a
 // breakdown) laid side by side on a computer and in one column, in the same
 // order, on a phone; its keeper adds a widget, which goes in the next free
-// place; a reader it is only shared with sees no way to change it. With
+// place; a reader it is only shared with sees no way to change it, only each
+// chart's CSV (B9-b4). With
 // SHOTS_DIR set, each is saved for review, light and dark.
 
 const P = "9e0a0000-0000-4000-8000-0000000000b9"
@@ -103,7 +104,12 @@ for (const theme of SHOT_THEMES) {
       await open(page, testInfo, theme, false)
       await expect(page.getByText("Everyone in the workspace")).toBeVisible()
       await expect(page.getByRole("button", { name: "Add widget" })).toHaveCount(0)
-      await expect(page.getByRole("button", { name: /: more$/ })).toHaveCount(0)
+      // B9-b4 (linear-32): each chart's menu offers its CSV to readers too, and nothing that changes it.
+      await expect(page.getByRole("button", { name: /: more$/ })).toHaveCount(2)
+      await page.getByRole("button", { name: "Done and added: more" }).click()
+      await expect(page.getByRole("menuitem", { name: "Download CSV" })).toBeVisible()
+      await expect(page.getByRole("menuitem", { name: /Edit|Remove|Move/ })).toHaveCount(0)
+      await page.keyboard.press("Escape")
       await expect(page.getByRole("button", { name: "New dashboard" })).toHaveCount(1)
     })
   })
@@ -133,7 +139,8 @@ for (const theme of SHOT_THEMES) {
     test("a reader on a phone reads it with no way to add, arrange or remove", async ({ page }, testInfo) => {
       await open(page, testInfo, theme, false)
       await expect(page.getByRole("button", { name: "Add widget" })).toHaveCount(0)
-      await expect(page.getByRole("button", { name: /: more$/ })).toHaveCount(0)
+      // Only the charts' CSV (B9-b4).
+      await expect(page.getByRole("button", { name: /: more$/ })).toHaveCount(2)
       await expect(page.getByRole("button", { name: "Rename and share" })).toHaveCount(0)
       await expect(page.getByRole("button", { name: "Delete dashboard" })).toHaveCount(0)
       await reviewShot(page, "dashboard-reader", theme)

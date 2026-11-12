@@ -8,7 +8,8 @@
 // demo), the two-client e2e (e2e/docSession.spec.ts) and the Doc Session's unit
 // tests (lib/collabSession.test.ts). It keeps the two server habits the client
 // has to live with (lib/collabSocket.ts): a doc refused on a socket stays
-// refused on it, and a closed doc is answered with a close.
+// refused on it, and a closed doc is answered with a close. A connection's
+// presence leaves with it (its socket or its doc closed), as it does there.
 //
 // The transport is the caller's: connect(send, close) returns the socket's
 // receive(bytes) and closed(). A Playwright routeWebSocket or a fake browser
@@ -113,6 +114,14 @@ export function awarenessFrame(name, entries) {
   return frame(name, MSG.awareness, (b) => writeBytes(b, body))
 }
 
+/** An awareness update's entries: each client, its clock and its state (null for one that left). */
+function presenceIn(payload) {
+  const r = new Reader(payload)
+  const out = []
+  for (let n = r.uint(); n > 0; n--) out.push({ clientId: r.uint(), clock: r.uint(), state: JSON.parse(r.string()) })
+  return out
+}
+
 /**
  * An awareness update's states with each person's user stamped `edit`, as the collaboration service's
  * presenceGuard.js stamps a member's from their sign-in (the member list), whatever the tab said. A state with no
@@ -207,6 +216,18 @@ export function createFakeCollab(o = {}) {
       for (const c of live.get(name) || []) if (c !== except) c.out(bytes)
     }
 
+    // A doc this connection is done with, closed by the tab or with the socket: its presence goes with it, and
+    // everyone still on the doc hears it go, as Hocuspocus's Document.removeConnection does (server 3.4.3, through
+    // y-protocols' removeAwarenessStates, which bumps only the server's own clientID: each client the connection
+    // brought goes at its LAST clock with a null state, which a tab removes on currClock === clock, awareness.js:256).
+    function leave(name, entry) {
+      live.get(name)?.delete(conn)
+      const gone = [...entry.clients].map(([clientId, clock]) => ({ clientId, clock, state: null }))
+      entry.clients.clear()
+      entry.awareness = null
+      if (gone.length) broadcast(name, awarenessFrame(name, gone))
+    }
+
     function handleReady(name, m, entry) {
       const doc = docFor(name)
       if (m.type === MSG.sync) {
@@ -254,6 +275,11 @@ export function createFakeCollab(o = {}) {
           return
         }
         entry.awareness = stamped
+        // The clients this connection brings, each at its last clock, until it says one left (leave).
+        for (const { clientId, clock, state } of presenceIn(stamped)) {
+          if (state === null) entry.clients.delete(clientId)
+          else entry.clients.set(clientId, clock)
+        }
         broadcast(name, frame(name, MSG.awareness, (b) => writeBytes(b, stamped)))
         return
       }
@@ -265,7 +291,7 @@ export function createFakeCollab(o = {}) {
         entry.closing = true
         setTimeout(() => {
           stats.closes++
-          live.get(name)?.delete(conn)
+          leave(name, entry)
           if (perDoc.get(name) === entry) perDoc.delete(name)
           out(frame(name, MSG.close, (b) => writeString(b, "provider_initiated")))
         }, 5)
@@ -316,7 +342,7 @@ export function createFakeCollab(o = {}) {
         }
         let entry = perDoc.get(m.name)
         if (!entry) {
-          entry = { state: "new", queue: [], readOnly: false, awareness: null }
+          entry = { state: "new", queue: [], readOnly: false, awareness: null, clients: new Map() }
           perDoc.set(m.name, entry)
         }
         if (entry.state === "ready") return handleReady(m.name, m, entry)
@@ -330,7 +356,7 @@ export function createFakeCollab(o = {}) {
       },
       closed() {
         open = false
-        for (const name of perDoc.keys()) live.get(name)?.delete(conn)
+        for (const [name, entry] of perDoc) leave(name, entry)
       },
       close() {
         open = false

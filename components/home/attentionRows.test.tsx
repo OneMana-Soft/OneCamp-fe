@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 /** "What needs me now" (hub.md H8–H10): one queue, grouped, acting in place. */
 const celebrateOnce = vi.fn(() => 1)
@@ -94,6 +94,27 @@ describe("grouping", () => {
     expect(rows[0].querySelector("[data-agent-avatar]")).not.toBeNull()
     expect(rows[1].querySelector("[data-bot-avatar]")).not.toBeNull()
     expect(container.querySelector('[data-needs-kind="reply"] [data-hue]')).toBeNull()
+  })
+
+  // C11 (V-581): an overdue commitment led with a task's status glyph and was
+  // counted as "1 task overdue". It is the AI's commitment, said as one.
+  it("leads an overdue commitment with its own mark and says it on the line as a commitment", async () => {
+    const commitment: NeedsItem = { id: "ai:commitment:m-1", kind: "due", commitment: true, title: "Send the vendor shortlist", due: "Commitment · was due 2 Nov", overdue: true, href: "/app/ai/memory?item=m-1", refId: "m-1" }
+    const onDone = vi.fn(async () => {})
+    const { container } = render(<NeedsMeSection items={[commitment, task("1")]} onDone={onDone} />)
+    const rows = container.querySelectorAll('[data-needs-kind="due"]')
+    expect(rows[0].querySelector("[data-commitment]")).not.toBeNull()
+    expect(rows[0].querySelector("[data-status-glyph]")).toBeNull()
+    expect(rows[1].querySelector("[data-status-glyph]")).not.toBeNull()
+    expect(screen.getByText("Commitment · was due 2 Nov").closest("[data-chip]")!.className).toMatch(/danger/)
+    expect(rows[0].querySelector('a[href="/app/ai/memory?item=m-1"]')).not.toBeNull()
+    // Done on it is the section's own Done, with the row: what it resolves is the caller's (AttentionCard).
+    await act(async () => fireEvent.click(rows[0].querySelector<HTMLButtonElement>('button[aria-label^="Done"]')!))
+    expect(onDone).toHaveBeenCalledWith(commitment)
+    cleanup()
+    const g = glanceOf({ items: [commitment, task("1")], loading: false, failed: false })
+    render(<GlanceLine loading={g.loading} failed={g.failed} counts={g.counts} unnamed={g.unnamed} />)
+    expect(document.querySelector("[data-glance]")!.textContent).toBe("1 task due today · 1 commitment overdue")
   })
 })
 
@@ -337,5 +358,139 @@ describe("an approval waiting for me", () => {
     expect(shown.textContent).toContain("Was due 22 Oct")
     expect(shown.textContent).toContain("Q4 launch")
     expect(shown.querySelector("button")).toBeNull()
+  })
+})
+
+// V-912: a row that E, A, D or a sent reply resolves leaves from under the
+// keyboard. Focus goes on to the next row (across the groups, as J walks
+// them), to the one before after the last, and to the all-clear line once
+// none is left: never to the page, which meant a Tab back into the list.
+describe("keeping its place under the keyboard", () => {
+  const rowOf = (c: HTMLElement, title: string) => [...c.querySelectorAll<HTMLElement>("[data-needs-kind]")].find((r) => r.textContent?.includes(title))
+  const press = async (c: HTMLElement, title: string, key: string) => {
+    const row = rowOf(c, title)!
+    row.focus()
+    await act(async () => fireEvent.keyDown(row, { key }))
+  }
+  const agent2: NeedsItem = { ...agent, id: "ai:approval:p2", title: "Ledger wants to file 2 expenses", refId: "p2" }
+  const ok = () => vi.fn().mockResolvedValue(undefined)
+
+  it("E: the next row, the one before after the last, then the all-clear line", async () => {
+    const { container } = render(<NeedsMeSection items={[task("1"), task("2"), task("3")]} onDone={ok()} />)
+    await press(container, "Task 1", "e")
+    expect(rowOf(container, "Task 1")).toBeUndefined()
+    expect(document.activeElement).toBe(rowOf(container, "Task 2"))
+    await press(container, "Task 3", "e")
+    expect(document.activeElement).toBe(rowOf(container, "Task 2"))
+    await press(container, "Task 2", "e")
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement).toBe(container.querySelector("[data-needs-empty]"))
+  })
+
+  it("A and D on an agent's rows: on across the groups, back after the last, then the all-clear line", async () => {
+    const actions = { onApprove: ok(), onDismiss: ok() }
+    const first = render(<NeedsMeSection items={[agent, agent2, task("1")]} {...actions} />)
+    await press(first.container, agent.title, "a")
+    expect(document.activeElement).toBe(rowOf(first.container, agent2.title))
+    await press(first.container, agent2.title, "d")
+    expect(document.activeElement).toBe(rowOf(first.container, "Task 1"))
+    first.unmount()
+    const { container } = render(<NeedsMeSection items={[agent, agent2]} {...actions} />)
+    await press(container, agent2.title, "d")
+    expect(document.activeElement).toBe(rowOf(container, agent.title))
+    await press(container, agent.title, "a")
+    expect(document.activeElement).toBe(container.querySelector("[data-needs-empty]"))
+  })
+
+  // A workspace with no channels shows its own line while the list is empty,
+  // until the last row is cleared: the all-clear line comes a render later,
+  // and the focus waits for it (CR-261 T1).
+  it("E on the last row where there are no channels: the all-clear line, once it is drawn", async () => {
+    const { container } = render(<NeedsMeSection items={[task("1")]} onDone={ok()} noChannels={<p>Join a channel to see mentions</p>} />)
+    await press(container, "Task 1", "e")
+    expect(container.textContent).toContain("All clear. Nice work.")
+    expect(document.activeElement).toBe(container.querySelector("[data-needs-empty]"))
+  })
+
+  it("a reply sent from R's box hands focus on the same way", async () => {
+    const onReply = ok()
+    const { container } = render(<NeedsMeSection items={[mention, task("1")]} onReply={onReply} />)
+    await press(container, "Jonas mentioned you", "r")
+    const box = screen.getByRole("textbox", { name: "Your reply" })
+    fireEvent.change(box, { target: { value: "On it" } })
+    await act(async () => fireEvent.keyDown(box, { key: "Enter" }))
+    expect(onReply).toHaveBeenCalledWith(mention, "On it")
+    expect(document.activeElement).toBe(rowOf(container, "Task 1"))
+  })
+
+  it("a click on the row's own button does too (a browser focuses the button it clicks)", async () => {
+    const { container } = render(<NeedsMeSection items={[agent, agent2]} onDismiss={ok()} />)
+    const dismiss = within(rowOf(container, agent.title)!).getByRole("button", { name: "Dismiss" })
+    dismiss.focus()
+    await act(async () => fireEvent.click(dismiss))
+    expect(document.activeElement).toBe(rowOf(container, agent2.title))
+  })
+
+  it("keeps focus on a row whose action failed, which stays", async () => {
+    const { container } = render(<NeedsMeSection items={[agent, agent2]} onApprove={vi.fn().mockRejectedValue(new Error("the agent has gone"))} />)
+    await press(container, agent.title, "a")
+    expect(screen.getByRole("alert").textContent).toContain("the agent has gone")
+    expect(document.activeElement).toBe(rowOf(container, agent.title))
+  })
+
+  it("leaves focus where someone put it while the row was on its way", async () => {
+    let land = () => {}
+    const onDone = vi.fn(() => new Promise<void>((r) => (land = r)))
+    const { container } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <NeedsMeSection items={[task("1"), task("2")]} onDone={onDone} />
+      </>,
+    )
+    await press(container, "Task 1", "e")
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" })
+    elsewhere.focus()
+    await act(async () => land())
+    expect(rowOf(container, "Task 1")).toBeUndefined()
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
+  // Undo gives the row back its focus (F1 of V-912's look). From the keyboard,
+  // Undo is ⌥T and Enter, and the closing toast leaves focus on the toasts'
+  // list (Radix); a pointer's Undo leaves it on the page. Anywhere else it stays.
+  it("Undo gives the returned row the focus from the toasts or the page; focus put elsewhere stays", async () => {
+    const { container } = render(
+      <>
+        <ol className="toast-viewport" tabIndex={-1} aria-label="Notifications" />
+        <button type="button">Elsewhere</button>
+        <NeedsMeSection items={[task("1"), task("2")]} onDone={ok()} onUndoDone={ok()} />
+      </>,
+    )
+    const undoFrom = async (focus: () => void) => {
+      await press(container, "Task 1", "e")
+      expect(document.activeElement).toBe(rowOf(container, "Task 2"))
+      focus()
+      await act(async () => toast.mock.calls.at(-1)![0].action!.props.onClick())
+      expect(rowOf(container, "Task 1")).toBeTruthy()
+    }
+    await undoFrom(() => container.querySelector<HTMLElement>(".toast-viewport")!.focus())
+    expect(document.activeElement).toBe(rowOf(container, "Task 1"))
+    await undoFrom(() => (document.activeElement as HTMLElement).blur())
+    expect(document.activeElement).toBe(rowOf(container, "Task 1"))
+    await undoFrom(() => screen.getByRole("button", { name: "Elsewhere" }).focus())
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Elsewhere" }))
+  })
+
+  it("hands the focus on again when Undo fails and the row leaves once more", async () => {
+    let fail = () => {}
+    const onUndoDone = vi.fn(() => new Promise<void>((_, no) => (fail = () => no(new Error("the task has gone")))))
+    const { container } = render(<NeedsMeSection items={[task("1"), task("2")]} onDone={ok()} onUndoDone={onUndoDone} />)
+    await press(container, "Task 1", "e")
+    ;(document.activeElement as HTMLElement).blur()
+    await act(async () => toast.mock.calls.at(-1)![0].action!.props.onClick())
+    expect(document.activeElement).toBe(rowOf(container, "Task 1"))
+    await act(async () => fail())
+    expect(rowOf(container, "Task 1")).toBeUndefined()
+    expect(document.activeElement).toBe(rowOf(container, "Task 2"))
   })
 })

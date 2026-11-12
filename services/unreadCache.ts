@@ -1,39 +1,24 @@
-import { patchCached } from "@/lib/swrMutate";
+import { appMutate, patchCached } from "@/lib/swrMutate";
 
 import { GetEndpointUrl } from "@/services/endPoints";
+import { INBOX_UNREAD } from "@/lib/activity/inboxBadge";
 import type { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";
 import type { UserProfileInterface } from "@/types/user";
 
 /**
- * The one place that knows which caches carry an unread count.
+ * The one place that knows which caches carry an unread count (the Inbox
+ * badge is not one: lib/activity/inboxBadge).
  *
- * THE BUG THIS EXISTS FOR. Reading something advances the server marker and
- * resets Redux, and the badge comes back anyway. The server is not wrong: it is
- * SWR in front of it.
+ * Why: /user/sidebarNav (deduped for 30 seconds) and the channel and chat
+ * lists carry unread numbers, refreshed every four minutes and not on focus,
+ * and SWR hands a remount the CACHED payload, recorded before the thing was
+ * read, so a badge reset in Redux came back.
  *
- * /user/sidebarNav is deduped for 30 seconds and hydrates every unread number
- * the app shows: channel badges, DM badges, and the activity count. Both
- * useHydrateUserSidebar and DesktopNavigationBar re-dispatch from it whenever
- * that data lands, and on a REMOUNT SWR hands back the CACHED payload
- * immediately. So navigating back to any page that mounts either one re-seeds
- * Redux from a payload recorded before the thing was read, and overwrites the
- * reset. Both read the same SWR key, so correcting it once fixes both.
- *
- * The per-surface list endpoints are worse: the channel list and the chat list
- * read no Redux at all, so a local reset never reached them in the first place.
- *
- * Every one of these has revalidateOnFocus off and a four-minute refresh, so a
- * stale count could stand for minutes on something just read.
- *
- * PATCHED, NOT REVALIDATED. The server is already correct by the time any of
- * these run, so refetching would spend requests to learn what we know. Writing
- * the corrected value in is instant and survives the remount that caused the
- * resurrection. The existing refresh cycle reconciles anything else. Only a
+ * Patched, not revalidated: the server is right by the time these run. Only a
  * response already in hand is patched (lib/swrMutate patchCached): touching
- * one still on its way made SWR throw it away.
- *
- * Callers must only invoke these once the server has actually been told.
- * Painting a badge read while the marker never moved hides a real unread count.
+ * one still on its way made SWR throw it away. Call these only once the
+ * server has been told: a badge painted read while the marker never moved
+ * hides a real unread count.
  */
 
 /**
@@ -113,13 +98,7 @@ export function clearChatUnread(groupingId: string, count = 0): void {
     );
 }
 
-/**
- * The activity feed has been opened, which marks everything in it seen.
- *
- * A single number rather than a list, so there is nothing to match: opening the
- * feed is the whole reset.
- */
-export function clearActivityUnread(): void {
-    // The server leaves a zero count out, so nothing there is nothing to clear.
-    patchSidenav((data) => (data.user_total_unread_activity_count ? withField(data, "user_total_unread_activity_count", 0) : data));
+/** The Inbox badge reads the server's count again (lib/activity/inboxBadge). */
+export function recountInbox(): void {
+    void appMutate(INBOX_UNREAD);
 }

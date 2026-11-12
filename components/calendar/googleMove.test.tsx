@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import type { GoogleSync } from "@/lib/calendar/googleSync"
+import type { CalendarSync as GoogleSync } from "@/lib/calendar/calendarSync"
 
 const fetched = vi.hoisted(() => ({ value: undefined as { data?: GoogleSync } | undefined, mutate: vi.fn() }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: fetched.value, mutate: fetched.mutate }) }))
+// Google's link answers; Outlook's tile beside it (B7) reads nothing here.
+vi.mock("@/hooks/useFetch", () => ({
+  useFetch: (url: string) => ({ data: url === "/calendar/sync/google" ? fetched.value : undefined, mutate: fetched.mutate }),
+  useFetchOnlyOnce: () => ({ data: undefined }),
+}))
 const move = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: async (...a: unknown[]) => ({ data: { data: await move(...a) } }) } }))
 

@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Bell, ClipboardList, Clock, Globe, Hash, Layers, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
+import { Archive, Bell, Bookmark, CalendarClock, ClipboardList, Clock, Globe, Hash, Layers, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
 import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
 import { useProjectLinks } from "@/hooks/useProjectLinks"
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { NotificationLevelItems, notificationLevelLabel } from "@/components/Notification/notificationLevels"
 import dynamic from "next/dynamic"
+import { useRemindMe } from "@/components/later/useRemindMe"
 
 // The project's tools are dialogs nobody needs until they are asked for, so
 // each is its own chunk, fetched on first open (the project route's script
@@ -228,6 +229,9 @@ export function ProjectActionsMenu({
         void appMutate(`${GetEndpointUrl.GetProjectInfo}/${projectId}`)
       },
     })
+  // Later (linear-45 #1), the member's own.
+  const mine = isMember || isAdmin
+  const later = useRemindMe({ itemType: "project", itemId: projectId, link: `${app_project_path}/${projectId}`, title: projectName ?? "" })
   if (!allowed && !extra?.length) return null
   // Sharing with a client is a word in the header bar (design v3, work.md
   // W16); the time button is the clock beside it; the rest is one menu.
@@ -248,7 +252,7 @@ export function ProjectActionsMenu({
           <first.Icon className="size-4" />
         </Button>
       )}
-      {(rest.length > 0 || manage || people || archives || !!extra?.length || !!notifications) && (<>
+      {(rest.length > 0 || manage || people || archives || mine || !!extra?.length || !!notifications) && (<>
       {/* Not modal: an item opens a dialog, and a modal menu closing over it
           can leave the page unclickable. */}
       <DropdownMenu modal={false}>
@@ -275,6 +279,19 @@ export function ProjectActionsMenu({
                 <Users className="h-4 w-4 text-muted-foreground" />
                 Manage project members
               </DropdownMenuItem>}
+            </>
+          )}
+          {mine && (
+            <>
+              {rest.length > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuItem onSelect={later.toggle}>
+                <Bookmark className="h-4 w-4 text-muted-foreground" />
+                {later.saved ? "Saved for later" : "Save for later"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={later.remindMe}>
+                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                Remind me…
+              </DropdownMenuItem>
             </>
           )}
           {notifications && (
@@ -325,6 +342,7 @@ export function ProjectActionsMenu({
       </DropdownMenu>
       </>)}
       {dialogs}
+      {later.picker}
     </>
   )
 }

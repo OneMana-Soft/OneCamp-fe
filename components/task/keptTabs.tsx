@@ -6,12 +6,20 @@
 // keeps its state and DOM, pauses its effects (no requests, no listeners)
 // and renders its updates only when there's time.
 //
+// Hidden, a tab draws nothing at all until it is shown again: a change it
+// can't show (the page drawn again for a switch, the address, a cache another
+// tab wrote) waits, and is drawn once, as it shows. Activity alone draws a
+// hidden tree's updates when there's time: the board's column drag drew the
+// hidden list's 1,900 rows again as the timeline opened (fluid-09, H3-b).
+// Held by a promise that never settles, under the tab's own Suspense: React
+// keeps the last drawn tree, state and all, and never draws the held one.
+//
 // The panels are force-mounted, so switching never asks Radix's Presence to
 // measure them: it read each panel's computed animation name on every
 // switch, which forced a style recalculation of the whole page just after the
 // new tab's rows had been added (28 to 85 ms at 4x CPU).
 
-import { Activity, useState, type ReactNode } from "react"
+import { Activity, Suspense, use, useState, type ReactNode } from "react"
 import { TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -26,6 +34,14 @@ export function useSeenTabs<T extends string>(selected: T): ReadonlySet<T> {
     setSeen(next)
   }
   return seen
+}
+
+const NEVER = new Promise<never>(() => undefined)
+
+/** A hidden tab's tree: held as last drawn while hidden. */
+function Held({ hidden, children }: { hidden: boolean; children: ReactNode }) {
+  if (hidden) use(NEVER)
+  return children
 }
 
 export function KeptTab({
@@ -44,7 +60,13 @@ export function KeptTab({
 }) {
   return (
     <TabsContent value={value} forceMount className={cn("data-[state=inactive]:hidden", className)}>
-      {seen && <Activity mode={selected ? "visible" : "hidden"}>{children}</Activity>}
+      {seen && (
+        <Activity mode={selected ? "visible" : "hidden"}>
+          <Suspense fallback={null}>
+            <Held hidden={!selected}>{children}</Held>
+          </Suspense>
+        </Activity>
+      )}
     </TabsContent>
   )
 }

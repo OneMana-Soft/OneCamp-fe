@@ -22,13 +22,14 @@ export function boardFilters(filters: { id: string; value: unknown }[], search: 
 }
 
 /**
- * Where a project's list or board view opens its insights (B9-b1): the
- * overview's Reports, narrowed to the project and to the view's filters as
- * the board sends them, which the report runs through the list's own filter
- * builder; name is the view's, for the report to say which. Pure.
+ * Where a task view opens its insights (B9-b1, L32): the overview's Reports,
+ * narrowed to the view's project, or with none to the reader's own work
+ * (mine: My tasks), and to its filters as the board sends them, which the
+ * report runs through the list's own filter builder; name is the view's,
+ * for the report to say which. Pure.
  */
-export function insightsHref(projectId: string, filters: { id: string; value: unknown }[], search: string, name: string): string {
-  const q = new URLSearchParams({ view: "reports", projects: projectId })
+export function insightsHref(projectId: string | undefined, filters: { id: string; value: unknown }[], search: string, name: string): string {
+  const q = new URLSearchParams(projectId ? { view: "reports", projects: projectId } : { view: "reports", mine: "1" })
   const sent = boardFilters(filters, search)
   if (sent.length) q.set("filters", JSON.stringify(sent))
   if (name.trim()) q.set("name", name.trim())

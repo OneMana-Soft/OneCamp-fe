@@ -37,6 +37,8 @@ export interface CalendarEventInterface {
      */
     event_reminders?: number[];
     event_reminders_default?: boolean;
+    /** Those of event_reminders that come by email, not as a pop-up (calendar head A). */
+    event_reminders_email?: number[];
     /** Its own colour, one of the camp hues (the Event Form), and where it is: from the one store. */
     event_hue?: string;
     event_location?: string;
@@ -54,6 +56,8 @@ export interface CalendarEventInterface {
     calendar_name?: string;
     /** On a calendar the reader subscribes to (B8): seen whole, changed only where it is published. */
     event_read_only?: boolean;
+    /** "private" for one its organiser made private (V-643): its card and view say so. Else the calendar's default, or public. */
+    event_visibility?: string;
     /** A task block's task (B1, gcal-new-task-blocks): its uuid, and its name, state and project when the reader may read it. */
     event_task?: CalendarEventTask | null;
     /**
@@ -62,7 +66,21 @@ export interface CalendarEventInterface {
      * like anyone from outside, its host having turned their way in off (meet-02).
      */
     event_call?: { slug: string; address: string; invitees_wait?: boolean } | null;
+    /**
+     * Its own call room (gcal-15 head B), which every OneCamp event has: the
+     * page a member joins it at, made the first time someone does. Only to a
+     * reader who may join it (Google's copy, own time and a Busy block come
+     * without one). guest_links: a guest link may be added to it (guest access
+     * and its rooms on).
+     */
+    event_room?: EventRoom | null;
     isTask?: boolean;
+}
+
+/** An event's call room as its readers see it (the server's event_room, and the calendar API's room). */
+export interface EventRoom {
+    join: string;
+    guest_links: boolean;
 }
 
 /** The task a block on the grid is time for, as the reader may read it (the server's event_task). */
@@ -72,6 +90,9 @@ export interface CalendarEventTask {
     task_status?: string;
     project_uuid?: string;
     project_name?: string;
+    /** How many open tasks it waits on, and the first of them when the reader may read it (CAL51-TB). */
+    task_blocked_open?: number;
+    task_blocked_by?: { task_uuid: string; task_name?: string }[];
 }
 
 /** One guest's answer to an event: needs_action, accepted, declined or tentative, with their note. */

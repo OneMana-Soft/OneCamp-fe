@@ -90,7 +90,7 @@ type Verb = "paste" | "fill" | "clear"
 const DONE: Record<Verb, string> = { paste: "Pasted", fill: "Filled", clear: "Cleared" }
 const PAST: Record<Verb, string> = { paste: "pasted", fill: "filled", clear: "cleared" }
 const REST: Record<Verb, string> = { paste: "Paste the rest", fill: "Fill the rest", clear: "Clear the rest" }
-/** What a write is, for an Undo that finds it wasn't saved: "That fill wasn't saved". */
+/** What a write is, for an Undo that finds it wasn't saved or changed nothing: "That fill wasn't saved", "That fill changed nothing". */
 const WHAT: Record<Verb, string> = { paste: "paste", fill: "fill", clear: "change" }
 /** How many refusals a toast lists before "and N more". */
 const LISTED = 3
@@ -160,6 +160,17 @@ function shown(w: RangeWrites, input: BatchInput, pasted: boolean): Pick<CellsWr
   }
 }
 
+/** A Retry's batch (V-617): of `input`'s cells only those still kept, as they were sent, and its new rows when `adds`. */
+function only(input: BatchInput, kept: CellsWrite["cells"], adds: boolean): BatchInput {
+  const fields = new Map(kept.map((c) => [c.row.id, new Set(Object.keys(c.values))]))
+  const patch = (input.patch ?? []).flatMap((p) => {
+    const values = Object.fromEntries(Object.entries(p.values).filter(([k]) => fields.get(p.row)?.has(k)))
+    return Object.keys(values).length ? [{ ...p, values }] : []
+  })
+  const { create, ...rest } = input
+  return { ...rest, patch, ...(adds && create ? { create } : {}) }
+}
+
 /**
  * One batch, through the grid's one edit path: its cells show at once, then
  * the toast with Undo (for more than one cell, or with something left out),
@@ -174,9 +185,16 @@ async function write(w: RangeWrites, verb: Verb, plan: Pick<PlannedWrite, "input
   }
   let done: { answer: BatchResult; undone: boolean }
   try {
-    done = await writeCells(w.cells, { what: WHAT[verb], ...shown(w, plan.input, verb === "paste"), send: () => w.batch(plan.input) })
+    done = await writeCells(w.cells, {
+      what: WHAT[verb],
+      ...shown(w, plan.input, verb === "paste"),
+      send: () => w.batch(plan.input),
+      // Its Retry, once kept for a 503 (V-617): the same write, of the cells still kept.
+      again: (kept, adds) => write(w, verb, { input: only(plan.input, kept, adds) }),
+    })
   } catch (e) {
-    refused(w, verb, plan.input, e)
+    // Kept and said with Retry by the edit path (a 503): nothing more to say.
+    if (!w.cells.said(e)) refused(w, verb, plan.input, e)
     return null
   }
   if (done.undone) return null

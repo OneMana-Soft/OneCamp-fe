@@ -95,6 +95,17 @@ describe("New project", () => {
     expect(screen.getByLabelText("Starts on")).toBeTruthy()
   })
 
+  // B63 F3 of 3ef857030: "Start from a template" opens on ANY_TEMPLATE until the picker picks one; Create before
+  // that (templates not read yet, or the read failed) sent it to the server, which said the template had gone.
+  it("never sends the any-template mark: unresolved, it makes a blank project", async () => {
+    const { ANY_TEMPLATE } = await import("@/lib/projectTemplateStart")
+    render(<CreateProjectDialog dialogOpenState setOpenState={() => {}} initialTemplateId={ANY_TEMPLATE} />)
+    await typeName()
+    await waitFor(() => expect((screen.getByRole("button", { name: "Create project" }) as HTMLButtonElement).disabled).toBe(false))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create project" })))
+    expect(sent).toEqual([{ project_name: "Acme site", project_team_uuid: "team-1" }])
+  })
+
   it("tells the person when some of the template's tasks weren't made", async () => {
     reply = { project_uuid: "p-2", project_name: "Acme site", template: { statuses: 1, tasks: 10, failed: 3 } }
     render(<CreateProjectDialog dialogOpenState setOpenState={() => {}} />)

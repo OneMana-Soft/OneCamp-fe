@@ -35,7 +35,7 @@ afterEach(async () => {
   await new Promise((r) => setTimeout(r, 10))
 })
 
-const fields = () => screen.getByRole("group", { name: "Reminder date and time" })
+const fields = () => screen.getByRole("group", { name: "Pick a date and time" })
 
 describe("Remind me, on a computer", () => {
   it("is a dialog of the app's date and time fields, from tomorrow morning", () => {
@@ -71,12 +71,31 @@ describe("Remind me, on a computer", () => {
     const box = await screen.findByLabelText("Type a time", {}, LOAD)
     fireEvent.change(box, { target: { value: "9:30" } })
     fireEvent.keyDown(box, { key: "Enter" })
-    const why = await screen.findByText("Choose a time that has not passed yet.")
+    const why = await screen.findByText("That time has passed.")
     const set = screen.getByRole("button", { name: "Set reminder" }) as HTMLButtonElement
     expect(set.disabled).toBe(true)
     expect(set.getAttribute("aria-describedby")).toBe(why.id)
     fireEvent.click(set)
     expect(onPick).not.toHaveBeenCalled()
+  })
+
+  // H3 (linear-45 #1): the time in words, said back, the box in focus as it opens.
+  it("takes a time in words, says it back, and Enter sets it", () => {
+    const onPick = vi.fn()
+    render(<ReminderPicker onPick={onPick} onClose={() => {}} />)
+    const box = screen.getByRole("textbox", { name: "When" })
+    expect(document.activeElement).toBe(box)
+    fireEvent.change(box, { target: { value: "next monday 2pm" } })
+    expect(screen.getByText(/^Mon at 2:00/).closest("[aria-live]")).toBeTruthy()
+    expect(within(fields()).getByRole("button", { name: /^Date/ })).toHaveTextContent("Mon 19 Oct 2026")
+    fireEvent.change(box, { target: { value: "12/3" } })
+    const why = screen.getByText("Write the month as a word, like Dec 3.")
+    const set = screen.getByRole("button", { name: "Set reminder" }) as HTMLButtonElement
+    expect(set.disabled).toBe(true)
+    expect(set.getAttribute("aria-describedby")).toBe(why.closest("[aria-live]")!.id)
+    fireEvent.change(box, { target: { value: "next monday 2pm" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(onPick).toHaveBeenCalledWith(new Date(2026, 9, 19, 14, 0))
   })
 
   it("opens from Save for later's Pick a date and time…, and saves with the reminder", { timeout: 20000 }, async () => {

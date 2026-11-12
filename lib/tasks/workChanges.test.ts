@@ -14,8 +14,8 @@ const entry = (sequence: number, kind: string, task: string, diff: Record<string
   sequence, kind, resource_kind: "task", resource_uuid: task, project_uuid: project, diff, actor: "u-bea",
 })
 
-/** Patchers that write down what each was asked, in order. */
-function recorder() {
+/** Patchers that write down what each was asked, in order; `formulas`, the projects with a formula field. */
+function recorder(formulas: string[] = []) {
   const calls: unknown[][] = []
   const to: TaskPatchers = {
     updateTasks: (patches, project) => calls.push(["update", patches, project]),
@@ -23,6 +23,8 @@ function recorder() {
     setTaskField: (task, project, field, value) => calls.push(["field", task, project, field, value]),
     deleteTask: (task, project) => calls.push(["delete", task, project]),
     rereadProject: (project) => calls.push(["reread", project]),
+    rereadTask: (task) => calls.push(["task", task]),
+    readsBuiltins: (project) => formulas.includes(project),
   }
   return { calls, to }
 }
@@ -76,6 +78,19 @@ describe("entries, through the patchers every open list, board and timeline alre
     expect(calls).toEqual([["field", T1, P, "f-size", "opt-l"], ["field", T1, P, "f-size", null]])
   })
 
+  // V-698: a money field's change comes to every member alike with no value (refetch: true), since only the project's
+  // admins may read it; each app reads the task again as itself. Nothing is written, not even null (a real clear).
+  it("writes nothing for a field change told with no value, and reads its project and task again, once each", () => {
+    const { calls, to } = recorder()
+    applyEntries([
+      entry(5, "task.updated", T1, { field_id: "f-budget", refetch: true }),
+      entry(6, "task.updated", T2, { field_id: "f-budget", value: null, refetch: true }),
+      entry(7, "task.updated", T1, { field_id: "f-budget", refetch: true }),
+      entry(8, "task.updated", T1, { field_id: "f-size", value: null, refetch: false }),
+    ], to)
+    expect(calls).toEqual([["reread", P], ["task", T1], ["task", T2], ["field", T1, P, "f-size", null]])
+  })
+
   it("takes a deleted task away, and reads a project again once for what was made or restored", () => {
     const { calls, to } = recorder()
     applyEntries([
@@ -84,6 +99,28 @@ describe("entries, through the patchers every open list, board and timeline alre
       entry(7, "task.deleted", T1),
     ], to)
     expect(calls).toEqual([["reread", P], ["delete", T1, P]])
+  })
+
+  // V-762: a built-in change comes with no formula's new value. In a project with a formula field the project and
+  // each changed task are read again, once for the lot and after its patches; another project's are patched only.
+  it("reads a formula project and each task whose built-ins changed again, once for the lot, after its patches", () => {
+    const { calls, to } = recorder([P])
+    applyEntries([
+      entry(5, "task.updated", T1, { task_due_date: "2026-11-20T00:00:00Z" }),
+      entry(6, "task.updated", T2, { task_status: "done" }),
+      entry(7, "task.updated", T1, { task_priority: "high" }),
+      entry(8, "task.updated", T1, { field_id: "f-budget", refetch: true }),
+      entry(9, "task.updated", T2, { task_name: "Elsewhere" }, Q),
+    ], to)
+    expect(calls).toEqual([
+      ["update", [{ task_uuid: T1, task_due_date: "2026-11-20T00:00:00Z" }], P],
+      ["move", { task_uuid: T2, task_status: "done" }, P],
+      ["update", [{ task_uuid: T1, task_priority: "high" }], P],
+      ["reread", P],
+      ["task", T1],
+      ["update", [{ task_uuid: T2, task_name: "Elsewhere" }], Q],
+      ["task", T2],
+    ])
   })
 
   it("keeps the log's order: changes waiting for their batch go before a move, a field or a delete of that project", () => {

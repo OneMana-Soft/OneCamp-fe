@@ -24,10 +24,12 @@ interface Props {
     messageText?: string
     /** The pressed message, lifted above the sheet (C61). */
     preview?: MessageSheetPreview | null
+    /** The thread's root on its own phone page (the thread page's drawers). */
+    inThread?: boolean
 }
 
 /** A message's actions on a phone: the v3 sheet (components/drawers/messageActionSheet). */
-export function ChannelMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard, postUUID, channelUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText, preview }: Props) {
+export function ChannelMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard, postUUID, channelUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText, preview, inThread }: Props) {
     const threadPath = `${app_channel_path}/${channelUUID}/${postUUID}`
     return (
         <MessageActionSheet
@@ -35,6 +37,7 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, setOpenState, m
             onOpenChange={setOpenState}
             preview={preview}
             threadPath={threadPath}
+            inThread={inThread}
             forwardPath={`${app_message_forward_path}/${channelUUID}/${postUUID}`}
             laterTarget={{ itemType: "post", itemId: postUUID, link: threadPath, title: htmlToPreviewText(messageText) || "A message" }}
             onReply={onReply}
@@ -48,6 +51,7 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, setOpenState, m
             isAdmin={isAdmin}
             messageText={messageText}
             pin={{ conversation: { kind: "channel", id: channelUUID }, messageId: postUUID }}
+            followRoot={postUUID}
         />
     )
 }

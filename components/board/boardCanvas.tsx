@@ -133,6 +133,8 @@ interface BoardCanvasProps {
    * a link's ?frame=, a first visit doesn't frame the whole drawing over it.
    */
   opensAt?: string
+  /** A code block's Edit button (miro-17): the page opens its dialog. Only on a board the viewer may edit. */
+  onEditCode?: (id: string) => void
 }
 
 function BoardCanvas({
@@ -144,6 +146,7 @@ function BoardCanvas({
   theme = "light",
   onApiReady,
   opensAt,
+  onEditCode,
 }: BoardCanvasProps) {
   const sheetMode = useSheetMode()
   const apiRef = React.useRef<ExcalidrawImperativeAPI | null>(null)
@@ -624,6 +627,7 @@ function BoardCanvas({
       <Excalidraw
         sheetMode={sheetMode}
         embedView={MemberEmbedView}
+        onEditCode={editable ? onEditCode : undefined}
         excalidrawAPI={handleApi}
         onChange={handleChange as never}
         onPointerUpdate={handlePointerUpdate as never}

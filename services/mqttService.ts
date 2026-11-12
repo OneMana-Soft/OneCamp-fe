@@ -94,7 +94,8 @@ export enum MqttMessageType {
     // 41 MESSAGE_PIN (chat), 42 MESSAGE_CALL_STATE (calls), 43
     // MESSAGE_PROJECT_STATUSES (board columns, lib/board/statusesMessage), 44 an
     // invitation accepted (BE-FOUND F7), 45 a task's timer (projects PR3), 46
-    // MESSAGE_READ_MOVED (chat A3), 47 MESSAGE_PREFERENCE (calendar A3).
+    // MESSAGE_READ_MOVED (chat A3), 47 MESSAGE_PREFERENCE (calendar A3),
+    // 48 MESSAGE_CALENDAR_LIVE (calendar A, gcal-5), 49 MESSAGE_CALL_RING (calls H2).
     // Ask for the next one; never take it here first.
     // Pin mirrors backend MESSAGE_PIN, on a conversation's message topic: a
     // message was pinned or unpinned (chat B25); the conversation's pins are
@@ -111,6 +112,12 @@ export enum MqttMessageType {
     // Preference mirrors backend MESSAGE_PREFERENCE, on the person's own
     // activity topic: they changed one of their preferences on another device.
     Preference = 47,
+    // An event changed ({event_id, from, to}): open calendars read again (lib/calendar/liveEvent).
+    Calendar_Live = 48,
+    // Call_Ring mirrors backend MESSAGE_CALL_RING (49, INTEGRATOR-112), on the
+    // person's own activity topic: a DM's or group's call rings them, stops,
+    // or (to its caller) rings whom, or was declined (lib/calls/ring).
+    Call_Ring = 49,
 }
 
 /** MESSAGE_DOC_META's data: what happened to a doc, for the tabs that have it open. */

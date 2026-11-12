@@ -18,7 +18,7 @@
  * reveal the author's tab bumps every held element (lib/board/privateRecord's revealScene) and the ordinary sync
  * writes them, words and all.
  */
-import type { BoardElement } from "@/lib/board/binding"
+import { cloneElement, type BoardElement } from "@/lib/board/binding"
 import { isStickyNote, type BoardElementLike } from "@/lib/board/notes"
 
 export { PRIVATE_KEY, privateNotesKey } from "@/lib/board/privateMode"
@@ -46,9 +46,35 @@ export interface PrivateNotes {
   publicText: Record<string, string>
   /** Each held element as the author has it: what a reopened tab shows and reveals. */
   real: Record<string, BoardElement>
+  /**
+   * Each held element's public face, taken when it was held: the shared copy's place, size and data, or for a note
+   * made in private its first copy's (a card) or one empty line (its words). The veil draws a held element at its
+   * face, so the size of private words and the tags added in private never leave the tab (V-528 (2)). A record kept
+   * before faces existed has none: those veil as they did until the reveal.
+   */
+  face?: Record<string, HeldFace>
 }
 
-export const emptyPrivateNotes = (round: string): PrivateNotes => ({ round, publicText: {}, real: {} })
+/** What everyone saw of a held element when it was held. `blank` is a note's words made in private: one empty line. */
+export interface HeldFace {
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  customData?: Record<string, unknown>
+  blank?: boolean
+  /** The whole element as everyone saw it, which the veil draws (CR-221 F1). A face from before it has none. */
+  whole?: Record<string, unknown>
+}
+
+/**
+ * What a veil takes from the author's real copy: what syncs it, and the moves and ties that are public by design (a
+ * note only moved stays public). Every other field is its face's, so nothing the author changes in private (a link,
+ * colours, the font, the angle, groups, the next field Excalidraw adds) leaves the tab.
+ */
+const PUBLIC_FIELDS = ["id", "type", "version", "versionNonce", "updated", "isDeleted", "index", "x", "y", "containerId", "boundElements"] as const
+
+export const emptyPrivateNotes = (round: string): PrivateNotes => ({ round, publicText: {}, real: {}, face: {} })
 
 /** The author a shared copy is held for, or null for a note everyone can read. */
 export function veiledBy(el: unknown): { id: string; name: string } | null {
@@ -65,7 +91,31 @@ export function heldNoteCount(elements: readonly unknown[]): number {
   }).length
 }
 
-type El = BoardElement & BoardElementLike & { text?: string; originalText?: string; locked?: boolean; backgroundColor?: string }
+type El = BoardElement &
+  BoardElementLike & {
+    text?: string
+    originalText?: string
+    locked?: boolean
+    backgroundColor?: string
+    fontSize?: number
+    lineHeight?: number
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }
+
+const faceOf = (el: El): HeldFace => ({
+  x: el.x,
+  y: el.y,
+  width: el.width,
+  height: el.height,
+  customData: el.customData as HeldFace["customData"],
+  whole: cloneElement(el) as unknown as Record<string, unknown>,
+})
+
+/** The face of words made in private: one empty line, drawn in the style of their first copy. */
+const blankFace = (first: El | undefined): HeldFace => ({ blank: true, ...(first ? { whole: cloneElement(first) as unknown as Record<string, unknown> } : {}) })
 
 const wordsOf = (el: El | undefined): string => (el ? (el.originalText ?? el.text ?? "") : "")
 
@@ -81,8 +131,10 @@ export function privateWriter(
   shared: { get(id: string): unknown },
   find: (id: string) => unknown,
 ): (el: BoardElement) => BoardElement {
-  const hold = (id: string, words: string) => {
-    if (!(id in notes.publicText)) notes.publicText[id] = words
+  const hold = (id: string, words: string, face: HeldFace) => {
+    if (id in notes.publicText) return
+    notes.publicText[id] = words
+    ;(notes.face ??= {})[id] = face
   }
   const claim = (el: El) => {
     if (el.id in notes.publicText) return
@@ -92,31 +144,91 @@ export function privateWriter(
       const before = shared.get(el.id) as El | undefined
       const containerHeld = container.id in notes.publicText || !shared.get(container.id)
       if (!containerHeld && before && wordsOf(before) === wordsOf(el)) return
-      hold(el.id, wordsOf(before))
-      hold(container.id, "")
-    } else if (isStickyNote({ ...el, isDeleted: false }) && !shared.get(el.id)) {
-      hold(el.id, "")
-      for (const b of el.boundElements ?? []) if (b.type === "text") hold(b.id, "")
+      const sharedCard = shared.get(container.id) as El | undefined
+      hold(el.id, wordsOf(before), before ? faceOf(before) : blankFace(el))
+      hold(container.id, "", faceOf(sharedCard ?? container))
+    } else if (isStickyNote({ ...el, isDeleted: false })) {
+      if (!shared.get(el.id)) {
+        hold(el.id, "", faceOf(el))
+        for (const b of el.boundElements ?? []) if (b.type === "text") hold(b.id, "", blankFace(find(b.id) as El | undefined))
+        return
+      }
+      // A public card whose words changed in private is held before it goes, so the height its new words gave it
+      // never leaves the tab, whichever of the two the sync writes first.
+      for (const b of el.boundElements ?? []) {
+        const t = b.type === "text" ? (find(b.id) as El | undefined) : undefined
+        if (t) claim(t)
+      }
     }
   }
   return (raw) => {
     claim(raw as El)
     if (!(raw.id in notes.publicText)) return raw
     notes.real[raw.id] = { ...raw }
-    return veil(raw, notes, me)
+    return veil(raw, notes, me, find)
   }
 }
 
-/** A held element as everyone else may see it: its last public words, locked, named as its author's. */
-function veil<T extends BoardElement>(raw: T, notes: PrivateNotes, me: { id: string; name: string }): T {
+/**
+ * A held element as everyone else may see it: its face whole, with only PUBLIC_FIELDS from the author's copy (CR-221
+ * F1); locked, named as its author's, with its face's data, and its last public words at their public size and place
+ * (moved with their card). A card keeps its face's size and goes where
+ * the author moves it: a move is public, its growth and tags are not.
+ */
+function veil<T extends BoardElement>(raw: T, notes: PrivateNotes, me: { id: string; name: string }, find: (id: string) => unknown): T {
   const el = raw as unknown as El
-  const veiled: El = { ...el, locked: true, customData: { ...(el.customData ?? {}), privateBy: me.id, privateName: me.name } }
+  const face = notes.face?.[el.id]
+  const data = face ? face.customData : el.customData
+  // The face whole, with the real copy's public fields; a face from before `whole` keeps the real copy (its round's end).
+  const base: El = face?.whole ? (cloneElement(face.whole) as unknown as El) : { ...el }
+  if (face?.whole) {
+    const from = el as unknown as Record<string, unknown>
+    const to = base as unknown as Record<string, unknown>
+    for (const k of PUBLIC_FIELDS) if (k in from) to[k] = from[k]
+  }
+  const veiled: El = { ...base, locked: true, customData: { ...(data ?? {}), privateBy: me.id, privateName: me.name } }
   if (el.type === "text") {
     const words = notes.publicText[el.id] ?? ""
     veiled.text = words
     veiled.originalText = words
+    if (face) Object.assign(veiled, wordsPlace(el, face, notes, find))
+  } else if (face) {
+    if (Number.isFinite(face.width)) veiled.width = face.width as number
+    if (Number.isFinite(face.height)) veiled.height = face.height as number
   }
   return veiled as unknown as T
+}
+
+/** Where a held note's public words are drawn: their face, moved as far as their card moved since its face. */
+function wordsPlace(el: El, face: HeldFace, notes: PrivateNotes, find: (id: string) => unknown): Partial<El> {
+  const card = el.containerId ? (find(el.containerId) as El | undefined) : undefined
+  const cardFace = card ? notes.face?.[card.id] : undefined
+  const out: Partial<El> = {}
+  // Only what can be worked out: a field missing anywhere stays as the element has it.
+  const set = (key: "x" | "y" | "width" | "height", v: number | undefined) => {
+    if (v !== undefined && Number.isFinite(v)) out[key] = v
+  }
+  const num = (v: number | undefined) => v ?? NaN
+  if (face.blank) {
+    // Words made in private: one empty line at the centre of the card's face, where the card is now, in the font of
+    // their first face (CR-221 row 2590 L1): the author's copy would show a font changed in private through its size.
+    const first = (face.whole as El | undefined) ?? el
+    const height = (first.fontSize ?? 20) * (first.lineHeight ?? 1.25)
+    set("width", 0)
+    set("height", height)
+    if (card) {
+      set("x", num(card.x) + num(cardFace?.width ?? card.width) / 2)
+      set("y", num(card.y) + num(cardFace?.height ?? card.height) / 2 - height / 2)
+    }
+    return out
+  }
+  const dx = card && cardFace?.x !== undefined ? num(card.x) - cardFace.x : 0
+  const dy = card && cardFace?.y !== undefined ? num(card.y) - cardFace.y : 0
+  set("x", num(face.x ?? el.x) + dx)
+  set("y", num(face.y ?? el.y) + dy)
+  set("width", face.width ?? el.width)
+  set("height", face.height ?? el.height)
+  return out
 }
 
 /**
@@ -125,7 +237,8 @@ function veil<T extends BoardElement>(raw: T, notes: PrivateNotes, me: { id: str
  */
 export function privateScene<T extends BoardElement>(scene: readonly T[], notes: PrivateNotes | null, me: { id: string; name: string }): T[] {
   if (!notes || Object.keys(notes.publicText).length === 0) return scene as T[]
-  return scene.map((el) => (el.id in notes.publicText ? veil(el, notes, me) : el))
+  const byId = new Map(scene.map((el) => [el.id, el]))
+  return scene.map((el) => (el.id in notes.publicText ? veil(el, notes, me, (id) => byId.get(id)) : el))
 }
 
 /**
@@ -165,6 +278,7 @@ export function parsePrivateNotes(raw: string | null): PrivateNotes | null {
   const n = v as Partial<PrivateNotes> | null
   if (!n || typeof n.round !== "string" || !n.publicText || typeof n.publicText !== "object" || !n.real || typeof n.real !== "object") return null
   if (Object.values(n.publicText).some((w) => typeof w !== "string")) return null
-  return { round: n.round, publicText: n.publicText, real: n.real }
+  const face = n.face && typeof n.face === "object" ? n.face : undefined
+  return { round: n.round, publicText: n.publicText, real: n.real, ...(face ? { face } : {}) }
 }
 

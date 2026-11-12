@@ -57,8 +57,7 @@ interface PreJoinProps {
   /** Join, with the camera and microphone the green room has open for the call to send (greenRoomHandOver). */
   onJoin: (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string; tracks?: GreenRoomTracks }) => void;
   username: string;
-  // When true, the user can type their display name (used by the guest join
-  // flow, where there is no account). Join stays disabled until non-empty.
+  // A guest's join, with no account: they type their name, and Join waits for it.
   nameEditable?: boolean;
   // Optional override for the primary button label.
   joinLabel?: string;
@@ -108,6 +107,8 @@ interface PreJoinProps {
    * in to the workspace (calls HU13). Nothing drawn keeps the name and Join.
    */
   instead?: (choice: { audioEnabled: boolean; videoEnabled: boolean }) => React.ReactNode;
+  /** Under Join while one may join: a member's other devices (meet-04). */
+  more?: React.ReactNode;
 }
 
 /** What the preview says when there is no picture. Pure. */
@@ -151,6 +152,7 @@ export function PreJoin({
   openUrl,
   extra,
   instead,
+  more,
 }: PreJoinProps) {
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -482,13 +484,14 @@ export function PreJoin({
             ) : (
               <Button
                 size="lg"
-                className="mt-4 w-full"
+                className="mt-4 w-full pointer-coarse:h-11"
                 disabled={nameMissing || !!refusal} busy={joining}
                 onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim(), tracks: give() })}
               >
                 {joining ? "Joining…" : joinLabel}
               </Button>
             )}
+            {unavailable || lead || refusal ? null : more}
             {joinError ? (
               <p role="alert" className="mt-2 text-meta text-danger-ink">Couldn&apos;t join: {joinError}</p>
             ) : null}

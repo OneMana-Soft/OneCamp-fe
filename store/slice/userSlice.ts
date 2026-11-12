@@ -638,10 +638,6 @@ const userSlice = createSlice({
       });
     },
 
-    incrementTotalUnreadActivityCount: (state) => {
-      state.userSidebar.totalUnreadActivityCount = (state.userSidebar.totalUnreadActivityCount || 0) + 1;
-    },
-
     toggleUserChannelFavorite: (state, action: {payload: {channelUUID: string, isFavorite: boolean}}) => {
       const { channelUUID, isFavorite } = action.payload;
       if (isFavorite) {
@@ -699,7 +695,6 @@ export const {
   resetUserChannelUnread,
   incrementUserChatUnread,
   incrementUserChannelUnread,
-  incrementTotalUnreadActivityCount,
   toggleUserChannelFavorite,
   setUserChannelNotificationType,
 

@@ -99,7 +99,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
-vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
+vi.mock("@/services/unreadCache", () => ({ recountInbox: () => {} }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/components/list/virtualInfiniteScroll", () => ({

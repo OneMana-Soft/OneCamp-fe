@@ -233,6 +233,21 @@ describe("building a form", () => {
     ])
   })
 
+  // UX-PROJECTS-H1 (PROJECTS-14): a new form's tasks have no priority until it picks one; it made them Medium.
+  it("makes a new form's tasks with no priority, until one is picked", async () => {
+    // B63 T1 U32: No priority picked after another one saves none too.
+    for (const [chosen, sent] of [[[], ""], [["High"], "high"], [["High", "No priority"], ""]] as const) {
+      cleanup()
+      await open()
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: /New form/ })))
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Design requests" } })
+      expect(screen.getByRole("combobox", { name: "Priority" }).textContent).toBe("No priority")
+      for (const c of chosen) await pick(document.body, "Priority", c)
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create form" })))
+      expect(saved().priority).toBe(sent)
+    }
+  })
+
   it("shows a question only on an earlier answer", async () => {
     forms = [launch()]
     await open()

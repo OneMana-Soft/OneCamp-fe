@@ -14,6 +14,10 @@ vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting:
 // Guests' working hours (calendar A3): none kept here.
 vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({ hours: {}, where: {} }) }))
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }), useFetch: () => ({ data: undefined, mutate: () => {} }) }))
+// A copy's files as chips (head B): each by its id here; their titles are the chips' own reads (fileChips.test).
+vi.mock("@/components/calendar/fileChips", () => ({
+  FileChips: ({ files }: { files: Array<{ kind: string; uuid: string }> }) => <ul>{files.map((f) => <li key={f.uuid} data-file={f.uuid} />)}</ul>,
+}))
 vi.mock("@/components/common/peoplePicker", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/common/peoplePicker")>()),
   PeoplePicker: () => <input aria-label="Guests" />,
@@ -120,5 +124,20 @@ describe("a new repeating event", () => {
     repeatsOn = false
     render(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={review} />)
     expect(screen.queryByRole("combobox", { name: "Repeat" })).toBeNull()
+  })
+})
+
+// Calendar head B (gcal-1a): Duplicate's copy is made with the event's own colour and the files the copier may open.
+describe("a copy of an event", () => {
+  it("is made with its own colour and its files", async () => {
+    const files = [{ kind: "doc" as const, uuid: "d-brief" }]
+    render(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={{ ...review, hue: "#1a73e8", files }} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Create event" }))
+    })
+    const created = () => makeRequest.mock.calls.find((c) => c[0].apiEndpoint === "/calendar/events" && c[0].method === "POST")?.[0]
+    await waitFor(() => expect(created()).toBeTruthy())
+    expect(created().payload).toMatchObject({ title: "Design review", hue: "#1a73e8", files })
+    expect(document.querySelector('[data-file="d-brief"]')).toBeTruthy()
   })
 })

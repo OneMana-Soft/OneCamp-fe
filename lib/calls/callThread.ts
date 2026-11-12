@@ -4,7 +4,7 @@
 // the call goes on. What lasts is the thread: the conversation's people find
 // it under the call's message afterwards. Pure: who asks, and when.
 
-import { callRefOfRoom } from "@/services/callInviteService"
+import { callRefOfRoom } from "@/lib/calls/callRef"
 
 /** Who asks: a member by the call's id, a guest by the call token they joined with. */
 export type CallThreadTarget = { sessionId: string } | { callToken: string }
@@ -32,6 +32,20 @@ export interface CallThreadRead {
   chat_held?: boolean
   /** What the next poll sends back as its since. */
   latest: string
+}
+
+const isMessage = (m: unknown): m is CallChatMessage => !!m && typeof m === "object" && typeof (m as CallChatMessage).text === "string"
+
+/**
+ * The chat in an answer, or null when the answer isn't one the panel can draw (no post to open it with, replies that
+ * aren't messages: a server from before the chat, a proxy's page). The panel reads null as a trouble that
+ * passes, so an answer like that never takes the call down with it. Pure.
+ */
+export function threadOf(data: unknown): CallThreadRead | null {
+  if (!data || typeof data !== "object") return null
+  const t = data as CallThreadRead
+  // No replies yet may come as null (a Go nil slice): the panel reads it as none.
+  return isMessage(t.post) && (t.replies == null || (Array.isArray(t.replies) && t.replies.every(isMessage))) ? t : null
 }
 
 /** How often an open chat asks while the page is in view. */

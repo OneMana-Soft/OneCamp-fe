@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { useGlobalSearch, type SearchResult } from "@/services/searchService"
+import { hitRef } from "@/lib/search/hitRef"
+import { HitKindWord } from "@/components/search/hitKindWord"
 import { pickRows, type FieldOption, type RelationRef, type RelationTarget } from "@/services/tableService"
 import { campHueOf } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
@@ -122,18 +124,13 @@ export function DayPicker({ day, onPick }: { day: Date | undefined; onPick: (d: 
   )
 }
 
-// Pull a {id,label,type} ref out of a unified-search result, scoped to the
-// allowed target type ("any" accepts the linkable kinds).
+// A unified-search result as a {id,label,type} ref (lib/search/hitRef reads a
+// doc, board, task or project hit), scoped to the allowed target type ("any"
+// accepts the linkable kinds).
 function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | null {
   const accept = (t: string) => target === "any" || target === t
-  if (r.type === "doc" && r.doc?.doc_uuid && accept("doc"))
-    return { id: r.doc.doc_uuid, label: r.doc.doc_title || "Untitled doc", type: "doc" }
-  if (r.type === "board" && r.board?.board_uuid && accept("board"))
-    return { id: r.board.board_uuid, label: r.board.board_title || "Untitled board", type: "board" }
-  if (r.type === "task" && r.task?.task_uuid && accept("task"))
-    return { id: r.task.task_uuid, label: r.task.task_name || "Untitled task", type: "task" }
-  if (r.type === "project" && r.project?.project_uuid && accept("project"))
-    return { id: r.project.project_uuid, label: r.project.project_name || "Untitled project", type: "project" }
+  const hit = hitRef(r)
+  if (hit) return accept(hit.kind) ? { id: hit.id, label: hit.title, type: hit.kind } : null
   if (r.type === "user" && r.user?.user_uuid && accept("user"))
     return { id: r.user.user_uuid, label: displayNameOf(r.user) || "User", type: "user" }
   return null
@@ -226,7 +223,7 @@ export function RelationPicker({
     trailing: refs.some((x) => x.id === ref.id) ? (
       <Check className="size-4 text-camp-moss" aria-label="Linked" />
     ) : ref.type !== "row" ? (
-      <span className="text-meta text-ink-3 first-letter:uppercase">{ref.type}</span>
+      <HitKindWord kind={ref.type} />
     ) : undefined,
   }))
   const placeholder = rowsOf ? `Link a row from ${tableName || "the table"}` : `Search ${target === "any" ? "tasks, docs and people" : target + "s"}`

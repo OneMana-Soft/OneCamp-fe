@@ -249,6 +249,8 @@ describe("a failed write said by its caller claims it, so no toast says it again
     expect(offenders).toEqual([])
     // The scan reaches them: 133 on 3 Nov (31 in place: docs' share, move and lock, the AI providers' tests, Slack's
     // bridge, ...; 102 in a toast of their own: the admin and AI cards, docs' cover and trash, uploads, ...).
-    expect(claimed.length).toBeGreaterThanOrEqual(133)
+    // 132 since UX-TB-H3: a table's chart asks /aggregate with OWN_ERRORS and says a failure in its own place, so
+    // its catch has no toast left to claim.
+    expect(claimed.length).toBeGreaterThanOrEqual(132)
   })
 })

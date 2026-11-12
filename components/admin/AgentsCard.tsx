@@ -45,6 +45,7 @@ import AgentActivityFeed from "./AgentActivityFeed"
 import AgentActiveWorkPanel from "./AgentActiveWorkPanel"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { AUTONOMY, autonomyOf } from "@/lib/agentAutonomy"
 
 // Loaded when opened: the edit dialog is some 1,400 lines and the run history
 // some 700, and both came down with the list before anyone opened either.
@@ -56,6 +57,12 @@ const TRIGGER_LABEL: Record<string, string> = {
   mention: "On mention",
   schedule: "Scheduled",
   event: "On event",
+}
+
+/** An agent's autonomy as a list chip, none when it asks first; acting on its own in the warning ink. */
+function autonomyChip(autonomy: string | undefined): { label: string; warn?: boolean }[] {
+  const m = AUTONOMY.find((a) => a.value === autonomyOf(autonomy))!
+  return m.chip ? [{ label: m.chip, warn: m.value === "auto" }] : []
 }
 
 /** The first line of an agent's instructions, for a card whose agent has no description. */
@@ -360,12 +367,12 @@ const AgentsCard = ({
                 h?.last_run_at ? `last ${ago(h.last_run_at)}` : null,
                 TRIGGER_LABEL[a.trigger_type] || a.trigger_type,
               ].filter(Boolean)
-              const tags: { label: string; title?: string }[] = [
+              const tags: { label: string; title?: string; warn?: boolean }[] = [
                 ...(a.dm_able ? [{ label: "DM" }] : []),
                 ...(a.agui_endpoint ? [{ label: "Remote", title: "Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record." }] : []),
                 ...(a.run_in_background ? [{ label: "Background", title: "Answers mentions & DMs as durable background runs with live status" }] : []),
-                ...(a.autonomy === "approval" ? [{ label: "Approval" }] : []),
-                ...(a.autonomy === "plan" ? [{ label: "Plan-approve" }] : []),
+                // "Plans first" or "Acts on its own" (lib/agentAutonomy AUTONOMY); nothing for asking first, the default.
+                ...autonomyChip(a.autonomy),
                 ...((a.max_daily_tokens ?? 0) > 0 ? [{ label: `${fmtTokens(a.max_daily_tokens as number)}/day` }] : []),
               ]
               return (
@@ -417,7 +424,7 @@ const AgentsCard = ({
                     {(tags.length > 0 || evalSummary?.data?.[a.id] || outcomes?.data?.[a.id]) && (
                       <div className="flex flex-wrap items-center gap-1.5">
                         {tags.map((t) => (
-                          <span key={t.label} title={t.title} className="tag text-3xs bg-hover text-muted-foreground ring-1 ring-inset ring-line">
+                          <span key={t.label} title={t.title} className={`tag text-3xs bg-hover ring-1 ring-inset ring-line ${t.warn ? "text-warning-ink" : "text-muted-foreground"}`}>
                             {t.label}
                           </span>
                         ))}

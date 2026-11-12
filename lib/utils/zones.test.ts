@@ -1,8 +1,20 @@
 import { describe, expect, it, vi } from "vitest"
-import { timeZones, zoneCity, zoneLabel, zoneLabels, zoneRows } from "./zones"
+import { timeZones, zoneCity, zoneLabel, zoneLabels, zoneName, zoneRows } from "./zones"
 import { pinTestClock } from "@/lib/testing/testClock"
 
 pinTestClock()
+
+// V-642: the Event Form names a time's zone as its clock reads at that time, not today: New York keeps summer time
+// in July and standard time in December, whatever day the form is opened on.
+describe("a zone's name at a moment", () => {
+  it("is the name the zone goes by then, short or long, and nothing for a zone the runtime can't read", () => {
+    const july = new Date("2026-07-01T12:00:00Z")
+    const december = new Date("2026-12-01T12:00:00Z")
+    expect([zoneName("America/New_York", "short", true, july), zoneName("America/New_York", "short", true, december)]).toEqual(["EDT", "EST"])
+    expect(zoneName("America/New_York", "long", true, december)).toBe("Eastern Standard Time")
+    expect(zoneName("Mars/Olympus_Mons", "short", true, july)).toBe("")
+  })
+})
 
 // A zone is named one way everywhere, as people know it, with its offset;
 // never as the database's "Asia/Calcutta", and a renamed place by its name today.

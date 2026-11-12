@@ -34,6 +34,16 @@
 // build id is masked, and the modules are sorted by their masked text (read
 // as a multiset), never by id.
 //
+// Which modules Turbopack scope-hoists into one factory is the chunker's too
+// (V-902): a head that touches a lazy importer can hoist an unchanged module
+// into another unchanged one. A merged factory ("967471,218059,e=>{…}", each
+// module's export registered under its id, "e.s([…],218059)") is read as each
+// of its modules alone (routes.mjs factoryParts), and a module's export
+// without its own id, so a hoist that moves no code reads RE-CUT. So is a
+// local the minifier happens to name after its key: "{d:e,s:n}" written
+// "{d:e,s}" reads "{_:_,_}" against "{_:_,_:_}", so a pair of masked names in
+// an object reads as one name.
+//
 // Verdicts, on the +/-8 B band: REAL when the canonical delta is outside it
 // (charged as before, V-49 lines included); RE-CUT when only the shipped delta
 // is (recorded, never charged or granted); same when neither moved; NEW or
@@ -46,23 +56,18 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { gzipSync } from "node:zlib"
 
-import { routeWeights } from "./routes.mjs"
+import { CHUNK_NAME, chunkFactories, factoryParts, routeWeights } from "./routes.mjs"
 
 /** The band, in gzip bytes, within which a route counts as unmoved. */
 export const BAND = 8
 
-/**
- * Where a module starts in a Turbopack chunk: "," or "[", its id (digits, or
- * the minifier's exponent form, 2e6), "," and its factory, a function or an
- * arrow.
- */
-const MODULE = /[,[](\d{2,7}|\d{1,6}e\d{1,2}),(?=\(?[a-zA-Z_$]*[,)]?\s*=>|function|\([a-zA-Z_$,]*\)\s*=>|[a-zA-Z_$]+=>)/g
 /** A chunk's closing, after its last module: "])", ";" and comment lines (the source map's). */
 const CLOSING = /^\]\)\s*;?(?:\s*\/\/[^\n]*(?:\n|$))*\s*$/
-const CHUNK_NAME = /static\/chunks\/[A-Za-z0-9_.~-]+\.(?:js|css)/g
 /** A list of masked chunk names, as a lazy loader writes the chunks it fetches. */
 const CHUNK_LIST = /(["'])static\/chunks\/C\.js\1(?:\s*,\s*\1static\/chunks\/C\.js\1)+/g
 const SHORT_NAME = /(?<![A-Za-z0-9_$])[A-Za-z_$][A-Za-z0-9_$]?(?![A-Za-z0-9_$])/g
+/** A property and its value, both masked short names, in an object: "{_:_," or ",_:_}" (shorthand when the two names agree). */
+const PAIR = /(?<=[{,])_:_(?=[,}])/g
 /**
  * A module id: digits, or the minifier's exponent form (2e6), tried first, so
  * that a list's ids masked one by one take "26e4" whole, never "26" alone.
@@ -83,13 +88,18 @@ const MIN_BUILD_ID = 6
 /**
  * Masks what the chunker picks rather than the code: every chunk name (a lazy
  * loader lists its scripts and styles by content hash) and how many a loader
- * lists (a lazy group's chunk count), and every one- or two-character name.
+ * lists (a lazy group's chunk count), and every one- or two-character name,
+ * a pair of them in an object read as one (a shorthand property, V-902).
  * Both builds are masked alike, so only code moves the result.
  * @param {string} text
  * @returns {string}
  */
 export function maskNames(text) {
-  return text.replace(CHUNK_NAME, "static/chunks/C.js").replace(CHUNK_LIST, "$1static/chunks/C.js$1").replace(SHORT_NAME, "_")
+  return text
+    .replace(CHUNK_NAME, "static/chunks/C.js")
+    .replace(CHUNK_LIST, "$1static/chunks/C.js$1")
+    .replace(SHORT_NAME, "_")
+    .replace(PAIR, "_")
 }
 
 /**
@@ -112,26 +122,40 @@ const keep = (mods, id, text) => {
   if (had === undefined || text < had) mods.set(id, text)
 }
 
+/** A factory's opening, which each module a merged one makes is read with: its parameters, "{" and "use strict". */
+const OPENING = /^[^{]*\{(?:"use strict";)?/
+
 /**
  * A Turbopack chunk's modules: a Map from each id to its masked text,
  * "<id>,<factory>", cut after the factory's last "}" so the chunk's closing
- * never joins its last module. A chunk with no module ids (the runtime) comes
- * back whole and masked, as `rest`.
+ * never joins its last module. A merged factory gives each module it makes as
+ * that module alone (V-902): its part of the code (routes.mjs factoryParts),
+ * opened and closed like the factory, its export without its id. A module's
+ * export without its own id is how it reads alone too. A chunk with no module
+ * ids (the runtime) comes back whole and masked, as `rest`.
  * @param {string} src
  * @returns {{ mods: Map<string, string>, rest: string | null }}
  */
 export function chunkModules(src) {
-  const at = [...src.matchAll(MODULE)].map((m) => ({ id: m[1], from: m.index + 1 }))
+  const at = chunkFactories(src)
   const mods = new Map()
   if (!at.length) return { mods, rest: maskNames(src) }
-  at.forEach(({ id, from }, k) => {
-    let seg = src.slice(from, k + 1 < at.length ? at[k + 1].from - 1 : src.length)
+  at.forEach(({ ids, from, to }, k) => {
+    let seg = src.slice(from, to)
     if (k + 1 === at.length) {
       const close = seg.lastIndexOf("])")
       if (close >= 0 && CLOSING.test(seg.slice(close))) seg = seg.slice(0, close)
     }
     const end = seg.lastIndexOf("}")
-    keep(mods, id, maskNames(end >= 0 ? seg.slice(0, end + 1) : seg))
+    const factory = maskNames(end >= 0 ? seg.slice(0, end + 1) : seg).slice(ids.join(",").length + 1)
+    const opening = OPENING.exec(factory)?.[0] ?? ""
+    const parts = factoryParts(factory, ids)
+    parts.forEach(({ id, text }, n) => {
+      let own = text.replace(`],${id})`, "])")
+      if (n > 0) own = opening + own
+      if (n + 1 < parts.length) own = `${own.replace(/[;,]$/, "")}}`
+      keep(mods, id, `${id},${own}`)
+    })
   })
   return { mods, rest: null }
 }

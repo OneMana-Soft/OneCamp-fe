@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { lazyPart } from "@/lib/lazy/lazyPart";
 import { onPaletteWanted, openPalette } from "@/lib/ui/palette";
 import { runWhenQuiet } from "@/lib/ui/whenQuiet";
+import { useReturnFocus } from "@/components/ui/returnFocus";
 
 /**
  * The palette (components/ui/CommandPalette, 66 KB of source) mounts on its
@@ -27,6 +28,7 @@ const onComputer = () => {
 
 export function CommandPaletteLoader() {
   const [wanted, setWanted] = useState(false);
+  const back = useReturnFocus();
   useEffect(() => {
     if (wanted) return;
     const down = (e: KeyboardEvent) => {
@@ -46,5 +48,5 @@ export function CommandPaletteLoader() {
       cancel?.();
     };
   }, [wanted]);
-  return wanted ? <palette.Part /> : null;
+  return wanted ? <palette.Part {...back} /> : null;
 }

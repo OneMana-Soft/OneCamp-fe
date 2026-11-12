@@ -17,6 +17,7 @@ import type {RootState} from "@/store/store";
 import type { SubscriptionDeps } from "@/lib/realtime/subscriptions";
 import type { MqttContextValue } from "@/components/mqtt/mqttContext";
 import { triggerMessageCatchUp, triggerMessageResync } from "@/store/slice/messageResyncSlice";
+import { CallRings, RingsContained } from "@/components/calls/CallRings";
 
 // The context and its readers live in mqttContext.ts, and every reader imports
 // them from there: a page importing this file carries all its handlers
@@ -45,7 +46,8 @@ const MQTT_CONNECTION_CONFIG = {
 /**
  * The live connection and its handlers: 267 KB of source, a chunk of its own
  * that the light provider (mqttProvider.tsx) starts at the first idle moment,
- * so the first screen doesn't carry it (fluid-15). It renders nothing: it
+ * so the first screen doesn't carry it (fluid-15). It renders only the ring
+ * host (CallRings, nothing until a call rings): it
  * hands its connection up (onValue) and tells the provider's conversation
  * registry what the settings name (bindConversations).
  */
@@ -417,5 +419,7 @@ export function RealtimeEngine({ onValue, bindConversations }: RealtimeEnginePro
     }), [connectionState, publish, connect, disconnect, reconnect, handleSubscribeToTopic, handleUnsubscribeFromTopic])
 
     useEffect(() => onValue(contextValue), [contextValue, onValue])
-    return null
+    // The one host for a call ringing this person (slack-06 H2): it draws
+    // nothing until a ring arrives, and its failure stays inside it.
+    return <RingsContained><CallRings self={userUuid} /></RingsContained>
 }

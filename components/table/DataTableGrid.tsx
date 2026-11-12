@@ -27,9 +27,10 @@ import { fieldKind } from "@/lib/fieldTypes/registry"
 import { tintedFields } from "@/components/table/optionChip"
 import { AddColumn, ColumnHeader, settingsPageOf, type ColumnPage } from "@/components/table/ColumnMenu"
 import { shownValues, useCellCommit, type CellCommit, type RowEdits } from "@/lib/tables/useCellCommit"
+import { UnsavedMark } from "@/components/table/UnsavedMark"
 import type { AddingRow } from "@/lib/tables/cellsWrite"
 import { useTableEdit } from "@/lib/tables/tableEdit"
-import { frozenCount, frozenLefts, frozenMarks, rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
+import { columnWidth, frozenCount, frozenLefts, frozenMarks, rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
 import type { QuerySummaries } from "@/lib/querySpec/types"
 import type { RefusedSums } from "@/lib/tables/types"
 import type { Grouping } from "@/lib/tables/groups"
@@ -181,32 +182,6 @@ const warmLiveCells = () => LiveCells.warm().then(
 /** A move that waited for the live cells when they failed to load (the next asks again): dropped, and said. */
 const couldNot = (verb: string) => void toast({ tone: "error", title: `Couldn't ${verb}: try again` })
 
-/**
- * A column's width, by what it holds. The grid lays out at fixed widths
- * (table-layout: fixed) so a column keeps its width as rows scroll in and out.
- */
-export function columnWidth(f: TableField): number {
-  switch (f.type) {
-    case "checkbox":
-      return 120
-    case "number":
-      return 128
-    case "date":
-      return 152
-    case "select":
-      return 168
-    case "formula":
-    case "rollup":
-      return isNumeric(f) ? 136 : 184
-    case "multi_select":
-    case "person":
-    case "relation":
-      return 200
-    default:
-      return 232
-  }
-}
-
 const HEADER_HEIGHT = 36
 /**
  * The summary row's height, stuck to the grid's foot under the rows while it
@@ -313,7 +288,7 @@ export function DataTableGrid({
   // A reader who may only view the table (V-170) writes no cell, adds no row and pastes, fills or clears nothing.
   const canEdit = useTableEdit()
   const own = useCellCommit({ tableId, rows, onChange, canEdit })
-  const { commitCell, cells, linkCell, write, undo, edits, adding: onTheirWay } = shared ?? own
+  const { commitCell, retryCell, cells, linkCell, write, undo, edits, adding: onTheirWay } = shared ?? own
 
   // A grouped view's open rows under their headers: until those and the counts are in, rows on their way, never ungrouped first.
   const heads = GroupPart.useLoaded(!!grouping)
@@ -943,6 +918,7 @@ export function DataTableGrid({
               selected={selected}
               ctx={ctx}
               onCommit={commitCell}
+              onRetry={retryCell}
               onLink={linkCell}
               edits={edits}
               adding={onTheirWay}
@@ -1057,6 +1033,7 @@ const GridBody = React.memo(function GridBody({
   selected,
   ctx,
   onCommit,
+  onRetry,
   onLink,
   onToggle,
   onOpen,
@@ -1087,6 +1064,8 @@ const GridBody = React.memo(function GridBody({
   selected: Set<string>
   ctx: CellContext
   onCommit: (row: TableRow, fieldId: string, value: unknown) => Promise<boolean>
+  /** Sends a cell's kept edit again (useCellCommit's retryCell, V-640): its mark's Retry. */
+  onRetry: (row: TableRow, fieldId: string) => unknown
   onLink: (rowId: string, fieldId: string, change: { add?: string[]; remove?: string[] }) => void
   onToggle: (rowId: string) => void
   onOpen?: (rowId: string) => void
@@ -1170,6 +1149,7 @@ const GridBody = React.memo(function GridBody({
           selecting: anySelected,
           ctx,
           onCommit,
+          onRetry,
           onLink,
           onToggle,
           onOpen,
@@ -1255,6 +1235,8 @@ selected: boolean
 selecting: boolean
 ctx: CellContext
 onCommit: (row: TableRow, fieldId: string, value: unknown) => Promise<boolean>
+/** Sends a cell's kept edit again (useCellCommit's retryCell, V-640): its mark's Retry. */
+onRetry: (row: TableRow, fieldId: string) => unknown
 onLink: (rowId: string, fieldId: string, change: { add?: string[]; remove?: string[] }) => void
 onToggle: (rowId: string) => void
 onOpen?: (rowId: string) => void
@@ -1281,6 +1263,7 @@ function GridRow({
   selecting,
   ctx,
   onCommit,
+  onRetry,
   onLink,
   onToggle,
   onOpen,
@@ -1363,8 +1346,11 @@ function GridRow({
         // At rest, plain markup: one render a row, not one a cell.
         const rest = f.id === liveField ? null : restCell({ field: f, value: values[f.id], cellId, primary: col === 0, readOnly, ctx })
         const saving = !!edits && f.id in edits.saving
+        // Kept from a save the server asked to have again (V-583): shown, and marked by a Retry of its
+        // own (V-640), as the same value entered again is.
+        const unsaved = !!edits && f.id in edits.unsaved
         return (
-          <td key={f.id} data-field={f.id} data-kind={fieldKind(f.type).cell} {...frozenMarks(col, frozen)} data-tint={tints?.[f.id]} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn("overflow-hidden p-0 align-middle", alignsRight(f) && "text-right")}>
+          <td key={f.id} data-field={f.id} data-kind={fieldKind(f.type).cell} {...frozenMarks(col, frozen)} data-tint={tints?.[f.id]} aria-busy={saving || undefined} data-saving={saving || undefined} data-unsaved={unsaved || undefined} title={unsaved ? "Not saved" : undefined} className={cn("overflow-hidden p-0 align-middle", alignsRight(f) && "text-right")}>
             {rest ?? (
               <LiveCells.View
                 // Until the live cells' chunk is in: the cell as it rests, or its text.
@@ -1377,12 +1363,14 @@ function GridRow({
                     primary={col === 0}
                     readOnly={readOnly}
                     ctx={ctx}
+                    unsaved={unsaved}
                     onCommit={(v) => onCommit(row, f.id, v)}
                     onLink={(change) => onLink(row.id, f.id, change)}
                   />
                 )}
               />
             )}
+            {unsaved ? <UnsavedMark names={[edits?.named?.[f.id] ?? f.name]} onRetry={() => void onRetry(row, f.id)} /> : null}
           </td>
         )
       })}
@@ -1411,6 +1399,7 @@ function sameRow(a: GridRowProps, b: GridRowProps): boolean {
     a.selecting === b.selecting &&
     a.ctx === b.ctx &&
     a.onCommit === b.onCommit &&
+    a.onRetry === b.onRetry &&
     a.onLink === b.onLink &&
     a.onToggle === b.onToggle &&
     a.onOpen === b.onOpen &&

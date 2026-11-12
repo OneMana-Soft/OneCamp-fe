@@ -6,7 +6,7 @@ import { SchedulePicker } from "./scheduleSendButton"
 const LOAD = { timeout: 8000 }
 
 /** The custom moment's fields, once they have loaded (they load as the picker shows). */
-const fields = () => screen.findByRole("group", { name: "Custom time" }, LOAD)
+const fields = () => screen.findByRole("group", { name: "Pick a date and time" }, LOAD)
 
 /** Types a time into the custom moment's time field and takes it. */
 async function typeTime(text: string) {
@@ -50,6 +50,22 @@ describe("send later's custom time", () => {
     fireEvent.click(schedule)
     expect(onPick).toHaveBeenCalledTimes(1)
     expect(onPick.mock.calls[0][0]).toEqual(new Date(2026, 9, 15, 14, 0))
+  })
+
+  // H3: the time in words, in the server's window and its own words.
+  it("takes a time in words, and keeps to the server's 120 days", async () => {
+    const onPick = vi.fn()
+    render(<SchedulePicker onPick={onPick} />)
+    await fields()
+    const box = screen.getByRole("textbox", { name: "When" })
+    fireEvent.change(box, { target: { value: "in 5 months" } })
+    expect(screen.getByText("Pick a time within the next 120 days.")).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Schedule" }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(onPick).not.toHaveBeenCalled()
+    fireEvent.change(box, { target: { value: "tomorrow 9" } })
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(onPick).toHaveBeenCalledWith(new Date(2026, 9, 16, 9, 0))
   })
 
   it("offers only the times still to come today", { timeout: 20000 }, async () => {

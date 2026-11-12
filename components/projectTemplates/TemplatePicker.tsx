@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { addTemplate, deleteTemplate, downloadTemplate, useProjectTemplates } from "@/hooks/useProjectTemplates"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { ANY_TEMPLATE } from "@/lib/projectTemplateStart"
 import { hueFor } from "@/lib/campHue"
 import { AI_DRAFT, BLANK, previewLine, summaryOf, type ProjectTemplate, readTemplateFile, taskCount, TemplateFileError, type TemplateSummary } from "@/lib/projectTemplates"
 
@@ -47,10 +48,14 @@ export function TemplatePicker({ value, onChange, onChosen, draft, onDraft }: Te
   )
   React.useEffect(() => onChosen?.(chosen), [chosen, onChosen])
 
-  // A choice that's gone (deleted elsewhere) falls back to blank.
+  // A choice that's gone (deleted elsewhere) falls back to blank; opened on
+  // any template, the first built-in one is chosen, or blank once the read
+  // answers with none or fails.
   React.useEffect(() => {
-    if (value !== BLANK && !isLoading && templates.length > 0 && !chosen) onChange(BLANK)
-  }, [value, isLoading, templates.length, chosen, onChange])
+    if (value === BLANK || isLoading || chosen) return
+    if (value === ANY_TEMPLATE) onChange(templates.find((t) => t.built_in)?.id ?? BLANK)
+    else if (templates.length > 0) onChange(BLANK)
+  }, [value, isLoading, templates, chosen, onChange])
 
   const builtIn = templates.filter((t) => t.built_in)
   const saved = templates.filter((t) => !t.built_in)

@@ -9,7 +9,7 @@ vi.mock("@/lib/collabToken", () => ({
   forgetCollabToken: vi.fn(),
 }))
 
-import { createFakeCollab, docUpdate, fakeWebSocketClass } from "@/scripts/fluidity/fakeCollab.mjs"
+import { MSG, awarenessFrame, createFakeCollab, docUpdate, fakeWebSocketClass, readFrame } from "@/scripts/fluidity/fakeCollab.mjs"
 import {
   MAX_IDLE_SESSIONS,
   SESSION_TIMING,
@@ -559,5 +559,86 @@ describe("a reload a new build asks for", () => {
     } finally {
       delete window.__ocChunk
     }
+  })
+})
+
+// @hocuspocus/provider 3.4.3 sends every changed client's presence to the server, whatever the change's origin, so
+// each tab sent back everyone's every update it heard: a board's laser, ~20 updates a second, came back from every
+// viewer (BOARD145-LASERFIX, 9 Nov: Vic heard 78 laser updates of a 2.6 s drag of Sam's, against a cap of 55). The
+// collaboration service takes a tab's word only for its own client (presenceGuard's claim) and drops the rest.
+describe("the presence a tab sends", () => {
+  /** The clients an awareness frame this tab sent speaks for, and whether each says it left (no state). */
+  function presenceIn(bytes: Uint8Array): { client: number; left: boolean }[] {
+    const m = readFrame(bytes) as { type: number; payload?: Uint8Array }
+    if (m.type !== MSG.awareness || !m.payload) return []
+    const b = m.payload
+    let i = 0
+    const uint = () => {
+      let n = 0
+      for (let s = 1; ; s *= 128) {
+        const x = b[i++]
+        n += (x & 0x7f) * s
+        if (x < 0x80) return n
+      }
+    }
+    const out: { client: number; left: boolean }[] = []
+    for (let n = uint(); n > 0; n--) {
+      const client = uint()
+      uint()
+      const len = uint()
+      out.push({ client, left: new TextDecoder().decode(b.subarray(i, (i += len))) === "null" })
+    }
+    return out
+  }
+
+  /** A doc open on this tab, and each presence entry the frames it sends carry. */
+  async function listen() {
+    const { s } = await open("doc-1")
+    const provider = s.getSnapshot().provider!
+    const socket = sockets.at(-1) as unknown as { peer: { receive(b: Uint8Array): void }; dispatch(type: string, e: unknown): void }
+    const said: { client: number; left: boolean }[] = []
+    const receive = socket.peer.receive.bind(socket.peer)
+    socket.peer.receive = (b) => {
+      said.push(...presenceIn(b))
+      receive(b)
+    }
+    return { provider, awareness: provider.awareness!, socket, said }
+  }
+
+  it("is its own only: what it hears of someone else's arriving, changing and leaving goes back to no one", async () => {
+    const { provider, awareness, socket, said: entries } = await listen()
+    const said = () => entries.map((e) => e.client)
+    // Ann, on the same doc, as the server passes her on: she arrives, points with a laser twice, and leaves.
+    const ann = awareness.clientID + 1
+    const heard = (clock: number, state: unknown) => {
+      const f = awarenessFrame("doc-1", [{ clientId: ann, clock, state }])
+      socket.dispatch("message", { data: f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength) })
+    }
+    heard(1, { user: { name: "Ann Lee" } })
+    await until(() => expect(awareness.getStates().get(ann)).toEqual({ user: { name: "Ann Lee" } }))
+    heard(2, { user: { name: "Ann Lee" }, laser: { id: "s1", at: 0, p: [1, 2] } })
+    heard(3, { user: { name: "Ann Lee" }, laser: { id: "s1", at: 1, p: [3, 4] } })
+    await until(() => expect(awareness.meta.get(ann)?.clock).toBe(3))
+    heard(4, null)
+    await until(() => expect(awareness.getStates().has(ann)).toBe(false))
+    // This tab's own still goes, each change once.
+    provider.setAwarenessField("pointer", { x: 5, y: 6 })
+    await until(() => expect(said()).toContain(awareness.clientID))
+    await sleep(30)
+    expect(said().filter((c) => c === ann), "Ann's presence sent back").toEqual([])
+    expect(said()).toEqual([awareness.clientID])
+  })
+
+  it("still says when it leaves: a page put away sends its own presence's end, once", async () => {
+    const { provider, awareness, said } = await listen()
+    provider.setAwarenessField("pointer", { x: 5, y: 6 })
+    await until(() => expect(said).toEqual([{ client: awareness.clientID, left: false }]))
+    // As a tab closed or navigated away from: the provider's pagehide takes this tab's own client off.
+    window.dispatchEvent(new Event("pagehide"))
+    await until(() => expect(said).toHaveLength(2))
+    await sleep(30)
+    expect(said[1], "the leaving that goes out").toEqual({ client: awareness.clientID, left: true })
+    expect(said).toHaveLength(2)
+    expect(awareness.getLocalState()).toBeNull()
   })
 })

@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { InviteForm } from "@/components/invite/InviteForm"
+import { useClientConfig } from "@/hooks/useClientConfig"
+import { invitePromise } from "@/lib/invite/inviteCopy"
 import { CheckCircle2, Circle } from "@/lib/icons"
 import { SegmentedProgress } from "@/components/ui/graphics/SegmentedProgress"
 import { useKeyLesson } from "@/components/onboarding/useKeyLesson"
@@ -84,6 +86,7 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
     const step = RUN_STEPS[at]
     const last = at === RUN_STEPS.length - 1
     const sample = state?.sample
+    const { email_enabled } = useClientConfig()
     // The last step's key lesson; the corner tip on Home need not teach it again.
     const keys = useKeyLesson(step.key === "done")
     useEffect(() => {
@@ -163,6 +166,7 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
                 <div data-run-step="people">
                     <InviteForm
                         asAdmin
+                        emailOn={email_enabled}
                         again
                         noCancel
                         footerTo={inviteFooter}
@@ -174,7 +178,7 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
                         onClose={next}
                         header={({ summary }) => (
                             <p className="mb-3 text-balance text-ui text-ink-2">
-                                {summary || "Add their addresses. Each gets an email with a link to join, good for seven days. Up to 25 people is free."}
+                                {summary || `Add their addresses. ${invitePromise(email_enabled)} Up to 25 people is free.`}
                             </p>
                         )}
                     />

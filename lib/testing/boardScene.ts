@@ -30,6 +30,8 @@ type Listener = (elements: readonly unknown[], appState: Record<string, unknown>
 export function boardScene(elements: TestElement[] = [], appState: Record<string, unknown> = {}) {
   let els: TestElement[] = elements
   let state: Record<string, unknown> = {
+    // Excalidraw always has a tool in hand: the selection, until one is picked.
+    activeTool: { type: "selection" },
     scrollX: 0,
     scrollY: 0,
     zoom: { value: 1 },
@@ -78,6 +80,15 @@ export function boardScene(elements: TestElement[] = [], appState: Record<string
     writes,
     elements: () => els,
     byId: (id: string) => els.find((e) => e.id === id),
+    appState: () => state,
+    /**
+     * Excalidraw's own scene finishes loading (start the scene with { isLoading: true }): its appState, in Excalidraw's
+     * defaults as given, replaces whatever was put on the canvas before, as its initialData load does.
+     */
+    loaded: (defaults: Record<string, unknown> = {}) => {
+      state = { ...state, ...defaults, isLoading: false }
+      act(emit)
+    },
     /** Tells listeners, as a pan does: the same elements, a new camera. */
     pan: () => emit(),
     select: (ids: string[]) => {

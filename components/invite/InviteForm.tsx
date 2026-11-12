@@ -16,12 +16,15 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { AlertCircle, Check, Copy, Loader2, X } from "@/lib/icons"
+import { AlertCircle, X } from "@/lib/icons"
 import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { invite, type InvitationAnswer } from "@/services/invitationService"
-import { InvitationOutcome, couldntEmail } from "@/components/invite/InvitationOutcome"
-import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
-import { seatWords } from "@/lib/people/seatWords"
+import { InvitationOutcome } from "@/components/invite/InvitationOutcome"
+import { InviteResults, resultSummary, seatLimitOf, useInviteRound } from "@/components/invite/inviteRound"
+import { inviteVerb, unsentLine } from "@/lib/invite/inviteCopy"
+import { LimitNote } from "@/components/admin/plan/LimitNote"
+import { seatNoteDue } from "@/lib/people/seatWords"
+import type { PlanLinks } from "@/types/plan"
 
 const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/
 
@@ -51,35 +54,10 @@ export function parseAddresses(text: string, known: ReadonlySet<string> = new Se
   return out
 }
 
-/** "3 places left on the free plan. 2 of these won't fit.", or nothing while they fit. Pure. */
-export function seatLine(sending: number, seatsLeft: number | undefined): string {
-  if (seatsLeft == null || sending <= seatsLeft) return ""
-  const places = seatsLeft === 1 ? "1 place" : `${seatsLeft} places`
-  const over = sending - seatsLeft
-  return `${seatsLeft === 0 ? "No places" : places} left on the free plan. ${over} of these won't fit.`
-}
-
 /** What is wrong with the addresses that aren't email addresses, and what to do. Pure. */
 function invalidLine(emails: string[]): string {
   if (emails.length === 1) return `“${emails[0]}” isn't an email address, so it won't be sent. Fix it or remove it.`
   return `${emails.length} of these aren't email addresses, so they won't be sent. Fix or remove them.`
-}
-
-type Result =
-  | { email: string; state: "waiting" }
-  | { email: string; state: "sent" | "created"; answer: InvitationAnswer }
-  | { email: string; state: "refused"; msg: string }
-
-/** "4 sent · 1 to share by link · 1 refused". Pure. */
-export function resultSummary(results: Pick<Result, "state">[]): string {
-  const n = (s: Result["state"]) => results.filter((r) => r.state === s).length
-  return [
-    n("sent") && `${n("sent")} sent`,
-    n("created") && `${n("created")} to share by link`,
-    n("refused") && `${n("refused")} refused`,
-  ]
-    .filter(Boolean)
-    .join(" · ")
 }
 
 function Face({ email }: { email: string }) {
@@ -92,12 +70,10 @@ function Face({ email }: { email: string }) {
 
 export interface InviteFormProps {
   asAdmin: boolean
-  /** Says what Send does; "Send" with email set up, "Create" without. */
-  sendVerb?: "Send" | "Create"
-  /** Places left on a free plan, when the server says (admins only). */
-  seatsLeft?: number
-  /** The plan's limit, for the meter beside the seat line. */
-  seatLimit?: number
+  /** Whether the server can send email: Send or Create, and whether a link is a failure or what was asked for. */
+  emailOn?: boolean
+  /** The plan's seats and the ways past its limit, when the server says (admins only). */
+  seats?: { used: number; limit: number; links?: PlanLinks }
   /** Addresses whose invitation is still live (admins only). */
   known?: ReadonlySet<string>
   /** The field's name, kept from each dialog's own form. */
@@ -125,7 +101,7 @@ export interface InviteFormProps {
   doneLabel?: string
 }
 
-export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, known, name = "email", onCreated, onClose, header, again, noCancel, footerTo, doneLabel = "Done" }: InviteFormProps) {
+export function InviteForm({ asAdmin, emailOn = true, seats, known, name = "email", onCreated, onClose, header, again, noCancel, footerTo, doneLabel = "Done" }: InviteFormProps) {
   const formId = useId()
   // The actions sit in a DialogFooter either way. Given an overlay's footer,
   // it goes there without a box of its own (`contents`), so its buttons join
@@ -136,8 +112,15 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
   const [draft, setDraft] = useState("")
   const [selected, setSelected] = useState(false)
   const [refusal, setRefusal] = useState("")
-  const [sending, setSending] = useState(false)
-  const [results, setResults] = useState<Result[] | null>(null)
+  // A seat refusal of the form's address: the limit it named, said by the
+  // limit note in place of the server's words (to a member, "ask an admin"),
+  // and the address it refused, so Send steps back until the addresses
+  // change: a second press would only be refused again.
+  const [seatRefusal, setSeatRefusal] = useState<{ limit: number; to: string } | null>(null)
+  const [sendingOne, setSendingOne] = useState(false)
+  const round = useInviteRound(asAdmin)
+  const { results } = round
+  const sending = sendingOne || round.sending
   const [single, setSingle] = useState<{ answer: InvitationAnswer; email: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const knownSet = useMemo(() => known ?? new Set<string>(), [known])
@@ -156,13 +139,28 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
   )
   const sendable = pending.filter((c) => c.kind === "ok")
   const invalid = pending.filter((c) => c.kind === "invalid")
-  const over = seatLine(sendable.length, seatsLeft)
+  const hasLimit = !!seats && seats.limit > 0
+  const over = hasLimit && sendable.length > Math.max(0, seats.limit - seats.used)
+  // The limit a refusal named: the form's one address's, or any of a round's rows'.
+  const full = seatRefusal?.limit || seatLimitOf(results)
+  // While the addresses are the ones just refused for want of a place, Send
+  // steps back and Close is the way out (DB-134 F2): a second press is refused the same.
+  const refusedAgain = !!seatRefusal && seatRefusal.to === sendable.map((c) => c.email).join(" ")
+  const seatNote = full > 0 || (hasLimit && seatNoteDue(seats.used, seats.limit, sendable.length))
+  const seatNoteId = `invite-${name}-seats`
+  // The admin's figures, or, after a refusal, a full plan; a member knows only the limit.
+  const limitNote = full ? (
+    <LimitNote.Part id={seatNoteId} asAdmin={asAdmin} limit={full} used={asAdmin ? full : undefined} links={seats?.links} />
+  ) : hasLimit ? (
+    <LimitNote.Part id={seatNoteId} asAdmin={asAdmin} limit={seats.limit} used={seats.used} sending={sendable.length} links={seats.links} />
+  ) : null
 
   const reset = () => {
     setChips([])
     setDraft("")
     setRefusal("")
-    setResults(null)
+    setSeatRefusal(null)
+    round.reset()
     setSingle(null)
     setTimeout(() => inputRef.current?.focus(), 0)
   }
@@ -173,34 +171,23 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
     setChips(pending)
     setDraft("")
     setRefusal("")
-    setSending(true)
+    setSeatRefusal(null)
     if (sendable.length === 1) {
+      setSendingOne(true)
       const email = sendable[0].email
       const outcome = await invite(email, asAdmin)
-      setSending(false)
+      setSendingOne(false)
       if (!outcome.ok) {
-        setRefusal(outcome.msg)
+        if (outcome.code === "seat_limit" && outcome.limit) setSeatRefusal({ limit: outcome.limit, to: email })
+        else setRefusal(outcome.msg)
         return
       }
       onCreated?.()
       setSingle({ answer: outcome.answer, email })
       return
     }
-    // In turn, so each row resolves where the reader is looking and the
-    // server is not asked twenty things at once.
-    const rows: Result[] = sendable.map((c) => ({ email: c.email, state: "waiting" }))
-    setResults([...rows])
-    let made = false
-    for (let i = 0; i < rows.length; i++) {
-      const outcome = await invite(rows[i].email, asAdmin)
-      rows[i] = outcome.ok
-        ? { email: rows[i].email, state: outcome.answer.email_sent ? "sent" : "created", answer: outcome.answer }
-        : { email: rows[i].email, state: "refused", msg: outcome.msg }
-      made ||= outcome.ok
-      setResults([...rows])
-    }
-    setSending(false)
-    if (made) onCreated?.()
+    const rows = await round.run(sendable.map((c) => c.email))
+    if (rows.some((r) => r.state !== "refused")) onCreated?.()
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -249,11 +236,10 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
     return (
       <>
         {header({ done: !sending, summary: resultSummary(results) })}
-        <ul aria-label="Invitations" aria-live="polite" data-invite-results="" className="space-y-1 py-1">
-          {results.map((r, i) => (
-            <ResultRow key={r.email} result={r} index={i} />
-          ))}
-        </ul>
+        {!emailOn && results.some((r) => r.state === "created") && <p className="text-sm text-ink-2">{unsentLine(false, { admin: asAdmin })}</p>}
+        <InviteResults results={results} emailOn={emailOn} />
+        {/* Once, under the rows, however many met the limit. */}
+        {full ? limitNote : null}
         {placeFooter(
           <DialogFooter className={footerClass}>
             {again && !sending && (
@@ -273,7 +259,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
   const count = sendable.length
   const sendLabel = sending
     ? "Inviting…"
-    : `${sendVerb} ${count > 1 ? `${count} invitations` : "invitation"}`
+    : `${inviteVerb(emailOn)} ${count > 1 ? `${count} invitations` : "invitation"}`
 
   return (
     <form id={formId} onSubmit={submit} noValidate>
@@ -285,7 +271,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
           </label>
           <div
             data-chip-field=""
-            data-over={over ? "true" : undefined}
+            data-over={over || full ? "true" : undefined}
             className="invite-field"
             onClick={() => inputRef.current?.focus()}
           >
@@ -331,7 +317,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
                 }
               }}
               autoFocus
-              aria-describedby={[refusal && `invite-${name}-refusal`, invalid.length > 0 && `invite-${name}-invalid`, over && `invite-${name}-seats`].filter(Boolean).join(" ") || undefined}
+              aria-describedby={[refusal && `invite-${name}-refusal`, invalid.length > 0 && `invite-${name}-invalid`, seatNote && seatNoteId].filter(Boolean).join(" ") || undefined}
             />
           </div>
           {/* Said under the field, not only in the chip's tooltip: on a
@@ -342,16 +328,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
               {invalidLine(invalid.map((c) => c.email))}
             </p>
           )}
-          {over && (
-            <div id={`invite-${name}-seats`} data-seat-line="" className="flex items-center justify-between gap-3 text-xs text-camp-sun-ink">
-              <span>{over}</span>
-              {seatLimit ? (
-                <span className="people-meter-track shrink-0" aria-hidden="true" data-near="true">
-                  <span className="people-meter-fill" style={{ transform: `scaleX(${seatWords(seatLimit - (seatsLeft ?? 0), seatLimit).ratio})` }} />
-                </span>
-              ) : null}
-            </div>
-          )}
+          {seatNote && limitNote}
           {refusal && (
             <p id={`invite-${name}-refusal`} role="alert" className="text-sm text-danger-ink">
               {refusal}
@@ -361,13 +338,14 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
       </TooltipProvider>
       {placeFooter(
         <DialogFooter className={footerClass}>
-          {!noCancel && (
-            <Button type="button" variant="ghost" onClick={onClose} disabled={sending}>
-              Cancel
-            </Button>
-          )}
+          {/* Close comes only while nothing runs; Cancel waits for Send. */}
+          {!noCancel && (refusedAgain ? (
+            <Button type="button" onClick={onClose}>Close</Button>
+          ) : (
+            <Button type="button" variant="ghost" onClick={onClose} disabled={sending}>Cancel</Button>
+          ))}
           {/* form=: in another overlay's footer it is outside the form. */}
-          <Button type="submit" form={formId} disabled={!count} busy={sending}>
+          <Button type="submit" form={formId} disabled={!count || refusedAgain} busy={sending}>
             {sendLabel}
           </Button>
         </DialogFooter>,
@@ -412,43 +390,5 @@ function Chip({ chip, index, selected, onRemove }: { chip: InviteChip; index: nu
       <TooltipTrigger asChild>{body}</TooltipTrigger>
       <TooltipContent>{chip.reason}</TooltipContent>
     </Tooltip>
-  )
-}
-
-function ResultRow({ result, index }: { result: Result; index: number }) {
-  const { copied, copy } = useCopyToClipboard()
-  const link = "answer" in result ? result.answer.invite_link : undefined
-  return (
-    <li data-invite-result={result.state} className="invite-result flex min-h-9 items-center gap-3" style={{ ["--i" as string]: index }}>
-      <span className="inline-flex size-5 shrink-0 items-center justify-center" aria-hidden="true">
-        {result.state === "waiting" ? (
-          <Loader2 className="size-4 animate-spin text-ink-3" />
-        ) : result.state === "sent" ? (
-          <Check className="size-4 text-success-ink" />
-        ) : (
-          <AlertCircle className={result.state === "refused" ? "size-4 text-danger-ink" : "size-4 text-camp-sun-ink"} />
-        )}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm">{result.email}</span>
-      {result.state === "sent" && <span className="text-xs text-ink-3">Sent</span>}
-      {result.state === "created" && (
-        <>
-          <span className="truncate text-xs text-camp-sun-ink" title={couldntEmail(result.answer)}>
-            Couldn&apos;t email
-          </span>
-          {link && (
-            <Button type="button" size="xs" variant="secondary" onClick={() => void copy(link, "Invitation link copied")} aria-label={`Copy the link for ${result.email}`}>
-              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-              Copy link
-            </Button>
-          )}
-        </>
-      )}
-      {result.state === "refused" && (
-        <span className="max-w-[55%] truncate text-xs text-danger-ink" title={result.msg}>
-          {result.msg}
-        </span>
-      )}
-    </li>
   )
 }

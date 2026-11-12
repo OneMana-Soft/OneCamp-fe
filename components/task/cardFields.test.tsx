@@ -48,4 +48,18 @@ describe("a card's choices", () => {
     expect(container.querySelectorAll("[data-card-field='f-markets'] [data-chip-dot]")).toHaveLength(2)
     expect(screen.getByText("+1")).toBeTruthy()
   })
+
+  // V-698W: the server sends no value of a field it hides from the reader (a
+  // money field, to anyone not an admin of its project); a card draws none,
+  // even one the device kept from before.
+  it("draws no field the server hides from its reader, even with a value kept from before (V-698W)", () => {
+    render(
+      <CardFieldsContext.Provider value={{ fields: [{ ...channel, hidden: true } as TaskField, markets] }}>
+        <CardFields values={{ "f-channel": "o-email", "f-markets": ["uk"] } as never} />
+      </CardFieldsContext.Provider>,
+    )
+    expect(screen.queryByText("Email")).toBeNull()
+    expect(screen.queryByText("Channel:")).toBeNull()
+    expect(screen.getByText("UK")).toBeTruthy()
+  })
 })

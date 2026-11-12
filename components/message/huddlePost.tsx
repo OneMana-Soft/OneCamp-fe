@@ -17,10 +17,6 @@ const faces = (came: HuddleFace[]) => <ThreadParticipants participants={came} ma
 export function HuddlePost({ system, at, self, fallback }: { system?: string; at?: { kind: CallKind; id: string }; self?: string; fallback: ReactNode }) {
   const facts = useMemo(() => readHuddleFacts(system), [system])
   if (!facts) return <>{fallback}</>
-  const inChannel = at?.kind === "channel"
-  return !facts.ended && at ? (
-    <LiveCallCard facts={facts} at={at} self={self} inChannel={inChannel} faces={faces} />
-  ) : (
-    <CallCard facts={facts} inChannel={inChannel} faces={faces} />
-  )
+  const card = { facts, at, self, inChannel: at?.kind === "channel", faces }
+  return !facts.ended && at ? <LiveCallCard {...card} at={at} /> : <CallCard {...card} />
 }

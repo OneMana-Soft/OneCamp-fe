@@ -177,7 +177,8 @@ export interface ReorderLayerProps extends ListReorder {
 const rowsIn = (box: HTMLElement | null) => Array.from(box?.querySelectorAll<HTMLElement>(ROW) ?? [])
 const rowOf = (box: HTMLElement | null, id: string) => rowsIn(box).find((r) => r.dataset.taskId === id) ?? null
 
-export function ReorderLayer(props: ReorderLayerProps) {
+/** Memoised: it reads the rows from the page when a drag needs them, so a step of the list's window (components/task/listWindow) doesn't draw it again. */
+export const ReorderLayer = React.memo(function ReorderLayer(props: ReorderLayerProps) {
   const { projectId, manual, options, tasks, box } = props
   const connected = React.useContext(MqttContext) !== null
   const store = React.useContext(ListSelectionContext)
@@ -690,7 +691,7 @@ export function ReorderLayer(props: ReorderLayerProps) {
       </DndContext>
     </>
   )
-}
+})
 
 /** The list's one draggable, inside the context: grips and rows lend it their element and their press, so no row listens to the drag. */
 function OneDraggable({ handle }: { handle: React.RefObject<Handle | null> }) {

@@ -30,9 +30,11 @@ import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
 import { KeyboardList, TaskRowCheck } from "@/components/task/KeyboardList"
 import { TabLoading } from "@/components/task/TabLoading"
+import { InsightsButton } from "@/components/task/insightsLink"
+import { insightsHref } from "@/lib/board/boardQuery"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useFetch } from "@/hooks/useFetch"
-import { useRowState } from "@/hooks/useListSelection"
+import { useRowSelected } from "@/hooks/useListSelection"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useToast } from "@/hooks/use-toast"
 import { lazyDialog } from "@/lib/lazy/lazyDialog"
@@ -206,35 +208,34 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   return (
     <DndContext {...dnd} {...drag.handlers} onDragEnd={onDragEnd}>
       <div data-backlog="" className="mx-auto grid max-w-[960px] grid-cols-[minmax(0,1fr)] gap-4 px-4 pb-10 pt-4 sm:px-6">
-        {/* How the cycles run (B3b): by themselves, on a schedule, or by hand. */}
-        {schedule || canEdit || data.cycles.length > 0 ? (
-          <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            {schedule ? (
-              <p data-schedule="" className="flex min-w-0 items-center gap-2 text-meta text-ink-2">
-                <Repeat aria-hidden className="size-3.5 shrink-0 text-ink-3" />
-                <span className="min-w-0">{scheduleLine(schedule)}</span>
-              </p>
-            ) : null}
-            <span className="flex-1" />
-            {/* Anyone who sees the project may have its cycles in their calendar (linear-12). */}
-            {data.cycles.length > 0 ? (
-              <Button size="sm" variant="ghost" onClick={() => setFeeding(true)}>
-                <CalendarPlus aria-hidden className="!size-3.5" />
-                Add to calendar
+        {/* How the cycles run (B3b): by themselves, on a schedule, or by hand; and the project's insights (L32), for every reader. */}
+        <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          {schedule ? (
+            <p data-schedule="" className="flex min-w-0 items-center gap-2 text-meta text-ink-2">
+              <Repeat aria-hidden className="size-3.5 shrink-0 text-ink-3" />
+              <span className="min-w-0">{scheduleLine(schedule)}</span>
+            </p>
+          ) : null}
+          <span className="flex-1" />
+          <InsightsButton href={insightsHref(projectId, [], "", "")} />
+          {/* Anyone who sees the project may have its cycles in their calendar (linear-12). */}
+          {data.cycles.length > 0 ? (
+            <Button size="sm" variant="ghost" onClick={() => setFeeding(true)}>
+              <CalendarPlus aria-hidden className="!size-3.5" />
+              Add to calendar
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => setEstimating(true)}>
+                Estimates
               </Button>
-            ) : null}
-            {canEdit ? (
-              <>
-                <Button size="sm" variant="ghost" onClick={() => setEstimating(true)}>
-                  Estimates
-                </Button>
-                <Button size="sm" variant="secondary" disabled={busy} onClick={() => setScheduling(true)}>
-                  {schedule ? "Change schedule" : "Run cycles automatically"}
-                </Button>
-              </>
-            ) : null}
-          </div>
-        ) : null}
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setScheduling(true)}>
+                {schedule ? "Change schedule" : "Run cycles automatically"}
+              </Button>
+            </>
+          ) : null}
+        </div>
         <KeyboardList
           tasks={shown}
           canEdit={mayPlan}
@@ -597,7 +598,8 @@ function DraggableRow({
   onMove?: () => void
 }) {
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, isDragging } = useDraggable({ id: task.task_uuid, disabled })
-  const { highlighted, selected } = useRowState(task.task_uuid)
+  // The keys' place is painted on the row (data-highlighted, hooks/useListKeyboard): J draws no row.
+  const selected = useRowSelected(task.task_uuid)
   // Space lifts the row itself: on its box, Space picks it.
   const ref = useCallback(
     (el: HTMLLIElement | null) => {
@@ -615,7 +617,6 @@ function DraggableRow({
       data-drag-state={state ?? (isDragging ? "lifted" : undefined)}
       data-task-id={task.task_uuid}
       data-state={selected ? "selected" : undefined}
-      data-highlighted={highlighted || undefined}
       className={cn("group/row rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring", !disabled && "cursor-grab", selected && "bg-sel")}
     >
       <BacklogRow task={task} {...row} lead={selectable ? <TaskRowCheck id={task.task_uuid} selected={selected} /> : undefined} />

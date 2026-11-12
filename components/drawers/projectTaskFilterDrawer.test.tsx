@@ -17,6 +17,7 @@ vi.mock("react-redux", () => ({
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }) }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: [] }) }))
 vi.mock("@/hooks/useProjectCycles", () => ({ useProjectCycles: () => ({ cycles: [] }) }))
+vi.mock("@/components/task/releaseFacet", () => ({ useReleaseList: () => ({ releases: [], loading: false, failed: false }) }))
 vi.mock("@/components/task/savedTaskViews", () => ({ SavedTaskViewsPanel: () => null }))
 
 const { ProjectTaskFilterDrawer } = await import("@/components/drawers/projectTaskFilterDrawer")

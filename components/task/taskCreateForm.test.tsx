@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
 
@@ -28,7 +28,7 @@ let selfProfile: { data: { user_uuid: string } } | undefined
 // The picked project's task templates, types and fields (lib/work/taskTemplates), when a test gives them.
 let templateList: { data: { templates: { id: string; name: string; project_id?: string }[]; defaults: Record<string, string>; can_manage: boolean } } | undefined
 let typeList: { data: { id: string; builtin?: string; name: string; icon: string }[] } | undefined
-let fieldList: { data: { fields: { id: string; name: string; type: string; options: [] }[]; can_edit: boolean } } | undefined
+let fieldList: { data: { fields: { id: string; name: string; type: string; options: []; hidden?: boolean }[]; can_edit: boolean } } | undefined
 const routed = (key: string) =>
   key.endsWith("/statuses") ? statuses : key.endsWith("/task-templates") ? templateList : key.endsWith("/types") ? typeList : key.endsWith("/fields") ? fieldList : key ? projects : undefined
 vi.mock("@/hooks/useFetch", () => ({
@@ -302,6 +302,19 @@ describe("the composer", () => {
     expect(screen.getByPlaceholderText("Change priority…")).toBeTruthy()
   })
 
+  // UX-PROJECTS-H1 (PROJECTS-14): a new task has no priority until one is
+  // picked, as Linear's; every task made here was Medium.
+  it("makes a new task with no priority, its chip saying Priority until one is picked", async () => {
+    render(form())
+    const chip = screen.getByRole("button", { name: "Priority: No priority" })
+    expect(chip.textContent).toBe("Priority")
+    nameIt()
+    await create()
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    expect(sentPayload().task_priority || "").toBe("")
+    expect(lists.create.mock.calls[0][0].task_priority).toBe("")
+  })
+
   it("creates with Cmd or Ctrl and Enter, in the status picked", async () => {
     render(form())
     nameIt()
@@ -371,7 +384,7 @@ describe("a link to a new task (/app/create/task?title=…, as Linear's linear.n
     selfProfile = { data: { user_uuid: "u-Maya" } }
     render(linked("title=Ship+it&project=Q4&assignee=me"))
     await create()
-    expect(sentPayload()).toMatchObject({ task_project_uuid: "p1", task_assignee_uuid: "u-Maya", task_status: "todo", task_priority: "medium" })
+    expect(sentPayload()).toMatchObject({ task_project_uuid: "p1", task_assignee_uuid: "u-Maya", task_status: "todo", task_priority: "" })
   })
 })
 
@@ -566,6 +579,24 @@ describe("a new task from a template (linear-09)", () => {
     expect(tpl.make.mock.calls.at(-1)?.[2]).toMatchObject({ type: "type-task" })
   })
 
+  // V-698W: a field the server hides from its reader (a money field, to anyone
+  // not an admin of its project) takes no value from them; the ask says why in
+  // words, with no box, and nothing is sent for it.
+  it("asks for no value of a field the server hides from its reader: the words instead of a box (V-698W)", async () => {
+    fieldList = { data: { fields: [{ id: "f1", name: "Customer", type: "text", options: [] }, { id: "f9", name: "Budget", type: "money", options: [], hidden: true }], can_edit: false } }
+    tpl.make.mockResolvedValueOnce({ asks: { missing: ["field:f9", "field:f1"], leftOff: [] } })
+    openForm()
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    nameIt("Bug: export drops rows")
+    await create()
+    const ask = await screen.findByRole("alert")
+    expect(ask.textContent).toMatch(/Budget/)
+    expect(within(ask).getByText("Only project admins see money")).toBeTruthy()
+    expect(within(ask).queryByLabelText("Budget")).toBeNull()
+    expect(within(ask).getByLabelText("Customer")).toBeTruthy()
+  })
+
   it("says what the project couldn't take beside what the template asks for", async () => {
     tpl.make.mockResolvedValueOnce({ asks: { missing: ["field:f1"], leftOff: ["The value of a field this project doesn't have is left off."] } })
     openForm()
@@ -696,7 +727,8 @@ describe("a new task from a template (linear-09)", () => {
     expect(screen.getByRole("button", { name: "Priority: High" })).toBeTruthy()
     nameIt("Bug: mine")
     await pickTemplate("No template")
-    expect(screen.getByRole("button", { name: "Priority: Medium" })).toBeTruthy()
+    // Back to no priority, a new task's (PROJECTS-14); it was Medium.
+    expect(screen.getByRole("button", { name: "Priority: No priority" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Labels: bug" })).toBeNull()
     expect(title()).toBe("Bug: mine")
   })

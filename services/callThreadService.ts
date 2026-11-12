@@ -6,7 +6,7 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { publicCall, publicTrouble, sendFailedText } from "@/services/publicApi"
 import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import type { CallThreadRead, CallThreadTarget } from "@/lib/calls/callThread"
+import { threadOf, type CallThreadRead, type CallThreadTarget } from "@/lib/calls/callThread"
 
 /**
  * What a read found: the chat; nothing new since the last read (the server's
@@ -38,14 +38,18 @@ export async function readCallThread(target: CallThreadTarget, since?: string): 
     try {
       const res = await axiosInstance.get(path, OWN_ERRORS)
       if (res.status === 204) return { kind: "unchanged" }
-      const thread = (res.data as { data?: CallThreadRead } | undefined)?.data
+      const thread = threadOf((res.data as { data?: unknown } | undefined)?.data)
       return thread ? { kind: "thread", thread } : { kind: "unreachable" }
     } catch (e) {
       return failedRead(apiErrorStatus(e))
     }
   }
-  const res = await publicCall<CallThreadRead | undefined>(path, { headers: { Authorization: `Bearer ${target.callToken}` } })
-  if (res.ok) return res.data ? { kind: "thread", thread: res.data } : { kind: "unchanged" }
+  const res = await publicCall<unknown>(path, { headers: { Authorization: `Bearer ${target.callToken}` } })
+  if (res.ok) {
+    if (res.data === undefined || res.data === null) return { kind: "unchanged" }
+    const thread = threadOf(res.data)
+    return thread ? { kind: "thread", thread } : { kind: "unreachable" }
+  }
   return failedRead(res.status)
 }
 

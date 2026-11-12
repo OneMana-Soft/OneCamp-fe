@@ -6,10 +6,15 @@ import { Github, GitBranch, GitPullRequest, CircleDot, RefreshCw, Download, Copy
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button"
 import type { TaskInfoInterface } from "@/types/task"
-import MarkdownMessage from "@/components/ai/MarkdownMessage"
+import { lazyPart } from "@/lib/lazy/lazyPart"
 import { analyzeCodeIssue, type CodeAnalysisResult } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
 import { saysWriteFailure } from "@/lib/http/writeSaid";
+
+// An analysis's answer through the text renderer the command bar loads when an answer is in (GlobalCommandHost): its
+// charts and query plans stay off the task page's first load, and the answer reads as plain text until it's in.
+const Plain = ({ content }: { content: string }) => <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{content}</p>
+const answer = lazyPart<{ content: string }>(() => import("@/components/ai/MarkdownMessage").then((m) => m.default), { placeholder: Plain, failed: Plain })
 
 /** "onemana/app#42" from a GitHub address, or "#42" when it names no repository. Pure. */
 function refOf(url: string, n: number | undefined, kind: "pull" | "issues"): string {
@@ -304,7 +309,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
       {result && (
         <div className="space-y-2 min-w-0">
           <div className="rounded-md bg-background/60 p-2 max-h-[28rem] overflow-y-auto overflow-x-hidden custom-scrollbar min-w-0">
-            <MarkdownMessage content={result.answer} />
+            <answer.Part content={result.answer} />
           </div>
 
           {result.files_considered?.length > 0 && (

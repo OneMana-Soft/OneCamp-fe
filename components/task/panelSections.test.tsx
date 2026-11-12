@@ -115,6 +115,27 @@ describe("the panel's properties (design v3, W29)", () => {
     expect(window.localStorage.getItem("oc_task_more_fields")).toBe("1")
   })
 
+  it("offers itself when all it folds is a row with no name, as Edit fields is once every field holds a value", () => {
+    window.localStorage.removeItem("oc_task_more_fields")
+    render(
+      <MoreFields>
+        <div>
+          <span>Cycle</span>
+        </div>
+        <div data-field-empty="">
+          <span aria-hidden />
+          <button type="button">Edit fields</button>
+        </div>
+      </MoreFields>,
+    )
+    const box = screen.getByRole("button", { name: "Edit fields" }).parentElement!.parentElement!
+    expect(box.className).toContain("[&_[data-field-empty]]:hidden")
+    const toggle = screen.getByRole("button", { name: /more fields/i })
+    expect(toggle.textContent).toBe("More fields")
+    fireEvent.click(toggle)
+    expect(box.className).not.toContain("[&_[data-field-empty]]:hidden")
+  })
+
   // design-23: "More fields · Repeat, Channel, Budget, Revi…" ended mid-word.
   it("counts the names a row has no room for: those its wrap puts past the first line", () => {
     expect(pastFirstLine([0, 0, 0, 18, 18])).toBe(2)

@@ -67,7 +67,7 @@ export function useShownValue<T>(value: T): [T, (next: T, commit: (v: T) => Prom
 }
 
 /** The right renderer for a field's type (content.md T08). */
-export function Cell({ field, value, cellId, primary, readOnly, ctx, onCommit, onLink }: CellProps) {
+export function Cell({ field, value, cellId, primary, readOnly, ctx, unsaved, onCommit, onLink }: CellProps) {
   if (field.type === "formula" || field.type === "rollup") {
     return <ComputedCell field={field} value={value} cellId={cellId} ctx={ctx} />
   }
@@ -130,7 +130,7 @@ export function Cell({ field, value, cellId, primary, readOnly, ctx, onCommit, o
   if (field.type === "date") {
     return <DateCell field={field} value={value} cellId={cellId} readOnly={readOnly} onCommit={onCommit} />
   }
-  return <TextCell field={field} value={value} cellId={cellId} primary={primary} readOnly={readOnly} ctx={ctx} onCommit={onCommit} />
+  return <TextCell field={field} value={value} cellId={cellId} primary={primary} readOnly={readOnly} ctx={ctx} unsaved={unsaved} onCommit={onCommit} />
 }
 
 /** A B1 kind's cell while its chunk (kindCells) is on its way: its text, where the cell will be. */
@@ -331,6 +331,7 @@ export function TextCell({
   primary,
   readOnly,
   ctx,
+  unsaved,
   onCommit,
 }: {
   field: TableField
@@ -339,6 +340,7 @@ export function TextCell({
   primary?: boolean
   readOnly?: boolean
   ctx: CellContext
+  unsaved?: boolean
   onCommit: (value: unknown) => Promise<boolean>
 }) {
   const savedText = savedTextOf(field, value)
@@ -349,21 +351,31 @@ export function TextCell({
   const look = textLook(field, local, savedText, ctx)
   const { typed, notNumber, lines } = look
 
+  // Text put in the box since it was last left or put back. In a cell holding
+  // an edit the server asked to have again (unsaved, V-583), the same text
+  // entered again is its Retry (V-640): useCellCommit sends the kept value as
+  // retryCell does. A cell only passed through, or put back, sends nothing.
+  const entered = React.useRef(false)
+  // Whether leaving the box sends what it holds: a change, or that Retry.
+  const due = () => !notNumber && (local !== savedText || (!!unsaved && entered.current))
+
   // The latest typing, for a commit when the row leaves the page while its
-  // cell still has the focus: removing a focused element does not blur it.
-  const pending = React.useRef<{ due: boolean; commit: () => void } | null>(null)
-  pending.current = { due: local !== savedText && !notNumber, commit: () => void onCommit(typed) }
+  // cell still has the focus (removing a focused element does not blur it),
+  // or when another cell comes to life under a finger's press, before the blur.
+  const pending = React.useRef<{ due: () => boolean; commit: () => void } | null>(null)
+  pending.current = { due, commit: () => void onCommit(typed) }
   React.useEffect(
     () => () => {
       const p = pending.current
-      if (p?.due) p.commit()
+      if (p?.due()) p.commit()
     },
     [],
   )
 
   const commit = () => {
-    if (local === savedText || notNumber) return
-    void onCommit(typed)
+    const send = due()
+    entered.current = false
+    if (send) void onCommit(typed)
   }
 
   const area = React.useRef<HTMLTextAreaElement>(null)
@@ -377,6 +389,7 @@ export function TextCell({
   // holding the focus, so the keys reach it again (Space, a key typed over it).
   const escape = (e: React.KeyboardEvent) => {
     if (e.key !== "Escape") return
+    entered.current = false
     if (local !== savedText) {
       e.preventDefault()
       e.stopPropagation()
@@ -402,6 +415,7 @@ export function TextCell({
         setLocal(e.target.value)
         fit(e.currentTarget, true)
       },
+      onTyped: () => void (entered.current = true),
       onAreaFocus: (e) => fit(e.currentTarget, true),
       onAreaBlur: (e) => {
         fit(e.currentTarget, false)

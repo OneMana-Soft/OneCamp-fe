@@ -1,7 +1,8 @@
 "use client"
 
 // OAuthConfigCard — admin UI to manage login OAuth credentials (Google +
-// GitHub sign-in) without env files or redeploys. Secrets are write-only:
+// GitHub sign-in, and the Microsoft app Outlook Calendar connects through)
+// without env files or redeploys. Only an admin reads or saves them. Secrets are write-only:
 // the API returns only has_* booleans and a source indicator, never the value.
 // Saving reloads the providers server-side, so changes take effect immediately.
 
@@ -19,6 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { AdminGet, AdminPost } from "@/services/endpoints/admin"
+import { OutlookHowTo } from "@/components/admin/outlookHowTo"
 
 interface OAuthConfigStatus {
     google_client_id: string
@@ -29,9 +31,13 @@ interface OAuthConfigStatus {
     github_has_client_secret: boolean
     github_configured: boolean
     github_source: "db" | "env" | "none"
+    microsoft_client_id?: string
+    microsoft_has_client_secret?: boolean
+    microsoft_configured?: boolean
+    microsoft_source?: "db" | "env" | "none"
 }
 
-type Provider = "google" | "github"
+type Provider = "google" | "github" | "microsoft"
 
 /** Where a provider's credentials come from, as a short phrase; nothing when unset. */
 const SOURCE: Record<string, string> = {
@@ -42,9 +48,13 @@ const SOURCE: Record<string, string> = {
 const PROVIDERS: {
     key: Provider
     name: string
+    /** The card's name where it isn't "<name> sign-in". */
+    label?: string
     idPlaceholder: string
     secretPlaceholder: string
     help: React.ReactNode
+    /** Steps to set it up, above its fields (the Microsoft app's). */
+    steps?: React.ReactNode
 }[] = [
     {
         key: "google",
@@ -64,17 +74,32 @@ const PROVIDERS: {
             </>
         ),
     },
+    {
+        // Calendar B7: each install brings its own free Azure app.
+        key: "microsoft",
+        name: "Microsoft",
+        label: "Microsoft app for Outlook Calendar",
+        idPlaceholder: "Application (client) ID",
+        secretPlaceholder: "Client secret value…",
+        help: "For Outlook Calendar: people connect their own Outlook with it (it isn't a way to sign in).",
+        steps: <OutlookHowTo />,
+    },
 ]
 
+/** A card's name, for its label and what saving it says: "Google sign-in", "Microsoft app for Outlook Calendar". */
+const nameOf = (p: (typeof PROVIDERS)[number]) => p.label ?? `${p.name} sign-in`
+
 type Draft = Record<Provider, { id: string; secret: string }>
-const emptyDraft: Draft = { google: { id: "", secret: "" }, github: { id: "", secret: "" } }
+/** Each provider's saved id, and no secret: the page never holds one it didn't type. */
+const draftOf = (s?: OAuthConfigStatus | null) =>
+    Object.fromEntries(PROVIDERS.map((p) => [p.key, { id: s?.[`${p.key}_client_id`] ?? "", secret: "" }])) as Draft
 
 export default function OAuthConfigCard() {
     const { toast } = useToast()
     const [status, setStatus] = useState<OAuthConfigStatus | null>(null)
     const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
     const [loadError, setLoadError] = useState("")
-    const [draft, setDraft] = useState<Draft>(emptyDraft)
+    const [draft, setDraft] = useState<Draft>(draftOf)
     const [saving, setSaving] = useState(false)
 
     // A failed load used to leave the fields empty and both providers looking
@@ -90,10 +115,7 @@ export default function OAuthConfigCard() {
                     return
                 }
                 setStatus(s)
-                setDraft({
-                    google: { id: s.google_client_id ?? "", secret: "" },
-                    github: { id: s.github_client_id ?? "", secret: "" },
-                })
+                setDraft(draftOf(s))
                 setState("ready")
             })
             .catch((e) => {
@@ -108,7 +130,7 @@ export default function OAuthConfigCard() {
 
     const changed = (p: Provider) =>
         !!status && (draft[p].id !== (status[`${p}_client_id`] ?? "") || draft[p].secret !== "")
-    const dirty = changed("google") || changed("github")
+    const dirty = PROVIDERS.some((p) => changed(p.key))
 
     const set = (p: Provider, field: "id" | "secret", value: string) =>
         setDraft((d) => ({ ...d, [p]: { ...d[p], [field]: value } }))
@@ -118,6 +140,7 @@ export default function OAuthConfigCard() {
     const save = async () => {
         if (!status) return
         setSaving(true)
+        const saved: string[] = []
         try {
             for (const p of PROVIDERS) {
                 if (!changed(p.key)) continue
@@ -127,11 +150,12 @@ export default function OAuthConfigCard() {
                 try {
                     await axiosInstance.post(AdminPost.UpdateOAuthConfig, body, OWN_ERRORS)
                 } catch (e) {
-                    toast({ title: `Couldn't save the ${p.name} sign-in`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                    toast({ title: `Couldn't save the ${nameOf(p)}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
                     return
                 }
+                saved.push(nameOf(p))
             }
-            toast({ title: "Sign-in providers saved" })
+            toast({ title: `${new Intl.ListFormat("en", { type: "conjunction" }).format(saved)} saved` })
             load()
         } finally {
             setSaving(false)
@@ -183,12 +207,13 @@ export default function OAuthConfigCard() {
                     {PROVIDERS.map((p) => {
                         const configured = status[`${p.key}_configured`]
                         const hasSecret = status[`${p.key}_has_client_secret`]
-                        const source = SOURCE[status[`${p.key}_source`]]
+                        const source = SOURCE[status[`${p.key}_source`] ?? "none"]
                         const helpId = `${p.key}-oauth-help`
                         return (
                             <ConnectionCard
                                 key={p.key}
-                                aria-label={`${p.name} sign-in`}
+                                id={`integrations-oauth-${p.key}`}
+                                aria-label={nameOf(p)}
                                 mark={<SourceMark vendor={p.key} name={p.name} />}
                                 name={p.name}
                                 state={
@@ -199,6 +224,7 @@ export default function OAuthConfigCard() {
                                 }
                             >
                                 <div className="cx-int-step space-y-3">
+                                    {p.steps}
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <div className="space-y-1.5">
                                             <Label htmlFor={`${p.key}-client-id`} className="text-xs text-muted-foreground">
@@ -230,7 +256,7 @@ export default function OAuthConfigCard() {
                                                 spellCheck={false}
                                                 value={draft[p.key].secret}
                                                 onChange={(e) => set(p.key, "secret", e.target.value)}
-                                                placeholder={hasSecret ? "••••••••" : p.secretPlaceholder}
+                                                placeholder={hasSecret ? "Saved" : p.secretPlaceholder}
                                                 aria-describedby={helpId}
                                                 className="h-8"
                                             />
@@ -249,12 +275,7 @@ export default function OAuthConfigCard() {
                     dirty={dirty}
                     saving={saving}
                     onSave={() => void save()}
-                    onDiscard={() =>
-                        setDraft({
-                            google: { id: status.google_client_id ?? "", secret: "" },
-                            github: { id: status.github_client_id ?? "", secret: "" },
-                        })
-                    }
+                    onDiscard={() => setDraft(draftOf(status))}
                     what="sign-in provider changes"
                 />
             </>
@@ -265,7 +286,7 @@ export default function OAuthConfigCard() {
         <SettingsSection
             id="integrations-oauth"
             title="Sign-in providers"
-            description="Let people sign in with Google or GitHub. Secrets are stored encrypted and never shown again; changes apply without a restart."
+            description="Let people sign in with Google or GitHub, and connect Outlook Calendar through a Microsoft app. Secrets are stored encrypted and never shown again; changes apply without a restart."
         >
             {body}
         </SettingsSection>

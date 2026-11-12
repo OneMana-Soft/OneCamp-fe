@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 vi.mock("@/components/themeProvider/theme-toggle", () => ({ ThemeToggle: () => null }))
+// A self-hosted server's answer (authShellHosting.test has the others, and the wait).
+vi.mock("@/lib/auth/useSignInFacts", () => ({ useHosting: () => "self" }))
 
 import { SignInSide } from "@/components/auth/SignInSide"
-import { CampHero } from "@/components/auth/CampArt"
+import { CampHero } from "@/components/auth/CampHeroes"
 import NotFoundPage from "@/app/not-found"
 import NotAuthorisedPage from "@/app/error/not-authorised/page"
 
@@ -77,8 +79,10 @@ describe("pictures on the signed-out pages", () => {
     expect(page).toMatch(/<AuthShell side=\{<SignInSide \/>\}>/)
   })
 
-  it("draws the 404 as every dead link, with its spot hidden from screen readers", () => {
+  it("draws the 404 as every dead link, with its spot hidden from screen readers", async () => {
     const { container } = render(<NotFoundPage />)
+    // The 404's body is a chunk of its own: it lands a moment after the page.
+    await screen.findByRole("heading", { name: "This page doesn't exist or was deleted" })
     const spot = container.querySelector("[data-public-gone] [data-empty-illustration]")
     expect(spot?.getAttribute("aria-hidden")).toBe("true")
     expect(spot?.querySelector("svg")).not.toBeNull()

@@ -74,3 +74,61 @@ export function reminderChoices(current: number[], allDay: boolean): ReminderCho
   const extra = current.filter((m) => !base.some((c) => c.minutes === m)).map((m) => ({ minutes: m, label: reminderWords(m, allDay) }))
   return [...base, ...extra]
 }
+
+/** The furthest ahead a reminder may come: four weeks, as Google's. */
+export const MAX_REMINDER_MINUTES = 4 * 7 * 24 * 60
+
+/** The units a custom reminder is written in, and their minutes. */
+export const CUSTOM_UNITS = [
+  { unit: "minutes", minutes: 1 },
+  { unit: "hours", minutes: 60 },
+  { unit: "days", minutes: 24 * 60 },
+  { unit: "weeks", minutes: 7 * 24 * 60 },
+] as const
+
+export type CustomUnit = (typeof CUSTOM_UNITS)[number]["unit"]
+
+/** A reminder in the largest unit that writes it whole: 90 is 90 minutes, 120 is 2 hours. Pure. */
+export function customOf(minutes: number): { count: number; unit: CustomUnit } {
+  const fit = [...CUSTOM_UNITS].reverse().find((u) => minutes > 0 && minutes % u.minutes === 0) ?? CUSTOM_UNITS[0]
+  return { count: minutes / fit.minutes, unit: fit.unit }
+}
+
+/** A custom reminder's minutes, or null when it isn't a whole count from 0 to four weeks. Pure. */
+export function customMinutes(count: number, unit: CustomUnit): number | null {
+  const per = CUSTOM_UNITS.find((u) => u.unit === unit)?.minutes ?? 1
+  const minutes = count * per
+  return Number.isInteger(count) && minutes >= 0 && minutes <= MAX_REMINDER_MINUTES ? minutes : null
+}
+
+/** Those of email that are still reminders, sorted, once each: what a change keeps by email. Pure. */
+export function keepEmail(email: readonly number[] | undefined, minutes: readonly number[]): number[] {
+  return [...new Set((email ?? []).filter((m) => minutes.includes(m)))].sort((a, b) => a - b)
+}
+
+/** A set of default reminders, minutes before, with those of them by email (calendar.default_reminders). */
+export interface ReminderSet {
+  minutes: number[]
+  email?: number[]
+}
+
+/** A person's defaults for one calendar: for its timed events and its all-day ones. */
+export interface ReminderDefaults {
+  timed?: ReminderSet
+  all_day?: ReminderSet
+}
+
+/** The preference that keeps them: { "mine" | a calendar's id: ReminderDefaults }. */
+export const DEFAULT_REMINDERS_KEY = "calendar.default_reminders"
+
+/** "mine": my own calendar, and invitations on one with no defaults. */
+export const DEFAULTS_MINE = "mine"
+
+/** A new event's default reminders on a calendar ("" is mine), as the server's defaultsFor: that calendar's, "mine", D-CAL-4's. Pure. */
+export function defaultRemindersFor(all: unknown, calendarId: string, allDay: boolean): { minutes: number[]; email: number[] } {
+  const kept = (all && typeof all === "object" ? all : {}) as Record<string, ReminderDefaults | undefined>
+  const pick = (d?: ReminderDefaults) => (allDay ? d?.all_day : d?.timed)
+  const set = pick(kept[calendarId || DEFAULTS_MINE]) ?? pick(kept[DEFAULTS_MINE])
+  if (!set) return { minutes: allDay ? [900] : [10], email: [] }
+  return { minutes: set.minutes, email: keepEmail(set.email, set.minutes) }
+}

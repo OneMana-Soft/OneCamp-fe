@@ -18,6 +18,9 @@ import { isInstanceId } from "@/lib/calendar/instanceId"
 import { tellOf, type EventShape } from "@/lib/calendar/tellGuests"
 import { createApiEventRequest, patchApiEventRequest, setRemindersRequest, type ApiEvent, type ApiNotify } from "@/lib/calendar/eventsApi"
 import { eventInput, eventPatch, patchChanges, remindersChanged, savedNotes, whenOf, type EventFormValues } from "@/lib/calendar/eventForm"
+import { addFileRequest, removeFileRequest, withoutFile, type EventFile } from "@/lib/calendar/eventFiles"
+import { readOnlyRefusal } from "@/lib/calendar/calendarList"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 
 /** What a save needs from its host: a way to send, and the two questions. */
 export interface SaveDeps {
@@ -28,7 +31,11 @@ export interface SaveDeps {
 }
 
 /** How a save went: saved (and whether the panel shows another event now), asked and left, or refused. */
-export type SaveResult = { saved: true; moved: boolean; id?: string } | { saved: false; why: "cancelled" | "stale" | "gone" | "failed" }
+export type SaveResult =
+  | { saved: true; moved: boolean; id?: string }
+  | { saved: false; why: "cancelled" | "stale" | "gone" | "failed" }
+  // A new event's calendar its provider lets OneCamp only read (V-594), in the server's words.
+  | { saved: false; why: "read_only"; message: string }
 
 const statusOf = (e: unknown) => (e as { response?: { status?: number } })?.response?.status
 
@@ -46,11 +53,29 @@ function shapeOf(v: EventFormValues): EventShape {
 }
 
 /** The reader's reminders, when they set their own (null goes back to the default's). Quiet: the event is saved either way. */
-async function saveReminders(deps: SaveDeps, id: string, reminders: number[] | null) {
+async function saveReminders(deps: SaveDeps, id: string, reminders: number[] | null, email: number[]) {
   try {
-    await deps.makeRequest(setRemindersRequest(id, reminders))
+    await deps.makeRequest(setRemindersRequest(id, reminders, email))
   } catch {
     // The event is saved; the reminders' row says what they are.
+  }
+}
+
+/**
+ * The links made or taken off since the form opened (calendar head B), one
+ * request each, those taken off first so a full event takes a swap; a links
+ * change keeps the event's version, so it goes after the patch. A refused one
+ * says so in its own toast (lib/calendar/eventFiles), and the rest still go.
+ */
+async function saveFiles(deps: SaveDeps, id: string, was: EventFile[], now: EventFile[]) {
+  const off = was.filter((f) => withoutFile(now, f).length === now.length)
+  const on = now.filter((f) => withoutFile(was, f).length === was.length)
+  for (const req of [...off.map((f) => removeFileRequest(id, f)), ...on.map((f) => addFileRequest(id, f))]) {
+    try {
+      await deps.makeRequest(req)
+    } catch {
+      // Its toast said why.
+    }
   }
 }
 
@@ -81,11 +106,15 @@ export async function createEvent(deps: SaveDeps, v: EventFormValues, full: bool
       if (!choice) return { saved: false, why: "cancelled" }
       if (choice === "none") notify = "none"
     }
-    const made = (await deps.makeRequest(createApiEventRequest({ ...eventInput(v), ...(notify ? { notify } : {}) }))) as ApiEvent | undefined
-    if (made?.id && v.reminders !== null) await saveReminders(deps, made.id, v.reminders)
+    const made = (await deps.makeRequest(createApiEventRequest({ ...eventInput(v), ...(notify ? { notify } : {}) }, true))) as ApiEvent | undefined
+    if (made?.id && v.reminders !== null) await saveReminders(deps, made.id, v.reminders, v.reminderEmail)
     return { saved: true, moved: false, id: made?.id }
-  } catch {
-    return { saved: false, why: "failed" }
+  } catch (e) {
+    const refused = readOnlyRefusal(e)
+    if (!refused) return { saved: false, why: "failed" }
+    // The form's Calendar row says it (V-594), so no toast says it again; any other refusal keeps its toast.
+    saysWriteFailure(e)
+    return { saved: false, why: "read_only", message: refused }
   }
 }
 
@@ -121,7 +150,9 @@ export async function saveEventChange(
       return { saved: false, why: status === 409 ? "stale" : status === 404 ? "gone" : "failed" }
     }
   }
-  if (remindersChanged(v, was)) await saveReminders(deps, api.id, v.reminders)
+  if (remindersChanged(v, was)) await saveReminders(deps, api.id, v.reminders, v.reminderEmail)
+  // What else changed is saved: the panel reads the event again, so a refused link leaves its row.
+  await saveFiles(deps, api.id, was.files, v.files)
   return { saved: true, moved: !!scope && scope !== "this" }
 }
 

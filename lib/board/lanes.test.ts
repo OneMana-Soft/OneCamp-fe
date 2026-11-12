@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { TaskInfoInterface } from "@/types/task"
-import { assigneeLanes, cellKey, intoCells, priorityLanes, splitCell } from "./lanes"
+import { NO_PRIORITY_LANE, assigneeLanes, cellKey, intoCells, laneToPriority, priorityLanes, splitCell } from "./lanes"
 import { NO_ASSIGNEE } from "./groupBy"
 
 const task = (id: string, extra: Partial<TaskInfoInterface> = {}) => ({ task_uuid: id, task_status: "todo", ...extra }) as TaskInfoInterface
@@ -39,11 +39,21 @@ describe("intoCells", () => {
 })
 
 describe("priorityLanes", () => {
-  it("puts the most urgent first, and a task with no priority under Medium", () => {
-    const byStatus = { todo: [task("a", { task_priority: "high" }), task("b", { task_priority: "" })] }
+  // UX-PROJECTS-H1 (PROJECTS-14): a task with no priority sat in Medium's
+  // lane, "as its card shows it"; the card shows none, and every new task now
+  // has none. It has its own lane, last, as Linear sorts it.
+  it("puts the most urgent first, and a task with no priority in its own lane, last", () => {
+    const byStatus = { todo: [task("a", { task_priority: "high" }), task("b", { task_priority: "" }), task("c", { task_priority: "someday" })] }
     const lanes = priorityLanes(byStatus, false)
-    expect(lanes.list.map((l) => l.id)).toEqual(["urgent", "high", "medium", "low"])
-    expect(lanes.laneOf(byStatus.todo[1])).toBe("medium")
-    expect(priorityLanes(byStatus, true).list.map((l) => l.id)).toEqual(["high", "medium"])
+    expect(lanes.list.map((l) => l.id)).toEqual(["urgent", "high", "medium", "low", NO_PRIORITY_LANE])
+    expect(lanes.list.at(-1)?.label).toBe("No priority")
+    expect(lanes.laneOf(byStatus.todo[1])).toBe(NO_PRIORITY_LANE)
+    expect(lanes.laneOf(byStatus.todo[2])).toBe(NO_PRIORITY_LANE)
+    expect(priorityLanes(byStatus, true).list.map((l) => l.id)).toEqual(["high", NO_PRIORITY_LANE])
+  })
+
+  it("names the priority a lane sets: none for No priority's", () => {
+    expect(laneToPriority(NO_PRIORITY_LANE)).toBe("")
+    expect(laneToPriority("high")).toBe("high")
   })
 })

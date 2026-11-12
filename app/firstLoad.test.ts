@@ -252,6 +252,8 @@ const CALENDAR_LAZY = [
   // request: an action asks them, fetched when the page is idle.
   "lib/calendar/bookedMeeting.ts",
   "lib/calendar/confirmDelete.ts",
+  // A delete's flow, its questions, its request and its Undo (UX-CALPLAN H1): fetched when a delete is asked.
+  "lib/calendar/deleteEvent.ts",
   "components/calendar/bookingSettings.tsx",
   "components/calendar/scopePromptDialog.tsx",
   "components/calendar/seriesChanges.ts",
@@ -262,6 +264,18 @@ const CALENDAR_LAZY = [
   // load, and a computer's when idle or pointed at; room for F2's row and
   // C9's broken-sync mark.
   "components/calendar/calendarAgenda.tsx",
+  // Head B (gcal-1a): the Trash's wiring and its sheet, the place line, the
+  // file chips and More colours' picker and pad come with the surface that
+  // shows them; the grid carries only an own colour's cut (HueBlock).
+  "components/calendar/calendarTrash.tsx",
+  "components/calendar/trash/calendarTrashDialog.tsx",
+  "components/calendar/placeLine.tsx",
+  "components/calendar/fileChips.tsx",
+  "components/ui/colourPicker.tsx",
+  "lib/color/colourPad.ts",
+  // An own colour's cut and its OKLCH maths: a chunk asked for as the grid loads (lib/color/ownHue).
+  "lib/color/ownColour.ts",
+  "lib/color/oklch.ts",
 ]
 /**
  * 816,537 bytes when every surface came with the grid; 760,717 after (14 Oct
@@ -332,6 +346,10 @@ describe("the calendar's first screen", () => {
 const TABLE_ROUTE = "app/app/tables/[table-id]/page.tsx"
 const TABLE_LAZY = [
   "lib/tables/applyRules.ts",
+  // Tables L1: a view's run after a live change; V-693: with what a burst of live changes reads by id
+  // (liveRows) and its runner (in liveRun, the chunk's entry), one chunk, fetched when the first message is heard.
+  "lib/tables/liveRun.ts",
+  "lib/tables/liveRows.ts",
   "components/table/DataTableBoard.tsx",
   "components/table/DataTableCalendar.tsx",
   "components/table/DataTableChart.tsx",
@@ -370,6 +388,9 @@ const TABLE_LAZY = [
   "lib/tables/formulaCatalogue.ts",
   // Saved views (migration 512) made room by the export, read on use.
   "lib/tables/exportRows.ts",
+  // Print or save as PDF (gsheets-import-02): the view on paper, with the export it's read with.
+  "lib/tables/printView.ts",
+  "lib/export/print.ts",
   // A spreadsheet's rows into the table (tables S1 step 7): the More menu reads it on use.
   "components/table/import/ImportSheetDialog.tsx",
   "lib/tables/sheetImport.ts",
@@ -537,6 +558,19 @@ const EVENT_LAZY = [
   "lib/calendar/eventForm.ts",
   "lib/calendar/notes.ts",
   "components/calendar/form/saveEvent.ts",
+  // A delete (CAL-40): the calendar's one way, fetched when Delete is pressed, with the old stores' request.
+  "lib/calendar/deleteEvent.ts",
+  "lib/calendar/confirmDelete.ts",
+  // Head B (gcal-1a): the place line and the file chips the page reads come
+  // in the edit kit's chunk (panelEdit), with the form's Files row and More
+  // colours; the page draws no colour of an event's own, so the cut stays off.
+  "components/calendar/eventExtra.tsx",
+  "components/calendar/placeLine.tsx",
+  "lib/place/mapLink.ts",
+  "components/calendar/fileChips.tsx",
+  "components/calendar/form/filesRow.tsx",
+  "components/ui/colourPicker.tsx",
+  "lib/color/ownColour.ts",
 ]
 
 describe("the calendar event page's first screen", () => {
@@ -550,6 +584,66 @@ describe("the calendar event page's first screen", () => {
   it("keeps the source it pulls in under its ceiling", () => {
     const bytes = routeSource(EVENT_ROUTE)
     expect(bytes, `the event page reaches ${bytes} bytes of source (ceiling ${sourceCeiling(EVENT_ROUTE)})`).toBeLessThanOrEqual(sourceCeiling(EVENT_ROUTE))
+  })
+})
+
+// Head B's new chunks (gcal-1a): the Trash's sheet, More colours' picker and an own colour's cut. A new chunk that reaches the shared
+// core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13), so each is handed what it shows and what it does by
+// the surface that opens it (components/calendar/calendarTrash, form/hueRow), and reaches no path in at all.
+describe("the calendar's Trash and More colours", () => {
+  it("are chunks that reach no shared core: their opener reads and writes for them, and the cut is maths alone", () => {
+    const entries = ["components/calendar/trash/calendarTrashDialog.tsx", "components/ui/colourPicker.tsx", "lib/color/ownColour.ts"]
+    const { files, packages } = walk(entries) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "hooks/usePost.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
+  })
+})
+
+// The grid's move and delete (UX-CALPLAN H1): seriesChanges asks a move's questions and sends its times, deleteEvent
+// a delete's, with its Undo; each is a chunk the move or the delete fetches. A new chunk that reaches the shared core
+// re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13), so the calendar hands them its requests, toasts and questions.
+describe("the calendar's move and delete", () => {
+  it("are chunks that reach no shared core: the calendar hands them its requests, its toasts and its questions", () => {
+    const entries = ["components/calendar/seriesChanges.ts", "lib/calendar/deleteEvent.ts"]
+    const { files, packages } = walk(entries) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "hooks/usePost.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
+  })
+})
+
+// A board's frames as slides (miro-28): the bar and the outline come once someone presents (boardFacilitation's and a
+// guest's lazyPiece), so no route's first screen carries them, and the chunk reaches no shared core (LEAD-RULES,
+// 30 Oct 00:13): it reads the scene and the Frames panel's order, and writes nothing.
+describe("a board's slides", () => {
+  it("are on no first screen, and their chunk reaches no shared core", () => {
+    const pieces = ["components/board/boardSlides.tsx", "components/board/slideBar.tsx", "components/board/presentFrame.ts"]
+    const routes = pagesAndLayouts("app")
+    expect(routes).toContain("app/app/board/[board-id]/page.tsx")
+    expect(routes.flatMap((r) => pieces.filter((p) => reach(r).has(p)).map((p) => `${r}: ${p}`))).toEqual([])
+    const { files, packages } = walk(["components/board/boardSlides.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(files.has("lib/calls/slides.ts")).toBe(true)
+    expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "hooks/usePost.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
+  })
+
+  // Polls on a slide (miro-28 to_win 4): the slide's poll card, its composer and their votes, closes and starts come in
+  // a piece of their own, loaded once the slide's frame has a poll or the presenter opens Add a poll, which reaches no
+  // shared core: the page hands its client down (http), and chat's poll choices come through their pure module.
+  it("leave a slide's poll to a piece of its own, which reaches no shared core", () => {
+    const piece = "components/board/slidePoll.tsx"
+    const routes = pagesAndLayouts("app")
+    expect(routes).toContain("app/app/board/[board-id]/page.tsx")
+    expect(routes.filter((r) => reach(r).has(piece))).toEqual([])
+    expect(readFileSync("components/board/boardSlides.tsx", "utf8").match(/lazyPiece\(\(\) => import\("@\/components\/board\/slidePoll"\)/g)).toHaveLength(1)
+    for (const entry of [piece, "components/board/useSlidePolls.ts", "components/poll/PollChoices.tsx"]) {
+      const { files, packages } = walk([entry]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+      expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "hooks/usePost.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+      expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
+    }
+    // A guest's ticks go through the app's one guest poller in its lean module, never guestUi (date-fns, ui parts).
+    const { files } = walk(["components/board/useSlidePolls.ts"]) as { files: Map<string, string | null> }
+    expect(files.has("components/guest/guestPoll.ts")).toBe(true)
+    expect(files.has("components/guest/guestUi.tsx")).toBe(false)
   })
 })
 
@@ -628,6 +722,9 @@ const SHELL_LAZY = [
   "components/split/FocusPill.tsx",
   "lib/ui/dnd.ts",
   "lib/flip.ts",
+  // A field kept in sight over the keyboard: each surface's own lazy chunk
+  // brings it, never the Drawer nor OverlayBody (the phone pair, 11 Nov).
+  "lib/ui/fieldInSight.ts",
 ]
 const ROOT_LAZY = [
   // The realtime provider and its handlers: the offline notice reads the
@@ -763,10 +860,10 @@ describe("the Redux store outside the app", () => {
 // before anything was clicked: 137 KB of its 464 KB of scripts (gzip), through
 // the camera preview (PreJoin) and the stage's pieces (CallStage). The preview
 // asks for the client as it mounts, and a tile's LiveKit pieces live with the
-// tile (StageTile), in the call's own chunk.
+// tile (StageTile, TileBody), in the call's own chunk.
 describe("a green room's first load", () => {
   it("brings no LiveKit: the call's client comes after the page", () => {
-    const rooms = ["app/r/[slug]/page.tsx", "app/guest/m/[token]/page.tsx", "app/app/meet/join/r/[slug]/page.tsx"]
+    const rooms = ["app/r/[slug]/page.tsx", "app/guest/m/[token]/page.tsx", "app/app/meet/join/r/[slug]/page.tsx", "app/app/meet/e/[id]/page.tsx"]
     const livekit = /^(livekit-client|@livekit\/)/
     expect(
       rooms.flatMap((room) => {
@@ -814,6 +911,28 @@ describe("a board's first screen", () => {
     expect(lazy.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
     expect(lazy.filter((f) => !existsSync(f))).toEqual([])
     expect(reached.has("lib/board/privateMode.ts")).toBe(true)
+  })
+
+  // The board's calls (miro-27 H5b1): the Call button, its list and what each call kept come in a chunk of their own,
+  // drawn after the board's first load, which reaches none of the shared core: the page hands it its client and the
+  // one player's opener. ONE path in (LEAD-RULES, 30 Oct 00:13): HubError says a failed read through
+  // lib/http/loadFailure, which reads hooks/use-toast, as the holds card's error does. Every other path is refused.
+  const CALLS_CORE_PATH = { file: "hooks/use-toast.ts", importer: "lib/http/loadFailure.ts" }
+  it("leaves the board's calls to a chunk of their own, which reaches none of the shared core", () => {
+    const page = "app/app/board/[board-id]/page.tsx"
+    const reached = reach(page)
+    // H5b2: Start a call in... and its pure part ride in the same chunk.
+    const lazy = ["components/board/boardCall.tsx", "components/board/boardCallStart.tsx", "lib/calls/boardCallStart.ts", "lib/calls/boardCall.ts", "lib/calls/playerUrls.ts", "lib/calls/recordingFileName.ts", "lib/calls/callArtefacts.ts", "components/recording/callArtefactList.tsx", "services/endpoints/boards.calls.ts"]
+    expect(lazy.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
+    expect(lazy.filter((f) => !existsSync(f))).toEqual([])
+    expect(readFileSync(page, "utf8").match(/lazyPiece\(\(\) => import\("@\/components\/board\/boardCall"\)\)/g)).toHaveLength(1)
+    const allowed = (file: string, importer: string) => file === CALLS_CORE_PATH.file && importer === CALLS_CORE_PATH.importer
+    const { files, packages } = walk(["components/board/boardCall.tsx"], { follow: (file: string, importer: string) => !allowed(file, importer) }) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/usePost.ts", "hooks/use-toast.ts", "components/ui/error-state.tsx", "components/ui/empty-state.tsx", "components/ui/graphics/index.ts", "store/slice/uiSlice.ts"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/|sonner)/.test(spec))).toEqual([])
+    const whole = walk(["components/board/boardCall.tsx"]).files as Map<string, string | null>
+    expect(chainOf(whole, CALLS_CORE_PATH.file)).toBe("hooks/use-toast.ts <- lib/http/loadFailure.ts <- components/activity/hubEmpty.tsx <- components/board/boardCall.tsx")
   })
 })
 
@@ -911,12 +1030,65 @@ describe("the task templates' manager", () => {
   // import() of its own: from the manager's group it was a new async group, and the /app shell re-cut on every /app
   // route (39 -> 40 chunks, +~930 B; bisect-tt3f), even with the menu's parts also imported at once (measure-e). The
   // lazy edges below are the shared pieces' own (the dialog's and the Select's phone sheets, the date field's panels and
-  // sheet, the disabled tip, the Undo toast), with which the shell measured clean (bisect-tt3f variant A, 3 Nov). A new
-  // one is measured before it lands.
+  // sheet, the disabled tip, the Undo toast; the tooltip's Radix side, H2 5 Nov), with which the shell measured clean
+  // (bisect-tt3f variant A, 3 Nov; the tooltip's, the H2 size build). A new one is measured before it lands.
   it("opens no lazy chunk of its own from what it loads at once: the /app shell keeps its chunks", () => {
     const { files } = walk(["components/task/TaskTemplatesManager.tsx"]) as { files: Map<string, string | null> }
-    const measured = ["components/ui/date-field-panels.tsx", "components/ui/date-field-sheet.tsx", "components/ui/disabledTip.tsx", "components/ui/responsive-sheet.tsx", "components/ui/selectSheet.tsx", "components/ui/undoToast.tsx"]
+    const measured = ["components/ui/date-field-panels.tsx", "components/ui/date-field-sheet.tsx", "components/ui/disabledTip.tsx", "components/ui/responsive-sheet.tsx", "components/ui/selectSheet.tsx", "components/ui/tooltipBridge.tsx", "components/ui/undoToast.tsx"]
     const lazy = [...files.keys()].flatMap((file) => [...sourceOf(file).matchAll(dynamicImportRe)].map((m) => [resolve(m[1], file) ?? m[1], file]))
     expect(lazy.filter(([target]) => !measured.includes(target)).map(([target, file]) => `${target} <- ${chainOf(files, file)}`)).toEqual([])
+  })
+})
+
+// The PWA install card (FLUIDITY-13, 5 Nov 2026). Both 404 views draw through lib/lazy/lazyPiece, which only the
+// /app groups reached at once: the root not-found group and the /app groups each merged a copy, and 91 of 93 routes
+// downloaded it twice (routes.mjs --check, module 574821, ~895 B raw, at web 088cd5b4d). The root layout's providers
+// draw the PWA prompt on every page, and its card's words and buttons are a real lazy piece: drawn through lazyPiece,
+// they put lazyPiece on the root layout's first load, where every other group finds it. The prompt keeps the corner
+// and the logo: with them in the chunk, next/image and the corner stack left the root, and 26 page chunks each merged
+// a copy of next/image (+495 KB of output, app -> chat +5,296 B; b6 at 4da19caba, 5 Nov). So the chunk brings nothing
+// the root lacks, and reaches no shared core (LEAD-RULES, 30 Oct 00:13).
+describe("the PWA install card", () => {
+  const ROOT = "app/layout.tsx"
+  const PROMPT = "components/pwa/PwaInstallPrompt.tsx"
+  const BODY = "components/pwa/pwaInstallCard.tsx"
+
+  it("draws its words and buttons through lazyPiece, which the root layout then carries for every group", () => {
+    const root = reach(ROOT)
+    expect(chainOf(root, PROMPT)).toBe(`${PROMPT} <- components/providers/ClientProviders.tsx <- ${ROOT}`)
+    expect(root.has("lib/lazy/lazyPiece.tsx"), "lazyPiece on the root layout's first load").toBe(true)
+    expect(root.has(BODY), "the card's body on the root layout's first load").toBe(false)
+    expect(sourceOf(PROMPT)).toMatch(/lazyPiece\(\(\) => import\("\.\/pwaInstallCard"\)/)
+  })
+
+  it("keeps the corner and the logo on the root, so next/image and the corner stack stay there", () => {
+    const { files, packages } = walk([ROOT]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(files.get("components/ui/CornerStack.tsx")).toBe(PROMPT)
+    expect(packages.filter(([spec]) => spec === "next/image").map(([, file]) => file)).toContain(PROMPT)
+  })
+
+  it("brings nothing in its chunk that the root lacks, and reaches no shared core", () => {
+    const root = walk([ROOT]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    const rootPackages = new Set(root.packages.map(([spec]) => spec))
+    const { files, packages } = walk([BODY]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect([...files.keys()].filter((f) => f !== BODY && !root.files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => !rootPackages.has(spec))).toEqual([])
+    const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "components/ui/error-state.tsx", "components/ui/empty-state.tsx", "components/ui/graphics/index.ts"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    // And it opens no lazy chunk of its own.
+    expect([...files.keys()].filter((f) => [...sourceOf(f).matchAll(dynamicImportRe)].length > 0)).toEqual([])
+  })
+})
+
+// The free plan's limit note (ADMIN-02) shows only near or at the limit: Members, a placeholder's profile and the invite
+// and import dialogs draw it through components/admin/plan/LimitNote, so no first screen carries its code, and its chunk
+// reaches no shared core (LEAD-RULES, 30 Oct 00:13): the screen that draws it hands it the plan.
+describe("the limit note", () => {
+  const NOTE = "components/admin/plan/SeatLimitNote.tsx"
+  it("is on no first screen, and its chunk reaches no shared core", () => {
+    for (const page of ["app/app/admin/page.tsx", "app/app/user/[user-id]/page.tsx"]) expect(routeReach(page).has(NOTE), page).toBe(false)
+    const { files } = walk([NOTE]) as { files: Map<string, string | null> }
+    const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "components/ui/error-state.tsx", "components/ui/empty-state.tsx", "components/ui/graphics/index.ts", "store/slice/uiSlice.ts"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
   })
 })

@@ -3,6 +3,7 @@ import { Popover, PopoverTrigger } from "@/components/ui/popover"
 import {StandardReaction, SyncCustomReaction} from "@/types/reaction";
 import { Suspense, useRef, useState } from "react";
 import { lazyPiece } from "@/lib/lazy/lazyPiece";
+import { useLatch } from "@/hooks/useLatch";
 
 export interface ReactionPickerPopoverProps {
     showCustomReactions : boolean
@@ -21,12 +22,11 @@ export function ReactionPickerPopover({showCustomReactions, onReactionSelect, se
     const triggerRef = useRef<HTMLButtonElement>(null)
     const [popOpened, setPopOpened] = useState(false)
     // Once opened, kept: it plays its closing motion.
-    const [used, setUsed] = useState(false)
+    const used = useLatch(popOpened)
 
     const stateChange = (b: boolean) => {
 
         setPopOpened(b)
-        if (b) setUsed(true)
 
         if(setPopupState) setPopupState(b)
     }

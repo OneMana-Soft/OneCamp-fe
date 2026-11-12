@@ -8,6 +8,7 @@
 import type { ReactNode } from "react"
 import type { TaskInfoInterface } from "@/types/task"
 import { priorities } from "@/types/table"
+import { NO_PRIORITY } from "@/types/taskScale"
 import { NO_ASSIGNEE, groupByAssignee } from "@/lib/board/groupBy"
 
 export type BoardLanes = "none" | "assignee" | "priority"
@@ -71,16 +72,21 @@ export function assigneeLanes(
   }
 }
 
-/** A task saved without a priority sits with Medium, as its card shows it. */
-const priorityOf = (t: TaskInfoInterface) => (priorities.some((p) => p.value === t.task_priority) ? t.task_priority : "medium")
+/** No priority's lane: a lane's id is never "", the key of a cell in no lane. */
+export const NO_PRIORITY_LANE = "none"
 
-/** Lanes by priority, most urgent first. */
+/** The priority a lane gives a task made in it or moved into it. */
+export const laneToPriority = (lane: string) => (lane === NO_PRIORITY_LANE ? "" : lane)
+
+/** A task with no priority (or one this build doesn't know) sits in No priority's lane, as its card shows none. */
+const priorityOf = (t: TaskInfoInterface) => (priorities.some((p) => p.value === t.task_priority) ? t.task_priority : NO_PRIORITY_LANE)
+
+/** Lanes by priority, most urgent first, No priority last. */
 export function priorityLanes(byStatus: Record<string, TaskInfoInterface[]>, hideEmpty: boolean, iconFor?: (id: string) => ReactNode): LaneSpec {
   const used = new Set<string>()
   for (const tasks of Object.values(byStatus)) for (const t of tasks) used.add(priorityOf(t))
   return {
-    list: [...priorities]
-      .reverse()
+    list: [...[...priorities].reverse(), { value: NO_PRIORITY_LANE, label: NO_PRIORITY.label }]
       .filter((p) => !hideEmpty || used.has(p.value))
       .map((p) => ({ id: p.value, label: p.label, icon: iconFor?.(p.value) })),
     laneOf: priorityOf,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
-import { categoryKind, nextLabelColor, periodOf, periodsOfYear, spanWords, whenOf, whenWords, type PlanWhen } from "@/lib/work/projectPlan"
+import { categoryKind, mayLead, nextLabelColor, periodOf, periodsOfYear, spanWords, whenOf, whenWords, type PlanWhen } from "@/lib/work/projectPlan"
 
 pinTestClock()
 
@@ -69,5 +69,20 @@ describe("a plan's status and labels as they draw", () => {
     expect(hues).not.toContain("slate")
     expect(new Set(hues.slice(0, 6)).size).toBe(6)
     expect(hues[6]).toBe(hues[0])
+  })
+})
+
+// V-530 (4): the lead picker's rule was written inline in its picker.
+describe("who may lead a project", () => {
+  const m = (over: object) => ({ user_uuid: "u1", user_name: "sam", user_project_role: "member", ...over })
+  it("is a workspace member who can edit in it", () => {
+    expect(mayLead(m({}))).toBe(true)
+    expect(mayLead(m({ user_project_role: "admin" }))).toBe(true)
+  })
+  it("is never a guest, a bot, a viewer or a commenter", () => {
+    expect(mayLead(m({ is_external: true }))).toBe(false)
+    expect(mayLead(m({ is_bot: true }))).toBe(false)
+    expect(mayLead(m({ user_project_role: "viewer" }))).toBe(false)
+    expect(mayLead(m({ user_project_role: "commenter" }))).toBe(false)
   })
 })

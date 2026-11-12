@@ -8,6 +8,7 @@
 // who had gone to a room.
 
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
+import type { RecordingSeen } from "./RecordingNotice"
 
 /** Someone this screen has seen in the call: who they are, and the name it showed. */
 export interface SeenPerson {
@@ -27,6 +28,9 @@ export interface KeptThroughMoves {
   /** The captions session whose captions this person hid; captions come back with the next session. */
   hiddenFor: number | null
   setHiddenFor: Dispatch<SetStateAction<number | null>>
+  /** The recording whose notice this person read, or which they started: told once per recording (CALLS-07, RecordingSeen). */
+  recordingSeen: RecordingSeen | null
+  setRecordingSeen: Dispatch<SetStateAction<RecordingSeen | null>>
   /**
    * Everyone this screen has seen in the call, by identity. Someone in
    * another room isn't in yours, so their name is the one from when they
@@ -41,9 +45,10 @@ export function useKeptThroughMoves(): KeptThroughMoves {
   const [noticeDismissed, setNoticeDismissed] = useState<number | null>(null)
   const [notMe, setNotMe] = useState(false)
   const [hiddenFor, setHiddenFor] = useState<number | null>(null)
+  const [recordingSeen, setRecordingSeen] = useState<RecordingSeen | null>(null)
   const seen = useRef(new Map<string, SeenPerson>()).current
   return useMemo(
-    () => ({ joinedAt, noticeDismissed, setNoticeDismissed, notMe, setNotMe, hiddenFor, setHiddenFor, seen }),
-    [joinedAt, noticeDismissed, notMe, hiddenFor, seen],
+    () => ({ joinedAt, noticeDismissed, setNoticeDismissed, notMe, setNotMe, hiddenFor, setHiddenFor, recordingSeen, setRecordingSeen, seen }),
+    [joinedAt, noticeDismissed, notMe, hiddenFor, recordingSeen, seen],
   )
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { addDays, format, isSameDay, isWeekend, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
 import { useStableRows } from "@/lib/ui/stableRows";
@@ -11,7 +11,7 @@ import { HueBlock, dragPlaceholderClasses, hueBlock } from "@/components/calenda
 import { useProjectHues } from "@/lib/projectHue";
 import { NowLine, useMinute } from "@/components/calendar/NowLine";
 import { kindOf, type CalendarItemLike } from "@/components/calendar/calendarTones";
-import { atMinutes, clickRange, createRange, durationLabel, keyNudge, minutesAt, moveRange, resizeRange, DAY_MINUTES } from "@/lib/calendar/calendarDrag";
+import { atMinutes, clickRange, createRange, durationLabel, keyNudge, minutesAt, moveRange, resizeRange, wallMinutes, DAY_MINUTES, GHOST_LOOK } from "@/lib/calendar/calendarDrag";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
 import type { ViewChoices } from "@/lib/calendar/choices";
@@ -24,6 +24,7 @@ import { onDragCancel } from "@/lib/ui/dragCancel";
 import { PRESS_LIFT, holdLifted, pressBecomes } from "@/lib/ui/pressLift";
 import type { edgeScroller } from "@/lib/ui/edgeScroll";
 import { useStableCallback } from "@/hooks/useStableCallback";
+import { waitingOn } from "@/lib/tasks/waitingOn";
 import { swallowReleaseClick } from "@/lib/ui/releaseClick";
 import { once } from "@/lib/lazy/once";
 
@@ -160,8 +161,14 @@ interface WeekViewProps {
   onTaskClick: (uuid: string) => void;
   /** A task carried from the all-day lane onto the hours: block that time for it. */
   onTaskBlock?: (taskUUID: string, start: Date, end: Date) => void;
+  /** Filled with the carry the Tasks list's rows start: the lane's own drag, for the task's length. */
+  carry?: MutableRefObject<CarryTask | null>;
+  /** Drawn in each day's column over its events: "Plan my week"'s proposed blocks. */
+  layer?: DayLayer;
   /** Commit a move or a resize (the existing update call). */
   onEventChange?: (uuid: string, start: Date, end: Date) => void;
+  /** A move by Alt and the arrows, where the host sends a burst as one (D-1); else onEventChange. */
+  onEventNudge?: (uuid: string, start: Date, end: Date) => void;
   /** Whether an event may be moved here (its organiser's). */
   canMove?: (uuid: string) => boolean;
   /** Search: blocks whose title doesn't match drop to 25 %. */
@@ -222,11 +229,6 @@ export function packDay<T extends { topMin: number; endMin: number; col: number;
   return result;
 }
 
-/** Minutes since midnight on the clock: what the hour lines and atMinutes count. Pure. */
-export function wallMinutes(d: Date): number {
-  return d.getHours() * 60 + d.getMinutes();
-}
-
 /**
  * Where a block sits across its day: its columns' share of the width inside a
  * 2 px margin, with a 2 px gap before the next column's block. Pure.
@@ -240,11 +242,12 @@ export function blockGeometry(col: number, cols: number, span = 1): { left: stri
 
 type Drag =
   | { kind: "create"; day: number; pressMin: number; curMin: number; moved: boolean; touch: boolean }
-  // A task carried from the all-day lane: lifted as a block is, an hour about the pointer.
+  // A task carried from the all-day lane (an hour) or the Tasks list (its estimate): lifted as a block is, about the pointer.
   | {
       kind: "task";
       uuid: string;
       title: string;
+      len: number;
       pressX: number;
       pressY: number;
       touch: boolean;
@@ -279,6 +282,11 @@ type Drag =
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+/** What a day's column draws over its events, placed on its hours by at and tall; keep(selector) puts the focus back on a block a move drew anew. */
+export type DayLayer = (day: Date, at: (min: number) => string, tall: (min: number, least: number) => string, keep: (sel: string) => void) => ReactNode;
+/** Starts the week's carry of a task from beside the grid, at the pointer that pressed it (gcal-new-task-blocks T1). */
+export type CarryTask = (task: { uuid: string; title: string; minutes: number }, at: { pointerId: number; pointerType: string; clientX: number; clientY: number }) => void;
+
 export const WeekView = memo(function WeekView({
   weekStart,
   dayCount = 7,
@@ -296,7 +304,10 @@ export const WeekView = memo(function WeekView({
   onEventMenu,
   onTaskClick,
   onTaskBlock,
+  carry: carryRef,
+  layer,
   onEventChange,
+  onEventNudge,
   canMove,
   matches,
   rail,
@@ -477,7 +488,8 @@ export const WeekView = memo(function WeekView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hour, density]);
 
-  const blank = !loading && allDayByDay.every((d) => d.length === 0) && timedByDay.every((d) => d.length === 0);
+  // A layer (the plan's proposals) is the week's own content while it is drawn.
+  const blank = !loading && !layer && allDayByDay.every((d) => d.length === 0) && timedByDay.every((d) => d.length === 0);
   const todayIndex = days.findIndex((d) => isSameDay(d, now));
   const nowTopMin = now.getHours() * 60 + now.getMinutes();
   const gutter = gutterWidth(zones.length);
@@ -553,12 +565,10 @@ export const WeekView = memo(function WeekView({
   };
 
   // The columns hold the pointer, so the carry reaches the hours' handlers.
-  const onLanePointerDown = (e: React.PointerEvent<HTMLElement>, it: AllDayItem) => {
-    if (e.button !== 0 || !it.isTask || !onTaskBlock) return;
-    e.stopPropagation();
+  const carry = useStableCallback<Parameters<CarryTask>, void>(({ uuid, title, minutes: len }, e) => {
     colsRef.current?.setPointerCapture?.(e.pointerId);
     const touch = e.pointerType === "touch";
-    setD({ kind: "task", uuid: it.uuid, title: it.title, pressX: e.clientX, pressY: e.clientY, touch, held: false, active: false, over: false, curDay: 0, curStart: 0, curEnd: 60 }, false);
+    setD({ kind: "task", uuid, title, len, pressX: e.clientX, pressY: e.clientY, touch, held: false, active: false, over: false, curDay: 0, curStart: 0, curEnd: len }, false);
     clearTimeout(holdTimer.current);
     if (touch) {
       holdTimer.current = setTimeout(() => {
@@ -566,7 +576,17 @@ export const WeekView = memo(function WeekView({
         if (cur && cur.kind === "task" && !cur.active) setD({ ...cur, held: true, active: true });
       }, PRESS_LIFT.hold);
     }
+  });
+  const onLanePointerDown = (e: React.PointerEvent<HTMLElement>, it: AllDayItem) => {
+    if (e.button !== 0 || !it.isTask || !onTaskBlock) return;
+    e.stopPropagation();
+    carry({ uuid: it.uuid, title: it.title, minutes: 60 }, e);
   };
+  useEffect(() => {
+    if (!carryRef || !onTaskBlock) return;
+    carryRef.current = carry;
+    return () => void (carryRef.current === carry && (carryRef.current = null));
+  }, [carryRef, onTaskBlock, carry]);
 
   // A block lifted from its slot holds the pointer: the page doesn't scroll
   // under a finger, and no context menu opens until it lands.
@@ -640,7 +660,7 @@ export const WeekView = memo(function WeekView({
       const g = scrollRef.current?.getBoundingClientRect();
       const c = colsRef.current?.getBoundingClientRect();
       const over = !!g && !!c && y >= g.top && y <= g.bottom && x >= c.left && x <= c.right;
-      const r = moveRange(0, 60, m - 30);
+      const r = moveRange(0, d.len, m - d.len / 2);
       const curDay = columnAt(x);
       if (!d.active || over !== d.over || curDay !== d.curDay || r.startMin !== d.curStart) {
         setD({ ...d, active: true, over, curDay, curStart: r.startMin, curEnd: r.endMin });
@@ -745,10 +765,12 @@ export const WeekView = memo(function WeekView({
   };
 
   // The keyboard's move (Alt+↑↓ 15 minutes, Alt+←→ a day, Alt+Shift+↑↓ the
-  // end): sent as a drag's is, with its toast and Undo. The block is drawn
+  // end): sent as a drag's is, with its toast and Undo, a burst of them as one
+  // where the host takes nudges (onEventNudge, D-1). The block is drawn
   // again where it lands (another day's column is another element), so the
-  // focus follows it there.
-  const refocus = useRef<{ uuid: string; until: number } | null>(null);
+  // focus follows it there: keep(selector), which a layer's own block asks for too.
+  const refocus = useRef<{ sel: string; until: number } | null>(null);
+  const keep = (sel: string) => void (refocus.current = { sel, until: Date.now() + 1500 });
   const nudge = (e: React.KeyboardEvent, it: TimedItem, di: number) => {
     const n = keyNudge(e);
     if (!n || !onEventChange) return;
@@ -760,8 +782,8 @@ export const WeekView = memo(function WeekView({
     if (!n.days && r.startMin === start && r.endMin === end) return;
     const day = addDays(days[di], n.days);
     // For a moment: the move is drawn at once, so the block is redrawn within it.
-    refocus.current = { uuid: it.uuid, until: Date.now() + 1500 };
-    onEventChange(it.uuid, atMinutes(day, r.startMin), atMinutes(day, r.endMin));
+    keep(`[data-event-uuid="${CSS.escape(it.uuid)}"]`);
+    (onEventNudge ?? onEventChange)(it.uuid, atMinutes(day, r.startMin), atMinutes(day, r.endMin));
   };
   useLayoutEffect(() => {
     const pending = refocus.current;
@@ -773,7 +795,7 @@ export const WeekView = memo(function WeekView({
     // Only where the redraw took the focus away: never from a dialog the move
     // opened (a booked meeting asks first), and never from anything else.
     const lost = !document.activeElement || document.activeElement === document.body;
-    const el = colsRef.current?.querySelector<HTMLElement>(`[data-event-uuid="${CSS.escape(pending.uuid)}"]`);
+    const el = colsRef.current?.querySelector<HTMLElement>(pending.sel);
     if (!lost) return;
     // Past the days shown (the week's edge, or the day view's day), the block
     // is gone: the keyboard stays in the calendar, on its grid. The toast says
@@ -1033,11 +1055,13 @@ export const WeekView = memo(function WeekView({
                       />
                     ))}
 
+                    {layer?.(day, at, tall, keep)}
+
                     {/* The draft ghost: brand at 14 %, a brand bar, a dashed ring. */}
                     {ghost && ghost.day === di ? (
                       <div
                         data-calendar-ghost=""
-                        className="pointer-events-none absolute inset-x-[2px] z-30 overflow-hidden rounded-md border border-dashed border-brand bg-brand/14 py-1 pl-[9px] pr-1.5"
+                        className={`pointer-events-none absolute inset-x-[2px] z-30 overflow-hidden py-1 pl-[9px] pr-1.5 ${GHOST_LOOK}`}
                         style={{ top: at(ghost.startMin), height: tall(ghost.endMin - ghost.startMin, 12) }}
                       >
                         <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-brand" />
@@ -1149,7 +1173,7 @@ const TimedBlock = memo(function TimedBlock({
     variant: "block",
     past,
     live,
-    "aria-label": `${it.title}, ${time}`,
+    "aria-label": `${it.title}, ${time}${it.event_task?.task_blocked_open ? `, ${waitingOn(it.event_task.task_blocked_open).toLowerCase()}` : ""}`,
     // Under 45 minutes its words may be cut at some density: all of them on hover.
     title: endMin - startMin < 45 ? `${it.title} · ${time}` : undefined,
     onPointerDown: (e) => act.down(e, it, di, "move"),

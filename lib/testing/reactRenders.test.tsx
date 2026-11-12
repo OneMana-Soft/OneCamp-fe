@@ -18,6 +18,21 @@ describe("the render count", () => {
     expect(renders.top()).toBe("Greeting 1")
   })
 
+  // A count by name that nothing has had would read 0 whatever drew (a typo, a rename, or the test bundle's name for
+  // memo(function X) bound to X, "X2"), and a budget of 0 would pass on it.
+  it("counts by name, and throws on a name nothing has drawn as since counting began", () => {
+    function Greeting() {
+      return <p>Hello</p>
+    }
+    renders.reset()
+    render(<Greeting />)
+    expect(renders.of("Greeting")).toBe(1)
+    renders.reset()
+    expect(renders.of("Greeting")).toBe(0)
+    expect(() => renders.of("Greting")).toThrow(/nothing named "Greting" has drawn/)
+    expect(() => renders.of("Greet")).toThrow(/\(drawn: Greeting\)/)
+  })
+
   // React drops an error the hook throws, so a commit the walk couldn't count
   // would leave a short count that a budget passes on.
   it("throws when a commit couldn't be counted, until it starts again", () => {

@@ -1,7 +1,8 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { memo, useCallback, useLayoutEffect, useState } from "react"
+import { memo, useCallback, useLayoutEffect } from "react"
+import { useLatch } from "@/hooks/useLatch"
 import { usePathname } from "next/navigation"
 import { ArrowLeft, ArrowLeftRight, ArrowRight, Columns3, Link2, Maximize2, Minimize2, MoreHorizontal, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
@@ -98,8 +99,7 @@ export const SplitPane = memo(function SplitPane({ pane, index, at, count, activ
   const key = paneKey(pane)
   const title = useViewLook(key, pane).name
   // A view tucked away when the page loaded draws the first time it shows.
-  const [seen, setSeen] = useState(shown)
-  if (shown && !seen) setSeen(true)
+  const seen = useLatch(shown)
   // Tells the arrange layer its handle's slot is here (this loads after it).
   useLayoutEffect(() => {
     window.dispatchEvent(new Event("split:slots"))
@@ -177,7 +177,7 @@ export const SplitPane = memo(function SplitPane({ pane, index, at, count, activ
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar" data-list-scroller="">
         {/* The page's address is the main view's: a pane never reads its link (FE-BUG-12). */}
         {seen && (
           <InSplitPaneContext.Provider value={true}>

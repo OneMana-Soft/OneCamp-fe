@@ -135,3 +135,28 @@ describe("a burndown in points", () => {
     expect(loadNote(b, v, "points")).toBe("The last 2 cycles finished 5 tasks on average; this one holds 6 tasks.")
   })
 })
+
+// jira-04: a release's burndown is drawn by the same code, in its own words.
+// A release with no target day has no ideal (ideal* null): no line is drawn
+// for it and no pace is said, only what's left.
+describe("a release's burndown", () => {
+  const r: Burndown = { ...b, ideal: null, ideal_hours: null, ideal_points: null }
+
+  it("names the scope after the release, and draws no ideal line without a target day", () => {
+    expect(burndownChart(b, "tasks", "release").series.map((s) => s.name)).toEqual(["Ideal pace", "In the release", "Still to do"])
+    const chart = burndownChart(r, "tasks", "release")
+    expect(chart.series.map((s) => s.name)).toEqual(["In the release", "Still to do"])
+    expect(chart.title).toBe("Still to do each day")
+    // Hours still count with no ideal for them.
+    expect(burndownUnits(r)).toEqual(["tasks", "hours"])
+    expect(burndownChart(r, "hours", "release").series.at(-1)!.values.slice(0, 4)).toEqual([10, 8, 10, 6])
+  })
+
+  it("says what's left with no pace when there's no target day, and a release that's out in its own words", () => {
+    expect(paceNote(r, "tasks", "current", "release")).toBe("4 tasks left. With no target date, there's no pace to measure against.")
+    expect(paceNote(r, "hours", "current", "release")).toBe("6 h left. With no target date, there's no pace to measure against.")
+    expect(paceNote(b, "tasks", "completed", "release")).toBe("Released with 4 tasks unfinished.")
+    expect(paceNote({ ...b, open: 0 }, "tasks", "completed", "release")).toBe("Released with everything done.")
+    expect(paceNote(b, "tasks", "ended", "release")).toBe("On pace: 4 tasks left, and the ideal pace has 4 tasks by its target date.")
+  })
+})

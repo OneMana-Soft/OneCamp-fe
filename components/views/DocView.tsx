@@ -48,7 +48,7 @@ import { DocAccessRequests } from "@/components/docEditor/DocAccessRequests";
 import { warmCollabToken } from "@/lib/collabToken";
 import { onEscape } from "@/lib/keys/onEscape";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { useLaterActions, useSavedEntry } from "@/hooks/useLater";
+import { useRemindMe } from "@/components/later/useRemindMe";
 import "@/components/docEditor/registry";
 import { DocBusContext, provideActionContext, providePaletteEntries, useDocCommand, useDocCommandBus } from "@/components/docEditor/registry/commandBus";
 import { paletteEntriesFor } from "@/components/docEditor/registry/readers";
@@ -274,9 +274,9 @@ export function DocView({ docId }: { docId: string }) {
 
     const rootRef = React.useRef<HTMLDivElement>(null);
 
-    // Save for later (L, and More's item): the doc in the member's Later list.
-    const saved = useSavedEntry("doc", docId);
-    const { save: saveLater, remove: removeLater } = useLaterActions();
+    // Save for later (L, More) and Remind me…: the doc in the member's Later list, titled when saved.
+    const later = useRemindMe({ itemType: "doc", itemId: docId, link: `/app/doc/${docId}`, get title() { return titleStore.get() || "Untitled doc" } });
+    const { saved, remindMe } = later;
 
     // Stable, like every prop the editor gets: it's memoised, so the page's
     // own changes (presence, scrolling, the save dot) don't render it again.
@@ -388,10 +388,6 @@ export function DocView({ docId }: { docId: string }) {
     // Every action (More, the phone's sheet, the bars, the page's keys, the
     // palette) asks through the bus; the page keeps the state they show.
     const bus = useDocCommandBus(docId, editor);
-    const toggleSaved = React.useCallback(() => {
-        if (saved) void removeLater(saved.id).catch(() => {});
-        else void saveLater({ item_type: "doc", item_id: docId, link: `/app/doc/${docId}`, title: titleStore.get() || "Untitled doc", remind_at: null }).catch(() => {});
-    }, [saved, removeLater, saveLater, docId, titleStore]);
     // Who may open Share: the header's button and the phone's sheet ask this
     // one rule (QA DSA-14: the sheet offered it to readers). B6: an editor
     // opens Share too, to invite up to Can edit; full access changes
@@ -415,7 +411,7 @@ export function DocView({ docId }: { docId: string }) {
     useDocCommand(bus, 'toggle', ({ what }) => {
         if (what === 'focusMode') setFocusMode((f) => !f);
         else if (what === 'fullWidth') toggleFullWidth();
-        else if (what === 'saved') toggleSaved();
+        else if (what === 'saved') void later.toggle();
         else if (what === 'shortcuts') setShowShortcuts((prev) => !prev);
     });
     // Comment on the selection: the doc's comments, with it quoted, unless a
@@ -441,8 +437,9 @@ export function DocView({ docId }: { docId: string }) {
     const openDialog = React.useCallback((id: string) => {
         if (id === 'doc.share') dispatch(openUI({ key: 'docShare', data: docId }));
         else if (id === 'doc.rename') dispatch(openUI({ key: 'docUpdateTitle', data: { docId, title: titleStore.get() } }));
+        else if (id === 'doc.remindMe') remindMe();
         else if (dialogFor(id, gate)) setDialogId(id);
-    }, [dispatch, docId, titleStore, gate]);
+    }, [dispatch, docId, titleStore, gate, remindMe]);
     useDocCommand(bus, 'openDialog', ({ id }) => openDialog(id));
     // A package's dialog asked for by a window event naming this doc (A7's
     // import, until it asks on the bus): this page claims it.
@@ -642,6 +639,7 @@ export function DocView({ docId }: { docId: string }) {
 
             <DocShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} gate={gate} />
             {dialogId && <DialogOutlet id={dialogId} docId={docId} gate={gate} onClose={() => setDialogId(null)} />}
+            {later.picker}
             {sheetPanel && (
                 <React.Suspense fallback={null}>
                     <PanelSheet kind={sheetPanel} docId={docId} gate={gate} onClose={() => setSheetPanel(null)} />

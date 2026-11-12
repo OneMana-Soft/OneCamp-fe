@@ -1,4 +1,4 @@
-import { expect, type Browser, type BrowserContextOptions, type Page, type Request, type Route, type TestInfo } from "@playwright/test"
+import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Request, type Route, type TestInfo } from "@playwright/test"
 
 import { brokerOn, mqttConfig, SAM, stubBackend } from "../stubbedApp"
 
@@ -49,8 +49,28 @@ export interface ViewQuery {
 /** Where the table's files are served from in a test (a test answers it on its context). */
 export const FILES_HOST = "https://files.e2e.test"
 
+/** A window's cursor as a spec reads it: "after" the place in the table of the last row read before it (the row it names); "" for none. */
+export function afterOf(cursor?: string): string {
+  if (!cursor) return ""
+  const keys = (JSON.parse(Buffer.from(cursor, "base64url").toString()) as { v: unknown[] }).v
+  return `after ${keys[keys.length - 2]}`
+}
+
 /** Rows the bundle carries, as the API's does. */
 const BUNDLE_ROWS = 500
+
+/** The most rows, or cells, one read by id names (business/DataTable MaxRowsByID). */
+const MOST_BY_ID = 500
+
+/** Fields a row's own facts fill: its number, who made or last changed it, and when (business/DataTable rowStamp). */
+const STAMPS = new Set(["autonumber", "created_time", "created_by", "modified_time", "modified_by"])
+
+/**
+ * Whether every read works a field out (business/DataTable readsWorkOut): a
+ * formula, a rollup, a link to a table, or a row's stamp. A read of a row's
+ * named cells (tables L1) carries these too, as a change may move them.
+ */
+const readsWorkOut = (f: Field) => f.type === "formula" || f.type === "rollup" || (f.type === "relation" && f.config?.target === "table") || STAMPS.has(f.type)
 
 /** The least time a test that opens a table page has (attach). */
 const PAGE_TEST_BUDGET = 90_000
@@ -124,8 +144,12 @@ export class TableServer {
   refuses: (q: ViewQuery) => string | { msg: string; progress: { done: number; total: number } } | null = () => null
   /** How many windows of a view's rows answer a 500 (a server fault), before the refusals; none by default. */
   windowsFailing = 0
+  /** How many grouped counts (a chart's numbers) answer a 500 (a server fault), before the refusals; none by default. */
+  groupCountsFailing = 0
   /** Every view query a page sent, in order. */
   readonly queries: ViewQuery[] = []
+  /** Each /aggregate asked (the chart's fallback when a view's rules can't go to the query). */
+  readonly aggregates: Record<string, unknown>[] = []
   /** How many times a page read the table's bundle (GET /tables/<id>). */
   bundleReads = 0
   /** The workspace's optional features, as /config/client answers them (AI's, for an AI column's fill). */
@@ -135,10 +159,11 @@ export class TableServer {
   /**
    * Live (V-124): a page opened after this is set connects to a realtime
    * broker of the test's own (stubbedApp brokerOn) and hears the table's
-   * topic, where say() sends what the server's fan-out would.
+   * topic, where say() sends what the server's fan-out would: to every page
+   * open on the table.
    */
   live = false
-  private broker: { publish(topic: string, payload: unknown): number; subscriptions(): string[] } | null = null
+  private readonly brokers: { publish(topic: string, payload: unknown): number; subscriptions(): string[] }[] = []
   /**
    * A column's AI fill (TABLES-LEAD-26): fillAnswers answer its requests in
    * turn (POST .../ai-fill), aiFill is the fill as GET /ai-fills lists it and
@@ -209,12 +234,16 @@ export class TableServer {
   /** The people a row's cells name, as the server names them for each reader (tables B1). */
   readonly people: Person[] = [SAM, PRIYA]
 
-  /** A row's cells as a read gives them: people named, as the server names a link to people. */
+  /** What the server names a linked task, project, doc or board, by its id: a link is written as its id and type, and named on each read. */
+  readonly names = new Map<string, string>()
+
+  /** A row's cells as a read gives them: people named, as the server names a link to people, and links to what names has. */
   private named(values: Values): Values {
     const kinds = new Set(["people", "created_by", "modified_by"])
     const out: Values = { ...values }
     for (const f of this.fields) {
       const refs = out[f.id]
+      if (f.type === "relation" && Array.isArray(refs)) out[f.id] = refs.map((r: { id: string; label?: string }) => (this.names.has(r.id) ? { ...r, label: this.names.get(r.id) } : r))
       if (!kinds.has(f.type) || !Array.isArray(refs)) continue
       out[f.id] = refs.map((r: { id: string }) => {
         const who = this.people.find((p) => p.user_uuid === r.id)
@@ -329,25 +358,61 @@ export class TableServer {
     return at >= 0 ? at : key.toLowerCase()
   }
 
+  /** A view's levels of order: its groups, then its sorts. */
+  private levelsOf(spec: ViewQuery["spec"]) {
+    return [...(spec.groups ?? []).map((g) => ({ field: g.field, desc: g.desc, group: true })), ...(spec.sorts ?? [])]
+  }
+
+  /** A row's keys in a view's order: a key at each level, then its place in the table and its id. */
+  private keysOf(spec: ViewQuery["spec"], r: Row): (string | number)[] {
+    return [...this.levelsOf(spec).map((s) => ("group" in s ? this.placeOf(s.field, this.pathOf(r, [s])[0]) : this.textOf(r, s.field))), r.position, r.id]
+  }
+
+  /** Two rows' keys in a view's order: at each level blanks last, the other way where it says desc; then the table's order. */
+  private compareKeys(spec: ViewQuery["spec"], a: (string | number)[], b: (string | number)[]): number {
+    const levels = this.levelsOf(spec)
+    for (let k = 0; k < levels.length; k++) {
+      const x = a[k]
+      const y = b[k]
+      if ((x === "") !== (y === "")) return x === "" ? 1 : -1
+      const c = typeof x === "number" && typeof y === "number" ? x - y : TEXT_ORDER.compare(String(x), String(y))
+      if (c !== 0) return levels[k].desc ? -c : c
+    }
+    const n = levels.length
+    return Number(a[n]) - Number(b[n]) || (a[n + 1] < b[n + 1] ? -1 : a[n + 1] > b[n + 1] ? 1 : 0)
+  }
+
+  /**
+   * Where a window goes on from: the first of a view's rows (in its order) after the row its cursor names, by that
+   * row's keys, as business/RowQuery reads a keyset cursor; so a row deleted or made before it moves nothing on.
+   * -1 for a cursor that isn't a view's (the server's ErrBadCursor).
+   */
+  private after(spec: ViewQuery["spec"], shown: Row[], cursor: string): number {
+    let keys: unknown
+    try {
+      keys = (JSON.parse(Buffer.from(cursor, "base64url").toString()) as { v?: unknown }).v
+    } catch {
+      return -1
+    }
+    if (!Array.isArray(keys) || keys.length !== this.levelsOf(spec).length + 2) return -1
+    let lo = 0
+    let hi = shown.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (this.compareKeys(spec, this.keysOf(spec, shown[mid]), keys) <= 0) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+
   /** A view's rows in its order: its filter, its groups (blanks last), its sorts, then the table's; a window's without the groups it collapsed. */
   private worked(spec: ViewQuery["spec"]): Row[] {
     const rows = [...this.rows].sort((a, b) => a.position - b.position).filter((r) => !spec.filter || this.passes(r, spec.filter))
     const groups = spec.groups ?? []
-    const sorts = spec.sorts ?? []
-    if (!sorts.length && !groups.length) return rows
-    const keys = [...groups.map((g) => ({ field: g.field, desc: g.desc, group: true })), ...sorts]
+    if (!this.levelsOf(spec).length) return rows
     const ordered = rows
-      .map((r, i) => ({ r, i, keys: keys.map((s) => ("group" in s ? this.placeOf(s.field, this.pathOf(r, [s])[0]) : this.textOf(r, s.field))) }))
-      .sort((a, b) => {
-        for (let k = 0; k < keys.length; k++) {
-          const x = a.keys[k]
-          const y = b.keys[k]
-          if ((x === "") !== (y === "")) return x === "" ? 1 : -1
-          const c = typeof x === "number" && typeof y === "number" ? x - y : TEXT_ORDER.compare(String(x), String(y))
-          if (c !== 0) return keys[k].desc ? -c : c
-        }
-        return a.i - b.i
-      })
+      .map((r) => ({ r, keys: this.keysOf(spec, r) }))
+      .sort((a, b) => this.compareKeys(spec, a.keys, b.keys))
       .map((x) => x.r)
     const shut = groups.flatMap((g) => g.collapsed ?? []).map((c) => JSON.parse(c) as string[])
     if (!shut.length) return ordered
@@ -556,12 +621,29 @@ export class TableServer {
         body: Buffer.from("PK\u0003\u0004"),
       })
     }
+    if (parts.length === 3 && parts[2] === "aggregate" && req.method() === "POST") {
+      // The AI's engine (business/DataTable aggregate.go AggregateTable): every row, grouped by a field, a count or a
+      // sum per group; the chart sends it no filter, so it counts rows a view's filter would hide.
+      this.aggregates.push(body)
+      const by = String(body.group_by), of = String(body.value_field ?? ""), sum = body.aggregate === "sum"
+      const groups = new Map<string, number[]>()
+      for (const r of this.rows) {
+        const k = String(r.values[by] ?? ""), n = r.values[of]
+        groups.set(k, [...(groups.get(k) ?? []), typeof n === "number" ? n : 0])
+      }
+      const buckets = [...groups].map(([label, ns]) => ({ label, count: ns.length, value: sum ? ns.reduce((t, n) => t + n, 0) : ns.length }))
+      return json(200, { data: { aggregate: body.aggregate, group_by: by, buckets, matched_rows: this.rows.length, scanned_rows: this.rows.length, distinct_groups: buckets.length } })
+    }
     if (parts.length === 3 && parts[2] === "query" && req.method() === "POST" && this.answersQuery) {
-      // A window of a view's rows, keyset from a cursor (here an offset), or its count.
+      // A window of a view's rows, on from a cursor or at a place, or its count.
       const q = body as unknown as ViewQuery
       this.queries.push(q)
       if (!q.count && this.windowsFailing > 0) {
         this.windowsFailing--
+        return json(500, { msg: "internal error" })
+      }
+      if (q.count && q.spec?.groups && this.groupCountsFailing > 0) {
+        this.groupCountsFailing--
         return json(500, { msg: "internal error" })
       }
       const why = this.refuses(q)
@@ -580,16 +662,32 @@ export class TableServer {
           },
         })
       }
-      // Keyset from a cursor (here an offset), or at a place (a jump), which the answer says.
-      const at = q.at ? q.at : Number(q.cursor || 0)
-      const n = Math.min(q.n || 500, 500)
-      const next = at + n < shown.length ? { next: String(at + n) } : {}
-      return json(200, { data: { rows: shown.slice(at, at + n).map((r) => this.rowJson(r)), ...next, ...(q.at ? { at: q.at } : {}) } })
+      // On from a keyset cursor (business/RowQuery cursorOf: the keys of the last row read), or at a place (a jump: that
+      // many rows in, as the server skips them), which the answer says; the next cursor names this window's last row.
+      const spec = q.spec ?? {}
+      const at = q.at ? q.at : q.cursor ? this.after(spec, shown, q.cursor) : 0
+      if (at < 0) return json(400, { msg: "that page marker isn't this query's" })
+      const rows = shown.slice(at, at + Math.min(q.n || 500, 500))
+      const next = at + rows.length < shown.length ? { next: Buffer.from(JSON.stringify({ k: "sql", v: this.keysOf(spec, rows[rows.length - 1]) })).toString("base64url") } : {}
+      return json(200, { data: { rows: rows.map((r) => this.rowJson(r)), ...next, ...(q.at ? { at: q.at } : {}) } })
     }
     if (parts.length === 3 && parts[2] === "rows" && req.method() === "GET" && url.searchParams.has("ids")) {
       // Rows by id (tables A7), in the order asked, without rows gone since.
       const ids = (url.searchParams.get("ids") ?? "").split(",").filter(Boolean)
-      return json(200, { data: ids.flatMap((id) => this.rows.filter((r) => r.id === id)).map((r) => this.rowJson(r)) })
+      const rows = ids.flatMap((id) => this.rows.filter((r) => r.id === id)).map((r) => this.rowJson(r))
+      if (!url.searchParams.has("fields")) return json(200, { data: rows })
+      // With &fields= (tables L1, business/DataTable CellsByID): each row's
+      // named cells the table has, and every field a read works out; a kept
+      // cell with no value null, so the reader clears it. 1 to 500 ids, or 400.
+      const named = new Set((url.searchParams.get("fields") ?? "").split(",").map((s) => s.trim()).filter(Boolean))
+      if (named.size === 0 || named.size > MOST_BY_ID) return json(400, { msg: "fields must name 1 to 500 field ids" })
+      const keep = this.fields.filter((f) => named.has(f.id) || readsWorkOut(f)).map((f) => f.id)
+      return json(200, {
+        data: rows.map((r) => {
+          const cells = JSON.parse(r.values) as Values
+          return { ...r, values: JSON.stringify(Object.fromEntries(keep.map((k) => [k, cells[k] ?? null]))) }
+        }),
+      })
     }
     if (parts.length === 3 && parts[2] === "rows" && req.method() === "GET") {
       const offset = Number(url.searchParams.get("offset") || 0)
@@ -767,28 +865,40 @@ export class TableServer {
       ...(this.features ? { "/config/client": { msg: "ok", data: { features: this.features } } } : {}),
       ...(this.live ? { "/config/mqttConfig": mqttConfig([`user/${person.user_uuid}`]) } : {}),
     })
-    if (this.live) this.broker = (await brokerOn(page)).broker
+    if (this.live) this.brokers.push((await brokerOn(page)).broker)
     // Registered after the stub, so it answers first for the table's calls.
     await page.route(
       (url) => url.origin !== app.origin && url.pathname.includes("/tables"),
-      (route) => this.answer(route, route.request()),
+      (route) => (this.offline.has(page) ? route.abort("internetdisconnected") : this.answer(route, route.request())),
     )
   }
 
-  /** Says a change on the table's live topic, as business/Mqtt PublishTableRow does: how many pages heard it. */
-  say(data: Record<string, unknown>): number {
-    if (!this.broker) throw new Error("say() needs a live table: set live before open")
-    return this.broker.publish(`table/${this.id}`, { type: TABLE_ROW, data })
+  /** Pages taken offline: a route still answers a page whose context is offline, which no network would. */
+  private readonly offline = new Set<Page>()
+
+  /** Takes a page offline or brings it back: its browser's network (navigator.onLine and its events), and the table's calls, which get no answer meanwhile. */
+  async setOffline(page: Page, offline: boolean) {
+    if (offline) this.offline.add(page)
+    else this.offline.delete(page)
+    await page.context().setOffline(offline)
   }
 
-  /** Whether a page listens on the table's live topic. */
+  /** Says a change on the table's live topic to every page open on it, as business/Mqtt PublishTableRow does: how many pages heard it. */
+  say(data: Record<string, unknown>): number {
+    if (!this.brokers.length) throw new Error("say() needs a live table: set live before open")
+    return this.brokers.reduce((heard, b) => heard + b.publish(`table/${this.id}`, { type: TABLE_ROW, data }), 0)
+  }
+
+  /** Whether every page open on the table listens on its live topic (and one is open). */
   listening(): boolean {
-    return !!this.broker?.subscriptions().includes(`table/${this.id}`)
+    return this.brokers.length > 0 && this.brokers.every((b) => b.subscriptions().includes(`table/${this.id}`))
   }
 
   /** Opens the table as a person, in a browser context of their own; on one of its saved views, given its id. */
-  async open(browser: Browser, testInfo: TestInfo, person: Person, options: BrowserContextOptions = {}, view?: string): Promise<{ page: Page; close: () => Promise<void> }> {
+  /** `prepare` runs on the new context before the page is asked for: a route set there sees every chunk the page loads. */
+  async open(browser: Browser, testInfo: TestInfo, person: Person, options: BrowserContextOptions = {}, view?: string, prepare?: (context: BrowserContext) => Promise<unknown>): Promise<{ page: Page; close: () => Promise<void> }> {
     const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"), viewport: { width: 1280, height: 900 }, ...options })
+    await prepare?.(context)
     // The first-run keys tip sits over the grid's rows; it's been seen.
     await context.addInitScript(() => localStorage.setItem("oc_keys_tip_seen", "1"))
     const page = await context.newPage()

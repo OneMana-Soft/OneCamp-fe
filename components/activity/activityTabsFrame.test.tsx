@@ -22,6 +22,7 @@ const mention = {
   activity_type: "MENTION",
   time: "2026-10-10T06:49:13Z",
   priority: "high",
+  unread: true,
   actor_kind: "person",
   mention: {
     mention_created_at: "2026-10-10T06:49:13.580166492Z",
@@ -37,6 +38,7 @@ const comment = {
   activity_type: "COMMENT",
   time: "2026-10-10T05:00:00Z",
   priority: "normal",
+  unread: true,
   actor_kind: "person",
   comment: {
     comment_created_at: "2026-10-10T05:00:00.100Z",
@@ -110,8 +112,8 @@ vi.mock("next/navigation", () => ({
 }))
 // The Inbox reads the right panel (the reading pane): closed here.
 vi.mock("react-redux", () => ({ useDispatch: () => () => {}, useSelector: () => undefined }))
-vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
-vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
+vi.mock("@/services/unreadCache", () => ({ recountInbox: () => {} }))
+vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => 0 }))
 vi.mock("@/components/ai/InboxNudges", () => ({ default: () => null }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))

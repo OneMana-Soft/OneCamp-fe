@@ -18,14 +18,15 @@
 import React, { useEffect, useState, type ReactNode } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
-import { getAttention, attentionKey, type AttentionResult, type AttentionItem } from "@/services/memoryService"
+import { getAttention, attentionKey, updateMemoryStatus, type AttentionResult, type AttentionItem } from "@/services/memoryService"
 import { forgetShared, peekShared } from "@/lib/utils/sharedRequest"
 import { approvePendingAction, rejectPendingAction } from "@/services/pendingActionService"
 import { removePendingAction } from "@/store/slice/pendingActionSlice"
 import { withAI } from "@/components/common/withFeature"
 import { dueLabel } from "@/lib/utils/dueLabel"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { NeedsMeSection } from "@/components/home/NeedsMeSection"
-import { SHARED_ACTIONS } from "@/components/home/needsActions"
+import { SHARED_ACTIONS, markTaskDone, markTaskUndone } from "@/components/home/needsActions"
 import { mergeNeeds, type NeedsItem } from "@/components/home/needsMe"
 
 /**
@@ -42,7 +43,23 @@ export function attentionToNeeds(items: AttentionItem[], now: Date, projectIdOf:
       out.push({ id, kind: "agent", title: it.title, context: it.subtitle || undefined, refId: it.ref_id })
       return
     }
-    if (it.source === "task" || it.source === "commitment") {
+    // A commitment: overdue by the server's word alone (commitmentNeedsMeNow),
+    // never a date read here; its memory item is named only in its link.
+    if (it.source === "commitment") {
+      const day = new Date(`${it.due_at}T00:00`)
+      out.push({
+        id,
+        kind: "due",
+        commitment: true,
+        title: it.title,
+        due: Number.isNaN(day.getTime()) ? it.kind : `Commitment · was due ${shortDate(day, now)}`,
+        overdue: it.kind.toLowerCase().startsWith("overdue"),
+        href: it.url,
+        refId: it.url?.match(/[?&]item=([^&#]+)/)?.[1],
+      })
+      return
+    }
+    if (it.source === "task") {
       const overdue = it.kind.toLowerCase().startsWith("overdue") || (it.due_time ? Date.parse(it.due_time) < now.getTime() : false)
       out.push({
         id,
@@ -53,7 +70,7 @@ export function attentionToNeeds(items: AttentionItem[], now: Date, projectIdOf:
         overdue,
         project: it.context ? { id: projectIdOf(it.context) ?? it.context, name: it.context } : undefined,
         href: it.url,
-        taskUuid: it.source === "task" ? it.ref_id : undefined,
+        taskUuid: it.ref_id,
       })
       return
     }
@@ -153,6 +170,13 @@ function AttentionCard({ base = [], baseLoading = false, footer, noChannels, cla
     dispatch(removePendingAction(item.refId))
     forget()
   }
+  // A commitment's Done resolves its memory item (Undo opens it); a task's goes to the task list.
+  const done = (status: "resolved" | "open", task: (item: NeedsItem) => Promise<void>) => async (item: NeedsItem) => {
+    if (!item.commitment) return task(item)
+    if (!item.refId) throw new Error("the commitment is gone")
+    await updateMemoryStatus(item.refId, status)
+    forget()
+  }
 
   // Guard the collection: a null items slice must not throw during render.
   const aiItems = data?.enabled && Array.isArray(data.items) ? attentionToNeeds(data.items, now, projectIdOf) : []
@@ -169,6 +193,8 @@ function AttentionCard({ base = [], baseLoading = false, footer, noChannels, cla
       onApprove={onApprove}
       onDismiss={onDismiss}
       {...SHARED_ACTIONS}
+      onDone={done("resolved", markTaskDone)}
+      onUndoDone={done("open", markTaskUndone)}
     />
   )
 }

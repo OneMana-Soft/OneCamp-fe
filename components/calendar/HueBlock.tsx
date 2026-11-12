@@ -5,10 +5,12 @@ import * as React from "react"
 import { Moon, Plane } from "@/lib/icons"
 import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { lazyView } from "@/lib/lazy/lazyView"
 import { cn } from "@/lib/utils/helpers/cn"
 
 import { hueOf, kindOf, type CalendarItemLike } from "./calendarTones"
 import { useProjectHues } from "@/lib/projectHue"
+import { eventOwnHue } from "@/lib/color/ownHue"
 
 /**
  * An event drawn on time (content.md §1.4, §1.5): month bars, week and day
@@ -44,6 +46,9 @@ export interface HueBlockProps extends Omit<React.HTMLAttributes<HTMLElement>, "
   children?: React.ReactNode
 }
 
+// The stop sign a task's card and row draw (BlockedBadge), fetched when a block whose task waits shows: most weeks have none, so the first screen doesn't carry it.
+const Waits = lazyView(() => import("@/components/task/BlockedBadge"))
+
 /** The task status glyph for a task's category. */
 export function taskGlyphStatus(status: string | undefined): StatusKind {
   switch ((status || "").toLowerCase()) {
@@ -68,6 +73,12 @@ export function taskGlyphStatus(status: string | undefined): StatusKind {
   }
 }
 
+/** What makes an item's hue current: a camp hue's class, or hue-own for an event's own colour (lib/color/ownHue). */
+export function hueMark(item: CalendarItemLike): { className: string; style?: React.CSSProperties; own?: string } {
+  const own = eventOwnHue(kindOf(item), item)
+  return own ? { className: "hue-own", style: own as React.CSSProperties, own: own["--own"] } : { className: HUE_CLASS[hueOf(item)] }
+}
+
 /** The classes a block is drawn with (also used by the drag ghost and tests). Pure. */
 export function hueBlockClasses(item: CalendarItemLike, { past, live, quiet }: { past?: boolean; live?: boolean; selected?: boolean; quiet?: boolean } = {}): string {
   const kind = kindOf(item)
@@ -78,7 +89,7 @@ export function hueBlockClasses(item: CalendarItemLike, { past, live, quiet }: {
     return cn("focus-hatch text-ink-2 data-[selected]:shadow-e2 data-[selected]:ring-[1.5px] data-[selected]:ring-ink-3", past && "opacity-55")
   }
   return cn(
-    HUE_CLASS[hueOf(item)],
+    hueMark(item).className,
     "bg-[color-mix(in_oklab,var(--hue-tint)_var(--fill),var(--sheet))] text-hue-ink transition-[box-shadow,opacity] duration-[140ms]",
     quiet ? "[--fill:35%] hover:[--fill:60%]" : "[--fill:60%] hover:[--fill:80%]",
     past && "[--fill:33%] text-ink-2 hover:[--fill:45%]",
@@ -94,7 +105,7 @@ export function hueBlockClasses(item: CalendarItemLike, { past, live, quiet }: {
  */
 export function dragPlaceholderClasses(item: CalendarItemLike): string {
   return cn(
-    HUE_CLASS[hueOf(item)],
+    hueMark(item).className,
     "bg-[color-mix(in_oklab,var(--hue-tint)_4%,transparent)] shadow-none outline-[1.5px] outline-dashed outline-line-3 outline-offset-[-1.5px] [&>*]:invisible",
   )
 }
@@ -104,12 +115,17 @@ export function dragPlaceholderClasses(item: CalendarItemLike): string {
  * keeps each block one component of its own (the week's TimedBlock, which
  * reads the project hues itself): through HueBlock, a block is two.
  */
-export function hueBlock({ item, variant, past, live, selected, quiet, continued, as = "button", className, children, ...rest }: HueBlockProps, ref?: React.Ref<HTMLElement>) {
+export function hueBlock({ item, variant, past, live, selected, quiet, continued, as = "button", className, style, children, ...rest }: HueBlockProps, ref?: React.Ref<HTMLElement>) {
   const kind = kindOf(item)
+  const mark = hueMark(item)
   const Comp = as as "button"
   const lead =
     kind === "task" || kind === "block" ? (
-      <StatusGlyph status={taskGlyphStatus(kind === "task" ? item.task_status : item.event_task?.task_status)} size={12} onTint className="shrink-0" />
+      <>
+        <StatusGlyph status={taskGlyphStatus(kind === "task" ? item.task_status : item.event_task?.task_status)} size={12} onTint className="shrink-0" />
+        {/* Its task waits on open tasks (gcal-new-task-blocks): the stop sign, a chunk of its own (Waits). */}
+        {item.event_task?.task_blocked_open ? <Waits.View fallback={null} render={(m) => <m.BlockedBadge count={item.event_task?.task_blocked_open} className="ml-0.5 text-micro" />} /> : null}
+      </>
     ) : kind === "focus" ? (
       <Moon className="size-3 shrink-0" aria-hidden="true" />
     ) : kind === "away" ? (
@@ -123,7 +139,8 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
       data-hue-block={kind}
       // Which item it is, for the calendar's keys and its menu (E, Delete, a right-click).
       data-event-uuid={item.event_uuid}
-      data-hue={kind === "event" || kind === "task" || kind === "block" ? hueOf(item) : undefined}
+      data-hue={kind === "event" || kind === "task" || kind === "block" ? (mark.own ? "own" : hueOf(item)) : undefined}
+      data-own-hue={mark.own}
       data-past={past || undefined}
       data-live={live || undefined}
       data-selected={selected || undefined}
@@ -133,18 +150,21 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
         variant === "bar" && "h-[22px] items-center gap-1 pr-1.5 text-meta font-medium",
         variant === "chip" && "min-h-[22px] items-start gap-1 py-[3px] pr-1.5 text-meta font-medium leading-4",
         variant === "row" && "h-8 items-center gap-2 pr-2 text-ui-sm font-medium",
-        variant === "block" && "flex-col items-stretch pr-1.5 text-meta font-medium",
+        // A block's words and its marks (its task's glyph, the stop sign and how many) side by side:
+        // the words in a column that gives way, the marks in their own, so they never print over the title (DESIGN-BUILD-125).
+        variant === "block" && "grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)] items-start pr-1.5 text-meta font-medium",
         bar && !continued ? "pl-[9px]" : "pl-1.5",
         hueBlockClasses(item, { past, live, selected, quiet }),
         className,
       )}
+      style={mark.style ? { ...mark.style, ...style } : style}
       {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
     >
       {bar && !continued ? (
         <span aria-hidden="true" data-hue-bar="" className={cn("absolute inset-y-0 left-0 w-[3px]", kind === "focus" ? "bg-ink-3" : "bg-hue")} />
       ) : null}
       {variant === "chip" && lead ? <span className="flex h-4 shrink-0 items-center">{lead}</span> : variant !== "block" ? lead : null}
-      {variant === "block" && lead ? <span className="absolute right-1 top-1 opacity-80">{lead}</span> : null}
+      {variant === "block" && lead ? <span data-block-marks="" className="col-start-2 row-start-1 -mr-0.5 ml-1 mt-1 flex items-center opacity-80">{lead}</span> : null}
       {children}
     </Comp>
   )

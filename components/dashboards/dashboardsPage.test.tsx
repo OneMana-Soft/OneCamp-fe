@@ -27,6 +27,10 @@ vi.mock("@/hooks/useDashboards", () => ({
   useDashboard: (...a: unknown[]) => one(...a),
 }))
 
+// The widget editor (lazy, its own unit in widgetSource.test): here, what the page hands it.
+const widgetDialog = vi.fn()
+vi.mock("@/components/dashboards/WidgetDialog", () => ({ WidgetDialog: (p: unknown) => (widgetDialog(p), null) }))
+
 import { DashboardsPage } from "@/components/dashboards/DashboardsPage"
 
 pinTestClock()
@@ -116,6 +120,27 @@ describe("the dashboards page", () => {
     expect(screen.getByText("Nothing on this dashboard yet")).toBeTruthy()
     expect(screen.getByText("Its keepers haven't added a widget yet.")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Add widget" })).toBeNull()
+  })
+
+  // B9-b4 (CR-B14 W13, W14): a project's dashboard reads its own project (its views are that project's), and
+  // on a dashboard others open, the editor says a saved view's numbers are its keeper's alone.
+  it("gives the widget editor the dashboard's project, and whether others open it", async () => {
+    lists.mockReturnValue(listAnswer())
+    one.mockReturnValue(oneAnswer())
+    render(<DashboardsPage />)
+    fireEvent.click(screen.getAllByRole("button", { name: "Add widget" })[0])
+    await waitFor(() => expect(widgetDialog).toHaveBeenCalled())
+    expect(widgetDialog).toHaveBeenLastCalledWith(expect.objectContaining({ project: undefined, others: false }))
+    cleanup()
+    widgetDialog.mockClear()
+    const fair = { ...dashboard, scope: "project", project_id: "p1", shared: true }
+    search = new URLSearchParams(`project=p1&d=${D}`)
+    lists.mockReturnValue(listAnswer({ lists: { mine: [], workspace: [], project: [fair], canMake: true } }))
+    one.mockReturnValue(oneAnswer({ dashboard: fair }))
+    render(<DashboardsPage />)
+    fireEvent.click(screen.getAllByRole("button", { name: "Add widget" })[0])
+    await waitFor(() => expect(widgetDialog).toHaveBeenCalled())
+    expect(widgetDialog).toHaveBeenLastCalledWith(expect.objectContaining({ project: "p1", others: true }))
   })
 
   it("shows a widget's own words when the server couldn't work it out, beside one that could", () => {

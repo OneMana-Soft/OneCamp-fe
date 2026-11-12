@@ -11,11 +11,18 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
 }))
 const undoChange = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/tables/ledger", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/tables/ledger")>()), undoChange: (...a: unknown[]) => undoChange(...a) }))
+const offerRetry = vi.hoisted(() => vi.fn())
+// offerRetry hands back its toast, as the real one does (keep resolves to it).
+vi.mock("@/components/ui/undoToast", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/undoToast")>()),
+  offerRetry: (...a: unknown[]) => offerRetry(...a) ?? { dismiss: () => undefined },
+}))
 
 import { ledger, shownValues, useCellCommit, type CellCommit } from "@/lib/tables/useCellCommit"
 import { writeCells } from "@/lib/tables/cellsWrite"
 import type { Aim } from "@/lib/tables/undoOrder"
 import type { BatchResult } from "@/lib/tables/ledger"
+import { wasSaid } from "@/lib/http/writeSaid"
 
 const rowWith = (status: string, version = 1): TableRow => ({ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: String(version), values: JSON.stringify({ status }) })
 
@@ -24,6 +31,7 @@ afterEach(() => {
   patch.mockReset()
   links.mockReset()
   undoChange.mockReset()
+  offerRetry.mockReset()
 })
 
 describe("saving a cell", () => {
@@ -197,6 +205,189 @@ describe("what a row's cells show while an edit saves", () => {
   })
 })
 
+// V-583 (main's ruling 1): a cell's save the server couldn't store (Postgres
+// out of space, any store failure) answers 503, the server's to try again;
+// nothing of it was written. It dropped the edit like a refusal, so the
+// person's change was lost. It is kept, shown as not saved, and offered back:
+// sent again only when the person asks (Retry, or an edit to that cell).
+describe("a cell's save the server asks to try again (503, V-583)", () => {
+  const retryLater = () =>
+    Object.assign(new Error("Request failed with status code 503"), {
+      isAxiosError: true,
+      response: { status: 503, data: { msg: "The table couldn't be read or changed just now. Try again in a moment." } },
+    })
+
+  it("keeps the edit, sends it once, says it with Retry, and saves it on Retry", async () => {
+    const refused = retryLater()
+    patch.mockRejectedValueOnce(refused).mockResolvedValueOnce(rowWith("Won", 2))
+    const rows = [rowWith("Open")]
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange }))
+    await act(async () => {
+      expect(await result.current.commitCell(rows[0], "status", "Won")).toBe(false)
+    })
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+    expect(shownValues(rows[0], result.current.edits.get("r1"))).toEqual({ status: "Won" })
+    // Said once, here, with Retry: the interceptor's own toast stays quiet.
+    expect(wasSaid(refused)).toBe(true)
+    await waitFor(() => expect(offerRetry).toHaveBeenCalledTimes(1))
+    const [title, description, retry] = offerRetry.mock.calls[0] as [string, string, () => Promise<boolean>]
+    expect(title).toBe("Not saved")
+    expect(description).toMatch(/Try again in a moment/)
+    // Never sent again by itself.
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(patch).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      expect(await retry()).toBe(true)
+    })
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(patch).toHaveBeenLastCalledWith("t", "r1", { status: "Won" })
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+    expect(shownValues(rows[0], result.current.edits.get("r1"))).toEqual({ status: "Won" })
+  })
+
+  it("lets a later edit to the cell take the kept one's place, and sends only that", async () => {
+    patch.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    const rows = [rowWith("Open")]
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    await act(() => result.current.commitCell(rows[0], "status", "Lost"))
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(patch).toHaveBeenLastCalledWith("t", "r1", { status: "Lost" })
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+    expect(shownValues(rows[0], result.current.edits.get("r1"))).toEqual({ status: "Lost" })
+    // The first toast's Retry, pressed late, sends nothing: the cell holds the later edit.
+    await waitFor(() => expect(offerRetry).toHaveBeenCalledTimes(1))
+    const retry = offerRetry.mock.calls[0][2] as () => Promise<boolean>
+    await act(async () => {
+      await retry()
+    })
+    expect(patch).toHaveBeenCalledTimes(2)
+  })
+
+  it("forgets a kept edit once the row's copy shows it", async () => {
+    patch.mockRejectedValueOnce(retryLater())
+    let rows = [rowWith("Open")]
+    const { result, rerender } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    rows = [rowWith("Won", 2)]
+    rerender()
+    expect(result.current.edits.get("r1")).toBeUndefined()
+  })
+
+  it("lets go of a kept edit once its reader may only view the table (V-170)", async () => {
+    patch.mockRejectedValueOnce(retryLater())
+    const rows = [rowWith("Open")]
+    let canEdit = true
+    const { result, rerender } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn(), canEdit }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+    canEdit = false
+    rerender()
+    expect(result.current.edits.get("r1")).toBeUndefined()
+    expect(shownValues(rows[0], result.current.edits.get("r1"))).toEqual({ status: "Open" })
+  })
+
+  it("still drops an edit any other failure refused (500), and offers no Retry", async () => {
+    patch.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 500"), { isAxiosError: true, response: { status: 500, data: {} } }))
+    const rows = [rowWith("Open")]
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    expect(result.current.edits.get("r1")).toBeUndefined()
+    await act(() => new Promise((r) => setTimeout(r, 20)))
+    expect(offerRetry).not.toHaveBeenCalled()
+  })
+
+  // V-640 (the LIVE walk, 6 Nov): once the toast had closed, nothing could
+  // send the kept edit again; the same value entered again was no change.
+  // The cell's mark and the same value entered again are Retries too, all
+  // through the toast's one retry (retryCell), only when the person asks.
+  it("sends the kept edit on the cell's Retry, as the toast's would, once, and nothing by itself", async () => {
+    patch.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce(rowWith("Won", 2))
+    const rows = [rowWith("Open")]
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(patch).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      expect(await result.current.retryCell(rows[0], "status")).toBe(true)
+    })
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(patch).toHaveBeenLastCalledWith("t", "r1", { status: "Won" })
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+    // Nothing is kept now: the cell's Retry again, or the toast's, sends nothing.
+    await waitFor(() => expect(offerRetry).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      await result.current.retryCell(rows[0], "status")
+      await (offerRetry.mock.calls[0][2] as () => Promise<boolean>)()
+    })
+    expect(patch).toHaveBeenCalledTimes(2)
+  })
+
+  it("sends the same value entered again as its Retry, and keeps it again when that is refused too", async () => {
+    patch.mockRejectedValueOnce(retryLater()).mockRejectedValueOnce(retryLater()).mockResolvedValueOnce(rowWith("Won", 2))
+    const rows = [rowWith("Open")]
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+    await act(() => result.current.retryCell(rows[0], "status"))
+    expect(patch).toHaveBeenCalledTimes(3)
+    expect(patch).toHaveBeenLastCalledWith("t", "r1", { status: "Won" })
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+  })
+
+  it("sends nothing on the cell's Retry once the cell holds another edit, nor for a reader who may only view (V-170)", async () => {
+    patch.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({}).mockRejectedValueOnce(retryLater())
+    const rows = [rowWith("Open")]
+    let canEdit = true
+    const { result, rerender } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn(), canEdit }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    await act(() => result.current.commitCell(rows[0], "status", "Lost"))
+    await act(() => result.current.retryCell(rows[0], "status"))
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(patch).toHaveBeenLastCalledWith("t", "r1", { status: "Lost" })
+    await act(() => result.current.commitCell(rows[0], "status", "Tied"))
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Tied" })
+    canEdit = false
+    rerender()
+    await act(() => result.current.retryCell(rows[0], "status"))
+    expect(patch).toHaveBeenCalledTimes(3)
+  })
+
+  // CR-229's T3: a toast's Retry offers the value it was raised for; once the cell keeps a newer refused edit, that
+  // stale Retry sends nothing (the newer one has its own toast and mark).
+  it("sends nothing on a stale toast's Retry once the cell keeps a newer refused edit", async () => {
+    patch.mockRejectedValueOnce(retryLater()).mockRejectedValueOnce(retryLater())
+    const rows = [rowWith("Open")]
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    await act(() => result.current.commitCell(rows[0], "status", "Lost"))
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Lost" })
+    await waitFor(() => expect(offerRetry).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      await (offerRetry.mock.calls[0][2] as () => Promise<boolean>)()
+    })
+    expect(patch).toHaveBeenCalledTimes(2)
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Lost" })
+  })
+
+  // CR-229's T4: a Retry for a field the row doesn't keep (another field of it is kept) sends nothing, never an
+  // empty value for that field.
+  it("sends nothing on a Retry for a field its row doesn't keep while it keeps another", async () => {
+    patch.mockRejectedValueOnce(retryLater())
+    const rows = [{ ...rowWith("Open"), values: JSON.stringify({ status: "Open", owner: "Ana" }) }]
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(() => result.current.commitCell(rows[0], "status", "Won"))
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+    await act(() => result.current.retryCell(rows[0], "owner"))
+    expect(patch).toHaveBeenCalledTimes(1)
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+  })
+})
+
 // V-360 (DB-93's airtable-04 probes, 2 Nov): a fill or a paste showed nothing
 // until its batch answered (0.8-1.9 s on LIVE, over 20 s in a stall), and a
 // Ctrl+Z pressed meanwhile took back the edit BEFORE it. A range's write now
@@ -364,6 +555,263 @@ describe("a write of many cells at once (V-360)", () => {
       await undone
     })
     expect(aims).toEqual([{ kind: "latest" }])
+  })
+})
+
+// V-617: a range's write (a paste, a fill) the server couldn't store answers
+// 503 since backend b235, nothing of it written. writeCells dropped its cells
+// like any refusal, so a paste refused for space vanished and read as the
+// person's mistake. Its cells are kept as a cell's save is (V-583): marked,
+// said once with Retry for the whole write, sent again only when the person
+// presses it, as one range write of the cells still kept.
+describe("a range write the server asks to try again (503, V-617)", () => {
+  const rowOf = (id: string, status: string): TableRow => ({ id, table_id: "t", position: 0, created_at: "", updated_at: "1", values: JSON.stringify({ status }) })
+  const two = () => [rowOf("r1", "Open"), rowOf("r2", "Open")]
+  const answer = (): BatchResult => ({ change_set: "c2", created: [], updated: [], deleted: [] })
+  const retryLater = (msg?: string) =>
+    Object.assign(new Error("Request failed with status code 503"), { isAxiosError: true, response: { status: 503, data: msg ? { msg } : {} } })
+  type Cells = Parameters<typeof writeCells>[1]["cells"]
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // The write, refused 503; `again` as the range's Retry: one write of the cells it's given through writeCells.
+  async function refused(rows: TableRow[], over: { adding?: Record<string, unknown>[]; canEdit?: () => boolean; msg?: string } = {}) {
+    vi.useFakeTimers()
+    const err = retryLater(over.msg)
+    const send = vi.fn(() => Promise.reject(err))
+    const resend = vi.fn(() => Promise.resolve(answer()))
+    const hook = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn(), canEdit: over.canEdit?.() ?? true }))
+    const again = vi.fn((cells: Cells, adds: boolean) => writeCells(hook.result.current.cells, { what: "paste", cells, adding: adds ? over.adding : undefined, send: resend }))
+    await act(async () => {
+      await expect(
+        writeCells(hook.result.current.cells, { what: "paste", cells: rows.map((row) => ({ row, values: { status: "Won" } })), adding: over.adding, send, again }),
+      ).rejects.toBe(err)
+    })
+    await vi.waitFor(() => expect(offerRetry).toHaveBeenCalledTimes(1))
+    // Never sent again by itself: ten seconds on, still the one batch.
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(resend).not.toHaveBeenCalled()
+    expect(again).not.toHaveBeenCalled()
+    const [title, description, retry] = offerRetry.mock.calls[0] as [string, string, () => Promise<unknown>]
+    return { ...hook, err, send, resend, again, title, description, retry }
+  }
+
+  it("keeps every cell marked, says it once with Retry, sends nothing by itself, and Retry sends the kept cells once as one write", async () => {
+    const rows = two()
+    const { result, err, resend, again, title, description, retry } = await refused(rows)
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+    expect(result.current.edits.get("r2")?.unsaved).toEqual({ status: "Won" })
+    expect(shownValues(rows[1], result.current.edits.get("r2"))).toEqual({ status: "Won" })
+    // Said here, once for the whole write: the interceptor's toast and the caller's stay quiet.
+    expect(wasSaid(err)).toBe(true)
+    expect(title).toBe("Not saved")
+    expect(description).toMatch(/Try again in a moment/)
+    await act(async () => {
+      await retry()
+    })
+    expect(again).toHaveBeenCalledTimes(1)
+    expect(again.mock.calls[0][0].map((c) => [c.row.id, c.values])).toEqual([
+      ["r1", { status: "Won" }],
+      ["r2", { status: "Won" }],
+    ])
+    expect(resend).toHaveBeenCalledTimes(1)
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+    expect(result.current.edits.get("r2")?.saved).toEqual({ status: "Won" })
+    // A second press finds nothing kept: nothing more is sent.
+    await act(async () => {
+      await retry()
+    })
+    expect(resend).toHaveBeenCalledTimes(1)
+  })
+
+  it("sends on Retry only the cells still kept: one edited since is sent no more", async () => {
+    const rows = two()
+    const { result, again, resend, retry } = await refused(rows)
+    patch.mockResolvedValueOnce({})
+    await act(() => result.current.commitCell(rows[0], "status", "Lost"))
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+    await act(async () => {
+      await retry()
+    })
+    expect(again.mock.calls[0][0].map((c) => c.row.id)).toEqual(["r2"])
+    expect(resend).toHaveBeenCalledTimes(1)
+  })
+
+  it("drops a paste's new rows from sight, says so, and adds them on Retry with the kept cells as one write: never a half-made row", async () => {
+    const rows = [rowOf("r1", "Open")]
+    const { result, again, resend, description, retry } = await refused(rows, { adding: [{ status: "B" }, { status: "C" }] })
+    expect(result.current.adding).toHaveLength(0)
+    expect(description).toMatch(/2 new rows weren't added/)
+    await act(async () => {
+      await retry()
+    })
+    expect(again).toHaveBeenCalledTimes(1)
+    expect(again.mock.calls[0][1]).toBe(true)
+    expect(resend).toHaveBeenCalledTimes(1)
+    // Its new rows go once: a second press sends nothing.
+    await act(async () => {
+      await retry()
+    })
+    expect(resend).toHaveBeenCalledTimes(1)
+  })
+
+  it("sends nothing on Retry once its writer may only view the table (V-170): the kept cells are let go", async () => {
+    const rows = two()
+    let canEdit = true
+    const { result, rerender, again, resend, retry } = await refused(rows, { adding: [{ status: "B" }], canEdit: () => canEdit })
+    canEdit = false
+    rerender()
+    expect(result.current.edits.get("r1")).toBeUndefined()
+    await act(async () => {
+      await retry()
+    })
+    expect(again).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it("still puts the cells back on any other failure (500), offers no Retry, and leaves the caller to say why", async () => {
+    const rows = two()
+    const err = Object.assign(new Error("Request failed with status code 500"), { isAxiosError: true, response: { status: 500, data: {} } })
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    await act(async () => {
+      await expect(
+        writeCells(result.current.cells, { what: "fill", cells: rows.map((row) => ({ row, values: { status: "Won" } })), send: () => Promise.reject(err), again: vi.fn() }),
+      ).rejects.toBe(err)
+    })
+    expect(result.current.edits.get("r1")).toBeUndefined()
+    expect(wasSaid(err)).toBe(false)
+    await act(() => new Promise((r) => setTimeout(r, 20)))
+    expect(offerRetry).not.toHaveBeenCalled()
+  })
+
+  // DESIGN-BUILD-129's F1a: a paste's new rows aren't drawn once refused, so
+  // its toast is all that holds them. It stays until the person acts (Retry or
+  // its x), with no timer; a write with no new rows keeps V-583's 8 s offer,
+  // its marks holding it whole. G2: the toast's words are its count and the
+  // fallback, never a longer message of the server's.
+  it("keeps the offer of a write with new rows until the person acts, in two short sentences; one with none keeps the timed offer", async () => {
+    const withRows = await refused([rowOf("r1", "Open")], { adding: [{ status: "B" }], msg: "The table couldn't be read or changed just now. Try again in a moment." })
+    expect(offerRetry.mock.calls[0][3]).toBe(true)
+    expect(withRows.description).toBe("1 new row wasn't added. Try again in a moment.")
+    withRows.unmount()
+    offerRetry.mockReset()
+    await refused(two())
+    expect(offerRetry.mock.calls[0][3]).toBeFalsy()
+  })
+
+  // F1b: once the toast has gone (its x), a mark is all that's left of the
+  // write, and the paste must still land whole or not at all. Every mark of a
+  // kept range write sends the whole kept write: the cells still kept and its
+  // new rows, as one write; its toast goes, and nothing more is sent.
+  it("sends the whole kept write from any of its marks (retryCell), with its new rows, as one write, and closes its toast", async () => {
+    const dismiss = vi.fn()
+    offerRetry.mockReturnValue({ dismiss })
+    const rows = two()
+    const { result, again, resend, retry } = await refused(rows, { adding: [{ status: "B" }] })
+    await act(async () => {
+      await result.current.retryCell(rows[1], "status")
+    })
+    expect(again).toHaveBeenCalledTimes(1)
+    expect(again.mock.calls[0][0].map((c) => [c.row.id, c.values])).toEqual([
+      ["r1", { status: "Won" }],
+      ["r2", { status: "Won" }],
+    ])
+    expect(again.mock.calls[0][1]).toBe(true)
+    expect(resend).toHaveBeenCalledTimes(1)
+    expect(dismiss).toHaveBeenCalled()
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({})
+    // The other mark and the toast's Retry find nothing kept: nothing more is sent.
+    await act(async () => {
+      await result.current.retryCell(rows[0], "status")
+      await retry()
+    })
+    expect(resend).toHaveBeenCalledTimes(1)
+  })
+
+  // F1b: a mark says what it sends, the whole write, counted as it now is.
+  it("names each mark of a kept range write for the whole write, counted as it now is", async () => {
+    patch.mockResolvedValue({})
+    const rows = two()
+    const { result } = await refused(rows, { adding: [{ status: "B" }] })
+    expect(result.current.edits.get("r1")?.named).toEqual({ status: "the paste: 2 cells and 1 new row" })
+    expect(result.current.edits.get("r2")?.named).toEqual({ status: "the paste: 2 cells and 1 new row" })
+    // One cell edited since leaves the write: the other mark counts one.
+    await act(async () => {
+      await result.current.commitCell(rows[1], "status", "Lost")
+    })
+    expect(result.current.edits.get("r1")?.named).toEqual({ status: "the paste: 1 cell and 1 new row" })
+    expect(result.current.edits.get("r2")?.named).toBeUndefined()
+  })
+
+  // CR-241's F1 (a): a cell edited while the range write is on its way is the
+  // edit's, not the write's. The 503 keeps the write's other cells only, and
+  // their Retry sends only those.
+  it("keeps none of a cell edited while the write was on its way: the 503 keeps the others, and Retry sends only those", async () => {
+    const rows = two()
+    let refuse!: (e: unknown) => void
+    const send = vi.fn(() => new Promise<BatchResult>((_, rej) => (refuse = rej)))
+    const resend = vi.fn(() => Promise.resolve(answer()))
+    let saved!: (v: unknown) => void
+    patch.mockImplementation(() => new Promise((res) => (saved = res)))
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    const again = vi.fn((cells: Cells) => writeCells(result.current.cells, { what: "paste", cells, send: resend }))
+    let written: Promise<unknown> = Promise.resolve()
+    let edited: Promise<unknown> = Promise.resolve()
+    act(() => {
+      written = writeCells(result.current.cells, { what: "paste", cells: rows.map((row) => ({ row, values: { status: "Won" } })), send, again }).catch(() => undefined)
+    })
+    act(() => {
+      edited = result.current.commitCell(rows[1], "status", "Lost")
+    })
+    await vi.waitFor(() => expect(send).toHaveBeenCalled())
+    await act(async () => {
+      refuse(retryLater())
+      await written
+    })
+    await vi.waitFor(() => expect(offerRetry).toHaveBeenCalledTimes(1))
+    expect(result.current.edits.get("r1")?.unsaved).toEqual({ status: "Won" })
+    expect(result.current.edits.get("r2")?.unsaved).toEqual({})
+    await vi.waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      saved({})
+      await edited
+    })
+    const retry = offerRetry.mock.calls[0][2] as () => Promise<unknown>
+    await act(async () => {
+      await retry()
+    })
+    expect(again).toHaveBeenCalledTimes(1)
+    expect(again.mock.calls[0][0].map((c) => [c.row.id, c.values])).toEqual([["r1", { status: "Won" }]])
+    expect(resend).toHaveBeenCalledTimes(1)
+  })
+
+  // CR-241's F1 (b): an Undo that took the write on its way has the last word.
+  // Its 503 keeps nothing, offers no Retry, and sends nothing.
+  it("keeps nothing of a write an Undo took on its way: no Retry, and nothing is sent", async () => {
+    const rows = two()
+    let refuse!: (e: unknown) => void
+    const send = vi.fn(() => new Promise<BatchResult>((_, rej) => (refuse = rej)))
+    const again = vi.fn(() => Promise.resolve())
+    const { result } = renderHook(() => useCellCommit({ tableId: "t", rows, onChange: vi.fn() }))
+    let written: Promise<unknown> = Promise.resolve()
+    act(() => {
+      written = writeCells(result.current.cells, { what: "paste", cells: rows.map((row) => ({ row, values: { status: "Won" } })), send, again }).catch(() => undefined)
+    })
+    act(() => {
+      void result.current.press(async () => undefined)
+    })
+    await vi.waitFor(() => expect(send).toHaveBeenCalled())
+    await act(async () => {
+      refuse(retryLater())
+      await written
+    })
+    await act(() => new Promise((r) => setTimeout(r, 20)))
+    expect(offerRetry).not.toHaveBeenCalled()
+    expect(result.current.edits.get("r1")).toBeUndefined()
+    expect(result.current.edits.get("r2")).toBeUndefined()
+    expect(again).not.toHaveBeenCalled()
   })
 })
 

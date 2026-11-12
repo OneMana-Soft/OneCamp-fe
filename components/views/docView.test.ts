@@ -36,6 +36,14 @@ describe("the doc page", () => {
     expect(header).toMatch(/<Button variant="secondary" size="sm" onClick=\{onShare\}/)
   })
 
+  // Remind me… (linear-45 #1) is answered by the page, which keeps the doc's
+  // Later entry: Later's one save and its picker, loaded on the click.
+  it("answers Remind me… with Later's own picker, for this doc", () => {
+    expect(src).toMatch(/useRemindMe\(\{ itemType: "doc", itemId: docId/)
+    expect(src).toMatch(/id === 'doc\.remindMe'\) remindMe\(\)/)
+    expect(src).toMatch(/\{later\.picker\}/)
+  })
+
   it("shows its header hairline only once the body has scrolled", () => {
     expect(header).toMatch(/after:opacity-0/)
     expect(header).toMatch(/scrolled && "after:opacity-100"/)

@@ -21,7 +21,7 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoadi
 const { Item } = await import("@/components/kanbanComponents/Item/Item")
 const { GroupedTaskList, PROJECT_PROPS } = await import("@/components/task/GroupedTaskList")
 const { TaskDependencies } = await import("@/components/task/TaskDependencies")
-const { HIDDEN_TASK_NAME, taskNameOf } = await import("@/lib/work/hiddenTask")
+const { HIDDEN_TASK_NAME, isTaskThere, taskNameOf } = await import("@/lib/work/hiddenTask")
 
 afterEach(cleanup)
 pinTestClock()
@@ -99,8 +99,16 @@ describe("a task you can't see", () => {
     expect(taskNameOf({ task_name: "Design" })).toBe("Design")
   })
 
+  it("is there as a link, though the server sends it with no id", () => {
+    expect(isTaskThere({ task_hidden: true })).toBe(true)
+    expect(isTaskThere({ task_uuid: "design" })).toBe(true)
+    expect(isTaskThere({})).toBe(false)
+    expect(isTaskThere(undefined)).toBe(false)
+    expect(isTaskThere(null)).toBe(false)
+  })
+
   it("is a dependency that can't be opened or taken off, and isn't counted as open", () => {
-    const hidden = { task_uuid: "zephyr", task_hidden: true, "task_blocked_by|kind": "fs" } as unknown as DependencyTask
+    const hidden = { task_hidden: true, "task_blocked_by|kind": "fs" } as unknown as DependencyTask
     const design: DependencyTask = { task_uuid: "design", task_name: "Design", task_status: "todo" }
     const onOpen = vi.fn()
     render(<TaskDependencies taskUUID="build" taskName="Build" projectUUID="p" canEdit waitingOn={[hidden, design]} blocking={[]} onOpen={onOpen} />)

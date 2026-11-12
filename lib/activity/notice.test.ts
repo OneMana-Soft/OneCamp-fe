@@ -255,6 +255,50 @@ describe("someone who left with work under their name (docs C6-2)", () => {
   })
 })
 
+// ADMIN-02: someone's own way in met the free plan's limit, and every admin
+// hears of it. The address rides in the notice's words, which the server
+// sends only to a reader who may open it (an admin now).
+describe("someone the free plan's limit kept out", () => {
+  const n = (can_open: boolean) =>
+    ({
+      id: "n1",
+      kind: "member.seat_refused",
+      resource_kind: "seat_refused",
+      resource_uuid: "p-ana",
+      reason: "admin",
+      title: can_open ? "Your free plan" : "",
+      can_open,
+      // The line is the server's words (its data), with the plan's own figure.
+      data: { ...(can_open ? { text: "ana@example.com" } : {}), limit: "25", line: "Remove the 25-person limit, or free a place." },
+      created_at: "",
+    }) as never
+
+  it("a seat refusal names them and opens Plan for an admin", () => {
+    const w = noticeWords(n(true))
+    expect(w.actor?.user_name).toBe("ana@example.com")
+    expect(`${w.verb} ${w.place}`).toBe("couldn't join: your free plan is full")
+    expect(w.preview).toBe("Remove the 25-person limit, or free a place.")
+    expect(noticeHref(n(true))).toBe("/app/admin?tab=plan")
+    // Someone asking to come in: the invite's badge, not a comment's.
+    expect(noticeBadge(n(true))).toBe("invite")
+  })
+
+  it("and names nobody and opens nothing for anyone else", () => {
+    const w = noticeWords(n(false))
+    expect(w.actor?.user_name).toBe("Someone")
+    expect(w.preview).toBe("")
+    expect(noticeHref(n(false))).toBeNull()
+  })
+
+  it("and names nobody even when the address came along (a stale cache, a server that forgot to strip it)", () => {
+    const stale = { ...(n(false) as object), data: { text: "ana@example.com", limit: "25", line: "Remove the 25-person limit, or free a place." } } as never
+    const w = noticeWords(stale)
+    expect(w.actor?.user_name).toBe("Someone")
+    expect(w.preview).toBe("")
+    expect(noticeHref(stale)).toBeNull()
+  })
+})
+
 describe("a rule's notices", () => {
   it("name the task and open it only for a reader who may open it", () => {
     const told = notice("work.rule", { resource_kind: "task", resource_uuid: "t1", title: "Fix SSO", can_open: true })
@@ -324,5 +368,114 @@ describe("someone an upgrade took off a project's tasks", () => {
       expect(`${w.verb} ${w.place}`).toBe("was taken off 3 tasks in a project you can't open")
       expect(w.preview).toBe("")
     }
+  })
+})
+
+// A run's moment, to whoever asked the agent (business/AIAgent notifyTriggerer):
+// an Inbox notice the badge counts, about where they asked. It was a live
+// activity no list held, so the badge counted an item the Inbox never showed.
+describe("an agent's moment as a notice", () => {
+  const moment = (kind: string, extra: Partial<NoticeItem> = {}) =>
+    notice(kind, { resource_kind: "channel", resource_uuid: "c1", title: "launch", actor: undefined, agent: AGENT, data: { text: "Shipped the notes.", post_id: "p1" }, ...extra })
+
+  it("says the agent answered, or needs them, where they asked, with its words", () => {
+    const replied = noticeWords(moment("agent.replied"))
+    expect(`${replied.actor?.user_name} ${replied.verb} ${replied.place}`).toBe("Release Captain replied to you in #launch")
+    expect(replied.preview).toBe("Shipped the notes.")
+    const blocked = noticeWords(moment("agent.blocked", { resource_kind: "conversation", resource_uuid: "g1 g2 g3", title: undefined, data: { text: "Which date?", message_id: "m1" } }))
+    expect(`${blocked.verb} ${blocked.place}`).toBe("needs you in your conversation")
+    expect(blocked.preview).toBe("Which date?")
+    expect(noticeBadge(moment("agent.replied"))).toBe("reply")
+    expect(noticeBadge(moment("agent.blocked"))).toBe("mention")
+  })
+
+  it("opens the message it answers, while its reader can open the place", () => {
+    expect(noticeHref(moment("agent.replied"))).toBe("/app/channel/c1/p1")
+    expect(noticeHref(moment("agent.blocked", { resource_kind: "conversation", resource_uuid: "g1", data: { message_id: "m1" } }))).toBe("/app/chat/group/g1/m1")
+    expect(activityHref(item(moment("agent.replied")), "a1")).toBe("/app/channel/c1/p1")
+  })
+
+  it("names nothing, says nothing and opens nothing once they can't open the place", () => {
+    const gone = moment("agent.replied", { can_open: false, title: undefined })
+    const w = noticeWords(gone)
+    expect(w.place).toBe("a conversation you can't open")
+    expect(w.preview).toBe("")
+    expect(noticeHref(gone)).toBeNull()
+    expect(noticeHref({ ...gone, resource_kind: "conversation" })).toBeNull()
+  })
+})
+
+// Notif head A: a mention in a task's words or its comments, or in a channel's
+// or a conversation's message (one an edit adds), and a comment on a task, are
+// NOTICE items. Each says who, what and where, and opens where it happened.
+describe("a mention in a task or a message, and a comment on a task", () => {
+  const onTask = (kind: string, extra: Partial<NoticeItem> = {}) =>
+    notice(kind, { resource_kind: "task", resource_uuid: "t1", title: "Launch plan", ...extra })
+  const inChannel = (extra: Partial<NoticeItem> = {}) =>
+    notice("message.mentioned", { resource_kind: "channel", resource_uuid: "c1", title: "launch", data: { post_id: "p1" }, ...extra })
+  const inChat = (extra: Partial<NoticeItem> = {}) =>
+    notice("message.mentioned", { resource_kind: "conversation", resource_uuid: "g1", title: undefined, data: { message_id: "m1" }, ...extra })
+  const said = (n: NoticeItem) => {
+    const w = noticeWords(n)
+    return `${w.actor?.user_name} ${w.verb} ${w.place}`
+  }
+
+  it("says who mentioned you in which task, in its words or in a comment, and opens the task", () => {
+    expect(said(onTask("task.mentioned"))).toBe("Akash mentioned you in Launch plan")
+    expect(said(onTask("task.mentioned", { data: { comment_uuid: "k1" } }))).toBe("Akash mentioned you in a comment on Launch plan")
+    expect(noticeHref(onTask("task.mentioned"))).toBe("/app/task/t1")
+    expect(noticeHref(onTask("task.mentioned", { data: { comment_uuid: "k1" } }))).toBe("/app/task/t1")
+    expect(noticeBadge(onTask("task.mentioned"))).toBe("mention")
+    const m = item(onTask("task.mentioned"))
+    expect(isMention(m)).toBe(true)
+    expect(kindOf(m)).toBe("mention")
+    expect(sentenceOf(m)).toMatchObject({ verb: "mentioned you in", place: "Launch plan" })
+    expect(activityHref(m, "a1")).toBe("/app/task/t1")
+  })
+
+  it("says who mentioned you in which channel or conversation, and opens the message", () => {
+    expect(said(inChannel())).toBe("Akash mentioned you in #launch")
+    expect(said(inChannel({ data: { post_id: "p1", comment_uuid: "k2" } }))).toBe("Akash mentioned you in #launch")
+    expect(said(inChat())).toBe("Akash mentioned you in your conversation")
+    expect(noticeHref(inChannel())).toBe("/app/channel/c1/p1")
+    expect(noticeHref(inChannel({ data: { post_id: "p1", comment_uuid: "k2" } }))).toBe("/app/channel/c1/p1")
+    expect(noticeHref(inChat())).toBe("/app/chat/group/g1/m1")
+    expect(noticeHref(inChat({ resource_uuid: "a1 b2" }), "a1")).toBe("/app/chat/b2/m1")
+    expect(noticeBadge(inChannel())).toBe("mention")
+    expect(noticeBadge(inChat())).toBe("mention")
+    expect(isMention(item(inChannel()))).toBe(true)
+    expect(isMention(item(inChat()))).toBe(true)
+    expect(activityHref(item(inChannel()), "a1")).toBe("/app/channel/c1/p1")
+  })
+
+  it("says who commented on which task, and opens it", () => {
+    const n = onTask("task.commented", { data: { comment_uuid: "k3" } })
+    expect(said(n)).toBe("Akash commented on Launch plan")
+    expect(noticeHref(n)).toBe("/app/task/t1")
+    expect(noticeBadge(n)).toBe("comment")
+    expect(isMention(item(n))).toBe(false)
+  })
+
+  it("says a mention in a doc's comment is in a comment, and opens that comment", () => {
+    const n = notice("doc.mentioned", { data: { comment_uuid: "k 4" } })
+    expect(said(n)).toBe("Akash mentioned you in a comment on Launch notes")
+    expect(noticeHref(n)).toBe("/app/doc/d1/comment?comment=k%204")
+    expect(said(notice("doc.mentioned"))).toBe("Akash mentioned you in Launch notes")
+    expect(noticeHref(notice("doc.mentioned"))).toBe("/app/doc/d1")
+  })
+
+  it("names and opens nothing its reader can't open now", () => {
+    for (const kind of ["task.mentioned", "task.commented"]) {
+      const gone = onTask(kind, { can_open: false, title: undefined, data: { comment_uuid: "k1" } })
+      expect(noticeWords(gone).place).toBe(UNOPENED_PLACE)
+      expect(noticeHref(gone)).toBeNull()
+    }
+    for (const gone of [inChannel({ can_open: false, title: undefined }), inChat({ can_open: false })]) {
+      expect(noticeWords(gone).place).toBe("a conversation you can't open")
+      expect(noticeHref(gone, "a1")).toBeNull()
+    }
+    const doc = notice("doc.mentioned", { can_open: false, title: undefined, data: { comment_uuid: "k4" } })
+    expect(noticeWords(doc).place).toBe(UNOPENED_PLACE)
+    expect(noticeHref(doc)).toBeNull()
   })
 })

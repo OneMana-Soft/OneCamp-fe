@@ -1,42 +1,32 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo } from "react"
+import { useStoredState } from "@/hooks/useStoredState"
 import { readSidebarSections, writeSidebarSection } from "@/lib/nav/sidebarDisclosure"
 
-const KEY = "board-column:"
+/** Every open status and Done show; Cancelled waits to be asked for. */
+const DEFAULTS: Record<string, boolean> = { canceled: false }
+
+const isChoices = (v: unknown): v is Record<string, boolean> =>
+  !!v && typeof v === "object" && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "boolean")
 
 /**
- * Which status columns a board shows, remembered across reloads. A column
- * not in the map (a project's own status) is shown; see isShown. Someone who
- * turns on "In review" expects to find it there tomorrow; it used to reset to
- * the default set on every load.
- *
- * Kept in the same cookie as the sidebar's open sections (see
- * sidebarDisclosure.ts for why a cookie), under a prefix of its own. Both
- * boards, a project's and My Tasks, share the choice: it is how this person
- * likes to see work, not a property of one project.
+ * Which status columns a board shows, remembered for that board across
+ * reloads, as its grouping and its folded columns are: a project's (its id),
+ * or My tasks' ("mine"). A column not chosen (a project's own status) is
+ * shown; see isShown. In review and Backlog show by default: hidden, a task
+ * moved there from its panel left the board. The choice was once one for
+ * every board, kept in the sidebar's cookie; that one is dropped, unread,
+ * since a hidden In review is what lost cards.
  */
-export function useBoardColumns(defaults: Record<string, boolean>): [Record<string, boolean>, (column: string, shown: boolean) => void] {
-  const [columns, setColumns] = useState(defaults)
-
+export function useBoardColumns(board: string | undefined): [Record<string, boolean>, (column: string, shown: boolean) => void] {
+  const [chosen, setChosen] = useStoredState<Record<string, boolean>>(board ? `oc_board_columns:${board}` : undefined, {}, isChoices)
+  // The cookie goes with every request: the old entries, unread, are dropped.
   useEffect(() => {
-    const stored = readSidebarSections()
-    setColumns((current) => {
-      const next = { ...current }
-      // Every remembered column, not only the defaults: a project's own
-      // statuses are columns too, known only once the project has loaded.
-      for (const [key, v] of Object.entries(stored)) {
-        if (key.startsWith(KEY) && typeof v === "boolean") next[key.slice(KEY.length)] = v
-      }
-      return next
-    })
+    for (const key of Object.keys(readSidebarSections())) if (key.startsWith("board-column:")) writeSidebarSection(key, undefined)
   }, [])
-
-  const setColumn = useCallback((column: string, shown: boolean) => {
-    setColumns((current) => ({ ...current, [column]: shown }))
-    writeSidebarSection(KEY + column, shown)
-  }, [])
-
+  const columns = useMemo(() => ({ ...DEFAULTS, ...chosen }), [chosen])
+  const setColumn = useCallback((column: string, shown: boolean) => setChosen((current) => ({ ...current, [column]: shown })), [setChosen])
   return [columns, setColumn]
 }
 

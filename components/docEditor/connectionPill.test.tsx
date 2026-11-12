@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { ConnectionPill } from "@/components/docEditor/ConnectionPill"
 import { RecoveredEditsBanner } from "@/components/docEditor/RecoveredEditsBanner"
+import { SAY_PROBLEM_AFTER_MS } from "@/components/docEditor/connectionTiming"
 
 afterEach(() => {
   cleanup()
@@ -135,4 +136,33 @@ describe("edits kept aside when the doc changed underneath", () => {
     screen.getByRole("button", { name: "Dismiss" }).click()
     expect(onDismiss).toHaveBeenCalled()
   })
+})
+
+// A screen reader says a live region's change reliably only while its node
+// stays; a new region is often read late or not at all. So whatever the pill
+// says, it says it in ONE status node, docked or floating (CR-B32 F1, V-667).
+describe("the pill's live region", () => {
+  for (const docked of [false, true]) {
+    it(`stays one node from offline through reconnecting, unavailable and Back online${docked ? ", docked" : ""}`, () => {
+      vi.useFakeTimers()
+      const retry = () => {}
+      const { rerender } = render(<ConnectionPill problem="offline" docked={docked} onRetry={retry} />)
+      act(() => void vi.advanceTimersByTime(SAY_PROBLEM_AFTER_MS))
+      const node = screen.getByRole("status")
+      expect(node.textContent).toContain("Offline")
+      const next = [
+        ["reconnecting", "Reconnecting"],
+        ["stalled", "Still connecting"],
+        ["unavailable", "Couldn't open this doc."],
+        ["offline", "Offline"],
+        [null, "Back online"],
+      ] as const
+      for (const [problem, words] of next) {
+        rerender(<ConnectionPill problem={problem} docked={docked} onRetry={retry} />)
+        act(() => void vi.advanceTimersByTime(0))
+        expect(screen.getByRole("status").textContent).toContain(words)
+        expect(screen.getByRole("status"), `${problem ?? "back"} in the same node`).toBe(node)
+      }
+    })
+  }
 })

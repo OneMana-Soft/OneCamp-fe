@@ -15,13 +15,16 @@
 // The timer and votes live in the board's Yjs document (map "facilitation",
 // map "votes"), so they survive a reload and reach late joiners; the votes
 // through components/board/useBoardVoting, which the notes bar's Vote shares.
-// Presenting travels over awareness: it ends when the presenter leaves. The
-// rules are in lib/board/facilitation, tested.
+// Presenting travels over awareness: it ends when the presenter leaves. On a
+// board with frames it presents them as slides, in the Frames panel's order
+// (components/board/boardSlides, a chunk of its own, miro-28). The rules are in
+// lib/board/facilitation, tested.
 
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { Ellipsis, EyeOff, Lock, Pause, Play, Plus, Presentation, Timer, Users, Vote, X } from "@/lib/icons"
+import type { AxiosInstance } from "axios"
+import { Ellipsis, EyeOff, ListOrdered, Lock, Pause, Play, Plus, Presentation, ScrollText, Timer, Users, Vote, X } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { celebrate } from "@/lib/celebrateSoon"
@@ -50,7 +53,10 @@ import {
   facilitationOf,
   timerIn,
 } from "@/components/board/facilitationDock"
-import { PRESENTING_FIELD } from "@/lib/board/presenting"
+import { FIRST_SLIDE, PRESENTING_FIELD, presentingStamp } from "@/lib/board/presenting"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import type { FrameNotesSource } from "@/components/board/frameNotesReads"
+import { SlidesFailed } from "@/components/board/slidesDock"
 import { usePresenterFollow } from "@/components/board/usePresenterFollow"
 import { useGiveWay } from "@/components/board/useGiveWay"
 import { useBoardVoting } from "@/components/board/useBoardVoting"
@@ -68,6 +74,9 @@ import {
 import { sceneToLocal } from "@/lib/board/viewport"
 import { PRIVATE_KEY, privateRoundOf, type PrivateRound } from "@/lib/board/privateNotes"
 
+// A board's frames as slides (miro-28): the bar and the outline, a chunk of their own, loaded once someone presents.
+const BoardSlides = lazyPiece(() => import("@/components/board/boardSlides"), { failed: SlidesFailed })
+
 interface Props {
   provider: HocuspocusProvider
   api: ExcalidrawImperativeAPI
@@ -75,6 +84,12 @@ interface Props {
   editable: boolean
   /** The board's Here now key (lib/board/hereBus boardBusOf): its Bring everyone here is offered on the bar too. */
   hereKey: string
+  /** The board, and its presenter notes' read and write from the page's first load (miro-28 2a): the presenter's slides show them. */
+  board?: string
+  frameNotes?: FrameNotesSource
+  /** The board page's client and the board's topic, for polls on its slides (miro-28 to_win 4). */
+  http?: Pick<AxiosInstance, "get" | "post">
+  topic?: string
 }
 
 const TIMER_MINUTES = [1, 3, 5, 10, 15]
@@ -102,7 +117,7 @@ function chime() {
   }
 }
 
-export default function BoardFacilitation({ provider, api, user, editable, hereKey }: Props) {
+export default function BoardFacilitation({ provider, api, user, editable, hereKey, board, frameNotes, http, topic }: Props) {
   const yDoc = provider.document
   const yFac = React.useMemo(() => facilitationOf(yDoc), [yDoc])
   const awareness = provider.awareness
@@ -197,13 +212,25 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   const [presenting, setPresenting] = React.useState(false)
   // Presenting, holding everyone on this view until we let them move (miro-21 3).
   const [holding, setHolding] = React.useState(false)
+  // Presenting a board's frames as slides (miro-28): the slide this screen shows ("" the canvas), and the outline.
+  const [slide, setSlide] = React.useState("")
+  // A phone's presenter notes, open from the pill (below): their drawer is the slides' (components/board/slideNotes).
+  const [notesOpen, setNotesOpen] = React.useState(false)
+  const [outline, setOutline] = React.useState(false)
   React.useEffect(() => {
-    if (!presenting) setHolding(false)
+    if (presenting) return
+    setHolding(false)
+    setSlide("")
   }, [presenting])
   // Following a presenter, one copy with a share link's guest (components/board/usePresenterFollow). Where the board
   // is looking comes back from it: read for vote dots, and while presenting or following; off the rest of the time,
   // so a pan costs this panel nothing.
-  const { presenters, presenter, held, view, follow, stopFollowing } = usePresenterFollow(api, awareness, { presenting, watching: !!voting })
+  const { presenters, presenter, held, view, follow, stopFollowing, slideFailed, retrySlide } = usePresenterFollow(api, awareness, { presenting, watching: !!voting })
+  // Following a presenter on a slide: where they are, and an outline to see it in, which closes when they leave it.
+  const followedSlide = !presenting && presenter?.slide ? presenter.slide : ""
+  React.useEffect(() => {
+    if (!presenting && !followedSlide) setOutline(false)
+  }, [presenting, followedSlide])
   // Bring everyone here (miro-21 1), Here now's one bringAll (components/board/boardHereNow, editors only), offered
   // beside Present as well while anyone else is on the board (V-286): the list of who's here names members only, and
   // a share link's guest is on the board unnamed, so an editor alone with guests had nowhere to press it. Not while
@@ -220,15 +247,11 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
       return
     }
     const t = setTimeout(() => {
-      awareness.setLocalStateField(PRESENTING_FIELD, {
-        userId: user.id,
-        name: user.name,
-        view: { scrollX: view.scrollX, scrollY: view.scrollY, zoom: view.zoom, width: view.width, height: view.height },
-        hold: holding,
-      })
+      const shown = { scrollX: view.scrollX, scrollY: view.scrollY, zoom: view.zoom, width: view.width, height: view.height }
+      awareness.setLocalStateField(PRESENTING_FIELD, presentingStamp({ id: user.id, name: user.name }, shown, holding, slide))
     }, 80)
     return () => clearTimeout(t)
-  }, [awareness, presenting, view, user.id, user.name, holding])
+  }, [awareness, presenting, view, user.id, user.name, holding, slide])
   React.useEffect(() => () => awareness?.setLocalStateField(PRESENTING_FIELD, null), [awareness])
 
   // ---- Render ------------------------------------------------------------
@@ -251,6 +274,9 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   }, [voting, winner])
 
   const sheet = useSheetMode()
+  // The presenter's notes on a phone (miro-28 2a) sit in this pill, which has room, so the slide bar keeps the slide's
+  // name (DB-133 F2). Presenting is an editor's, as reading notes is; a follower and a share link's guest have neither.
+  const notesInPill = presenting && sheet && !!frameNotes && !!slide && slide !== FIRST_SLIDE
   // The round whose results are open, so a new round's are closed until asked for.
   const [resultsOf, setResultsOf] = React.useState<string | null>(null)
 
@@ -271,7 +297,7 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   // An idle phone's row of ways to start, short of room (Bring everyone here beside Private), gives way the same
   // way: Private, then Bring, draw their icons alone, and keep their names.
   const startSteps = editable && !compact && isMobile ? [!privateRound && "private", !!bring && "bring"].filter(Boolean) : []
-  const barWords = [compact, held, holding, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable, privateRound?.byName, startSteps.join()]
+  const barWords = [compact, held, holding, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable, privateRound?.byName, startSteps.join(), notesInPill]
   const given = useGiveWay(barRef, room, compact ? giveWaySteps(compactBar).length : startSteps.length, barWords.join("|"))
   const forms = barForms(compactBar, compact ? given : 0)
   const startIcon = (step: string) => !compact && startSteps.slice(0, given).includes(step)
@@ -281,6 +307,8 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
   const present = () => {
     follow(null)
     setPresenting(true)
+    setSlide(FIRST_SLIDE)
+    setNotesOpen(false)
   }
   const stopTimer = () => setShared(TIMER_KEY, null)
   const paused = timer?.pausedLeftMs !== undefined
@@ -293,6 +321,11 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
       <Segment key="presenting" tone="about-you" fit={compact}>
         <Presentation className="size-4 shrink-0" aria-hidden />
         <span className="shrink-0">{compact ? "Presenting" : "You're presenting"}</span>
+        {!compact && (
+          <SegmentButton aria-expanded={outline} onClick={() => setOutline((o) => !o)}>
+            Slides
+          </SegmentButton>
+        )}
         {!compact && <SegmentButton onClick={() => setHolding((h) => !h)}>{holding ? "Let everyone move" : "Hold everyone"}</SegmentButton>}
         {!compact && <SegmentButton onClick={() => setPresenting(false)}>Stop</SegmentButton>}
       </Segment>,
@@ -520,6 +553,10 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
     const [presentingRows, votingRows, timerRows, privateRows] = groups
     if (presenting) {
       presentingRows.push(
+        <DropdownMenuItem key="slides" onSelect={() => setOutline((o) => !o)}>
+          <ListOrdered />
+          {outline ? "Close the slides" : "Slides"}
+        </DropdownMenuItem>,
         <DropdownMenuItem key="hold" onSelect={() => setHolding((h) => !h)}>
           <Lock />
           {holding ? "Let everyone move" : "Hold everyone"}
@@ -606,6 +643,14 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
           {privateRound ? "End private mode" : "Private mode"}
         </DropdownMenuItem>,
       )
+    if (notesInPill)
+      segments.push(
+        <Segment key="notes" quiet>
+          <SegmentIcon label="Notes for this slide" aria-expanded={notesOpen} onClick={() => setNotesOpen(true)} className="max-sm:size-9">
+            <ScrollText />
+          </SegmentIcon>
+        </Segment>,
+      )
     const shown = groups.filter((g) => g.length > 0)
     if (shown.length > 0) {
       segments.push(
@@ -640,6 +685,17 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
           </span>
         </div>
       )}
+
+      {/* A board's frames as slides: the presenter's bar and outline, or where a follower is (miro-28). */}
+      {/* A follower whose slide code failed follows the presenter's view, and the slides' place says so. */}
+      {(presenting || followedSlide) &&
+        (slideFailed ? (
+          <SlidesFailed retry={retrySlide} />
+        ) : (
+          <React.Suspense fallback={null}>
+            <BoardSlides api={api} doc={yDoc} slide={presenting ? slide : followedSlide} onSlide={presenting ? setSlide : undefined} outline={outline} onOutline={setOutline} board={board} frameNotes={frameNotes} notesOpen={notesOpen} onNotesOpen={setNotesOpen} polls={board && http ? { board, http, topic: topic ?? "" } : undefined} />
+          </React.Suspense>
+        ))}
 
       {/* Vote dots, anchored to each note's top-right corner. */}
       {voting && view && (

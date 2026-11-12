@@ -78,6 +78,8 @@ export interface RowsChanged {
   restored: string[]
   more?: boolean
   moved?: boolean
+  /** Each updated row's fields that changed (tables L1): its cells alone are read again. None from a server before it. */
+  fields?: Record<string, string[]>
 }
 
 /** Something in a table's trash. */

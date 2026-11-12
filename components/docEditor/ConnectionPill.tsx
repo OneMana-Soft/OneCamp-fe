@@ -2,12 +2,8 @@
 
 import * as React from "react"
 
-import { SAY_PROBLEM_AFTER_MS } from "@/components/docEditor/connectionTiming"
-import { CHANGES_KEPT } from "@/components/docEditor/SaveDot"
-import { Button } from "@/components/ui/button"
-import { useTellHeight } from "@/hooks/useTellHeight"
+import { needsNoCode, PillAction, PillFrame, ProblemWords, useShownProblem, type ConnectionProblem } from "@/components/docEditor/ConnectionPillFrame"
 import { Loader2 } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * The live doc's connection, said quietly (content.md D13): a 32 px pill
@@ -16,13 +12,12 @@ import { cn } from "@/lib/utils/helpers/cn"
  * it resolves it says "Back online" for 1.5 s. On a phone (docked) a floating
  * pill would sit over the title and its cover tools, so it is a full-width
  * row under the header instead, in the page's flow: the page moves down by
- * its height while it shows, and nothing is covered.
- */
-export type ConnectionProblem = "offline" | "reconnecting" | "unavailable" | "stalled" | null
-
-const BACK_FOR_MS = 1500
-
-/**
+ * its height while it shows, and nothing is covered. Its wait, frame and
+ * offline words are ConnectionPillFrame's, which the doc loads with the page,
+ * so that offline before this code is in, its stand-in says the same (V-667).
+ * It is one frame whatever it says, so its live region (role=status) stays one
+ * node and a screen reader says each change, "Back online" after "Offline"
+ * too; a new region is often read late or not at all (CR-B32 F1).
  * "unavailable": the collaboration server could not read the doc and refused
  * to open it (it never serves one empty). The stored copy stays on screen,
  * read-only, and Retry asks again.
@@ -38,99 +33,35 @@ export function ConnectionPill({
   docked = false,
   besideNotice = false,
   className,
+  said,
 }: {
   problem: ConnectionProblem
   onRetry?: () => void
   docked?: boolean
   besideNotice?: boolean
   className?: string
+  /** Whether its stand-in is saying a problem (LazyConnectionPill): the pill goes on from there. */
+  said?: React.RefObject<boolean>
 }) {
-  const [shown, setShown] = React.useState<ConnectionProblem | "back">(null)
-  const wasShown = React.useRef(false)
-
-  React.useEffect(() => {
-    if (problem) {
-      const t = window.setTimeout(() => {
-        wasShown.current = true
-        setShown(problem)
-      }, wasShown.current ? 0 : SAY_PROBLEM_AFTER_MS)
-      return () => window.clearTimeout(t)
-    }
-    if (!wasShown.current) {
-      setShown(null)
-      return
-    }
-    wasShown.current = false
-    setShown("back")
-    const t = window.setTimeout(() => setShown(null), BACK_FOR_MS)
-    return () => window.clearTimeout(t)
-  }, [problem])
-
-  // Docked, the row sits where a phone's toast comes in while the keyboard is
-  // up (app/phone.css C9), so it says how tall it is, through resizes, and
-  // toasts come in under it. A floating pill leaves the docked row's height
-  // alone.
-  const row = React.useRef<HTMLDivElement>(null)
-  const tellRowHeight = React.useCallback(
-    (px: number) => {
-      if (!docked) return
-      const root = document.documentElement
-      if (px > 0) root.style.setProperty("--docked-row-h", `${px}px`)
-      else root.style.removeProperty("--docked-row-h")
-    },
-    [docked],
-  )
-  useTellHeight(row, tellRowHeight, shown)
+  const shown = useShownProblem(problem, said)
 
   if (!shown) return null
   return (
-    <div className={cn(docked ? "shrink-0" : "pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center", className)}>
-      <div
-        ref={row}
-        role="status"
-        aria-live="polite"
-        data-connection-pill={shown}
-        className={cn(
-          "items-center gap-2 text-ui-sm font-[450] text-ink",
-          docked
-            ? "flex h-11 w-full justify-center border-b border-line bg-raised px-4"
-            : "content-float pointer-events-auto inline-flex h-8 rounded-[16px] bg-pop px-3.5 shadow-e3",
-        )}
-      >
-        {shown === "unavailable" || shown === "offline" ? (
-          <>
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-camp-sun" />
-            {shown === "offline" ? (
-              besideNotice ? "Offline" : `Offline. ${CHANGES_KEPT}`
-            ) : (
-              <>
-                Couldn&apos;t open this doc.
-                {onRetry && <PillAction onClick={onRetry} docked={docked}>Retry</PillAction>}
-              </>
-            )}
-          </>
-        ) : shown === "reconnecting" || shown === "stalled" ? (
-          <>
-            <Loader2 aria-hidden="true" className="size-3.5 animate-spin text-ink-3" />
-            {shown === "stalled" ? "Still connecting…" : "Reconnecting…"}
-            {shown === "stalled" && onRetry && <PillAction onClick={onRetry} docked={docked}>Try again</PillAction>}
-          </>
-        ) : (
-          <>
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-camp-moss" />
-            Back online
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** The pill's one action: the app's button (its hover, press and touch target), the smallest size in the pill, sm in the docked row. */
-function PillAction({ onClick, docked, children }: { onClick: () => void; docked: boolean; children: React.ReactNode }) {
-  return (
-    <Button type="button" variant="secondary" size={docked ? "sm" : "xs"} onClick={onClick}>
-      {children}
-    </Button>
+    <PillFrame shown={shown} docked={docked} className={className}>
+      {needsNoCode(shown) ? (
+        <ProblemWords shown={shown} onRetry={onRetry} docked={docked} besideNotice={besideNotice} />
+      ) : shown === "back" ? (
+        <>
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-camp-moss" />
+          Back online
+        </>
+      ) : (
+        <>
+          <Loader2 aria-hidden="true" className="size-3.5 animate-spin text-ink-3" />
+          {shown === "stalled" ? "Still connecting…" : "Reconnecting…"}
+          {shown === "stalled" && onRetry && <PillAction onClick={onRetry} docked={docked}>Try again</PillAction>}
+        </>
+      )}
+    </PillFrame>
   )
 }

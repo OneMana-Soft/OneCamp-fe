@@ -367,6 +367,24 @@
     background: var(--line);
   }
   .you-events-body { transition: opacity 140ms var(--ease-out); }
+  /* A group's name (Calendar) over its rows, on a hairline as a row is. */
+  .you-event-group {
+    position: relative;
+    padding: 14px 16px 2px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .you-event-group::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--line);
+  }
   /* Sub-rows a switch reveals: fade and drop 4px into place. */
   .you-reveal { animation: you-reveal 180ms var(--ease-out) both; }
   @keyframes you-reveal {

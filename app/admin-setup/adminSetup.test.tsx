@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 // Setting up the first admin on an empty server. An error is said under the
 // field it is about, and the cursor goes there.
@@ -138,5 +138,40 @@ describe("the first run's first step", () => {
     expect(screen.queryByRole("heading", { name: "Pick your camp's colour" })).toBeNull()
     fireEvent.keyDown(window, { key: "Enter" })
     expect(await screen.findByRole("heading", { name: "Pick your camp's colour" })).toBeTruthy()
+  })
+})
+
+// The camp's caption says where the workspace runs, as the trust line does
+// (SHELL-05): only what the server said, and the host alone from a server too
+// old to say.
+describe("the first run's caption", () => {
+  // The page asks the server only when it knows the server's address.
+  beforeEach(() => void (process.env.NEXT_PUBLIC_BACKEND_URL = "https://api.example.com/"))
+  afterEach(() => void delete process.env.NEXT_PUBLIC_BACKEND_URL)
+
+  it("names where the workspace runs, and nothing the server didn't say", async () => {
+    const host = location.host
+    const cases = [
+      ["self", `${host} · on your server`],
+      ["cloud", `${host} · set up by OneMana`],
+      ["demo", "Shared demo"],
+      [undefined, host],
+    ] as const
+    for (const [hosting, caption] of cases) {
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+        const path = String(input).split("?")[0]
+        if (path.endsWith("auth/admin-setup-required")) {
+          return { ok: true, status: 200, json: async () => ({ required: true, pinned: false }) } as Response
+        }
+        if (path.endsWith("auth/providers")) {
+          return { ok: true, status: 200, json: async () => ({ status: "success", ...(hosting ? { hosting } : {}) }) } as Response
+        }
+        throw new Error(`no route for ${path}`)
+      })
+      const { container } = render(<AdminSetupPage />)
+      await screen.findByLabelText("Your email")
+      await waitFor(() => expect(container.querySelector("[data-first-run-camp] .auth-caption")?.textContent).toBe(caption))
+      cleanup()
+    }
   })
 })

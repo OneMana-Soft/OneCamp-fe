@@ -106,6 +106,8 @@ const queryRows = vi.fn<(t: string, body: { spec: RowSpec; cursor?: string; at?:
 })
 const listRows = vi.fn(async (_t: string, offset: number, limit: number) => tableRows().slice(offset, offset + limit))
 const rowsByIds = vi.fn(async (_t: string, ids: string[]) => tableRows().filter((r) => ids.includes(r.id)))
+// A read of the cells a message named (tables L1): the rows rowsByIds reads, as cells.
+const cellsByIds = vi.fn(async (...a: [string, string[], readonly string[]]) => ({ rows: await rowsByIds(a[0], a[1]), cells: true }))
 let heard: ((m: string) => void) | undefined
 
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: bundle, isLoading: false, isError: undefined, mutate }) }))
@@ -115,6 +117,7 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
   queryRows: (...a: Parameters<typeof queryRows>) => queryRows(...a),
   listRows: (...a: Parameters<typeof listRows>) => listRows(...a),
   rowsByIds: (...a: Parameters<typeof rowsByIds>) => rowsByIds(...a),
+  cellsByIds: (...a: Parameters<typeof cellsByIds>) => cellsByIds(...a),
 }))
 
 import { useTableRows, type RowView } from "@/lib/tables/useTableRows"
@@ -149,6 +152,7 @@ afterEach(() => {
   queryRows.mockClear()
   listRows.mockClear()
   rowsByIds.mockClear()
+  cellsByIds.mockClear()
 })
 
 describe("a view the server answers in windows", () => {
@@ -266,10 +270,10 @@ describe("a view the server answers in windows", () => {
     await waitFor(() => expect(result.current.rows).toHaveLength(500))
     queryRows.mockClear()
     edited.r1100 = "Changed"
-    tell({ action: "updated", row_id: "r1100" })
+    tell({ action: "updated", row_id: "r1100", fields: ["who"] })
     await act(async () => void vi.advanceTimersByTime(400))
     await waitFor(() => expect(JSON.parse(result.current.rows[99].values).item).toBe("Changed"))
-    expect(rowsByIds).toHaveBeenCalledWith("t", ["r1100"])
+    expect(cellsByIds).toHaveBeenCalledWith("t", ["r1100"], ["who"])
     expect(queryRows).not.toHaveBeenCalled()
   })
 
@@ -359,6 +363,300 @@ describe("a view the server answers in windows", () => {
 // The summary bar (QUERY_STACK_CONTRACT item 8): a view read in windows asks
 // the server for what its bar shows, which sums every row the view keeps,
 // beside its count, so a window never waits on it.
+// Tables L1 (Live Rows #65): each case counts the reads a burst makes.
+describe("a view read in windows, live", () => {
+  const settle = () => act(async () => void vi.advanceTimersByTime(60))
+  const reads = () => queryRows.mock.calls.length
+
+  it("a: reads only the cells a burst named, in one read by id within 50 ms, and no window", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    queryRows.mockClear()
+    tell({ action: "changed", change_set: "c1", created: [], updated: ["r1100", "r1101"], deleted: [], restored: [], fields: { r1100: ["who"], r1101: ["who"] } })
+    tell({ action: "updated", row_id: "r1102", fields: ["who"] })
+    await settle()
+    await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+    expect(cellsByIds).toHaveBeenCalledWith("t", ["r1100", "r1101", "r1102"], ["who"])
+    expect(reads()).toBe(0)
+  })
+
+  it("a: asks the bar's sums again only for a cell they sum, never for one they don't (the count is not a window)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    moreFields = [{ id: "note", table_id: "t", name: "Note", type: "text", config: "{}", position: 2 }]
+    bundle = bundleNow()
+    // The bar as a view has it at first: Who's filled (a person's default), nothing of Item or Note (text).
+    const { result } = renderHook(() => useTableRows("t", { ...newestFirst, summary: {} }))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    await waitFor(() => expect(result.current.summaries?.["field:who"]).toEqual({ filled: 42 }))
+    const counts = () => queryRows.mock.calls.filter((c) => c[1].count).length
+    await act(async () => void vi.advanceTimersByTime(2_100))
+    queryRows.mockClear()
+    tell({ action: "updated", row_id: "r1100", fields: ["note"] })
+    await settle()
+    await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+    await act(async () => void vi.advanceTimersByTime(2_100))
+    expect(counts()).toBe(0)
+    tell({ action: "updated", row_id: "r1101", fields: ["who"] })
+    await settle()
+    await act(async () => void vi.advanceTimersByTime(2_100))
+    await waitFor(() => expect(counts()).toBe(1))
+    expect(reads()).toBe(1)
+  })
+
+  it("b: drops a row deleted and counts one fewer, reading nothing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    queryRows.mockClear()
+    tell({ action: "deleted", row_id: "r1100" })
+    await settle()
+    await waitFor(() => expect(ids(result.current.rows)).not.toContain("r1100"))
+    expect(result.current.count).toBe(1199)
+    expect(rowsByIds).not.toHaveBeenCalled()
+    expect(reads()).toBe(0)
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it("b: reads a row made in a view in the table's own order by id, and counts it, reading no window", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", view({})))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    queryRows.mockClear()
+    count = 1201
+    tell({ action: "created", row_id: "r1200" })
+    await settle()
+    await waitFor(() => expect(result.current.count).toBe(1201))
+    expect(rowsByIds).toHaveBeenCalledTimes(1)
+    expect(rowsByIds).toHaveBeenCalledWith("t", ["r1200"])
+    expect(reads()).toBe(0)
+    // The bundle isn't read again: its cache only takes rows put back.
+    expect(mutate.mock.calls.every((c) => typeof c[0] === "function")).toBe(true)
+  })
+
+  it("c: an edit of the field it sorts by reads the row's cells and only the window it moves within", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    act(() => result.current.more(400))
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    queryRows.mockClear()
+    edited.r1100 = "Line 1050.5"
+    tell({ action: "changed", change_set: "c2", created: [], updated: ["r1100"], deleted: [], restored: [], fields: { r1100: ["item"] } })
+    await settle()
+    await waitFor(() => expect(windowsRead()).toEqual([""]))
+    expect(cellsByIds).toHaveBeenCalledWith("t", ["r1100"], ["item"])
+    expect(reads()).toBe(1)
+  })
+
+  it("c: reads on from its next window as the reader scrolls, once the topic back read its run again", async () => {
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    await act(() => result.current.refresh())
+    await waitFor(() => expect(windowsRead()).toEqual(["", ""]))
+    queryRows.mockClear()
+    act(() => result.current.more(400))
+    await waitFor(() => expect(windowsRead()).toEqual(["500"]))
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+  })
+
+  it("reads the cells a failed read by id named again, by id, with the next message's, never leaving them stale unsaid", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    queryRows.mockClear()
+    rowsByIds.mockRejectedValueOnce(new Error("Network Error"))
+    tell({ action: "updated", row_id: "r1100", fields: ["who"] })
+    await settle()
+    await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+    expect(reads()).toBe(0)
+    tell({ action: "updated", row_id: "r1101", fields: ["who"] })
+    await settle()
+    await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(2))
+    expect([...cellsByIds.mock.lastCall![1]].sort(), "the cells it failed to read, and the new message's").toEqual(["r1100", "r1101"])
+    expect(reads(), "no window, and no count").toBe(0)
+  })
+
+  it("reads the cells a failed read by id named again, by id, once the app is back online with no message since, and shows them", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true)
+    try {
+      // In the table's order: the edit moves no row, so no window is read for it.
+      const { result } = renderHook(() => useTableRows("t", view({})))
+      await waitFor(() => expect(result.current.rows).toHaveLength(500))
+      queryRows.mockClear()
+      // Offline, the topic still speaks (its socket outlives a short drop): the read of the cell fails.
+      onLine.mockReturnValue(false)
+      act(() => void window.dispatchEvent(new Event("offline")))
+      rowsByIds.mockRejectedValueOnce(new Error("Network Error"))
+      edited = { r100: "Booth" }
+      tell({ action: "updated", row_id: "r100", fields: ["item"] })
+      await settle()
+      await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+      expect(reads()).toBe(0)
+      const item = () => result.current.rows.find((r) => r.id === "r100")?.values ?? ""
+      expect(item()).toContain("Line 100")
+      onLine.mockReturnValue(true)
+      act(() => void window.dispatchEvent(new Event("online")))
+      await waitFor(() => expect(item()).toContain("Booth"))
+      await settle()
+      expect(rowsByIds, "the cell read again once, by id").toHaveBeenCalledTimes(2)
+      expect(cellsByIds).toHaveBeenLastCalledWith("t", ["r100"], ["item"])
+      expect(reads(), "no window, and no count").toBe(0)
+      expect(result.current.rows).toHaveLength(500)
+    } finally {
+      onLine.mockRestore()
+    }
+  })
+
+  it("reads the cells again, by id, when the app is back while the read that fails is still under way, and shows them", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true)
+    try {
+      const { result } = renderHook(() => useTableRows("t", view({})))
+      await waitFor(() => expect(result.current.rows).toHaveLength(500))
+      queryRows.mockClear()
+      onLine.mockReturnValue(false)
+      act(() => void window.dispatchEvent(new Event("offline")))
+      // The read's failure comes only after the app is back (in a browser, its run's chunk is tried again 200-600 ms on).
+      let fail = () => {}
+      rowsByIds.mockImplementationOnce(() => new Promise((_, reject) => (fail = () => reject(new Error("Network Error")))))
+      edited = { r100: "Booth" }
+      tell({ action: "updated", row_id: "r100", fields: ["item"] })
+      await settle()
+      await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+      onLine.mockReturnValue(true)
+      act(() => void window.dispatchEvent(new Event("online")))
+      await act(async () => fail())
+      const item = () => result.current.rows.find((r) => r.id === "r100")?.values ?? ""
+      await waitFor(() => expect(item()).toContain("Booth"))
+      await settle()
+      expect(rowsByIds, "the cell read again once, by id").toHaveBeenCalledTimes(2)
+      expect(cellsByIds).toHaveBeenLastCalledWith("t", ["r100"], ["item"])
+      expect(reads(), "no window, and no count").toBe(0)
+    } finally {
+      onLine.mockRestore()
+    }
+  })
+
+  // CR-234 row 2837 F1: a run read again (a change too big to name) whose windows fail sets missed,
+  // and the next message, or the app back online, reads the windows again.
+  it("reads its windows again with the next message when the run a change read again failed, and shows the cells it missed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    queryRows.mockClear()
+    const item = (id: string) => result.current.rows.find((r) => r.id === id)?.values ?? ""
+    down = 1
+    edited = { r1100: "Booth" }
+    tell({ action: "changed", change_set: "c4", more: true })
+    await settle()
+    await waitFor(() => expect(windowsFrom()).toEqual([""]))
+    await settle()
+    expect(item("r1100"), "the run read again failed: the cell is as it was").toContain("Line 1100")
+    // A cell no rule reads: alone, it is read by id and reads no window.
+    tell({ action: "updated", row_id: "r1101", fields: ["who"] })
+    await settle()
+    await waitFor(() => expect(item("r1100")).toContain("Booth"))
+    expect(windowsFrom(), "the run read again from the first, as far as it was read").toEqual(["", ""])
+    expect(rowsByIds, "the windows carry the cell the message named").not.toHaveBeenCalled()
+    expect(result.current.rows).toHaveLength(500)
+  })
+
+  it("reads its windows again once the app is back online, with no message since, when the run a change read again failed offline", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true)
+    try {
+      const { result } = renderHook(() => useTableRows("t", newestFirst))
+      await waitFor(() => expect(result.current.rows).toHaveLength(500))
+      queryRows.mockClear()
+      const item = (id: string) => result.current.rows.find((r) => r.id === id)?.values ?? ""
+      // Offline, the topic still speaks: the run the change reads again fails.
+      onLine.mockReturnValue(false)
+      act(() => void window.dispatchEvent(new Event("offline")))
+      down = 1
+      edited = { r1100: "Booth" }
+      tell({ action: "changed", change_set: "c5", more: true })
+      await settle()
+      await waitFor(() => expect(windowsFrom()).toEqual([""]))
+      await settle()
+      expect(item("r1100")).toContain("Line 1100")
+      onLine.mockReturnValue(true)
+      act(() => void window.dispatchEvent(new Event("online")))
+      await waitFor(() => expect(item("r1100")).toContain("Booth"))
+      await settle()
+      expect(windowsFrom(), "the run read again once, from the first").toEqual(["", ""])
+      expect(rowsByIds).not.toHaveBeenCalled()
+      expect(result.current.rows).toHaveLength(500)
+    } finally {
+      onLine.mockRestore()
+    }
+  })
+
+  // CR-234 M3: the back listener's unmount guard. Back while a read that fails is under way, then the view
+  // goes before it ends: nothing is read for a view no longer there.
+  it("reads nothing once the view is gone, when the app came back while its failing read was under way", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true)
+    try {
+      const { result, unmount } = renderHook(() => useTableRows("t", view({})))
+      await waitFor(() => expect(result.current.rows).toHaveLength(500))
+      queryRows.mockClear()
+      onLine.mockReturnValue(false)
+      act(() => void window.dispatchEvent(new Event("offline")))
+      let fail = () => {}
+      rowsByIds.mockImplementationOnce(() => new Promise((_, reject) => (fail = () => reject(new Error("Network Error")))))
+      tell({ action: "updated", row_id: "r100", fields: ["item"] })
+      await settle()
+      await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+      onLine.mockReturnValue(true)
+      act(() => void window.dispatchEvent(new Event("online")))
+      unmount()
+      await act(async () => fail())
+      await settle()
+      expect(rowsByIds, "no read after the view is gone").toHaveBeenCalledTimes(1)
+      expect(reads()).toBe(0)
+    } finally {
+      onLine.mockRestore()
+    }
+  })
+
+  it("c: never puts a moved row's window into a run that changed while it was read, and reads the run again on the next message", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    act(() => result.current.more(400))
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    queryRows.mockClear()
+    // The window the edited row moves within answers only once the reader has scrolled on, with the row
+    // where the server now sorts it (Line 1050.5 falls between Line 1051 and Line 1050).
+    let release = () => {}
+    const slow = new Promise<void>((r) => (release = r))
+    const answerNow = queryRows.getMockImplementation()!
+    queryRows.mockImplementationOnce(async (...a) => {
+      await slow
+      const w = await answerNow(...a)
+      const rows = w.rows.filter((r) => r.id !== "r1100")
+      rows.splice(rows.findIndex((r) => r.id === "r1050"), 0, w.rows.find((r) => r.id === "r1100")!)
+      return { ...w, rows }
+    })
+    edited.r1100 = "Line 1050.5"
+    tell({ action: "changed", change_set: "c3", created: [], updated: ["r1100"], deleted: [], restored: [], fields: { r1100: ["item"] } })
+    await settle()
+    await waitFor(() => expect(windowsRead()).toEqual([""]))
+    act(() => result.current.more(900))
+    await waitFor(() => expect(result.current.rows).toHaveLength(1200))
+    const held = ids(result.current.rows)
+    await act(async () => release())
+    await settle()
+    expect(ids(result.current.rows)).toEqual(held)
+    queryRows.mockClear()
+    tell({ action: "updated", row_id: "r1101", fields: ["who"] })
+    await settle()
+    await waitFor(() => expect(windowsFrom()).toEqual(["", "500", "1000"]))
+  })
+})
+
 describe("the summary bar of a view read in windows", () => {
   beforeEach(() => {
     moreFields = [
@@ -410,11 +708,59 @@ describe("the summary bar of a view read in windows", () => {
     await waitFor(() => expect(asked()).toHaveLength(2), { timeout: 3000 })
   }, 10_000)
 
+  const later = (ms: number) => act(async () => void vi.advanceTimersByTime(ms))
+
+  // Tables L1 b (main, 6 Nov): a bulk delete or a paste is a burst of a
+  // message a row; the bar's sums are asked once for the burst, never once a
+  // row, and no window is read.
+  it("asks for the sums once for a burst of 100 rows deleted, and once for a paste of 500 made, never once a row", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", { ...view({}), summary: {} }))
+    await waitFor(() => expect(result.current.summaries).toBeTruthy())
+    await later(2_100)
+    queryRows.mockClear()
+    // A message a row, 10 ms apart: one burst over a second.
+    for (let i = 0; i < 100; i++) {
+      await tell({ action: "deleted", row_id: `r${i}` })
+      await later(10)
+    }
+    await later(60)
+    await waitFor(() => expect(ids(result.current.rows)).not.toContain("r99"))
+    await later(5_000)
+    expect(asked()).toHaveLength(1)
+    expect(rowsByIds).not.toHaveBeenCalled()
+    count = 1700
+    for (let i = 1200; i < 1700; i++) {
+      await tell({ action: "created", row_id: `r${i}` })
+      await later(2)
+    }
+    await later(60)
+    await waitFor(() => expect(rowsByIds).toHaveBeenCalledTimes(1))
+    await later(5_000)
+    expect(rowsByIds.mock.calls[0][1]).toHaveLength(500)
+    expect(asked()).toHaveLength(2)
+    expect(windowsFrom()).toEqual([])
+  })
+
+  it("drops each of two rows deleted in two bursts, the second heard while the first's sums are asked", async () => {
+    const { result } = renderHook(() => useTableRows("t", { ...view({}), summary: {} }))
+    await waitFor(() => expect(result.current.summaries).toBeTruthy())
+    let release = () => {}
+    const slow = new Promise<void>((r) => (release = r))
+    const answerNow = queryRows.getMockImplementation()!
+    queryRows.mockImplementationOnce(async (...a) => slow.then(() => answerNow(...a)))
+    await tell({ action: "deleted", row_id: "r0" })
+    await waitFor(() => expect(queryRows).toHaveBeenCalledTimes(3))
+    await tell({ action: "deleted", row_id: "r1" })
+    await act(() => new Promise((r) => setTimeout(r, 100)))
+    await act(async () => release())
+    await waitFor(() => expect(ids(result.current.rows).slice(0, 2)).toEqual(["r2", "r3"]))
+    expect(result.current.rows).toHaveLength(498)
+  })
+
   // V-48: right after a big import, a first window's sums ran past their
   // budget and the server left them out; the view waited for them for good,
   // and its bar said "Sum …" with no end.
-  const later = (ms: number) => act(async () => void vi.advanceTimersByTime(ms))
-
   it("says when the server left its sums out, and asks again a little later until they come", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     leaveOut = 1

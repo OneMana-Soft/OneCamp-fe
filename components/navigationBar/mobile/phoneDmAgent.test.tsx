@@ -10,6 +10,8 @@ import { Provider } from "react-redux"
 
 /** What each read answers in a test, by its address. */
 const answers = new Map<string, unknown>()
+// A call server runs here: the bar's huddle is gated on FEATURE_CALLS (UX-CHAT-H2).
+vi.mock("@/hooks/useClientConfig", async (real) => ({ ...(await real<object>()), useFeature: () => true }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => ({ data: answers.get(url), mutate: vi.fn() }),
   useFetchOnlyOnce: (url: string) => ({ data: answers.get(url), mutate: vi.fn() }),
@@ -44,11 +46,11 @@ describe("a DM's bar on a phone", () => {
     expect(screen.queryByRole("link", { name: /huddle/i })).toBeNull()
   })
 
-  it("says where a person is, and offers a huddle with them", () => {
+  it("says where a person is, and offers a huddle with them", async () => {
     answers.set("/user/profile/maya", { data: MAYA })
     bar("maya")
     expect(screen.getByRole("button", { name: "Maya Chen, profile" }).textContent).toContain("Offline")
-    expect(screen.getByRole("link", { name: "Start a huddle" })).toBeTruthy()
+    expect(await screen.findByRole("link", { name: "Start a huddle" })).toBeTruthy()
   })
 
   it("offers no huddle before it knows who the DM is with", () => {

@@ -45,10 +45,12 @@ import { app_channel_path } from "@/types/paths"
 import { Lock, Megaphone, X, Pencil } from "@/lib/icons"
 import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
 import { focusDialogItself } from "@/components/ui/overlayFocus"
+import type { ReturnFocus } from "@/components/ui/returnFocus"
 import { NotificationType, type ChannelInfoInterfaceResp, type ChannelMemberUpdateInterface } from "@/types/channel"
 import type { UserProfileInterface } from "@/types/user"
 
-interface ChannelDetailsSheetProps {
+/** Its close focus (components/ui/returnFocus) comes from the eager UnifiedUIManager: this lazy chunk never imports it. */
+interface ChannelDetailsSheetProps extends Partial<ReturnFocus> {
     channelId: string
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -115,7 +117,7 @@ const NOTIFY: { value: string; label: string; description: string }[] = [
  * Notifications, Settings for admins, and the danger zone. Each setting saves
  * the moment it changes, so the sheet has no Save button to forget.
  */
-export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: ChannelDetailsSheetProps) {
+export default function ChannelDetailsSheet({ channelId, open, onOpenChange, ...back }: ChannelDetailsSheetProps) {
     const dispatch = useDispatch()
     const router = useRouter()
     const { toast } = useToast()
@@ -247,6 +249,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                     // The sheet itself takes focus, not its close button: a ring on
                     // × the moment it opens read as the thing to press.
                     onOpenAutoFocus={focusDialogItself}
+                    {...back}
                     tabIndex={-1}
                     className="fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-full flex-col bg-sheet shadow-e4 outline-none animate-panel-in sm:w-[440px]"
                 >

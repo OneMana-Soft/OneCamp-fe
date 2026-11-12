@@ -1,4 +1,4 @@
-import type { Locator } from "@playwright/test"
+import { expect, type Locator, type Page } from "@playwright/test"
 
 /**
  * The screens a flow is checked on: a computer at 1280, and a phone at 390
@@ -12,6 +12,12 @@ export const SCREENS = [
 export const SCHEMES = ["light", "dark"] as const
 
 export type Screen = (typeof SCREENS)[number]
+
+/** The open page redrawn in a scheme, as the system's (an unchosen theme follows it), once the app has taken it. */
+export async function inScheme(page: Page, scheme: (typeof SCHEMES)[number]) {
+  await page.emulateMedia({ colorScheme: scheme })
+  await expect(page.locator("html")).toHaveCSS("color-scheme", scheme)
+}
 
 /** A screen and a scheme as a test's browser options (test.use). */
 export const screenUse = ({ width, height, isMobile, hasTouch }: Screen, colorScheme: (typeof SCHEMES)[number]) => ({ viewport: { width, height }, isMobile, hasTouch, colorScheme })

@@ -109,3 +109,20 @@ describe("only cards selected (W6-A2, DB-56 MUST 1)", () => {
     expect(onlyCardsSelected([shape], { selectedElementIds: { c1: true } })).toBe(false)
   })
 })
+
+describe("code blocks among the board's live blocks (miro-17)", () => {
+  const code = { id: "k1", type: "embeddable", customData: { kind: "code", code: "x", language: null, title: "" } }
+  const card = { id: "c1", type: "embeddable", customData: { kind: "card" } }
+  const shape = { id: "s1", type: "rectangle", customData: null }
+  it("a code block's own link draws a code block, and only that exact link", () => {
+    expect(boardEmbedOf(`${APP}/app/code-block`, where)).toEqual({ code: true })
+    expect(boardEmbedOf("/app/code-block", where)).toEqual({ code: true })
+    expect(boardEmbedOf(`${APP}/app/code-block?code=x`, where)).toBeNull()
+    expect(boardEmbedOf("https://elsewhere.example/app/code-block", where)).toBeNull()
+  })
+  it("hides Excalidraw's link popup and style panel over a code block, as over a card", () => {
+    expect(linkPopupOverCard([code, shape], { showHyperlinkPopup: "info", selectedElementIds: { k1: true } })).toBe(true)
+    expect(onlyCardsSelected([code, card, shape], { selectedElementIds: { k1: true, c1: true } })).toBe(true)
+    expect(onlyCardsSelected([code, shape], { selectedElementIds: { k1: true, s1: true } })).toBe(false)
+  })
+})

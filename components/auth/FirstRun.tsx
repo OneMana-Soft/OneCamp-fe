@@ -4,7 +4,7 @@
 // first admin's account (step 1, app/admin-setup). Step 2 picks the camp's
 // colour through the existing theme provider (per person, in this browser: no
 // API); step 3 invites the team with the invitation endpoint the admin's
-// invite dialog uses.
+// invite dialog uses, and its rows (components/invite/inviteRound).
 
 import * as React from "react"
 import { useState } from "react"
@@ -15,7 +15,9 @@ import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { useThemeConfig } from "@/components/activeTheme/activeTheme"
 import { AuthAvatar, AuthHeading, StepPill, authControlXl } from "@/components/auth/AuthShell"
 import { addChips, type InviteChip } from "@/lib/auth/inviteChips"
-import { invite } from "@/services/invitationService"
+import { useEmailConfigured } from "@/lib/auth/useSignInFacts"
+import { invitePromise, inviteVerb, unsentLine } from "@/lib/invite/inviteCopy"
+import { InviteResults, resultSummary, useInviteRound } from "@/components/invite/inviteRound"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** The nine colours offered first, by the theme provider's names. */
@@ -140,15 +142,19 @@ export function ThemeStep({ onPreview, onDone }: { onPreview: (theme: string | n
 /**
  * Step 3, "Who's coming?": addresses as chips (a pasted list splits into
  * one per address), each valid one joining the camp on the right as a
- * gradient avatar (`onPeople`). Sends one invitation each through the admin's
- * invitation endpoint, then opens OneCamp.
+ * gradient avatar (`onPeople`). Invites each through the admin's invitation
+ * endpoint, a row each, and opens OneCamp once every email went. A fresh
+ * install can't send email until a key is added, so without it the step
+ * promises links, not emails, and stays with each person's link (SHELL-02).
  */
 export function TeamStep({ onPeople, onFinish }: { onPeople: (emails: string[]) => void; onFinish: () => void }) {
   const [chips, setChips] = useState<InviteChip[]>([])
   const [draft, setDraft] = useState("")
   const [armed, setArmed] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [failures, setFailures] = useState<Array<{ email: string; msg: string }>>([])
+  const round = useInviteRound(true)
+  const { results, sending } = round
+  // Until the server says, as the app assumes (hooks/useClientConfig): each row says what really happened.
+  const emailOn = useEmailConfigured() !== false
   const inputRef = React.useRef<HTMLInputElement>(null)
   const valid = chips.filter((c) => c.valid)
 
@@ -171,23 +177,36 @@ export function TeamStep({ onPeople, onFinish }: { onPeople: (emails: string[]) 
       onFinish()
       return
     }
-    setSending(true)
-    const failed: Array<{ email: string; msg: string }> = []
-    for (const c of toSend) {
-      const outcome = await invite(c.email, true)
-      if (!outcome.ok) failed.push({ email: c.email, msg: outcome.msg })
-    }
-    setSending(false)
-    if (failed.length === 0) onFinish()
-    else setFailures(failed)
+    const rows = await round.run(toSend.map((c) => c.email))
+    if (rows.every((r) => r.state === "sent")) onFinish()
   }
 
-  const label = valid.length === 0 ? "Open OneCamp" : `Send ${valid.length} ${valid.length === 1 ? "invitation" : "invitations"} and open OneCamp`
+  const count = `${inviteVerb(emailOn)} ${valid.length} ${valid.length === 1 ? "invitation" : "invitations"}`
+  // Without email it stays with the links, so it doesn't say it opens OneCamp.
+  const label = valid.length === 0 ? "Open OneCamp" : emailOn ? `${count} and open OneCamp` : count
+  const unsent = results?.some((r) => r.state === "created")
+
+  if (results) {
+    return (
+      <div className="auth-fade-in">
+        <AuthHeading display kicker={<StepPill step={3} label="Your team" />} title="Who's coming?">
+          <span data-first-run-lead="">{sending ? invitePromise(emailOn) : unsent ? unsentLine(emailOn) : resultSummary(results)}</span>
+        </AuthHeading>
+        <InviteResults results={results} emailOn={emailOn} />
+        <div className="mt-8">
+          {/* The form, and the button pressed, are gone: the cursor goes on here, not to the page. */}
+          <Button size="lg" className={authControlXl} onClick={onFinish} busy={sending} autoFocus>
+            Open OneCamp
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="auth-fade-in">
       <AuthHeading display kicker={<StepPill step={3} label="Your team" />} title="Who's coming?">
-        Add the people you work with. Each gets an email with a link to join.
+        <span data-first-run-lead="">Add the people you work with. {invitePromise(emailOn)}</span>
       </AuthHeading>
       <label htmlFor="first-run-emails" className="auth-label mb-2 block">
         Email addresses
@@ -244,29 +263,13 @@ export function TeamStep({ onPeople, onFinish }: { onPeople: (emails: string[]) 
         />
       </div>
       <p className="auth-hint mt-2">Paste a whole list: commas, spaces and new lines all split it.</p>
-      {failures.length > 0 && (
-        <ul className="mt-4 space-y-1" role="alert">
-          {failures.map((f) => (
-            <li key={f.email} className="auth-field-error">
-              <span>
-                <span className="font-medium" translate="no">
-                  {f.email}
-                </span>
-                : {f.msg}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
       <div className="mt-8 space-y-2">
-        <Button size="lg" className={authControlXl} onClick={() => (failures.length ? onFinish() : void send())} busy={sending}>
-          {failures.length ? "Open OneCamp" : label}
+        <Button size="lg" className={authControlXl} onClick={() => void send()}>
+          {label}
         </Button>
-        {!failures.length && (
-          <Button variant="ghost" size="lg" className="h-11 w-full md:h-10" onClick={onFinish}>
-            I&apos;ll do this later
-          </Button>
-        )}
+        <Button variant="ghost" size="lg" className="h-11 w-full md:h-10" onClick={onFinish}>
+          I&apos;ll do this later
+        </Button>
       </div>
     </div>
   )

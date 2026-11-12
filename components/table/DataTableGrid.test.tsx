@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 const patchRow = vi.fn()
 const createRow = vi.fn()
@@ -1128,5 +1128,164 @@ describe("the grid's New row, in the table's undo order (V-360)", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "New row" })))
     expect(createRow).toHaveBeenCalledWith("t", {})
     expect(made).toEqual(["row"])
+  })
+})
+
+// V-640 (the LIVE walk, 6 Nov): a cell's save the server asked to have again
+// (503, V-583) is kept and marked, and offered back in a toast that closes in
+// 8 s; after that nothing could send it, and the same value entered again was
+// no change. The mark itself is a Retry, and so is the same value entered again.
+describe("a cell's edit the server asked to have again (V-583, V-640)", () => {
+  const retryLater = () =>
+    Object.assign(new Error("Request failed with status code 503"), {
+      isAxiosError: true,
+      response: { status: 503, data: { msg: "The table couldn't be read or changed just now. Try again in a moment." } },
+    })
+  const costCell = () => document.querySelector('tbody tr[data-row="r0"] td[data-field="cost"]') as HTMLElement
+  /** Cost typed as 1207 in the first row and left; its save refused with a 503. */
+  async function refused() {
+    const cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    cost.focus()
+    fireEvent.change(cost, { target: { value: "1207" } })
+    await act(async () => fireEvent.blur(cost))
+    await waitFor(() => expect(costCell().hasAttribute("data-unsaved")).toBe(true))
+  }
+
+  it("marks the cell with a Retry button, reached by Tab, that sends the kept edit again, only when pressed", async () => {
+    patchRow.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    const mark = within(costCell()).getByRole("button", { name: "Retry saving Cost" })
+    expect(mark.getAttribute("type")).toBe("button")
+    expect(mark.tabIndex).toBe(0)
+    // Never sent again by itself.
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(patchRow).toHaveBeenCalledTimes(1)
+    await act(async () => fireEvent.click(mark))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+    expect(patchRow).toHaveBeenLastCalledWith("t", "r0", { cost: 1207 })
+    await waitFor(() => expect(costCell().hasAttribute("data-unsaved")).toBe(false))
+    expect(within(costCell()).queryByRole("button", { name: /Retry saving/ })).toBeNull()
+    expect((screen.getAllByRole("textbox", { name: "Cost" })[0] as HTMLInputElement).value).toBe("1207")
+  })
+
+  // DESIGN-BUILD-122's F3: Enter on the mark sent the edit and unmounted the mark with the focus in it, so the
+  // focus fell to the page and the keys left the grid.
+  it("hands the focus its mark held to the cell's own box when the mark is pressed, and keeps it there once saved", async () => {
+    patchRow.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    const mark = within(costCell()).getByRole("button", { name: "Retry saving Cost" })
+    mark.focus()
+    await act(async () => fireEvent.click(mark))
+    await waitFor(() => expect(costCell().hasAttribute("data-unsaved")).toBe(false))
+    expect(within(costCell()).queryByRole("button", { name: /Retry saving/ })).toBeNull()
+    expect(document.activeElement).toBe(costCell().querySelector('[data-cell="0:1"]'))
+  })
+
+  it("sends the same value entered again in the cell as its Retry, and nothing for a cell only passed through", async () => {
+    patchRow.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    // Opened and left with nothing entered: no Retry.
+    let cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    expect(cost.value).toBe("1207")
+    cost.focus()
+    await act(async () => fireEvent.blur(cost))
+    expect(patchRow).toHaveBeenCalledTimes(1)
+    // The same value entered again (it changes nothing the cell shows): the Retry.
+    cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    cost.focus()
+    fireEvent.input(cost, { target: { value: "1207" } })
+    await act(async () => fireEvent.blur(cost))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+    expect(patchRow).toHaveBeenLastCalledWith("t", "r0", { cost: 1207 })
+    await waitFor(() => expect(costCell().hasAttribute("data-unsaved")).toBe(false))
+    // A cell holding no kept edit: the same value entered again is still no change.
+    const item = live(screen.getAllByRole("textbox", { name: "Item" })[1]) as HTMLInputElement
+    item.focus()
+    fireEvent.input(item, { target: { value: "Line 1" } })
+    await act(async () => fireEvent.blur(item))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+  })
+
+  // At 390 the e2e found it: a finger's press on another cell brings that one to life first, and the box left goes
+  // without a blur; what it held is sent as it goes, the same value entered again too.
+  it("sends the same value entered again when a finger's press brings another cell to life before the blur", async () => {
+    patchRow.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    const cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    cost.focus()
+    fireEvent.input(cost, { target: { value: "1207" } })
+    await act(async () => void live(screen.getAllByRole("textbox", { name: "Item" })[1]))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+    expect(patchRow).toHaveBeenLastCalledWith("t", "r0", { cost: 1207 })
+  })
+
+  // CR-229's T1: Escape puts back what was typed, and what was put back is no Retry.
+  it("sends nothing for text typed in an unsaved cell and put back with Escape", async () => {
+    patchRow.mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    const cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    cost.focus()
+    fireEvent.input(cost, { target: { value: "1208" } })
+    fireEvent.keyDown(cost, { key: "Escape" })
+    expect(cost.value).toBe("1207")
+    await act(async () => fireEvent.blur(cost))
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(patchRow).toHaveBeenCalledTimes(1)
+    // Still kept and marked: only the person's Retry sends it.
+    expect(costCell().hasAttribute("data-unsaved")).toBe(true)
+    expect(within(costCell()).getByRole("button", { name: "Retry saving Cost" })).toBeTruthy()
+  })
+
+  // CR-229's T2: a Retry by the same value, refused again, ends that entry; the cell only passed through after it
+  // sends nothing by itself.
+  it("sends nothing for a cell passed through after its same-value Retry was refused again", async () => {
+    patchRow.mockRejectedValueOnce(retryLater()).mockRejectedValueOnce(retryLater()).mockResolvedValueOnce({})
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    let cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    cost.focus()
+    fireEvent.input(cost, { target: { value: "1207" } })
+    await act(async () => fireEvent.blur(cost))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(costCell().hasAttribute("data-unsaved")).toBe(true))
+    cost = live(screen.getAllByRole("textbox", { name: "Cost" })[0]) as HTMLInputElement
+    cost.focus()
+    await act(async () => fireEvent.blur(cost))
+    await act(() => new Promise((r) => setTimeout(r, 50)))
+    expect(patchRow).toHaveBeenCalledTimes(2)
+    expect(costCell().hasAttribute("data-unsaved")).toBe(true)
+  })
+
+  // DESIGN-BUILD-120's F2: the mark's words show in the shared tooltip on keyboard focus (and a long press), never
+  // only in a native title that focus and touch never show.
+  it("shows the mark's words in a tooltip on keyboard focus, with no native title, and sends nothing", async () => {
+    patchRow.mockRejectedValueOnce(retryLater())
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    await refused()
+    const mark = within(costCell()).getByRole("button", { name: "Retry saving Cost" })
+    expect(mark.hasAttribute("title")).toBe(false)
+    await act(async () => mark.focus())
+    expect((await screen.findByRole("tooltip")).textContent).toBe("Not saved · Retry saving Cost")
+    expect(patchRow).toHaveBeenCalledTimes(1)
+  })
+
+  it("draws no Retry for a reader who may only view the table (V-170)", () => {
+    const rows = rowsOf(2)
+    function Grid() {
+      const c = useCellCommit({ tableId: "t", rows, onChange: () => {} })
+      const commit = useMemo(() => ({ ...c, edits: new Map([["r0", { saving: {}, saved: {}, copy: null, unsaved: { cost: 1207 } }]]) }), [c])
+      return (
+        <TableEditProvider value={false}>
+          <DataTableGrid tableId="t" fields={fields} rows={rows} canManage={false} onChange={() => {}} commit={commit} />
+        </TableEditProvider>
+      )
+    }
+    render(<Grid />)
+    expect(screen.queryByRole("button", { name: /Retry saving/ })).toBeNull()
   })
 })

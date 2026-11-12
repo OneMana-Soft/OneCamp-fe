@@ -3,8 +3,9 @@
  * them over every task it lists, as task_fields, by field id. Pure. */
 
 import { shortDate } from "@/lib/utils/date/dateWords"
+import type { FormulaResult } from "@/services/tableService"
 
-export type FieldType = "text" | "number" | "money" | "date" | "select" | "multi_select" | "person" | "checkbox" | "url"
+export type FieldType = "text" | "number" | "money" | "date" | "select" | "multi_select" | "person" | "checkbox" | "url" | "formula"
 
 export interface FieldOption {
   id: string
@@ -25,12 +26,29 @@ export interface TaskField {
   position: number
   /** The list filter id that narrows a list to this field's values. */
   filter_id: string
+  /** The server keeps this field's values from the reader (V-698: a money
+   * field, to anyone not an admin of its project): it sends none and refuses
+   * a write. Read it through fieldHidden (components/task/hiddenField). */
+  hidden?: boolean
+  /** A formula field's text, fields by name ("{Spend} * 2"). */
+  formula?: string
+  /** What a formula gives; the server works every value out (J-F). */
+  result?: FormulaResult
+  /** Why a formula can't be worked out at all (a field it reads was deleted). */
+  error?: string
+}
+
+/** A task's built-in a formula may read (Due, Status, Points, ...), as GET /project/{p}/fields lists them. */
+export interface FieldBuiltin {
+  id: string
+  name: string
+  result: FormulaResult
 }
 
 /** A value as stored: text, a link, a day ("2026-10-31") or a select's option
  * id and a person's id are strings; a number is a number; money is whole cents;
  * a multi-select is option ids; a ticked box is true. */
-export type FieldValue = string | number | boolean | string[]
+export type FieldValue = string | number | boolean | string[] | { error: string }
 
 /** A task's values, by field id. */
 export type FieldValues = Record<string, FieldValue>
@@ -45,9 +63,16 @@ export const FIELD_TYPES: { value: FieldType; label: string; hint: string }[] = 
   { value: "person", label: "Person", hint: "Someone in the workspace" },
   { value: "checkbox", label: "Checkbox", hint: "Yes or no" },
   { value: "url", label: "Link", hint: "A web address" },
+  { value: "formula", label: "Formula", hint: "Worked out from other fields" },
 ]
 
 export const typeLabel = (t: FieldType) => FIELD_TYPES.find((f) => f.value === t)?.label ?? t
+
+/** Whether a field's values line up on the right, as numbers do. */
+export const alignsRight = (f: Pick<TaskField, "type" | "result">) => f.type === "money" || f.type === "number" || (f.type === "formula" && f.result === "number")
+
+/** V-762: whether a task's built-ins changing must read it again, a formula among its project's fields maybe reading them. */
+export const readsBuiltins = (fields: readonly Pick<TaskField, "type">[] | undefined) => !!fields?.some((f) => f.type === "formula")
 
 /** Field types a list can be filtered on: the ones with set values. */
 export const FILTERABLE: FieldType[] = ["select", "multi_select", "person", "checkbox"]
@@ -108,6 +133,9 @@ export function formatFieldValue(field: TaskField, value: FieldValue | undefined
       return nameOf?.(String(value)) ?? OUTSIDE_PROJECT
     case "checkbox":
       return value === true ? "Yes" : ""
+    case "formula":
+      // fieldText's (lib/tasks/formulaShown).
+      return ""
   }
   return ""
 }

@@ -39,7 +39,8 @@ const RescheduleDialog: React.FC<{
   open: boolean
   onOpenChange: (v: boolean) => void
   eventUUID: string
-  onRescheduled?: () => void
+  /** After a time is confirmed: where the meeting moved to. */
+  onRescheduled?: (to: { start: string; end: string }) => void
 }> = ({ open, onOpenChange, eventUUID, onRescheduled }) => {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -84,7 +85,7 @@ const RescheduleDialog: React.FC<{
         sync_to_google: true,
       })
       toast({ title: "Meeting moved", description: formatSlot(c.start, c.end) })
-      onRescheduled?.()
+      onRescheduled?.({ start: c.start, end: c.end })
       onOpenChange(false)
     } catch {
       // surfaced

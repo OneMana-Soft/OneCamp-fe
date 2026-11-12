@@ -50,7 +50,7 @@ export interface CalendarItemLike {
   /** Its calendar's colour, when that isn't Personal's (calendar A6). */
   calendar_hue?: string
   /** A task block's task (B1): where it stands, and its project. */
-  event_task?: { task_status?: string; project_uuid?: string } | null
+  event_task?: { task_status?: string; project_uuid?: string; task_blocked_open?: number } | null
 }
 
 /** What an item is: a task, time for a task (a block), time off, focus time, or an event. Pure. */

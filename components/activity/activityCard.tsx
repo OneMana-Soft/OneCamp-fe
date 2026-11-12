@@ -45,6 +45,7 @@ import { collapsedVerb, kindOf, othersCount, previewParts, sentenceOf, sharedDoc
 import { activityKey } from "@/lib/activity/feedPages"
 import { panelTargetOf, type PanelTarget } from "@/lib/activity/panelTarget"
 import { SaveForLaterButton, type LaterTarget } from "@/components/later/SaveForLater"
+import { WhyAmISeeingThis, whyMessageId } from "@/components/activity/WhyAmISeeingThis"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
@@ -194,6 +195,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         return null
     }, [activity, href, s.preview, s.place, name, label])
 
+    // An item about a chat message says why it reached you (A4 H3).
+    const whyId = useMemo(() => whyMessageId(activity), [activity])
+
     const time = s.at ? (underDay ? timeUnderDay(s.at) : formatListTimestamp(s.at)) : ""
     const stretched = "absolute inset-0 z-[1] rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
     const docs = shares && entry && expanded ? sharedDocs(entry, activityKey) : []
@@ -235,7 +239,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                 separated && !compact && "after:pointer-events-none after:absolute after:left-14 after:right-4 after:top-0 after:h-px after:bg-line hover:after:opacity-0",
             )}
             tools={
-                onToggleRead || href ? (
+                onToggleRead || href || whyId ? (
                     <>
                         {onToggleRead && unread !== undefined ? (
                             <HubToolButton
@@ -250,6 +254,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                             </HubToolButton>
                         ) : null}
                         {saveTarget ? <SaveForLaterButton target={saveTarget} className="size-6 [&_svg]:size-3.5" /> : null}
+                        {whyId ? <WhyAmISeeingThis messageId={whyId} place={s.place} /> : null}
                         {href && !shares ? (
                             <Link
                                 href={href}

@@ -4,11 +4,11 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { lastInputWasPointer, watchInputModality } from "@/lib/ui/inputModality"
 import { watchMore } from "@/components/ui/moreMarks"
 import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { PanelsContext, type Panel } from "@/components/ui/sheetPanels"
 import { sheetEdge, useSheetMark } from "@/components/ui/sheetMark"
+import { openFocus, useReturnFocus } from "@/components/ui/returnFocus"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 /**
@@ -178,11 +178,7 @@ const DrawerContent = React.forwardRef<
   const detent = React.useContext(DetentContext)
   const settles = useCloseSettles(ref)
   const marks = useSheetMark(settles)
-  // Where the focus came from as it first went into the sheet: what opened it,
-  // which a key that closes the sheet gives it back to.
-  const opener = React.useRef<HTMLElement | null>(null)
-  // The keys that close it are known for keys (lib/ui/inputModality).
-  React.useEffect(() => watchInputModality(), [])
+  const back = useReturnFocus({ onFocusCapture, onCloseAutoFocus })
   // Its panels (components/ui/sheetPanels); focus and scroll come back as the last closes.
   const [stack, setStack] = React.useState<Panel[]>([])
   const [host, setHost] = React.useState<HTMLDivElement | null>(null)
@@ -285,27 +281,8 @@ const DrawerContent = React.forwardRef<
         // tap would throw up a phone's keyboard): vaul leaves the focus where
         // it was, behind the sheet, unless autoFocus is set, and a keyboard
         // there was lost (27 Oct). A caller's own choice comes first.
-        onOpenAutoFocus={(event) => {
-          onOpenAutoFocus?.(event)
-          if (!event.defaultPrevented) focusDialogItself(event)
-        }}
-        onFocusCapture={(event) => {
-          const from = event.relatedTarget
-          if (!opener.current && from instanceof HTMLElement && !event.currentTarget.contains(from)) opener.current = from
-          onFocusCapture?.(event)
-        }}
-        // A key that closes it gives the focus back to what opened it; after a
-        // pointer or a tap it stays put, as a menu's does (returnFocusOnlyForKeys):
-        // no ring on the opener, and no field throwing up the keyboard. A
-        // caller's own choice comes first.
-        onCloseAutoFocus={(event) => {
-          const to = opener.current
-          opener.current = null
-          onCloseAutoFocus?.(event)
-          if (event.defaultPrevented) return
-          event.preventDefault()
-          if (to?.isConnected && !lastInputWasPointer()) to.focus({ preventScroll: true })
-        }}
+        onOpenAutoFocus={openFocus(onOpenAutoFocus, focusDialogItself)}
+        {...back}
         {...props}
       >
         {above}
@@ -339,7 +316,7 @@ const DrawerContent = React.forwardRef<
                   ) : null}
                 </div>
               ) : null}
-              <div ref={bodyRef} data-sheet-body="" className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
+              <div ref={bodyRef} data-sheet-body="" data-edge-fade="block" className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
                 <div data-sheet-base="" className={top ? "hidden" : "contents"}>
                   {children}
                 </div>

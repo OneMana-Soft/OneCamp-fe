@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest"
 import * as Y from "yjs"
 import { CAPTURE, LOCAL_ORIGIN, applyShared, bumped, cloneElement, followShared, liveCount, mergeChanged, mergeShared, storeScene, type BoardElement } from "@/lib/board/binding"
 
-type El = BoardElement & { x?: number; points?: number[][]; index?: string }
-const el = (id: string, version: number, versionNonce = 1, more: Partial<El> = {}): El => ({ id, version, versionNonce, isDeleted: false, ...more })
+type El = BoardElement & { type?: string; x?: number; points?: number[][]; index?: string; customData?: Record<string, unknown> }
+const el = (id: string, version: number, versionNonce = 1, more: Partial<El> = {}): El => ({ id, type: "rectangle", version, versionNonce, isDeleted: false, ...more })
 /** An element with its fractional index (Excalidraw's stacking order). */
 const at = (id: string, version: number, index: string, more: Partial<El> = {}): El => el(id, version, version, { index, ...more })
 const ids = (els: readonly El[]) => els.map((e) => e.id)
@@ -280,5 +280,48 @@ describe("following the document (W-4)", () => {
     frames.shift()!()
     expect(updateScene).toHaveBeenCalledTimes(2)
     expect(get).not.toHaveBeenCalled()
+  })
+})
+
+describe("a crafted element never reaches the scene (V-547)", () => {
+  // What a crafted client writes: Excalidraw draws it as a live page with scripts, forms and popups.
+  const page = (id: string, version = 1) => el(id, version, version, { type: "iframe", customData: { generationData: { status: "done", html: "<form action=https://x.example>" } } })
+  const crafted = (id: string) => [page(id), el(`${id}-m`, 1, 1, { type: "magicframe" }), el(`${id}-u`, 1, 1, { type: "script" }), { id: `${id}-n`, version: 1 } as El]
+
+  it("from a stored board as it opens, for members and guests alike", () => {
+    const { elements, adopted } = mergeShared([] as El[], [el("a", 1), ...crafted("x"), el("b", 1)])
+    expect(adopted).toBe(2)
+    expect(ids(elements)).toEqual(["a", "b"])
+  })
+
+  it("from a teammate's change, new or turning a drawn element into one", () => {
+    const scene = [el("a", 1)]
+    expect(mergeChanged(scene, ["x"], () => page("x"))).toBeNull()
+    expect(mergeChanged(scene, ["x-m", "x-u", "x-n"], (id) => crafted("x").find((e) => e.id === id))).toBeNull()
+    expect(mergeChanged(scene, ["a"], () => page("a", 9))).toBeNull()
+  })
+
+  it("from the document, as the canvas follows it: at once and as it changes", () => {
+    const doc = new Y.Doc()
+    const map = doc.getMap<El>("elements")
+    doc.transact(() => {
+      for (const e of [el("a", 1), ...crafted("x")]) map.set(e.id, e)
+    })
+    let scene: El[] = []
+    const api = { getSceneElementsIncludingDeleted: () => scene, updateScene: (d: { elements?: readonly unknown[] | null }) => void (d.elements && (scene = d.elements as El[])) }
+    const follow = followShared(api, map, { frame: () => 0, cancel: () => {} })
+    expect(ids(scene)).toEqual(["a"])
+    doc.transact(() => map.set("y", page("y")), "teammate")
+    doc.transact(() => map.set("a", page("a", 2)), "teammate")
+    expect(ids(scene)).toEqual(["a"])
+    expect(scene[0].type).toBe("rectangle")
+    follow.stop()
+  })
+
+  it("and this screen never writes one to the document", () => {
+    const shared = new Map<string, El>()
+    const doc = { get: (id: string) => shared.get(id), set: (id: string, v: El) => void shared.set(id, v) }
+    expect(storeScene(doc, [el("a", 1), ...crafted("x")])).toBe(1)
+    expect([...shared.keys()]).toEqual(["a"])
   })
 })

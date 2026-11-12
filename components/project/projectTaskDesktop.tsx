@@ -9,7 +9,9 @@ import { FileText, List, Megaphone, Paperclip } from "@/lib/icons";
 import { TabLoading } from "@/components/task/TabLoading"
 import { lazyView } from "@/lib/lazy/lazyView"
 import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
-import { Kanban, ListTodo } from "@/lib/icons";
+import { Kanban, ListTodo, Rocket } from "@/lib/icons";
+// Releases (P10-1b): one entry for both registries; its view is a chunk of its own.
+import { ReleasesTab } from "@/components/work/releases/ReleasesTab"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { WorkTabsList } from "@/components/task/WorkTabs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
@@ -53,7 +55,7 @@ import { LazyConnected } from "@/components/workGraph/LazyConnected"
 import { ProjectLinksStrip } from "@/components/project/ProjectLinksStrip"
 import { ProjectPlanStrip } from "@/components/project/ProjectPlanStrip"
 
-const VALID_TABS = ["list", "kanban", "backlog", "timeline", "updates", "attachments", "docs"] as const
+const VALID_TABS = ["list", "kanban", "backlog", "timeline", "releases", "updates", "attachments", "docs"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -195,6 +197,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             { value: "kanban", label: t("board", { defaultValue: "Board" }), icon: <Kanban /> },
                             { value: "backlog", label: "Backlog", icon: <ListTodo /> },
                             { value: "timeline", label: "Timeline", icon: <ChartGantt /> },
+                            { value: "releases", label: "Releases", icon: <Rocket /> },
                             { value: "updates", label: "Updates", icon: <Megaphone /> },
                             { value: "attachments", label: "Attachments", icon: <Paperclip />, count: project?.project_attachments?.length },
                             { value: "docs", label: "Docs & Files", icon: <FileText /> },
@@ -202,7 +205,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                     />
                     {/* One scroll container for every tab's body. The panels
                         crossfade as they change (120 ms, opacity). */}
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="min-h-0 flex-1 overflow-y-auto" data-list-scroller="">
                         {/* Kept alive once seen: going back to a tab is instant. */}
                         <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                             <ProjectTaskTable projectId={projectId} onLayout={(l) => handleTabChange(l)} />
@@ -226,6 +229,9 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 )}
                             />
                         </KeptTab>
+                        <TabsContent value="releases" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
+                            <ReleasesTab projectId={projectId} />
+                        </TabsContent>
                         <TabsContent value="updates" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Updates.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectUpdates projectId={projectId} />} />
                         </TabsContent>

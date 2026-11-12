@@ -19,8 +19,8 @@ import { heldFor, partOf, runsCall } from "@/lib/calls/control"
 import { onEscape } from "@/lib/keys/onEscape"
 import { useClaimTouches } from "@/hooks/useClaimTouches"
 import {
+  INK_SEND_MS,
   INK_STROKE_MAX,
-  LASER_MS,
   NO_INK,
   inkChunks,
   inkPath,
@@ -35,8 +35,8 @@ import {
   type InkStroke,
   type InkTool,
 } from "@/lib/calls/ink"
+import { laserTimers, useLaserFade } from "@/lib/calls/laser"
 import { CALL_SIGNAL_TOPIC, encodeSignal, readCallSignal } from "@/lib/calls/signals"
-import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { cn } from "@/lib/utils/helpers/cn"
 import { heldReason } from "./callHolds"
 import { CALL_PEOPLE_EVENTS, callHueOf, callHues, roomPeople } from "./callHues"
@@ -74,8 +74,6 @@ export interface CallInk {
 
 export const CallInkContext = React.createContext<CallInk | null>(null)
 
-/** How often a stroke being drawn goes out: often enough to watch it drawn. */
-const SEND_MS = 50
 /** A move closer than this to the last point adds nothing (a step is under half a pixel on a 1920 frame). */
 const MIN_STEP = 3
 /** A share with no strokes: always this one array, so its layer sees nothing change. */
@@ -105,7 +103,7 @@ function inkStore() {
   let state: InkState = NO_INK
   let drawing: Drawing | null = null
   let sender: number | undefined
-  const fades = new Set<number>()
+  const fades = laserTimers()
   const listeners = new Map<string, Set<() => void>>()
   // Each person's colour in the call (callHues), worked out once for who is in it: every stroke reads it at every draw.
   let hues: ((identity: string) => CampHue) | undefined
@@ -129,13 +127,7 @@ function inkStore() {
     state = next
     tell(e.share)
   }
-  const fadeLater = (share: string, id: string, by: string) => {
-    const t = window.setTimeout(() => {
-      fades.delete(t)
-      apply({ kind: "ink-fade", share, id, by })
-    }, LASER_MS)
-    fades.add(t)
-  }
+  const fadeLater = (share: string, id: string, by: string) => fades.later(() => apply({ kind: "ink-fade", share, id, by }))
   const publish = (kind: string, payload: unknown, to?: string[]) => {
     const local = room?.localParticipant
     if (!local) return
@@ -174,7 +166,7 @@ function inkStore() {
       const d: Drawing = { share, id: strokeId(), tool, points: [...point], sent: 0 }
       drawing = d
       drawHere(d, false)
-      sender = window.setInterval(() => flush(false), SEND_MS)
+      sender = window.setInterval(() => flush(false), INK_SEND_MS)
     },
     extend(point) {
       const d = drawing
@@ -256,8 +248,7 @@ function inkStore() {
   }
   /** Stops what's pending: the laser strokes' fades and a stroke's sending. */
   const stop = () => {
-    fades.forEach((t) => window.clearTimeout(t))
-    fades.clear()
+    fades.stop()
     window.clearInterval(sender)
   }
   return { ink, attach, stop }
@@ -280,12 +271,7 @@ const InkLine = React.memo(function InkLine({ stroke, frame, hue }: { stroke: In
   const d = inkPath(stroke.points, frame)
   const laser = stroke.tool === "laser"
   // A laser stroke fades from the moment it ends; with reduced motion it goes at once when its time is up.
-  const [fading, setFading] = React.useState(false)
-  React.useEffect(() => {
-    if (!laser || !stroke.done || prefersReducedMotion()) return
-    const raf = window.requestAnimationFrame(() => setFading(true))
-    return () => window.cancelAnimationFrame(raf)
-  }, [laser, stroke.done])
+  const fade = useLaserFade(laser, stroke.done)
   return (
     <g
       data-ink-stroke=""
@@ -296,7 +282,7 @@ const InkLine = React.memo(function InkLine({ stroke, frame, hue }: { stroke: In
       fill="none"
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={laser ? { opacity: fading ? 0 : 1, transition: `opacity ${LASER_MS}ms ease-in` } : undefined}
+      style={fade}
     >
       <path d={d} stroke="rgb(11 12 14 / 0.5)" strokeWidth={laser ? 10 : 6} vectorEffect="non-scaling-stroke" />
       <path d={d} className="stroke-hue" strokeWidth={laser ? 6 : 3} vectorEffect="non-scaling-stroke" />

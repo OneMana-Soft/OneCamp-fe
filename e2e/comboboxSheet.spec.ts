@@ -1,7 +1,9 @@
 import { expect, test, type Browser, type BrowserContextOptions, type Locator, type Page, type TestInfo } from "@playwright/test"
 
+import { inScheme, SCHEMES } from "./screens"
+import { expectPinWhole } from "./sheetFade"
 import { settled } from "./sheetLayout"
-import { SAM } from "./stubbedApp"
+import { reviewShot, SAM } from "./stubbedApp"
 import { PRIYA, TableServer } from "./tables/tableServer"
 import { expectTouchSize } from "./touchTarget"
 
@@ -11,7 +13,9 @@ import { expectTouchSize } from "./touchTarget"
 // the body"). Read through a table's status and people cells, beta's pickers on
 // it: by touch at 390 a titled sheet whose rows take a finger's 44px, the
 // filter pinned over the one scroller, no row lit while nothing is chosen, and
-// a tap that picks and closes; at 1280 the popover by its cell, as before.
+// a tap that picks and closes; at 1280 the popover by its cell, as before. A
+// workspace of 24 is a people sheet taller than the phone: its filter stays
+// whole at the top as the people scroll under it, and only the foot fades.
 
 const person = (p: { user_uuid: string }) => ({ id: p.user_uuid, type: "user" })
 const fields = [
@@ -24,6 +28,11 @@ const fields = [
   },
   { id: "owners", name: "Owners", type: "people" },
 ]
+/** The rest of a workspace of 24, after Sam and Priya. */
+const TEAM = Array.from({ length: 22 }, (_, i) => {
+  const n = String(i + 1).padStart(2, "0")
+  return { user_uuid: `7e4a0000-0000-4000-8000-0000000000${n}`, user_name: `teammate${n}`, user_full_name: `Teammate ${n}`, user_email_id: `teammate${n}@example.com`, user_is_admin: false }
+})
 const rows = () => [
   { name: "Booth for the launch", stage: "Building", owners: [person(SAM)] },
   { name: "Power for two screens", stage: "Not started", owners: [] },
@@ -32,8 +41,9 @@ const rows = () => [
 const PHONE: BrowserContextOptions = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
 const COMPUTER: BrowserContextOptions = { viewport: { width: 1280, height: 860 } }
 
-async function openTable(browser: Browser, testInfo: TestInfo, options: BrowserContextOptions, { record = false } = {}): Promise<{ page: Page; server: TableServer }> {
+async function openTable(browser: Browser, testInfo: TestInfo, options: BrowserContextOptions, { record = false, team = false } = {}): Promise<{ page: Page; server: TableServer }> {
   const server = new TableServer(fields, rows())
+  if (team) server.people.push(...TEAM)
   const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), ...options })
   await context.addInitScript((id) => {
     localStorage.setItem("oc_keys_tip_seen", "1")
@@ -59,7 +69,7 @@ const onTop = async (sheet: Locator) => {
 }
 
 test("by touch at 390, a cell's picker is a titled sheet: 44px rows, nothing lit until chosen, a tap picks", async ({ browser }, testInfo) => {
-  const { page, server } = await openTable(browser, testInfo, PHONE)
+  const { page, server } = await openTable(browser, testInfo, PHONE, { team: true })
 
   await page.getByRole("button", { name: "Stage: Building" }).first().tap()
   const stage = page.getByRole("dialog", { name: "Stage" })
@@ -83,30 +93,39 @@ test("by touch at 390, a cell's picker is a titled sheet: 44px rows, nothing lit
   // The filter waits for a tap: no keyboard rises over the list as it opens.
   await expect(owners.getByRole("combobox")).not.toBeFocused()
   for (const h of await rowHeights(page, "data-people-picker")) expectTouchSize(h, "a person's row under a finger")
+  // Scrolled halfway down the 24: the filter whole over them, the foot fading (e2e/sheetFade), light and dark.
+  await settled(owners)
+  for (const scheme of SCHEMES) {
+    await inScheme(page, scheme)
+    const body = await expectPinWhole(page, owners.getByRole("combobox"), "top")
+    await reviewShot(page, "sheet-pin-combobox", scheme)
+    await body.evaluate((el) => void (el.scrollTop = 0))
+  }
   await owners.getByRole("option", { name: /priya@example\.com/ }).tap()
   await expect.poll(() => server.valuesOf(1).owners).toEqual([person(PRIYA)])
   await page.context().close()
 })
 
-// A row's record is a float on a phone (the --z-popover level, over the page's
-// sheets), so a picker in it asks for its sheet over that level.
-test("by touch at 390, a picker in a row's record opens its sheet over the record, and a tap picks", async ({ browser }, testInfo) => {
+// A row's record is the shared sheet on a phone (TABLES-BOARDS-25), so a picker
+// in it is a step of that sheet (components/ui/sheetPanels): its name heads the
+// sheet with a Back, the list fills it, and a tap picks and steps back.
+test("by touch at 390, a picker in a row's record is a step of the record's sheet, and a tap picks", async ({ browser }, testInfo) => {
   const { page, server } = await openTable(browser, testInfo, PHONE, { record: true })
   const record = page.locator("[data-record-panel]")
   await expect(record).toBeVisible({ timeout: 60_000 })
 
   await record.getByRole("button", { name: /^Stage: / }).tap()
-  const stage = page.getByRole("dialog", { name: "Stage" })
-  await expect(stage).toHaveAttribute("data-overlay", "sheet")
-  expect(await onTop(stage), "the status sheet over the record").toBe(true)
+  const stage = record.getByRole("region", { name: "Stage" })
+  await expect(stage, "the status list, a step of the record's sheet").toBeVisible()
+  expect(await onTop(stage), "the status list in sight").toBe(true)
   await stage.getByRole("option", { name: "Shipped" }).tap()
   await expect.poll(() => server.valuesOf(0).stage).toBe("Shipped")
   await expect(stage).toHaveCount(0)
 
   await record.getByRole("button", { name: /^Owners: / }).tap()
-  const owners = page.getByRole("dialog", { name: "Owners" })
+  const owners = record.getByRole("region", { name: "Owners" })
   await expect(owners.getByRole("option", { name: /priya@example\.com/ })).toBeVisible({ timeout: 15_000 })
-  expect(await onTop(owners), "the people sheet over the record").toBe(true)
+  expect(await onTop(owners), "the people list in sight").toBe(true)
   await owners.getByRole("option", { name: /priya@example\.com/ }).tap()
   await expect.poll(() => server.valuesOf(0).owners).toContainEqual(person(PRIYA))
   await page.context().close()

@@ -25,10 +25,22 @@ describe("the board's tools on the scene", () => {
     expect(s.writes[0].captureUpdate).toBe("IMMEDIATELY")
     expect(s.writes[0].appState?.selectedElementIds).toEqual({ n1: true, n2: true })
     expect(s.byId("n1-text")?.text).toBe("Ship it")
-    const framed = boardScene()
-    await addNotes(framed.api, [noteSkeleton({ id: "n3", x: 0, y: 0 })], { frameId: "f1" })
+    // Notes landing in a frame join it, words and all: addNotes picks it, after its await (V-683).
+    const framed = boardScene([frameElement({ id: "f1", x: -100, y: -100, width: 600, height: 600, name: "Ideas" }) as never])
+    await addNotes(framed.api, [noteSkeleton({ id: "n3", x: 0, y: 0 })])
     expect(framed.byId("n3")?.frameId).toBe("f1")
     expect(framed.byId("n3-text")?.frameId).toBe("f1")
+    // A frame too small for its new note grows, in the same one undo step (DESIGN-BUILD-120 F1).
+    const small = boardScene([frameElement({ id: "f2", x: 0, y: 0, width: 100, height: 80, name: "Small" }) as never])
+    await addNotes(small.api, [noteSkeleton({ id: "n4", x: -40, y: -50 })])
+    expect(small.writes).toHaveLength(1)
+    expect(small.byId("f2")).toMatchObject({ width: 260, height: 260, version: 2 })
+    expect(small.byId("n4")).toMatchObject({ x: 40, y: 40, frameId: "f2" })
+    // Moved in off the frame's left and top edges after the converter laid its words out, its words move with it:
+    // where they sit in the note is where n3's sit in its own, which didn't move, and they're the frame's (CR-241 F1).
+    const inNote = (s: typeof small, id: string) => [s.byId(`${id}-text`)!.x - s.byId(id)!.x, s.byId(`${id}-text`)!.y - s.byId(id)!.y]
+    expect(inNote(small, "n4")).toEqual(inNote(framed, "n3"))
+    expect(small.byId("n4-text")?.frameId).toBe("f2")
   })
 
   it("recolour notes, paper, edge and words, each a new version, in one step", () => {

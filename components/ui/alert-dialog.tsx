@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { sheetEdge, useSheetMark } from "@/components/ui/sheetMark"
+import { useReturnFocus } from "@/components/ui/returnFocus"
 
 const AlertDialog = AlertDialogPrimitive.Root
 
@@ -33,13 +34,14 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, onClick, ...props }, ref) => {
+>(({ className, onClick, onFocusCapture, onCloseAutoFocus, ...props }, ref) => {
   // On a phone the confirm is a sheet (owner, 18 Oct), and still Radix's
   // alert dialog: its role, the first focus on Cancel, no closing on a tap
   // outside. Its rise and fall are app/phone.css's (C5d).
   const sheet = useSheetMode()
   // Drawn as a sheet, it marks the page as every sheet does (components/ui/sheetMark).
   const marks = useSheetMark(ref)
+  const back = useReturnFocus({ onFocusCapture, onCloseAutoFocus })
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay data-v3-scrim={sheet ? "" : undefined} onClick={sheetEdge()} />
@@ -47,6 +49,7 @@ const AlertDialogContent = React.forwardRef<
         ref={marks}
         onClick={sheetEdge(onClick)}
         data-v3-sheet={sheet ? "" : undefined}
+        {...back}
         className={
           sheet
             ? // The sheet's surface, the pop at e4, laid on the bottom edge by

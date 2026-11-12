@@ -1,9 +1,11 @@
 /**
  * Where things laid from a list go on a board: Add from OneCamp lays its cards with these
- * (components/board/addWorkPanel). A module of its own, so the board page's first load never brings it. Pure.
+ * (components/board/addWorkPanel), and a frame added at a size goes by freeFrameSpot (components/board/boardOps).
+ * A module of its own, so the board page's first load never brings it. Pure.
  */
 
 import { cardSize } from "@/lib/board/cards"
+import { drawnBox } from "@/lib/board/scene"
 import { NOTE_GAP, nextNoteSpot, overlaps, type Box } from "@/lib/board/sticky"
 import type { BoardView } from "@/lib/board/viewport"
 
@@ -51,6 +53,22 @@ export function freeCardSpot(at: { x: number; y: number }, kind: string, taken: 
   const near = nearestFreeSpot(here, taken, room)
   const spot = near ?? (taken.some((t) => overlaps(here, t)) ? nextNoteSpot(here, taken, "below", size) : here)
   return { x: spot.x + size.width / 2, y: spot.y + size.height / 2, shown: near !== null }
+}
+
+/**
+ * Where a new frame goes (a size from the Frame tool or the Frames panel's Add a frame): where it is asked when
+ * nothing is there, else the nearest free spot beside what is, on steps a frame and a gap apart (nearestFreeSpot), as
+ * Miro lays a new frame beside the content; frames added one after another line up. Nothing is ever under it, so the
+ * Frames panel's Empty, Lay out and a move all agree with the board (V-605). The room runs two steps past everything,
+ * so its outer ring is free; past the nearest tries, right of everything. Out of view on a crowded board: the caller
+ * goes to it. Pure.
+ */
+export function freeFrameSpot(want: Box, taken: readonly Box[]): { x: number; y: number } {
+  const all = drawnBox([want, ...taken])!
+  const sx = want.width + NOTE_GAP
+  const sy = want.height + NOTE_GAP
+  const room = { x: all.x - 2 * sx, y: all.y - 2 * sy, width: all.width + 4 * sx, height: all.height + 4 * sy }
+  return nearestFreeSpot(want, taken, room) ?? { x: all.x + all.width + NOTE_GAP, y: want.y }
 }
 
 /** What of the scene a view shows, as a box: the room a card laid in view must fit. */

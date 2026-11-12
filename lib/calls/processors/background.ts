@@ -1,26 +1,28 @@
-// A camera's background, cut out on this device: LiveKit's track processors
-// on MediaPipe's selfie segmenter, every file served by this server
-// (assets.ts). Loaded the first time someone turns a background on; nothing
-// here is in a page's first load. One processor per camera track, switched
-// between choices in place, so changing blur for a backdrop doesn't flash
-// the real room.
+// A camera's look, on this device: its background cut out by LiveKit's
+// track processors on MediaPipe's selfie segmenter, every file served by
+// this server (assets.ts), and its touch-up and low light (look.ts). Loaded
+// the first time someone turns a camera effect on; nothing here is in a
+// page's first load. One processor per camera track (cameraTransformer.ts),
+// changed in place, so changing blur for a backdrop doesn't flash the real
+// room.
 
 import type { LocalVideoTrack, TrackProcessor, Track } from "livekit-client"
 import { SEGMENTER_MODEL, VISION_FILESET } from "./assets"
 import { backdropUrl } from "./backdrops"
-import { BLUR_RADIUS, type Background } from "./effects"
+import { CameraTransformer, type CameraOptions } from "./cameraTransformer"
+import { BLUR_RADIUS, cameraOn, type Background, type CameraLook } from "./effects"
 import { readPicture } from "./picture"
 import { once } from "@/lib/lazy/once"
 
 type Lib = typeof import("@livekit/track-processors")
-type Switchable = Awaited<ReturnType<Lib["BackgroundProcessor"]>>
+type Ours = InstanceType<Lib["ProcessorWrapper"]> & { transformer: CameraTransformer }
 
 const load = once((): Promise<Lib> => import("@livekit/track-processors"))
 
 /** The processor's name on a track, to tell ours from anyone else's. */
-const NAME = "onecamp-background"
+const NAME = "onecamp-camera"
 
-/** Why a background can't be put on here, in words, or null when it can. */
+/** Why a camera effect can't be put on here, in words, or null when it can. */
 export async function backgroundUnavailable(): Promise<string | null> {
   try {
     const m = await load()
@@ -30,47 +32,45 @@ export async function backgroundUnavailable(): Promise<string | null> {
   }
 }
 
-/** What the processor is told for a choice: a blur's radius, or a picture to put behind. */
-async function modeOf(choice: Exclude<Background, { kind: "none" }>, picture: () => string | null): Promise<Parameters<Switchable["switchTo"]>[0]> {
-  if (choice.kind === "blur") return { mode: "background-blur", blurRadius: BLUR_RADIUS[choice.strength] }
-  if (choice.kind === "backdrop") return { mode: "virtual-background", imagePath: await backdropUrl(choice.id) }
+/** What the library's background is told for a choice: a blur's radius, or a picture to put behind. */
+async function backgroundOf(choice: Background, picture: () => string | null): Promise<CameraOptions["background"]> {
+  if (choice.kind === "none") return null
+  if (choice.kind === "blur") return { blurRadius: BLUR_RADIUS[choice.strength], imagePath: undefined }
+  if (choice.kind === "backdrop") return { imagePath: await backdropUrl(choice.id), blurRadius: undefined }
   const url = picture()
   if (!url) throw new Error("Your picture is no longer on this device. Choose it again.")
-  return { mode: "virtual-background", imagePath: url }
+  return { imagePath: url, blurRadius: undefined }
 }
 
-const ours = (p: TrackProcessor<Track.Kind> | undefined): p is Switchable & TrackProcessor<Track.Kind> => !!p && p.name === NAME && "switchTo" in p
+const ours = (p: TrackProcessor<Track.Kind> | undefined): p is Ours & TrackProcessor<Track.Kind> => !!p && p.name === NAME && "updateTransformerOptions" in p
 
 /**
- * Puts a background on a camera track, changes it, or takes it off. `onFrame`
- * hears how long each frame took (ms), for the strain watch. Throws, in
- * words, when it can't: the caller says so and the camera stays as it is.
+ * Puts a camera's look (its background, touch-up and low light) on a track,
+ * changes it in place, or takes it off, as one processor. `onFrame` hears how
+ * long each frame took (ms), for the strain watch; `onLost` hears the
+ * touch-up and low light stop when the browser's graphics are lost. Both go
+ * to the processor already on the track too (the green room's, taken over by
+ * the call), so they hear it from the next frame. Throws,
+ * in words, when it can't: the caller says so and the camera stays as it is.
  */
-export async function applyBackground(
+export async function applyCamera(
   track: LocalVideoTrack,
-  choice: Background,
-  opts: { picture?: () => string | null; onFrame?: (ms: number) => void } = {},
+  look: CameraLook,
+  opts: { picture?: () => string | null; onFrame?: (ms: number) => void; onLost?: () => void } = {},
 ): Promise<void> {
   const current = track.getProcessor()
-  if (choice.kind === "none") {
+  if (!cameraOn(look)) {
     if (current && current.name === NAME) await track.stopProcessor()
     return
   }
-  const mode = await modeOf(choice, opts.picture ?? readPicture)
+  const options: CameraOptions = { background: await backgroundOf(look.background, opts.picture ?? readPicture), touchUp: look.touchUp, lowLight: look.lowLight }
   if (ours(current)) {
-    await current.switchTo(mode)
+    current.transformer.setHooks({ onFrame: opts.onFrame, onLost: opts.onLost })
+    await current.updateTransformerOptions(options)
     return
   }
   const m = await load()
   if (!m.supportsBackgroundProcessors()) throw new Error("This browser can't change your background.")
-  const processor = m.BackgroundProcessor(
-    {
-      ...mode,
-      // Never MediaPipe's own defaults (a CDN and Google's storage): this server's copies.
-      assetPaths: { tasksVisionFileSet: VISION_FILESET, modelAssetPath: SEGMENTER_MODEL },
-      onFrameProcessed: (s) => opts.onFrame?.(s.processingTimeMs),
-    },
-    NAME,
-  )
-  await track.setProcessor(processor)
+  const camera = new CameraTransformer(m, options, { assetPaths: { tasksVisionFileSet: VISION_FILESET, modelAssetPath: SEGMENTER_MODEL }, onFrame: opts.onFrame, onLost: opts.onLost })
+  await track.setProcessor(new m.ProcessorWrapper<CameraOptions, CameraTransformer>(camera, NAME))
 }

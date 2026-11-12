@@ -11,7 +11,7 @@
  * share, help. The phone's sheet: doc, then delete, alone and last.
  */
 
-import { Bookmark, BookmarkCheck, Eye, History, Keyboard, Link2, MessageCircle, Maximize2, Minimize, Pencil, Share2 } from "@/lib/icons"
+import { Bookmark, BookmarkCheck, CalendarClock, Eye, History, Keyboard, Link2, MessageCircle, Maximize2, Minimize, Pencil, Share2 } from "@/lib/icons"
 import { registerAction } from "@/components/docEditor/registry/registry"
 import { copyDocLink } from "@/components/docEditor/docLink"
 
@@ -30,6 +30,18 @@ registerAction({
   shortcut: "l",
   shortcutOrder: 24,
   run: (ctx) => ctx.bus.emit("toggle", { what: "saved" }),
+})
+
+// Remind me (linear-45 #1): DocView opens Later's picker.
+registerAction({
+  id: "doc.remindMe",
+  label: "Remind me…",
+  icon: CalendarClock,
+  group: "view",
+  order: 11,
+  surfaces: ["more", "palette", "phoneSheet"],
+  edition: "both",
+  run: (ctx) => ctx.bus.emit("openDialog", { id: "doc.remindMe" }),
 })
 
 registerAction({

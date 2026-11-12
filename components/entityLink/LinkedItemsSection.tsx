@@ -16,9 +16,11 @@ interface LinkedItemsSectionProps {
   sourceType: LinkSourceType
   sourceUUID: string
   canEdit: boolean
+  /** What the title's row carries at its end, from the same read: a project's way to its boards. */
+  aside?: (links: { docs: LinkedDoc[]; boards: LinkedBoard[] }) => React.ReactNode
 }
 
-export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedItemsSectionProps) {
+export function LinkedItemsSection({ sourceType, sourceUUID, canEdit, aside }: LinkedItemsSectionProps) {
   const { docs, boards, isLoading, mutating, forbidden, addLink, removeLink, hasLink } = useEntityLinks(sourceType, sourceUUID)
 
   // The backend is the source of truth for authorisation: if it rejects the
@@ -30,9 +32,10 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
 
   return (
     <div className="mb-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center gap-2">
         <h3 className={sectionTitle}>Linked docs and boards</h3>
         {mutating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        {aside ? <span className="ml-auto flex min-w-0 items-center">{aside({ docs, boards })}</span> : null}
       </div>
 
       <div className="flex flex-col gap-1.5">

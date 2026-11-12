@@ -45,9 +45,56 @@ export function nextFrameName(names: readonly (string | null | undefined)[], bas
 /** How a frame arranges what's in it (Miro's frame types, less "heap"). */
 export type FrameLayout = "grid" | "rows" | "columns"
 
+/** Whether `outer` wholly holds `box`, edges touching included. */
+export function holds(outer: Box, box: Box): boolean {
+  return box.x >= outer.x && box.y >= outer.y && box.x + box.width <= outer.x + outer.width && box.y + box.height <= outer.y + outer.height
+}
+
+/**
+ * The frame a box belongs in: the topmost live frame (the last in scene order) that wholly holds it, or null. Notes
+ * added go by placeInFrame (components/board/boardOps addNotes), which picks with this at their centre.
+ */
+export function frameHolding<T extends Box & { type?: string; isDeleted?: boolean }>(elements: readonly T[], box: Box): T | null {
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const e = elements[i]
+    if (e.type === "frame" && !e.isDeleted && holds(e, box)) return e
+  }
+  return null
+}
+
 /** Inside a frame, from its edges, and between items. */
 export const FRAME_PAD = 40
 export const FRAME_GAP = 24
+
+/**
+ * A frame's size once it holds `width` × `height` of things inside its padding: as it is, or grown to the right and
+ * down to fit, never smaller. Lay out's growth, and added notes'.
+ */
+function grownToHold(frame: Box, width: number, height: number, pad: number): { width: number; height: number } {
+  return { width: Math.max(frame.width, width + pad * 2), height: Math.max(frame.height, height + pad * 2) }
+}
+
+/**
+ * Where notes added at a box go (a press, a phone's Add a note, Tab's next, a pasted list's grid: one box for them
+ * all): into the frame under the box's centre, as frameHolding picks (the topmost live frame), and wholly inside it,
+ * since one that only looked inside was passed by Lay out and the panel's count (DESIGN-BUILD-120 F1, V-683). A box
+ * the frame wholly holds stays where it was put. One past the frame's left or top edge moves in to its padding, where
+ * Lay out sets notes; past its right or bottom edge it stays, and the frame grows to hold it inside its padding, as
+ * Lay out's frames grow (right and down, never smaller: `grown`, else null), so a run's note is never pulled back
+ * over the one before. With the centre in no frame, the box stays where it was put, in none. Pure.
+ */
+export function placeInFrame<T extends Box & { type?: string; isDeleted?: boolean }>(
+  elements: readonly T[],
+  box: Box,
+  pad = FRAME_PAD,
+): { frame: T | null; box: Box; grown: { width: number; height: number } | null } {
+  const frame = frameHolding(elements, { x: box.x + box.width / 2, y: box.y + box.height / 2, width: 0, height: 0 })
+  if (!frame || holds(frame, box)) return { frame, box, grown: null }
+  const x = Math.max(box.x, frame.x + pad)
+  const y = Math.max(box.y, frame.y + pad)
+  const size = grownToHold(frame, x + box.width - frame.x - pad, y + box.height - frame.y - pad, pad)
+  return { frame, box: { ...box, x, y }, grown: size.width === frame.width && size.height === frame.height ? null : size }
+}
 
 /** Reading order: top to bottom by middles in bands of `band`, then left to right. */
 function readingOrder<T extends Box>(items: readonly T[], band: number): T[] {
@@ -121,11 +168,7 @@ export function layoutFrame<T extends Box & { id: string }>(
       right = Math.max(right, x + colW)
     }
   }
-  return {
-    positions,
-    width: Math.max(frame.width, right + pad * 2),
-    height: Math.max(frame.height, bottom + pad * 2),
-  }
+  return { positions, ...grownToHold(frame, right, bottom, pad) }
 }
 
 /**

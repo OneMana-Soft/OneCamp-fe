@@ -2,9 +2,10 @@
 // kept on their device. The words for each choice are in effectsCopy.ts,
 // which loads with the picker. Everything here runs in the browser and nothing is
 // sent anywhere: the background is cut out on this device (MediaPipe's selfie
-// segmenter, served by this server), and noise is removed on this device
-// (RNNoise). Pure, no LiveKit import; the processors that act on it load
-// only when someone turns an effect on (background.ts, noise.ts).
+// segmenter, served by this server), a touch-up and low light are drawn on
+// this device (look.ts), and noise is removed on this device (RNNoise). Pure,
+// no LiveKit import; the processors that act on it load only when someone
+// turns an effect on (background.ts, noise.ts).
 
 /** The frame a backdrop or one's own picture is drawn at. */
 export const BACKDROP_SIZE = { width: 1280, height: 720 } as const
@@ -31,12 +32,29 @@ export type Background =
  */
 export type NoiseLevel = "standard" | "strong" | "off"
 
+/** How much a touch-up softens skin (look.ts): eyes and edges stay sharp at each level. */
+export type TouchUp = "off" | "subtle" | "smooth"
+
 export interface CallEffects {
   background: Background
   noise: NoiseLevel
+  touchUp: TouchUp
+  /** Brightens the picture when the room is dark (look.ts). */
+  lowLight: boolean
 }
 
-export const NO_EFFECTS: CallEffects = { background: { kind: "none" }, noise: "standard" }
+export const NO_EFFECTS: CallEffects = { background: { kind: "none" }, noise: "standard", touchUp: "off", lowLight: false }
+
+/** What the camera's one processor is told: what is behind someone, their touch-up and low light. */
+export type CameraLook = Pick<CallEffects, "background" | "touchUp" | "lowLight">
+
+export const lookOf = (e: CallEffects): CameraLook => ({ background: e.background, touchUp: e.touchUp, lowLight: e.lowLight })
+
+/** Whether the camera needs its processor at all. Pure. */
+export const cameraOn = (l: CameraLook): boolean => l.background.kind !== "none" || l.touchUp !== "off" || l.lowLight
+
+/** Whether two looks are the same choice. Pure. */
+export const sameLook = (a: CameraLook, b: CameraLook): boolean => sameBackground(a.background, b.background) && a.touchUp === b.touchUp && a.lowLight === b.lowLight
 
 /** A blur's radius in the segmenter's pixels: light keeps the room's shape, strong hides it. */
 export const BLUR_RADIUS = { light: 6, strong: 18 } as const
@@ -58,6 +76,19 @@ export function readNoise(v: unknown): NoiseLevel {
   return v === "strong" || v === "off" ? v : "standard"
 }
 
+/** A control's setters, each one part of a single change (the call's effects and the green room's). Pure. */
+export const settersFor = (change: (part: Partial<CallEffects>) => void) => ({
+  setBackground: (background: Background) => change({ background }),
+  setNoise: (noise: NoiseLevel) => change({ noise }),
+  setTouchUp: (touchUp: TouchUp) => change({ touchUp }),
+  setLowLight: (lowLight: boolean) => change({ lowLight }),
+})
+
+/** A touch-up level read from anywhere, or off. Pure. */
+export function readTouchUp(v: unknown): TouchUp {
+  return v === "subtle" || v === "smooth" ? v : "off"
+}
+
 /** Whether two backgrounds are the same choice. Pure. */
 export function sameBackground(a: Background, b: Background): boolean {
   if (a.kind !== b.kind) return false
@@ -77,8 +108,8 @@ const KEY = "onecamp.call.effects"
 export function readEffects(): CallEffects {
   try {
     const raw = window.localStorage.getItem(KEY)
-    const v = raw ? (JSON.parse(raw) as { background?: unknown; noise?: unknown }) : null
-    return { background: readBackground(v?.background), noise: readNoise(v?.noise) }
+    const v = raw ? (JSON.parse(raw) as { background?: unknown; noise?: unknown; touchUp?: unknown; lowLight?: unknown }) : null
+    return { background: readBackground(v?.background), noise: readNoise(v?.noise), touchUp: readTouchUp(v?.touchUp), lowLight: v?.lowLight === true }
   } catch {
     return NO_EFFECTS
   }

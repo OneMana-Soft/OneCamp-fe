@@ -8,10 +8,10 @@
  */
 
 import type { GlobalAttr } from './globalAttrs'
+import { MONTHS_SHORT } from '@/lib/utils/date/months'
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** v as an id: a uuid in lower case, or ''. */
 export const connectedId = (v: unknown): string => (typeof v === 'string' && UUID.test(v) ? v.toLowerCase() : '')
@@ -30,7 +30,7 @@ export function dateWords(v: unknown): string {
   const d = isoDate(v)
   const m = d ? Number(d.slice(5, 7)) - 1 : -1
   if (m < 0 || m > 11) return ''
-  return `${d.slice(8, 10).replace(/^0+/, '')} ${MONTHS[m]} ${d.slice(0, 4)}`
+  return `${d.slice(8, 10).replace(/^0+/, '')} ${MONTHS_SHORT[m]} ${d.slice(0, 4)}`
 }
 
 /** A title kept as text (a number is written as one), or ''. */

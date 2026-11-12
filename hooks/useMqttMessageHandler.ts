@@ -28,9 +28,8 @@ import {
     updateTaskPRStateInTaskList,
     updateTaskPRIsDraftInTaskList
 } from "@/store/slice/taskInfoSlice";
-import { upsertNudge, setOpenCount } from "@/store/slice/nudgeSlice";
+import { applyNudgeMessage } from "@/lib/ai/nudgeMessage";
 import { LATER_DUE_EVENT } from "@/components/later/LaterDueHost";
-import type { Nudge } from "@/services/nudgeService";
 import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingActionSlice";
 import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
 import { statusFieldsFromMessage } from "@/lib/taskStatus";
@@ -303,31 +302,10 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         break
 
                     case MqttMessageType.AI_Nudge:
-                        // Proactive AI nudge. "new" carries a full nudge to
-                        // surface live; "cleared" carries only an updated open
-                        // count (e.g. another tab dismissed, or the engine
-                        // superseded a stale signal).
+                        // Proactive AI nudge: "new" carries a full nudge to
+                        // surface live; "cleared" names one that closed (lib/ai/nudgeMessage).
                         try {
-                            const parsed = JSON.parse(messageStr)
-                            const data = parsed.data ?? {}
-                            if (data.action === "new" && data.nudge_id) {
-                                const n: Nudge = {
-                                    id: data.nudge_id,
-                                    kind: data.kind,
-                                    title: data.title ?? "",
-                                    body: data.body ?? "",
-                                    cta_url: data.cta_url,
-                                    cta_text: data.cta_text,
-                                    status: "open",
-                                    priority: data.priority ?? 0,
-                                    created_at: data.created_at ?? new Date().toISOString(),
-                                    updated_at: data.created_at ?? new Date().toISOString(),
-                                }
-                                dispatch(upsertNudge(n))
-                            }
-                            if (typeof data.open_count === "number") {
-                                dispatch(setOpenCount(data.open_count))
-                            }
+                            applyNudgeMessage(dispatch, JSON.parse(messageStr)?.data)
                         } catch (e) {
                             console.warn("[MQTT] Failed to parse AI nudge message", e)
                         }
@@ -414,6 +392,13 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         window.dispatchEvent(new CustomEvent("onecamp:call-state", { detail: JSON.parse(messageStr)?.data }))
                         break
 
+                    case MqttMessageType.Call_Ring:
+                        // A call rings this person, stops, or (to its caller)
+                        // rings whom or was declined: the ring host and the
+                        // caller's stage read it (lib/calls/ring).
+                        window.dispatchEvent(new CustomEvent("onecamp:call-ring", { detail: JSON.parse(messageStr)?.data }))
+                        break
+
                     case MqttMessageType.Chat_Seen:
                         // A read receipt: someone has seen a conversation up to a time.
                         try {
@@ -430,6 +415,10 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         // An import got further (business/ContentIO's Job);
                         // the import dialog listens (lib/export/contentIO).
                         window.dispatchEvent(new CustomEvent(CONTENT_IO_JOB_EVENT, { detail: JSON.parse(messageStr)?.data }))
+                        break
+
+                    case MqttMessageType.Calendar_Live:
+                        window.dispatchEvent(new CustomEvent("onecamp:calendar-live", { detail: JSON.parse(messageStr)?.data }))
                         break
 
                     case MqttMessageType.Preference:

@@ -16,6 +16,7 @@ import { useComposerTarget } from "@/components/conversation/ComposerHost"
 import { useScheduleSend } from "@/context/ScheduleSendContext"
 import { usePublishTyping } from "@/hooks/usePublishTyping"
 import { useUploadFile } from "@/hooks/useUploadFile"
+import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst"
 import { adapterOf } from "@/lib/conversation/adapters"
@@ -62,12 +63,14 @@ function ConversationComposer({ conversation, handleSend, placeholder, phone, au
     const draft = useSelector((state: RootState) => heldDraft(state, conversation))
     const { publishTyping } = usePublishTyping(conversation)
     const files = useRef<HTMLInputElement>(null)
-    // Draft with AI opens from "+", ⌘J and the phone's tool strip (C45, C48); Undo takes back a schedule (C44).
+    // Draft with AI opens from "+", ⌘J and the phone's tool strip (C45, C48), where AI is on: its
+    // popover draws nothing otherwise, and the three were dead. Undo takes back a schedule (C44).
+    const aiOn = useAIAvailable()
     const [aiOpen, setAiOpen] = useState(false)
     // A phone's sheet: as tall as what it holds, or pulled up to fill the screen (PhoneComposerDrawer).
     const [expanded, setExpanded] = useState(false)
     const openAi = useCallback(() => setAiOpen(true), [])
-    const undoSchedule = useUndoSchedule(scheduleSend?.target)
+    const chipSchedule = useUndoSchedule(scheduleSend?.target)
 
     // The same functions for the life of the box, so the editor's action row
     // (memoised in textInput) keeps its buttons as the box redraws.
@@ -113,8 +116,8 @@ function ConversationComposer({ conversation, handleSend, placeholder, phone, au
             onSchedule={scheduleSend?.schedule}
             editorClassName="focus:outline-none"
             onChange={onChange}
-            onDraftWithAI={openAi}
-            onUndoSchedule={undoSchedule}
+            onDraftWithAI={aiOn ? openAi : undefined}
+            chipSchedule={chipSchedule}
             aiSlot={<ComposerAIButton open={aiOpen} onOpenChange={setAiOpen} getText={() => draft.html} onResult={write} />}
         >
             {variant === "chat" && <BoxFiles conversation={conversation} draft={draft} />}

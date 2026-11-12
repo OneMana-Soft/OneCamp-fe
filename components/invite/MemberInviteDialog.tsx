@@ -5,8 +5,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Link2, UserPlus } from "@/lib/icons"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { describeInvitation } from "@/components/invite/InvitationOutcome"
 import { InviteForm } from "@/components/invite/InviteForm"
+import { useClientConfig } from "@/hooks/useClientConfig"
+import { describeInvitation } from "@/components/invite/InvitationOutcome"
+import { invitePromise } from "@/lib/invite/inviteCopy"
 
 interface Props {
     open: boolean
@@ -18,7 +20,9 @@ interface Props {
 // (that's admin governance); it sends through the capability-gated
 // /invitations endpoint. Design v3 (E6): addresses as chips, a live count on
 // Send, and a row per address once sent, saying whether each email went.
+// Without email set up it promises links, not emails (SHELL-02).
 export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
+    const { email_enabled } = useClientConfig()
     // Remounts the form on each open, so it always starts empty.
     const [round, setRound] = useState(0)
     const close = (next: boolean) => {
@@ -32,6 +36,7 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                 <InviteForm
                     key={round}
                     asAdmin={false}
+                    emailOn={email_enabled}
                     again
                     onClose={() => close(false)}
                     header={({ done, single, summary }) => (
@@ -46,7 +51,7 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                             <DialogDescription>
                                 {single
                                     ? `An invitation for ${single.email}.`
-                                    : summary || "Each gets an email with a link to join, good for seven days."}
+                                    : summary || invitePromise(email_enabled)}
                             </DialogDescription>
                         </DialogHeader>
                     )}

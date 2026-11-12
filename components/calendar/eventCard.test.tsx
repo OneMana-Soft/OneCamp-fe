@@ -65,6 +65,32 @@ describe("the organiser's card", () => {
   })
 })
 
+// V-643 (gcal-1a "visibility"): a private event's card says so, a lock and
+// "Private", with the calendar it is on; nothing for the default or public.
+describe("a private event's card", () => {
+  it("says Private beside its calendar, on a computer and on a phone", () => {
+    render(<EventPopover event={event({ event_visibility: "private" })} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const card = screen.getByRole("dialog", { name: "Launch review" })
+    const line = card.querySelector("[data-card-visibility] [data-visibility-line='private']")
+    expect(line?.textContent).toBe("Private")
+    expect(line?.querySelector("svg")).toBeTruthy()
+    const text = card.textContent ?? ""
+    expect(text.indexOf("OneCamp · Personal")).toBeLessThan(text.indexOf("Private"))
+    expect(text.indexOf("Private")).toBeLessThan(text.indexOf("Organised by you"))
+    cleanup()
+    render(<EventPopover event={event({ event_visibility: "private" })} anchor={null} now={now} selfId="sam" phone onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    expect(document.querySelector("[data-event-sheet] [data-card-visibility] [data-visibility-line='private']")?.textContent).toBe("Private")
+  })
+
+  it("says nothing for one on the calendar's default, or public", () => {
+    for (const v of ["default", "public", undefined]) {
+      render(<EventPopover event={event({ event_visibility: v })} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+      expect(document.querySelector("[data-visibility-line]")).toBeNull()
+      cleanup()
+    }
+  })
+})
+
 // B1, task blocks: a block's card says which task it is time for, where the
 // task stands, and its project; a task the reader can no longer see is said so.
 describe("a task block's card", () => {
@@ -75,6 +101,27 @@ describe("a task block's card", () => {
     const row = card.querySelector("[data-card-task]")!
     expect(row.textContent).toBe("TaskTime for Write the launch brief · Launch")
     expect(row.querySelector("[data-status-glyph]")?.getAttribute("data-status-glyph")).toBe("progress")
+  })
+
+  // What its task waits on (the timeline's words): the first open one named, as a link that opens it.
+  it("says what its task waits on, naming the first one, which opens", () => {
+    const onOpenTask = vi.fn()
+    const block = event({ event_title: "Write the brief", event_guests: [], event_participants: [], event_description: "", event_task: { task_uuid: "t1", task_name: "Write the launch brief", task_status: "todo", task_blocked_open: 2, task_blocked_by: [{ task_uuid: "t9", task_name: "Design review" }] } })
+    render(<EventPopover event={block} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} onOpenTask={onOpenTask} />)
+    const waits = screen.getByRole("dialog", { name: "Write the brief" }).querySelector("[data-block-waits]") as HTMLElement
+    expect(waits.textContent).toContain("Waiting on Design review and 1 more")
+    const link = within(waits).getByRole("link", { name: "Design review" })
+    expect(link.getAttribute("href")).toBe("/app/task/t9")
+    fireEvent.click(link)
+    expect(onOpenTask).toHaveBeenCalledWith("t9")
+  })
+
+  it("counts what its task waits on when the reader may not read it", () => {
+    const block = event({ event_title: "Write the brief", event_guests: [], event_participants: [], event_description: "", event_task: { task_uuid: "t1", task_name: "Write the launch brief", task_blocked_open: 1 } })
+    render(<EventPopover event={block} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const waits = screen.getByRole("dialog", { name: "Write the brief" }).querySelector("[data-block-waits]") as HTMLElement
+    expect(waits.textContent).toContain("Waiting on 1 task")
+    expect(within(waits).queryByRole("link")).toBeNull()
   })
 
   it("says so when the reader can no longer see the task", () => {

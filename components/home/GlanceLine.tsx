@@ -25,6 +25,8 @@ import type { NeedsShown } from "@/components/home/needsGone"
 export interface GlanceCounts {
   tasksDue: number
   overdue: number
+  /** The AI's commitments overdue: the server's rows (commitmentNeedsMeNow), never a task. */
+  commitments?: number
   mentions: number
   agentRequests: number
 }
@@ -57,6 +59,7 @@ const nextClause = (n: GlanceNext, alone: boolean) => (n.running ? `Now: ${n.tit
 
 export type GlancePart =
   | { kind: "tasks"; count: number; overdue: number }
+  | { kind: "commitments"; count: number }
   | { kind: "mentions"; count: number }
   | { kind: "agent"; count: number }
 
@@ -64,6 +67,7 @@ export type GlancePart =
 export function glanceParts(c: GlanceCounts): GlancePart[] {
   const parts: GlancePart[] = []
   if (c.tasksDue > 0 || c.overdue > 0) parts.push({ kind: "tasks", count: c.tasksDue, overdue: c.overdue })
+  if (c.commitments) parts.push({ kind: "commitments", count: c.commitments })
   if (c.mentions > 0) parts.push({ kind: "mentions", count: c.mentions })
   if (c.agentRequests > 0) parts.push({ kind: "agent", count: c.agentRequests })
   return parts
@@ -81,6 +85,7 @@ export function glanceText(c: GlanceCounts, next?: GlanceNext | null, failed = f
       if (p.count === 0) return `${p.overdue} ${plural(p.overdue, "task", "tasks")} overdue`
       return `${p.count} ${plural(p.count, "task", "tasks")} due today${p.overdue ? `, ${p.overdue} overdue` : ""}`
     }
+    if (p.kind === "commitments") return `${p.count} ${plural(p.count, "commitment", "commitments")} overdue`
     if (p.kind === "mentions") return `${p.count} ${plural(p.count, "mention", "mentions")} waiting`
     return `${p.count} ${plural(p.count, "agent request", "agent requests")}`
   })
@@ -97,12 +102,13 @@ export interface Glance {
 
 /** The line from what the list shows (needsGone): it waits while the list does, and counts its rows. Pure. */
 export function glanceOf(shown: NeedsShown | null): Glance {
-  const counts: GlanceCounts = { tasksDue: 0, overdue: 0, mentions: 0, agentRequests: 0 }
+  const counts: Required<GlanceCounts> = { tasksDue: 0, overdue: 0, commitments: 0, mentions: 0, agentRequests: 0 }
   if (!shown) return { loading: true, failed: false, counts, unnamed: 0 }
   let unnamed = 0
   for (const i of shown.items) {
     if (i.kind === "due") {
-      if (i.overdue) counts.overdue++
+      if (i.commitment) counts.commitments++
+      else if (i.overdue) counts.overdue++
       else counts.tasksDue++
     } else if (i.kind === "agent") counts.agentRequests++
     else if (i.kind === "reply" && i.id.startsWith("mention:")) counts.mentions++
@@ -120,6 +126,16 @@ function Count({ n, href, children }: { n: number; href: string; children: strin
     </Link>
   )
 }
+
+/** "2 tasks overdue", "1 commitment overdue": the count and its noun in danger ink, linking to the rows. */
+const Overdue = ({ n, one, many }: { n: number; one: string; many: string }) => (
+  <>
+    <Link href="#needs-due" className={cn(LINK, "text-danger-ink")}>
+      {n} {plural(n, one, many)}
+    </Link>{" "}
+    overdue
+  </>
+)
 
 export function GlanceLine({
   counts,
@@ -207,17 +223,9 @@ export function GlanceLine({
       facts.push({ node: <><Count n={p.count} href="#needs-due">{plural(p.count, "task", "tasks")}</Count> due today</>, then: p.overdue > 0 ? "," : " ·" })
       if (p.overdue > 0) facts.push({ node: <Link href="#needs-due" className={cn(LINK, "text-danger-ink")}>{p.overdue} overdue</Link>, then: " ·" })
     } else if (p.kind === "tasks") {
-      facts.push({
-        node: (
-          <>
-            <Link href="#needs-due" className={cn(LINK, "text-danger-ink")}>
-              {p.overdue} {plural(p.overdue, "task", "tasks")}
-            </Link>{" "}
-            overdue
-          </>
-        ),
-        then: " ·",
-      })
+      facts.push({ node: <Overdue n={p.overdue} one="task" many="tasks" />, then: " ·" })
+    } else if (p.kind === "commitments") {
+      facts.push({ node: <Overdue n={p.count} one="commitment" many="commitments" />, then: " ·" })
     } else if (p.kind === "mentions") {
       facts.push({ node: <><Count n={p.count} href="#needs-reply">{plural(p.count, "mention", "mentions")}</Count> waiting</>, then: " ·" })
     } else {

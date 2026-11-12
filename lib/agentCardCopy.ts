@@ -1,3 +1,4 @@
+import { AUTONOMY, autonomyOf } from "@/lib/agentAutonomy"
 import { firstNameOf } from "@/lib/personName"
 import type { AgentCard } from "@/services/agentService"
 
@@ -14,16 +15,7 @@ export function sponsorName(card: Pick<AgentCard, "sponsor">): string {
 }
 
 export function autonomyPhrase(autonomy: string): string {
-  switch (autonomy) {
-    case "auto":
-      return "Acts on its own"
-    case "plan":
-      return "Proposes a plan, then waits for a yes"
-    case "approval":
-    default:
-      // The safe reading of anything unknown: say it asks, not that it acts.
-      return "Asks before it changes anything"
-  }
+  return AUTONOMY.find((a) => a.value === autonomyOf(autonomy))!.phrase
 }
 
 /** Where it may act. Counts, not names: a reader may not see every channel. */

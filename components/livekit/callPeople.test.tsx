@@ -35,6 +35,17 @@ describe("peopleOf", () => {
     expect(rows[0]).toMatchObject({ you: true })
     expect(rows[2]).toMatchObject({ guest: true, micOn: false, cameraOn: false })
   })
+
+  // Companion mode (meet-04): another device of Maya's, sharing her screen.
+  it("puts a companion on its person's row, and you are you on every device of yours", () => {
+    const phone = "0x1a~c~0123456789ab"
+    const others = [person("0x1a", "Maya Chen"), person(phone, "Maya Chen", { isMicrophoneEnabled: false, isCameraEnabled: false, isScreenShareEnabled: true })]
+    const seen = peopleOf([person("sam", "Sam Rivera", { isLocal: true }), ...others] as never)
+    expect(seen.map((r) => [r.identity, r.sharing])).toEqual([["sam", false], ["0x1a", true]])
+    // On the companion itself: Maya's row is hers, and it is you.
+    const mine = peopleOf([others[0], { ...others[1], isLocal: true }, person("sam", "Sam Rivera")] as never)
+    expect(mine.map((r) => [r.name, r.you])).toEqual([["Maya Chen", true], ["Sam Rivera", false]])
+  })
 })
 
 describe("the participants panel", () => {

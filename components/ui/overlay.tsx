@@ -56,8 +56,17 @@ export function markOverlayColumn(body: HTMLElement): () => void {
   for (const el of [a1, a2, a3]) if (holder(el)) markAttribute(el, "data-overlay-holds-body", undo)
   if (box(a1) && (root(a2) || root(a3))) markAttribute(a1, "data-overlay-column", undo)
   if (box(a2) && root(a3)) markAttribute(a2, "data-overlay-column", undo)
-  if (a1?.hasAttribute("data-sheet-body")) markAttribute(a1, "data-overlay-holds-body", undo)
-  else if (a1?.hasAttribute("data-sheet-base") && a2?.hasAttribute("data-sheet-body")) markAttribute(a2, "data-overlay-holds-body", undo)
+  const sheetBody = a1?.hasAttribute("data-sheet-body") ? a1 : a1?.hasAttribute("data-sheet-base") && a2?.hasAttribute("data-sheet-body") ? a2 : null
+  if (sheetBody) {
+    markAttribute(sheetBody, "data-overlay-holds-body", undo)
+    // Held, it is the sheet's one scroller, so it fades the edge it has more
+    // past as the sheet's body does (components/ui/drawer, V-619); the sheet's
+    // body, which no longer scrolls, has no timeline and fades nothing.
+    if (!body.hasAttribute("data-edge-fade")) {
+      body.setAttribute("data-edge-fade", "block")
+      undo.push(() => body.removeAttribute("data-edge-fade"))
+    }
+  }
   return () => undo.splice(0).forEach((u) => u())
 }
 

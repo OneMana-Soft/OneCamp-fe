@@ -33,6 +33,7 @@ import { CreateUserChatList } from "@/store/slice/chatSlice"
 import { app_channel_path, app_chat_path, app_grp_chat_path } from "@/types/paths"
 import { EyeOff, Lock, Pencil, Users, X } from "@/lib/icons"
 import { focusDialogItself } from "@/components/ui/overlayFocus"
+import type { ReturnFocus } from "@/components/ui/returnFocus"
 import type { RootState } from "@/store/store"
 import type { RawUserDMInterface, UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 
@@ -49,7 +50,8 @@ const MIN_GROUP_PEOPLE = 3
  * hiding it, and leaving a group. Each change happens the moment it's made
  * and says so.
  */
-export default function ConversationDetailsSheet({ place, adding = false, open, onOpenChange }: {
+/** Its close focus (components/ui/returnFocus) comes from the eager UnifiedUIManager: this lazy chunk never imports it. */
+export default function ConversationDetailsSheet({ place, adding = false, open, onOpenChange, ...back }: Partial<ReturnFocus> & {
     place: ChatPlace
     /** Opens on Add people. */
     adding?: boolean
@@ -163,6 +165,7 @@ export default function ConversationDetailsSheet({ place, adding = false, open, 
                     data-conversation-details=""
                     aria-describedby={undefined}
                     onOpenAutoFocus={focusDialogItself}
+                    {...back}
                     tabIndex={-1}
                     className="fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-full flex-col bg-sheet shadow-e4 outline-none animate-panel-in sm:w-[440px]"
                 >

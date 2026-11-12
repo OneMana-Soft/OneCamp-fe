@@ -5,8 +5,8 @@
 // 12-column grid, and a phone shows it as one column in the same order.
 // Everything here is pure.
 
-import { durationLabel } from "@/lib/reportInsights"
-import type { Spread } from "@/lib/reports"
+import { durationLabel, effortLabel, SLICE_BY } from "@/lib/reportInsights"
+import type { Effort, SliceBy, Spread } from "@/lib/reports"
 import { app_dashboards_path } from "@/components/project/overviewViews"
 
 export type DashboardScope = "mine" | "project" | "workspace"
@@ -23,16 +23,25 @@ export interface Dashboard {
 }
 
 export type WidgetKind = "metric" | "throughput" | "control_chart" | "time_in_status" | "flow" | "breakdown" | "goal"
-export type MetricMeasure = "open" | "overdue" | "due_this_week" | "done_total" | "on_time" | "cycle" | "lead" | "triage" | "age"
-export type BreakdownBy = "project" | "person" | "priority"
+export type MetricMeasure = "open" | "overdue" | "due_this_week" | "done_total" | "on_time" | "cycle" | "lead" | "triage" | "age" | "effort_open" | "effort_done"
+/** A breakdown splits work any way the report slices it (lib/reportInsights SLICE_BY, or a field's "field:<id>"). */
+export type BreakdownBy = SliceBy
+/** What a breakdown counts: its tasks, or their effort ("" on a widget before L32: count). */
+export type BreakdownMeasure = "count" | "effort"
 
-/** What a widget reads: its own copy, kept when it was added. No projects is every project the reader is in. */
+/**
+ * What a widget reads: its own copy, kept when it was added (no projects is
+ * every project the reader is in), or a saved view of its keeper's (B9-b4):
+ * the view's id alone, its filters read from the view as each reader opens it.
+ */
 export interface WidgetQuery {
+  /** A saved view (models/postgres/TaskView): the widget keeps no projects, filters or search of its own. */
+  view?: string
   projects?: string[]
   filters?: unknown[]
   search?: string
   weeks?: number
-  measure?: MetricMeasure
+  measure?: MetricMeasure | BreakdownMeasure
   by?: BreakdownBy
   goal?: string
 }
@@ -54,6 +63,8 @@ export type Place = Pick<Widget, "id" | "x" | "y" | "w" | "h">
 export interface WidgetData {
   id: string
   kind: WidgetKind
+  /** The saved view it reads, named only to a reader who may read it. */
+  view?: string
   data?: unknown
   error?: string
 }
@@ -63,6 +74,8 @@ export interface MetricData {
   measure: MetricMeasure
   value: number | null
   spread?: Spread
+  /** An effort's points and hours (effort_open, effort_done). */
+  effort?: Effort
 }
 
 export const COLUMNS = 12
@@ -76,11 +89,11 @@ export const KINDS: readonly { kind: WidgetKind; label: string; about: string; w
   { kind: "flow", label: "Flow of work", about: "Where the work stood at each week's end.", w: 6, h: 4 },
   { kind: "control_chart", label: "Control chart", about: "Each task done, at its cycle or lead time.", w: 6, h: 5 },
   { kind: "time_in_status", label: "Time in status", about: "How long the work done spent at each step.", w: 6, h: 4 },
-  { kind: "breakdown", label: "Breakdown", about: "Open, overdue and done, by project, person or priority.", w: 6, h: 4 },
+  { kind: "breakdown", label: "Breakdown", about: "Open, overdue and done, or their effort, split any way: status, labels, cycle, a field and more.", w: 6, h: 4 },
   { kind: "goal", label: "A goal", about: "One goal's progress, pace and health.", w: 3, h: 2 },
 ]
 
-export const MEASURES: readonly { value: MetricMeasure; label: string; unit: "count" | "percent" | "time" }[] = [
+export const MEASURES: readonly { value: MetricMeasure; label: string; unit: "count" | "percent" | "time" | "effort" }[] = [
   { value: "open", label: "Open tasks", unit: "count" },
   { value: "overdue", label: "Overdue", unit: "count" },
   { value: "due_this_week", label: "Due this week", unit: "count" },
@@ -90,12 +103,16 @@ export const MEASURES: readonly { value: MetricMeasure; label: string; unit: "co
   { value: "lead", label: "Lead time", unit: "time" },
   { value: "triage", label: "Triage time", unit: "time" },
   { value: "age", label: "Age of open work", unit: "time" },
+  { value: "effort_open", label: "Effort open", unit: "effort" },
+  { value: "effort_done", label: "Effort done", unit: "effort" },
 ]
 
-export const BREAKDOWNS: readonly { value: BreakdownBy; label: string }[] = [
-  { value: "project", label: "By project" },
-  { value: "person", label: "By person" },
-  { value: "priority", label: "By priority" },
+/** The ways a breakdown splits work: every way the report slices it (a project's fields are the dialog's to add). */
+export const BREAKDOWNS: readonly { value: BreakdownBy; label: string }[] = SLICE_BY.map((s) => ({ value: s.by, label: `By ${s.label.toLowerCase()}` }))
+
+export const BREAKDOWN_MEASURES: readonly { value: BreakdownMeasure; label: string }[] = [
+  { value: "count", label: "Count" },
+  { value: "effort", label: "Effort" },
 ]
 
 /** The widths a widget takes, in columns. */
@@ -104,6 +121,9 @@ export const SIZES: readonly { w: number; label: string }[] = [
   { w: 6, label: "Half" },
   { w: 12, label: "Full width" },
 ]
+
+/** The widgets that are charts, each with a CSV of its rows (lib/dashboardCSV, linear-32). */
+export const CSV_KINDS: ReadonlySet<WidgetKind> = new Set(["throughput", "flow", "control_chart", "time_in_status", "breakdown"])
 
 export const kindOf = (kind: WidgetKind) => KINDS.find((k) => k.kind === kind) ?? KINDS[0]
 
@@ -121,6 +141,7 @@ export function metricText(m: MetricData): string {
   const unit = MEASURES.find((x) => x.value === m.measure)?.unit
   if (unit === "percent") return `${Math.round(m.value)}%`
   if (unit === "time") return durationLabel(m.value)
+  if (unit === "effort") return effortLabel(m.effort ?? { points: 0, hours: m.value }, m.effort?.points ? "points" : "hours")
   return m.value.toLocaleString()
 }
 

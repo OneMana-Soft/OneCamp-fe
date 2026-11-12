@@ -1,8 +1,9 @@
 "use client"
 
 // A task panel row that puts the task in one of its project's lists, or in
-// none: its Cycle row and its Milestone row. The label, then a dense inline
-// select whose first option is the "none" one.
+// none: its Cycle, Milestone and Epic rows. The label, then a dense inline
+// select whose first option is the "none" one. Its shell is shared with
+// ./taskPicksRow, its twin for a list a task may be in several of.
 
 import * as React from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,6 +24,7 @@ export function TaskPickRow({
   current,
   options,
   onPick,
+  onOpenChange,
   disabled,
   property,
 }: {
@@ -36,17 +38,15 @@ export function TaskPickRow({
   options: PickOption[]
   /** The id picked; "" for none. */
   onPick: (id: string) => void
+  /** Told when the list opens, for a row that reads its options only then. */
+  onOpenChange?: (open: boolean) => void
   disabled: boolean
   /** data-property, for the panel's tests and its keys. */
   property?: string
 }) {
   return (
-    <div className={propertyRow()} data-property={property} data-field-empty={current ? undefined : ""}>
-      <div>
-        <span className={propertyLabel}>{label}</span>
-      </div>
-      <div className="min-w-0">
-        <Select value={current?.id ?? NONE} onValueChange={(v) => onPick(v === NONE ? "" : v)} disabled={disabled}>
+    <PickRowShell label={label} property={property} empty={!current}>
+        <Select value={current?.id ?? NONE} onValueChange={(v) => onPick(v === NONE ? "" : v)} onOpenChange={onOpenChange} disabled={disabled}>
           <SelectTrigger dense className={inlineSelect} aria-label={label}>
             <SelectValue>{current ? current.label : <span className="text-muted-foreground">{none}</span>}</SelectValue>
           </SelectTrigger>
@@ -59,7 +59,18 @@ export function TaskPickRow({
             ))}
           </SelectContent>
         </Select>
+    </PickRowShell>
+  )
+}
+
+/** The row both draw (this and ./taskPicksRow): its label, then its value. */
+export function PickRowShell({ label, property, empty, children }: { label: string; property?: string; empty: boolean; children: React.ReactNode }) {
+  return (
+    <div className={propertyRow()} data-property={property} data-field-empty={empty ? "" : undefined}>
+      <div>
+        <span className={propertyLabel}>{label}</span>
       </div>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }

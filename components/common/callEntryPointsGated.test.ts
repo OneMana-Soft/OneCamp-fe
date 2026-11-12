@@ -28,6 +28,10 @@ const CALL_SURFACES = [
     "components/drawers/chatOptionsDrawer.tsx",
     "components/drawers/channelOptionsDrawer.tsx",
     "components/drawers/groupChatOptionsDrawer.tsx",
+    // An empty DM's "Start a huddle" starter (UX-CHAT-H2): it was the one call control no gate covered.
+    "components/message/emptyConversations.tsx",
+    // A phone's conversation bar: its huddle link stood there with no call server (UX-CHAT-H2).
+    "components/navigationBar/mobile/phoneConversationTitle.tsx",
 ]
 
 describe("call entry points are gated on a LiveKit server being present", () => {

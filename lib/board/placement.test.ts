@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { cardSize } from "./cards"
-import { freeCardSpot, nearestFreeSpot, scrollToCentre, viewBox } from "./placement"
+import { freeCardSpot, freeFrameSpot, nearestFreeSpot, scrollToCentre, viewBox } from "./placement"
 import { viewCentre } from "./viewport"
 
 describe("where a card laid from a list goes (miro-13 2)", () => {
@@ -55,3 +55,31 @@ describe("where a card laid from a list goes (miro-13 2)", () => {
     expect(viewCentre({ ...v, ...scrollToCentre(v, p) })).toEqual(p)
   })
 })
+
+// V-605: a frame added at a size goes where it is asked when nothing is there, else in the nearest free space beside
+// what is, on steps a frame and a gap apart, so nothing is ever under it; and past everything on a crowded board.
+describe("where a frame added at a size goes (V-605)", () => {
+  const A4 = { x: 0, y: 0, width: 794, height: 1123 }
+
+  it("goes where it is asked on an empty board, and beside what's there, a frame and a gap along, never on it", () => {
+    expect(freeFrameSpot(A4, [])).toEqual({ x: 0, y: 0 })
+    expect(freeFrameSpot(A4, [{ x: 2000, y: 2000, width: 100, height: 100 }])).toEqual({ x: 0, y: 0 })
+    // A note under it: beside, one frame and a gap to the right (nearer than below for a frame taller than wide).
+    expect(freeFrameSpot(A4, [{ x: 300, y: 300, width: 180, height: 180 }])).toEqual({ x: 818, y: 0 })
+    // A frame there already, then that spot taken too: the next nearest, so frames added in a row line up.
+    expect(freeFrameSpot(A4, [A4, { ...A4, x: 818 }])).toEqual({ x: -818, y: 0 })
+  })
+
+  it("on a board drawn on all round, goes past what's drawn; past the nearest tries, right of everything", () => {
+    const wall = { x: -3000, y: -2000, width: 8000, height: 5000 }
+    const spot = freeFrameSpot(A4, [wall])
+    expect(overlapsBox({ ...A4, ...spot }, wall)).toBe(false)
+    // Small frames on a board far wider than 400 of their steps: right of everything, a gap past it.
+    const vast = { x: -100_000, y: -100_000, width: 200_000, height: 200_000 }
+    expect(freeFrameSpot({ x: 0, y: 0, width: 100, height: 100 }, [vast])).toEqual({ x: 100_024, y: 0 })
+  })
+})
+
+function overlapsBox(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+}

@@ -394,8 +394,9 @@ function Editor({ view, project, tables, columns, onChange, onDraft, fixedTable 
             </div>
             <div className="grid gap-1.5">
               <span className="text-xs font-medium text-ink-2">{setsPriority ? "Priority, when it isn't answered" : "Its priority"}</span>
-              <Pick label="Priority" value={f.priority} onChange={(p) => draft({ priority: p as ProjectForm["priority"] })}
-                options={[{ value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]} className="w-full" />
+              {/* No priority is "" on the form; a select's choice can't be empty. */}
+              <Pick label="Priority" value={f.priority || "none"} onChange={(p) => draft({ priority: p === "none" ? "" : (p as ProjectForm["priority"]) })}
+                options={[{ value: "none", label: "No priority" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]} className="w-full" />
             </div>
           </div>}
           <div className="grid gap-1.5">

@@ -8,6 +8,7 @@ vi.mock("@/components/themeProvider/theme-toggle", () => ({ ThemeToggle: () => n
 import { AppNotFound, queryFromPath } from "@/components/error/AppNotFound"
 import { PALETTE_OPEN_EVENT } from "@/lib/ui/palette"
 import NotFoundPage from "@/app/not-found"
+import AppNotFoundPage from "@/app/app/not-found"
 
 // A signed-in person who followed a bad /app link lost the sidebar: the only
 // 404 was the signed-out one. Design v3 (shell §L4) draws it inside the shell.
@@ -35,6 +36,14 @@ describe("a signed-in 404", () => {
     window.removeEventListener(PALETTE_OPEN_EVENT, listen)
   })
 
+  // Its entry draws the view through a chunk of its own (components/error/appNotFoundView.tsx).
+  it("is drawn by its entry, app/app/not-found, once the view's chunk lands", async () => {
+    render(<AppNotFoundPage />)
+    expect(await screen.findByRole("heading", { name: "This page doesn't exist or was deleted" })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go home" }).getAttribute("href")).toBe("/app/home")
+    expect(screen.getByRole("button", { name: /Search/ })).toBeTruthy()
+  })
+
   // "Search Ctrl K" on a phone named a key nobody has there.
   it("marks its key hint, which a touch screen with no keyboard hides", () => {
     render(<AppNotFound />)
@@ -52,10 +61,11 @@ describe("a signed-in 404", () => {
 })
 
 describe("the signed-out 404", () => {
-  it("is drawn as every dead public link is, in the public frame, with the workspace and Sign in (PG2-01)", () => {
+  // Its body is a chunk of its own (components/guest/notFoundView.tsx), so it lands a moment after the page.
+  it("is drawn as every dead public link is, in the public frame, with the workspace and Sign in (PG2-01)", async () => {
     const view = render(<NotFoundPage />)
+    expect(await screen.findByRole("heading", { name: "This page doesn't exist or was deleted" })).toBeTruthy()
     expect(view.container.querySelector("[data-public-frame] [data-public-gone] [data-load-failure='gone']")).toBeTruthy()
-    expect(screen.getByRole("heading", { name: "This page doesn't exist or was deleted" })).toBeTruthy()
     expect(screen.getByRole("link", { name: "Go to your workspace" }).getAttribute("href")).toBe("/app/home")
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy()
   })

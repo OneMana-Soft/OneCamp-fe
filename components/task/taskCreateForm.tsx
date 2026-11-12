@@ -140,7 +140,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
       task_due_date: address?.due,
       task_start_date: undefined,
       task_label: address?.tags ?? "",
-      task_priority: address?.priority || "medium",
+      // None until one is picked (PROJECTS-14), as Linear's.
+      task_priority: address?.priority || "",
     },
   });
 

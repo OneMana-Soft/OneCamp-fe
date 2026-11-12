@@ -6,7 +6,8 @@ import { ErrorState } from "@/components/ui/error-state"
 import { Button } from "@/components/ui/button"
 import { Upload } from "@/lib/icons"
 import { FileRow, UploadingFileCard } from "@/components/project/fileCard"
-import { ProjectFilesEmpty, ProjectFilesNoMatch, ProjectFilesSkeleton, shownFiles, useProjectFiles } from "@/components/project/projectFiles"
+import { ProjectFilesEmpty, ProjectFilesNoMatch, ProjectFilesSkeleton, filesTabState, shownFiles, useProjectFiles } from "@/components/project/projectFiles"
+import { useEntityLinks } from "@/services/entityLinkService"
 
 interface ProjectAttachmentsProps {
     projectId: string
@@ -20,18 +21,22 @@ interface ProjectAttachmentsProps {
  */
 export function ProjectAttachmentList({ projectId, searchQuery }: ProjectAttachmentsProps) {
     const p = useProjectFiles(projectId)
+    // The project's links, which the tab draws below (LinkedItemsSection; SWR
+    // shares the read): a project with only links has no "no files" tray.
+    const links = useEntityLinks("project", projectId)
+    const tab = filesTabState(p, links)
     const fileInputRef = React.useRef<HTMLInputElement>(null)
     // The files a search shows, worked out as the list renders, so a file
     // added during a search shows in it at once.
     const shown = React.useMemo(() => shownFiles(p.files, "all", "newest", searchQuery), [p.files, searchQuery])
     const query = searchQuery.trim()
     const noMatch = !!query && shown.length === 0
-    const empty = !query && shown.length === 0 && p.uploading.length === 0
+    const empty = !query && tab.nothing
     const pickFiles = () => fileInputRef.current?.click()
 
     return (
         <div className="px-4 py-3">
-            {p.list.isLoading ? (
+            {tab.loading ? (
                 <ProjectFilesSkeleton view="list" />
             ) : p.list.isError ? (
                 <ErrorState subject="the files" onRetry={() => void p.list.mutate()} className="py-10" />
@@ -47,7 +52,7 @@ export function ProjectAttachmentList({ projectId, searchQuery }: ProjectAttachm
                     {p.canAdd ? (
                         <div className="flex items-center justify-between pb-1" data-files-phone-bar="">
                             <span className="text-meta text-ink-3 tabular-nums">
-                                {shown.length === 1 ? "1 file" : `${shown.length} files`}
+                                {shown.length === 0 ? "No files yet" : shown.length === 1 ? "1 file" : `${shown.length} files`}
                             </span>
                             <Button variant="secondary" size="sm" onClick={pickFiles} className="extend-touch-target">
                                 <Upload aria-hidden="true" />

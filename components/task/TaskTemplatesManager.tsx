@@ -40,6 +40,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { ProjectType } from "@/lib/work/keysApi"
+import { readableFields } from "@/components/task/hiddenField"
 import { askable, draftOf, keptOf, MOST_DAYS, type Draft } from "@/lib/work/taskTemplateDraft"
 import { askLabel, groupTemplates, type TaskTemplate, type TemplateList, type TemplateSummary } from "@/lib/work/taskTemplates"
 import type { UserProfileDataInterface } from "@/types/user"
@@ -94,7 +95,9 @@ function useTemplates(http: KeepHttp, projectId?: string) {
 
   const isWorkspace = (t: Pick<TemplateSummary, "project_id">) => !projectId || !t.project_id
   const keepOf = (shared: boolean): TemplateKeep => (shared && projectId ? workspace : own)
-  const fieldsOf = (shared: boolean, from: PlaceLists | null = place): readonly TaskField[] => (shared ? [] : (from?.fields ?? []))
+  // The fields a template presets and asks for here: none of one the server hides from its reader (V-698: a money
+  // field, to anyone not an admin of its project), whose value the template keeps as it came (keptOf).
+  const fieldsOf = (shared: boolean, from: PlaceLists | null = place): readonly TaskField[] => (shared ? [] : readableFields(from?.fields ?? []))
   // A project's statuses in its order; the workspace's templates (and a project whose statuses didn't load) take the built-in ones.
   const statusesOf = (shared: boolean): StatusOption[] => (!shared && place?.statuses ? inOrder(statusOptions(place.statuses), place.statuses.order) : BUILT_IN_STATUSES)
   const canKeep = (t: Pick<TemplateSummary, "project_id">) => !!list && (projectId && !t.project_id ? !!list.can_manage_workspace : list.can_manage)

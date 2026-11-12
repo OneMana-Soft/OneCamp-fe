@@ -23,6 +23,9 @@ type DatePropertyProps = {
     /** Notifies the parent when the picker opens/closes (e.g. to pin a
         hover-revealed action row so it doesn't fade while picking). */
     onOpenChange?: (open: boolean) => void
+    /** Held by the parent, so another control can open this one (a stale
+        memory's "New date" opens its row's due date). Moves with onOpenChange. */
+    open?: boolean
 }
 
 /**
@@ -33,8 +36,9 @@ type DatePropertyProps = {
  * days, the month and Clear, in a popover or a phone's sheet), the one a
  * form's DateField opens.
  */
-export function DateProperty({ isAdmin, label, value, onSelect, onClear, className, compact = false, bare = false, emptyText, onOpenChange }: DatePropertyProps) {
-    const [open, setOpenState] = useState(false)
+export function DateProperty({ isAdmin, label, value, onSelect, onClear, className, compact = false, bare = false, emptyText, onOpenChange, open: heldOpen }: DatePropertyProps) {
+    const [ownOpen, setOpenState] = useState(false)
+    const open = heldOpen ?? ownOpen
     // Wrap setOpen so the parent is always notified of open/close transitions.
     const setOpen = (next: boolean) => {
         setOpenState(next)

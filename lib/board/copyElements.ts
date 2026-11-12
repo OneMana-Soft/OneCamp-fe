@@ -9,6 +9,7 @@
 
 import { drawnBox } from "./scene"
 import { veiledBy } from "./privateNotes"
+import { isBoardElement } from "./elementTypes"
 
 export interface CopyableElement {
   id: string
@@ -57,9 +58,12 @@ export function templateElements<T extends CopyableElement>(elements: readonly T
 /**
  * Copies of elements with new ids (prefix plus a counter), every reference
  * following, versions starting again, moved so their middle is at (cx, cy).
- * Pure apart from the nonces.
+ * Only elements of a type a board draws are copied (./elementTypes, V-547: a
+ * template or a file can carry a crafted one), and a reference to one left
+ * out goes. Pure apart from the nonces.
  */
-export function copyElements<T extends CopyableElement>(elements: readonly T[], prefix: string, cx: number, cy: number): T[] {
+export function copyElements<T extends CopyableElement>(given: readonly T[], prefix: string, cx: number, cy: number): T[] {
+  const elements = given.filter(isBoardElement)
   const ids = new Map<string, string>()
   const groups = new Map<string, string>()
   elements.forEach((e, i) => ids.set(e.id, `${prefix}-${i}`))

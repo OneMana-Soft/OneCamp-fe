@@ -156,7 +156,7 @@ function inPage() {
 }
 
 // ---- the harness one group's run gets ----
-function harness(page, context, cdp, net, log) {
+function harness(page, context, cdp, net, log, reopen) {
   const h = {
     page,
     context,
@@ -164,10 +164,23 @@ function harness(page, context, cdp, net, log) {
     phone: PHONE,
     cpu: CPU,
     base: BASE,
+    rtt: RTT,
     log,
     rows: [],
     /** Whether a step is wanted (--steps). */
     wants: (id) => !STEPS || STEPS.has(id),
+    /**
+     * A second cold load in one run: a new tab in a browser context of its
+     * own, as the run's first is made (its own renderer, so nothing is cached
+     * or compiled already). The old one closes; h.page, h.context, h.cdp and
+     * every helper here go on in the new one, so read them from h after this.
+     */
+    async fresh() {
+      const old = context
+      ;({ context, page, cdp, net } = await reopen())
+      Object.assign(h, { context, page, cdp })
+      await old.close().catch(() => {})
+    },
     /** A fresh navigation in this tab, timed from its start. */
     async goto(path) {
       await page.goto(BASE + path, { waitUntil: "commit", timeout: 120000 })
@@ -503,14 +516,15 @@ for (const [name, group] of Object.entries(GROUPS)) {
     const loadBefore = hostLoad()
     const cpuBefore = cpuState()
     const { context, page, cdp, net } = await newPage(group, log)
-    const h = harness(page, context, cdp, net, log)
+    const h = harness(page, context, cdp, net, log, () => newPage(group, log))
     let metrics = {}
     try {
       metrics = (await group.run(h)) ?? {}
     } catch (e) {
       result.errors.push(`${name} run ${r}: ${String(e?.message || e).split("\n")[0]}`)
     }
-    await context.close().catch(() => {})
+    // The run's last tab (h.fresh() may have opened others).
+    await h.context.close().catch(() => {})
     const loadAfter = hostLoad()
     const cpuAfter = cpuState()
     // Busy: the machine's load, or a run on a hybrid host's slower cores (timings from them don't compare).

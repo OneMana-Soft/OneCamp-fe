@@ -176,6 +176,8 @@ test.describe("on a phone, by touch", () => {
 
     await more.tap()
     await page.getByRole("menuitem", { name: "Record call" }).tap()
+    // Recording asks first (UX-CALLS-H1): the start goes to the server only from the confirm.
+    await page.getByRole("alertdialog").or(page.getByRole("dialog")).filter({ hasText: "Record this call?" }).getByRole("button", { name: "Start recording" }).tap()
     const notice = page.locator(".toast-root").filter({ hasText: "Couldn't start the recording" })
     await expect(notice).toBeVisible()
     await aboveTheDock(page, toasts)

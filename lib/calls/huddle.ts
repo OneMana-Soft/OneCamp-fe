@@ -16,6 +16,7 @@ export interface HuddleFacts {
   came: HuddleFace[]
   people: number
   missed: boolean
+  by?: string
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : "")
@@ -38,6 +39,7 @@ export function readHuddleFacts(system: string | undefined): HuddleFacts | null 
     came,
     people: typeof f.people === "number" ? f.people : came.length,
     missed: f.missed === true,
+    by: str(f.by) || undefined,
   }
 }
 

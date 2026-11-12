@@ -59,13 +59,13 @@ describe("useLongPress", () => {
     fireEvent.touchEnd(row)
     // The phone's click for the lifted finger lands on the row when the menu
     // has not drawn over it yet: it opened the thread behind the menu.
-    fireEvent.click(row)
+    fireEvent.click(row, { detail: 1 })
     expect(tap, "releasing the hold also opened the row").not.toHaveBeenCalled()
     // A tap after it is a tap.
     fireEvent.touchStart(row, at())
     busyFor(80)
     fireEvent.touchEnd(row)
-    fireEvent.click(row)
+    fireEvent.click(row, { detail: 1 })
     expect(tap).toHaveBeenCalledTimes(1)
     expect(open).toHaveBeenCalledTimes(1)
   })
@@ -79,7 +79,7 @@ describe("useLongPress", () => {
     act(() => vi.advanceTimersByTime(80))
     busyFor(80)
     fireEvent.touchEnd(row)
-    fireEvent.click(row)
+    fireEvent.click(row, { detail: 1 })
     expect(open).not.toHaveBeenCalled()
     expect(tap).toHaveBeenCalledTimes(1)
   })

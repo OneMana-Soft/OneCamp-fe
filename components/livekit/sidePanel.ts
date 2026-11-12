@@ -8,8 +8,7 @@ import { useCallback, useState } from "react"
 export const CALL_SIDE_PANEL =
   "hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @3xl:w-[320px] @3xl:rounded-[14px] @3xl:shadow-e3 @7xl:h-[calc(100%-24px-100px)]"
 
-/** A side panel's foot (Chat's and Q&A's composers): its last line clear of a phone's home indicator. */
-export const CALL_PANEL_FOOT = "shrink-0 border-t border-white/[0.06] px-3 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))]"
+export { CALL_PANEL_FOOT } from "./callPanelClasses"
 
 /** A small action on a side panel's dark surface: a pill, 44 px tall under touch. */
 export const CALL_PANEL_TOOL =

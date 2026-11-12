@@ -7,8 +7,8 @@
 // first board starts with a move instead of a blank canvas.
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useDispatch } from "react-redux";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useDispatch, useSelector } from "react-redux";
 import { usePost } from "@/hooks/usePost";
 import { useFetch } from "@/hooks/useFetch";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
@@ -22,16 +22,29 @@ import { Button } from "@/components/ui/button";
 import { busyWith } from "@/lib/ui/busyWith";
 import { SearchInput } from "@/components/ui/search-input";
 import { ErrorState } from "@/components/ui/error-state";
-import { Plus, Lock, Users } from "@/lib/icons";
+import { Plus, Lock, Users, ChevronDown, FolderKanban, LayoutGrid, X } from "@/lib/icons";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotSearch } from "@/components/ui/graphics/spots";
 import { NotesFallback } from "@/components/board/notesFallback";
+import WithAddWorkReads from "@/components/board/addWorkReads";
+import { loadFailure } from "@/lib/http/loadFailure";
+import { boardFilterParams, boardsHref, emptyCopy, isFiltered, readBoardFilter, unavailableLine, type BoardFilter, type BoardOwner } from "@/lib/board/boardListFilter";
+import { ix } from "@/lib/ui/interactive";
+import { cn } from "@/lib/utils/helpers/cn";
+import type { RootState } from "@/store/store";
 import dynamic from "next/dynamic";
 
 // The first visit's templates: loaded only for a workspace with no boards.
 const BoardsWelcome = dynamic(() => import("@/components/board/boardsWelcome"), { ssr: false });
+// The Project picker, with its popover and sheet: loaded when it is first wanted (warmed on the button's hover or focus).
+const loadPicker = () => import("@/components/board/boardPlacePicker");
+const BoardPlacePicker = dynamic(loadPicker, { ssr: false });
+
+const OWNERS: [BoardOwner | null, string][] = [[null, "All"], ["mine", "Mine"], ["shared", "Shared"]];
+// The filter row's controls: 32 px with a mouse, a finger's 44 px through data-touch-target (app/phone.css F3).
+const CHIP = "inline-flex h-8 min-w-11 items-center justify-center gap-1.5 rounded-sm px-3 text-ui-sm font-medium text-ink-2 transition-colors hover:text-ink";
 
 /** What a new board may start from: one of the templates, by id and name. */
 type StartFrom = { id: string; name: string };
@@ -47,13 +60,44 @@ function BoardsPage() {
   const [search, setSearch] = React.useState("");
   const debouncedSearch = useDebounce(search, 350);
 
+  // The filters live in the address (lib/board/boardListFilter): a filtered list is a link, and Back steps back.
+  const address = useSearchParams().toString();
+  const filter = React.useMemo(() => readBoardFilter(new URLSearchParams(address)), [address]);
+  const filtered = isFiltered(filter);
+  const [notice, setNotice] = React.useState("");
+  const setFilter = (next: BoardFilter) => {
+    setNotice("");
+    router.push(boardsHref(next, address), { scroll: false });
+  };
+  // A filter's place by name: the sidebar holds the viewer's projects and teams.
+  const sidebar = useSelector((s: RootState) => s.users.userSidebar);
+  const placeName = filter.project
+    ? sidebar.userProjects?.find((p) => p?.project_uuid === filter.project)?.project_name || "A project"
+    : filter.team
+      ? sidebar.userTeams?.find((t) => t?.team_uuid === filter.team)?.team_name || "A team"
+      : "";
+  const [picking, setPicking] = React.useState(false);
+  const [pickerWanted, setPickerWanted] = React.useState(false);
+  const placeButton = React.useRef<HTMLButtonElement>(null);
+  const warmPicker = () => void loadPicker();
+
+  const own = boardFilterParams(filter);
   const listUrl = `${BoardsGet.GetBoardList}?pageSize=60&pageIndex=0${
     debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ""
-  }`;
+  }${own ? `&${own}` : ""}`;
   // The page shows a failed load itself, with Try again: no second, toast-borne copy.
   const { data, isLoading, isError, mutate } = useFetch<BoardListResponse>(listUrl, undefined, undefined, OWN_ERRORS);
   const boards = data?.data?.boards || [];
   const count = data?.data?.count || boards.length;
+
+  // A project or team the server won't show (gone, or not the viewer's: it says 404 for both) lets its filter go,
+  // with a line saying so, in place of the list's error.
+  const placeGone = !!(filter.project || filter.team) && !!isError && loadFailure(isError) === "gone";
+  React.useEffect(() => {
+    if (!placeGone) return;
+    setNotice(unavailableLine(filter));
+    router.replace(boardsHref({ ...filter, project: null, team: null }, address), { scroll: false });
+  }, [placeGone, filter, address, router]);
 
   // A new board, blank or from a template. The template is laid on the canvas
   // once the board opens (the board page reads ?template=).
@@ -90,7 +134,8 @@ function BoardsPage() {
   }, [createBoard]);
 
   const showEmpty = !isLoading && !isError && boards.length === 0;
-  const firstRun = showEmpty && !debouncedSearch;
+  const firstRun = showEmpty && !debouncedSearch && !filtered;
+  const empty = emptyCopy(filter, placeName);
 
   return (
     <div className="h-full w-full overflow-y-auto">
@@ -116,6 +161,73 @@ function BoardsPage() {
           </Button>
         </div>
 
+        {!firstRun ? (
+          <div role="group" aria-label="Filter boards" data-board-filters="" data-touch-group="32" className="mb-5 flex flex-wrap items-center gap-2">
+            {OWNERS.map(([value, label]) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={filter.owner === value}
+                onClick={() => setFilter({ ...filter, owner: value })}
+                data-touch-target=""
+                {...ix("toggle", { tone: "neutral" })}
+                className={cn(CHIP, filter.owner === value && "bg-press text-ink")}
+              >
+                {label}
+              </button>
+            ))}
+            <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />
+            {/* The place and its Clear are one item of the row: a phone's row wraps them together, never the × alone. */}
+            <span data-touch-group="32" className="flex min-w-0 max-w-full items-center gap-1">
+              <button
+                ref={placeButton}
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={picking}
+                onPointerEnter={warmPicker}
+                onFocus={warmPicker}
+                onClick={() => {
+                  setPickerWanted(true);
+                  setPicking((o) => !o);
+                }}
+                data-touch-target=""
+                {...ix("toggle", { tone: "neutral" })}
+                className={cn(CHIP, "max-w-full", placeName && "bg-press text-ink")}
+              >
+                <FolderKanban className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 truncate">{placeName || "All projects"}</span>
+                <ChevronDown className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+              </button>
+              {placeName ? (
+                <Button variant="ghost" size="icon" aria-label={`Clear ${placeName}`} onClick={() => setFilter({ ...filter, project: null, team: null })}>
+                  <X aria-hidden="true" />
+                </Button>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
+        {pickerWanted ? (
+          // The viewer's projects with their teams are read while the picker is in the page (components/board/addWorkReads).
+          <WithAddWorkReads>
+            {(reads) => (
+              <BoardPlacePicker
+                open={picking}
+                onOpenChange={setPicking}
+                anchor={placeButton}
+                reads={reads}
+                teams={sidebar.userTeams ?? []}
+                place={filter}
+                onPick={(p) => setFilter({ ...filter, ...p })}
+              />
+            )}
+          </WithAddWorkReads>
+        ) : null}
+        {notice ? (
+          <p role="status" data-board-filter-notice="" className="mb-4 text-ui-sm text-ink-2">
+            {notice}
+          </p>
+        ) : null}
+
         {isLoading ? (
           <div role="status" aria-label="Loading boards" className={GRID}>
             {Array.from({ length: 8 }, (_, i) => (
@@ -129,10 +241,17 @@ function BoardsPage() {
             ))}
           </div>
         ) : isError ? (
-          <ErrorState subject="your boards" onRetry={() => void mutate()} />
+          placeGone ? null : <ErrorState subject="your boards" onRetry={() => void mutate()} />
         ) : showEmpty ? (
           debouncedSearch ? (
             <EmptyState illustration={<SpotSearch />} title={`No boards match “${debouncedSearch}”.`} />
+          ) : filtered ? (
+            <EmptyState
+              icon={filter.project || filter.team ? FolderKanban : filter.owner === "shared" ? Users : LayoutGrid}
+              hue={filter.project || filter.team ? "moss" : filter.owner === "shared" ? "sky" : "sun"}
+              title={empty.title}
+              description={empty.description}
+            />
           ) : (
             <BoardsWelcome onPick={createBoard} creating={creating} />
           )

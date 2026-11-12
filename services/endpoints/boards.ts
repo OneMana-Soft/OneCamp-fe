@@ -12,6 +12,7 @@ export enum BoardsGet {
     GetBoardAttachment = "/board/getBoardAttachment",
     GetBoardSnapshots = "/board/getBoardSnapshots",
     GetBoardViewers = "/board/getViewers",
+    GetFrameNotes = "/board/getFrameNotes",
 }
 
 export enum BoardsPost {
@@ -27,4 +28,5 @@ export enum BoardsPost {
     BoardCommentDelete = "/board/commentDelete",
     RestoreBoardSnapshot = "/board/restoreBoardSnapshot",
     RecordBoardView = "/board/recordView",
+    SaveFrameNote = "/board/saveFrameNote",
 }

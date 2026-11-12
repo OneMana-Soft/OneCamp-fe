@@ -18,6 +18,7 @@ import { boxOf, boxSize, extendRange, type Box, type CellRange } from "@/lib/tab
 import { toHtmlTable, toTsv } from "@/lib/tables/clipboardGrid"
 import type { CellPos } from "@/lib/tables/gridKeys"
 import { clearCells, fillCells, pasteCells, type RangeWrites } from "@/components/table/rangeActions"
+import { listenTouches } from "@/lib/ui/touches"
 
 /** What the shell keeps and the piece works on: the range, the overlay's elements, the grid's hands. */
 export interface RangeShell {
@@ -129,11 +130,11 @@ interface Press {
   /** A finger's: held still, it starts a range (ranging); a mouse's grows one by its drag. */
   touch: boolean
   /**
-   * The element a finger went down on: its touch events go there to the end,
-   * even once a live cell has taken its place (the cell comes to life as the
-   * finger presses), so they're listened to there.
+   * Takes off a finger's touch listeners on the element it went down on: its
+   * touch events go there to the end, even once a live cell has taken its place
+   * (the cell comes to life as the finger presses), so they're listened to there.
    */
-  target: HTMLElement | null
+  off?: () => void
   id: number
   from: CellPos
   x: number
@@ -405,9 +406,7 @@ export function rangeHandlers(s: RangeShell) {
     stopListening()
     if (!p) return
     window.clearTimeout(p.timer)
-    p.target?.removeEventListener("touchmove", onTouchMove)
-    p.target?.removeEventListener("touchend", onTouchEnd)
-    p.target?.removeEventListener("touchcancel", onTouchEnd)
+    p.off?.()
     if (p.moved || p.ranging) {
       ranging(false)
       swallow.click = true
@@ -465,13 +464,10 @@ export function rangeHandlers(s: RangeShell) {
     endPress()
     if (e.pointerType !== "touch" && e.shiftKey && s.range) return // Shift+click (onMouseDown)
     const touch = e.pointerType === "touch"
-    const p: Press = { touch, target: null, id: e.pointerId, from: at, x: e.clientX, y: e.clientY, moved: false, ranging: false, timer: 0 }
+    const p: Press = { touch, id: e.pointerId, from: at, x: e.clientX, y: e.clientY, moved: false, ranging: false, timer: 0 }
     if (touch) {
       p.timer = window.setTimeout(heldDown, Math.max(0, LONG_PRESS_MS - heldFor))
-      p.target = e.target as HTMLElement
-      p.target.addEventListener("touchmove", onTouchMove, { passive: false })
-      p.target.addEventListener("touchend", onTouchEnd)
-      p.target.addEventListener("touchcancel", onTouchEnd)
+      p.off = listenTouches(e.target as HTMLElement, { move: onTouchMove, end: onTouchEnd })
     } else {
       held = false
       set({ anchor: at, focus: at })

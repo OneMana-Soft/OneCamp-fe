@@ -1,5 +1,5 @@
-import { expect, test, type Browser, type TestInfo } from "@playwright/test"
-import { stubBackend } from "./stubbedApp"
+import { expect, test, type Browser, type Page, type TestInfo } from "@playwright/test"
+import { SHOT_THEMES, reviewShot, stubBackend } from "./stubbedApp"
 
 // V-126: a DM with an agent (a bot, by class) says the agent's role where a person's presence would be, and offers
 // no huddle or call with it, at both widths by one rule (lib/botCopy). At 390 the phone's bar said "Offline"
@@ -22,6 +22,8 @@ const QUIET = {
   [`/dm/latestChat/${MAYA.user_uuid}`]: { msg: "ok", data: { chats: [], has_more: false } },
   "/dm/": { msg: "ok", data: [] },
   "/user/dm-ai-suggestions": { msg: "ok", data: [] },
+  // Asked by the AI shell once a person's DM is drawn (AI is on here); answered so a review frame has no stub toast.
+  "/ai/pending-actions": { msg: "ok", data: [] },
 }
 const LINE = "Acts for you · can do only what you can"
 
@@ -32,13 +34,18 @@ const views = [
 type View = (typeof views)[number]
 
 /** Sam's DM with `peer` at a width (a phone with touch at 390). */
-async function openDm(browser: Browser, testInfo: TestInfo, view: View, peer: { user_uuid: string }) {
+async function openDm(
+  browser: Browser, testInfo: TestInfo, view: View, peer: { user_uuid: string },
+  { theme, huddleCode }: { theme?: "light" | "dark"; huddleCode?: (page: Page) => Promise<void> } = {},
+) {
   const context = await browser.newContext({
     baseURL: String(testInfo.project.use.baseURL), viewport: view.viewport,
     ...(view.phone ? { isMobile: true, hasTouch: true } : {}),
+    ...(theme ? { colorScheme: theme } : {}),
   })
   const page = await context.newPage()
   await stubBackend(page, testInfo, QUIET)
+  await huddleCode?.(page)
   await page.goto(`/app/chat/${peer.user_uuid}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   return { context, page }
 }
@@ -77,6 +84,96 @@ for (const view of views) {
       await page.getByRole("button", { name: "Chat options" }).tap()
       await expect(page.getByRole("dialog").getByRole("button", { name: "Join call" })).toBeVisible({ timeout: 30_000 })
     }
+    await context.close()
+  })
+}
+
+// UX-CHAT-H2: the phone bar's huddle link is a chunk of its own (components/navigationBar/mobile/phoneHuddleLink.tsx),
+// fetched once a conversation's bar draws it, so the app layout carries none of it. Its 44px slot is held while the
+// code comes, and left out when the code can't come. The chunk is the one script that draws data-phone-huddle.
+const HUDDLE_CODE = "data-phone-huddle"
+
+/** Holds the huddle's chunk once it is asked for, until `pass()` lets it come or `fail()` drops it as a lost connection does. */
+function huddleChunk() {
+  let settle: (how: "pass" | "fail") => void = () => {}
+  const settled = new Promise<"pass" | "fail">((r) => (settle = r))
+  let seen = false
+  const install = async (page: Page) => {
+    await page.route("**/_next/static/chunks/*.js", async (route) => {
+      const response = await route.fetch()
+      const body = await response.text()
+      if (!body.includes(HUDDLE_CODE)) return route.fulfill({ response, body })
+      seen = true
+      if ((await settled) === "fail") return route.abort("internetdisconnected")
+      return route.fulfill({ response, body })
+    })
+  }
+  return { install, pass: () => settle("pass"), fail: () => settle("fail"), seen: () => seen }
+}
+
+/** The 44px slot held for the huddle while its code comes (PhoneHuddleButton's placeholder). */
+const SLOT = '[data-phone-bar-end] span[aria-hidden="true"].size-11:empty'
+const phone = views.find((v) => v.phone)!
+const box = async (page: Page, name: string) => (await page.getByRole("button", { name }).boundingBox())!
+
+for (const theme of SHOT_THEMES) {
+  test(`at 390, ${theme}: a person's bar holds the huddle's 44px slot while its code comes, then draws it before ⋯, to the DM's call, and it takes the keyboard's focus`, async ({ browser }, testInfo) => {
+    test.setTimeout(180_000)
+    const chunk = huddleChunk()
+    const { context, page } = await openDm(browser, testInfo, phone, MAYA, { theme, huddleCode: chunk.install })
+    const title = page.getByRole("button", { name: "Maya Chen, profile" })
+    await expect(title).toContainText(/Active|Away|Offline/, { timeout: 90_000 })
+    // The code is asked for and held: the bar draws the slot, not the link.
+    await expect.poll(chunk.seen, { timeout: 30_000 }).toBe(true)
+    await expect(page.locator(SLOT)).toHaveCount(1)
+    await expect(page.getByRole("link", { name: /huddle/i })).toHaveCount(0)
+    const before = { title: await box(page, "Maya Chen, profile"), more: await box(page, "Chat options") }
+    chunk.pass()
+    const link = page.getByRole("link", { name: "Start a huddle" })
+    await expect(link).toBeVisible({ timeout: 30_000 })
+    await expect(link).toHaveAttribute("href", `/app/meet/chat/${MAYA.user_uuid}`)
+    const at = (await link.boundingBox())!
+    expect([at.width, at.height]).toEqual([44, 44])
+    const after = { title: await box(page, "Maya Chen, profile"), more: await box(page, "Chat options") }
+    expect(at.x + at.width).toBeLessThanOrEqual(after.more.x)
+    // No jump when the link takes its slot.
+    expect(after).toEqual(before)
+    await reviewShot(page, "bar-huddle-on", theme)
+    for (let i = 0; i < 40 && !(await link.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab")
+    await expect(link).toBeFocused()
+    await reviewShot(page, "bar-huddle-focus", theme)
+    await context.close()
+  })
+
+  test(`at 390, ${theme}: an agent's bar says its role, with no huddle and no hole`, async ({ browser }, testInfo) => {
+    test.setTimeout(180_000)
+    const { context, page } = await openDm(browser, testInfo, phone, AI, { theme })
+    await expect(page.getByRole("button", { name: "OneCamp AI, profile" })).toContainText("Acts for you", { timeout: 90_000 })
+    await expect(page.getByRole("link", { name: /huddle/i })).toHaveCount(0)
+    // No slot is held for a huddle that won't come.
+    await expect(page.locator(SLOT)).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "Chat options" })).toBeVisible()
+    await reviewShot(page, "bar-agent", theme)
+    await context.close()
+  })
+
+  test(`at 390, ${theme}: when the huddle's code can't come, the bar draws no link and no broken control, and the title stays put`, async ({ browser }, testInfo) => {
+    test.setTimeout(180_000)
+    const chunk = huddleChunk()
+    const { context, page } = await openDm(browser, testInfo, phone, MAYA, { theme, huddleCode: chunk.install })
+    const title = page.getByRole("button", { name: "Maya Chen, profile" })
+    await expect(title).toContainText(/Active|Away|Offline/, { timeout: 90_000 })
+    await expect.poll(chunk.seen, { timeout: 30_000 }).toBe(true)
+    await expect(page.locator(SLOT)).toHaveCount(1)
+    const before = await box(page, "Maya Chen, profile")
+    chunk.fail()
+    // The slot is let go once the fetch has failed; nothing half-drawn, no "Try again" in a 44px bar.
+    await expect(page.locator(SLOT)).toHaveCount(0, { timeout: 30_000 })
+    await expect(page.getByRole("link", { name: /huddle/i })).toHaveCount(0)
+    await expect(page.locator("[data-phone-bar-end]").getByRole("button", { name: /try again/i })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "Chat options" })).toBeVisible()
+    expect(await box(page, "Maya Chen, profile")).toEqual(before)
+    await reviewShot(page, "bar-huddle-offline", theme)
     await context.close()
   })
 }

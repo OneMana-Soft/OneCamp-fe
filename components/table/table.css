@@ -513,6 +513,66 @@
   animation: content-save-pulse var(--content-save-dot-duration) var(--content-save-dot-ease) 700ms infinite;
 }
 
+/* A cell, or a phone list's row, holding an edit the server asked to have
+   again later (503: nothing of it stored; useCellCommit's unsaved, V-583):
+   the edit stays shown, with a still danger dot until the person retries or
+   edits it again. The dot is a Retry itself (UnsavedMark, V-640): in a cell,
+   in the save dot's corner, a 24 px corner under a pointer and the cell's
+   whole height by 44 px under a finger; in the list, a 44 px square of its
+   own beside the row's button, which keeps its taps. */
+.v3-grid tbody td[data-kind] > [data-unsaved-mark] {
+  inset: 0 0 auto auto;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+}
+@media (hover: none) {
+  .v3-grid tbody td[data-kind] > [data-unsaved-mark] {
+    inset: 0 0 0 auto;
+    width: 44px;
+    height: auto;
+  }
+}
+.v3-grid-list > li[data-unsaved] {
+  display: flex;
+  align-items: center;
+}
+.v3-grid-list > li > [data-unsaved-mark] {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+[data-unsaved-mark] {
+  cursor: pointer;
+  outline: none;
+}
+[data-unsaved-mark] > span {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--danger-ink);
+  transition: box-shadow 120ms ease-out;
+}
+.v3-grid-list > li > [data-unsaved-mark] > span {
+  top: 19px;
+  right: 19px;
+}
+/* The focus ring hugs the dot, as the hover halo does: a 12 px circle in
+   the cell's corner, never the 24 px hit area's square over the value. */
+[data-unsaved-mark]:focus-visible > span {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+@media (hover: hover) {
+  [data-unsaved-mark]:hover > span {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger-ink) 22%, transparent);
+  }
+}
+
 /* ---- a column menu's sub-page slides in from the right ----------------- */
 
 @keyframes table-sub-in {

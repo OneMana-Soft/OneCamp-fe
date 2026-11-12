@@ -151,7 +151,7 @@ describe("a sidebar row's states", () => {
 // shows the badge its rows earn, or a dot (D-S3).
 describe("sidebar sections", () => {
   it("shows the invite row instead of an empty header, and nothing for an empty section without one", () => {
-    section("Projects", [], { invite: { label: "Start a project", onClick: () => {} } })
+    section("Projects", [], { invite: "Start a project", onAdd: () => {} })
     expect(screen.getByText("Start a project")).toBeTruthy()
     cleanup()
     const { container } = section("Starred", [])

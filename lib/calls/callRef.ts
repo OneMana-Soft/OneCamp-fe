@@ -31,3 +31,12 @@ export function callReadKeyOf(state: unknown): string {
     if (kind !== "channel" && kind !== "dm" && kind !== "group" && kind !== "meeting") return ""
     return callCurrentPath({ kind, id })
 }
+
+/** A room's call as Call State names it (CallState RefOfRoom), or null. Pure. */
+export function callRefOfRoom(room: string): CallRef | null {
+    if (room.startsWith("meet-")) return room.length > 5 ? { kind: "meeting", id: room.slice(5) } : null
+    if (/^[0-9a-f-]{36} [0-9a-f-]{36}$/i.test(room)) return { kind: "dm", id: room }
+    if (/^[0-9a-f]{32}$/.test(room)) return { kind: "group", id: room }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room)) return { kind: "channel", id: room }
+    return null
+}

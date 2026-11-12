@@ -74,9 +74,16 @@ export function logFailures(page: Page) {
  * itself.
  */
 const SHELL_READS: Array<[RegExp, unknown]> = [
+  // The Inbox badge (lib/activity/inboxBadge), read with the nav on every page: nothing new.
+  [/\/activity\/unread$/, { msg: "ok", data: { count: 0 } }],
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
   // A task's approval request (package 9 R2): none, unless a test sends one.
   [/\/task\/approval\/[^/]+$/, { msg: "ok", data: null }],
+  // A task's links to other tasks (jira-01 J-H), read by every task panel: none, unless a test sends some.
+  [/\/task\/[^/]+\/links$/, { links: [], count: 0 }],
+  // A task's releases (jira-04 Head B, components/task/taskReleaseField), read by every task panel: in none, with none
+  // to offer, so the panel draws no Release row. A test about releases answers it itself.
+  [/\/task\/release\/[^/]+$/, { msg: "ok", data: { releases: [], options: [], can_edit: false, can_change_released: false } }],
   // Every page's composer drafts (components/conversation/DraftSyncLoader), none kept.
   [/\/drafts$/, { msg: "ok", data: { drafts: [], max: 500 } }],
   // What a task or a project links to (services/entityLinkService), read by every task page: nothing.
@@ -96,6 +103,8 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   [/\/content-io\/capabilities$/, { capabilities: { export: true, export_formats: ["md", "html", "pdf", "docx"], import_extensions: [".md", ".html", ".txt"], max_import_bytes: 10485760, max_direct_bytes: 5242880 } }],
   [/\/follows$/, { msg: "ok", data: { resource_kind: "doc", resource_uuid: "", mode: "all", chosen: false, default: "all" } }],
   [/\/places$/, { msg: "ok", data: { places: [] } }],
+  // What the person opened lately (the sidebar's Recent boards, the phone's More): nothing yet.
+  [/\/places\/recent$/, { msg: "ok", data: { places: [] } }],
   [/\/threads$/, { msg: "ok", data: { threads: [] } }],
   [/\/doc\/exportConsent$/, { consent: { allowed: true, owner: true, private: true } }],
   [/\/doc\/ancestors\/[^/]+$/, { msg: "ok", data: { ancestors: [], truncated: false } }],
@@ -125,6 +134,10 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   // read every five minutes: { data: { kind, until, words, private } } (controllers/
   // Calendar PersonStatus). An empty kind, as here, says nothing.
   [/\/event\/status\/[^/]+$/, { msg: "ok", data: { kind: "", words: "", private: false } }],
+  // Outlook's link (calendar B7, GET /calendar/sync/microsoft), read by the
+  // Calendars panel and the phone's options: off, as on a server whose admin
+  // hasn't added a Microsoft app (business/Calendar SyncStatus).
+  [/\/calendar\/sync\/microsoft$/, { msg: "ok", data: { provider: "microsoft", state: "none", progress: 0, moved: 0, unchanged: 0, available: false } }],
   [/\/(user\/preferences|user\/notificationPreferences|user\/sidebarNav|user\/botKinds|config\/mqttConfig|config\/client|auth\/providers|me\/capabilities|later|doc\/children)$/, { msg: "ok", data: {} }],
 ]
 
@@ -158,9 +171,11 @@ const unanswered = new WeakMap<Page, string[]>()
  * it rests. An endless animation (a spinner) is not waited for, nor one a
  * scroll drives (a strip's data-edge-fade), which reads "running" for as long
  * as it is drawn, nor a microphone's live meter (data-mic-meter), which moves
- * with every sound the browser's fake microphone makes, nor an undoable
- * toast's countdown bar (.toast-timer), which runs for as long as the toast
- * stays: waiting for it would see the toast gone.
+ * with every sound the browser's fake microphone makes, nor a countdown bar
+ * (the toast-timer keyframes: an undoable toast's bar, a ring card's drain),
+ * which runs for as long as its toast or card stays: waiting for it would see
+ * the toast or the card gone. A countdown only scales its own bar, so nothing
+ * around it moves.
  */
 export async function untilStill(page: Page) {
   const moving = () =>
@@ -168,7 +183,8 @@ export async function untilStill(page: Page) {
       document
         .getAnimations()
         .filter((a) => a.playState === "running" && a.timeline === document.timeline && a.effect?.getComputedTiming().iterations !== Infinity)
-        .filter((a) => !((a.effect as KeyframeEffect | null)?.target as Element | null)?.closest("[data-mic-meter], .toast-timer"))
+        .filter((a) => !(a instanceof CSSAnimation && a.animationName === "toast-timer"))
+        .filter((a) => !((a.effect as KeyframeEffect | null)?.target as Element | null)?.closest("[data-mic-meter]"))
         .map((a) => {
           const target = (a.effect as KeyframeEffect | null)?.target
           const what = a instanceof CSSAnimation ? a.animationName : a instanceof CSSTransition ? a.transitionProperty : "an animation"
@@ -246,14 +262,19 @@ export const AI_ON = { "/config/client": { msg: "ok", data: { features: { ai: tr
 
 /**
  * The AI reads a signed-in page makes beside its own: OneCamp AI's nudges and
- * note, what each Doc AI action needs (none: they need edit), and a doc's
- * starters. Answered empty, so no "Not in this test" toast lands in a shot.
+ * note, what each Doc AI action needs (none: they need edit), a doc's
+ * starters, and Home's briefing, "what needs me" and AI teammates' work
+ * (services/memoryService, components/ai/AgentWorkCard). Answered empty, so no
+ * "Not in this test" toast lands in a shot.
  */
 export const AI_READS = {
   "/ai/nudges": { msg: "ok", data: [] },
   "/ai/agent-note": { msg: "ok", data: {} },
   "/ai/status": { msg: "ok", data: {} },
   "/doc/ai/starters": { msg: "ok", data: { project: null } },
+  "/ai/briefing": { msg: "ok", data: { enabled: true, open_items: [], highlights: [], day_items: [] } },
+  "/ai/attention": { msg: "ok", data: { enabled: true, items: [], counts: {} } },
+  "/agents/activity": { msg: "ok", data: [] },
 }
 
 /**
@@ -266,6 +287,44 @@ export const TASK_PANEL_READS = {
   "/task/recurrence/": { msg: "ok", data: null },
   "/task/cycle/": { msg: "ok", data: null },
   "/task/clientReview/": { msg: "ok", data: null },
+}
+
+/**
+ * The calendar's own reads beside its events (components/calendar/calendarApp,
+ * lib/calendar/otherCalendars): your one calendar, nothing repeating ahead,
+ * Google not linked and no tasks in the period. Left to the 404, the tasks'
+ * read failed the grid into "Couldn't load your calendar" behind an event's
+ * panel in a shot (DESIGN-BUILD-121's LOW). A test that needs one of them
+ * otherwise answers it itself, after these.
+ */
+export const CALENDAR_READS = {
+  "/calendar/calendars": { msg: "ok", data: [{ id: "cal-me", name: "Personal", kind: "personal", access: "manage", mine: true }] },
+  "/calendar/repeats": { msg: "ok", data: { checkins: [], tasks: [] } },
+  "/integration/google-calendar/status": { msg: "ok", data: { isConnected: false } },
+  "/user/assignedTaskList": { msg: "ok", data: { user_tasks: [] } },
+}
+
+/**
+ * Events' call rooms as the server answers them (gcal-15 head B, router/calendarAnswers.go): GET
+ * /calendar/events/<id>/room, its title and the page it is joined at, nothing made; POST .../room/join, the member's
+ * own call token for it. For a test's "/calendar/events/" answer: what was sent ("GET room <id>", "POST room/join
+ * <id>") and the answer, or null for any other calendar route. An event not in `rooms` is no such event to this
+ * member (a busy-only reader, someone not on it), as the server tells them; `fail` answers its join with that status,
+ * as a fault the server didn't expect. Nothing in the demo's build makes a room, so the beta run meets these here.
+ */
+export function eventRoomAnswers(rooms: Record<string, { title: string; token?: string; fail?: number }>) {
+  return (url: URL, request: Request): { sent: string; answer: unknown } | null => {
+    const m = /\/calendar\/events\/([^/]+)\/room(\/join)?$/.exec(url.pathname)
+    if (!m) return null
+    const id = decodeURIComponent(m[1])
+    const join = !!m[2] && request.method() === "POST"
+    const sent = join ? `POST room/join ${id}` : `GET room ${id}`
+    const room = rooms[id]
+    if (!room) return { sent, answer: withStatus(404, { msg: "Event not found" }) }
+    if (!join) return { sent, answer: { msg: "ok", data: { title: room.title, join: `/app/meet/e/${id}` } } }
+    if (room.fail) return { sent, answer: withStatus(room.fail, { msg: "Something went wrong. Try again in a moment." }) }
+    return { sent, answer: { msg: "ok", data: { token: room.token ?? "", room: `meet-${id}`, title: room.title } } }
+  }
 }
 
 /**
@@ -410,17 +469,50 @@ export function mqttConfig(topics: string[]) {
 }
 
 /**
+ * The time a spec pins the page's clock to (page.clock.setFixedTime) when the
+ * page also holds a live connection (brokerOn): the real clock at run time, an
+ * hour ahead, to the minute. Never a date written into the spec. Playwright's
+ * fixed clock fakes performance.timeOrigin in the page but not in a Worker,
+ * and mqtt.js keeps its connection alive on worker timers (worker-timers),
+ * whose worker takes a timer's due time from the page's faked origin. Pinned
+ * behind the real clock, every keepalive tick is overdue at once, and the
+ * connection times out before it subscribes (V-577, 5 Nov 2026: both Inbox
+ * specs, pinned to 10:05 UTC, failed from 15:35 IST on). The hour is far
+ * more than one worker's run of such a spec takes (180 s a test at most), so
+ * the pin stays ahead of the real clock throughout.
+ */
+export function liveClockNow(): Date {
+  return new Date(Math.ceil((Date.now() + 60 * 60_000) / 60_000) * 60_000)
+}
+
+/**
  * A realtime broker of the test's own (scripts/fluidity/fakeBroker.mjs) at
  * the address mqttConfig names; after stubBackend, whose silent websocket
  * route it takes over (the newest route wins). `held`: what the app sends
  * waits until release(), so the app isn't connected, nor live on any topic,
- * until the test lets it be.
+ * until the test lets it be. A page clock pinned behind the real one would
+ * starve the connection (liveClockNow): it is checked as the app connects,
+ * and broker.subscriptions() then fails with the reason instead of staying
+ * empty.
  */
 export async function brokerOn(page: Page, { held = false } = {}) {
   const broker = brokerFor()
   let release = () => {}
   const open = held ? new Promise<void>((resolve) => (release = resolve)) : Promise.resolve()
+  let behind = ""
+  const subscriptions = broker.subscriptions
+  broker.subscriptions = () => {
+    if (behind) throw new Error(behind)
+    return subscriptions()
+  }
   await page.routeWebSocket(/broker\.e2e\.test/, (ws) => {
+    // An unpinned page reads the real clock, a round trip earlier than this.
+    void page.evaluate(() => Date.now()).then(
+      (at) => {
+        if (at < Date.now() - 5_000) behind = `the page's clock is pinned at ${new Date(at).toISOString()}, behind the real one, so mqtt.js's keepalive (worker timers) times the connection out: pin it to liveClockNow() from e2e/stubbedApp`
+      },
+      () => {},
+    )
     const peer = broker.connect(
       (bytes: Uint8Array) => ws.send(Buffer.from(bytes)),
       () => ws.close().catch(() => {}),
@@ -431,4 +523,49 @@ export async function brokerOn(page: Page, { held = false } = {}) {
     ws.onClose(() => peer.closed())
   })
   return { broker, release }
+}
+
+/**
+ * "Plan my week"'s plan as POST /event/planWeek answers it (gcal-16): three
+ * blocks proposed for the week of Wednesday 21 Oct 2026 from 10:00 (one waits
+ * on another's block), one task left out, ordered by the workspace's own model
+ * on its server. A test answers an empty or a failed plan itself.
+ */
+const planAt = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).toISOString()
+export const WEEK_PLAN = {
+  from: planAt(21, 10),
+  to: planAt(26, 0),
+  proposals: [
+    { task_uuid: "t-plan", task_name: "Plan the launch", project_name: "Launch", start: planAt(21, 11), end: planAt(21, 11, 45), reason: "Due Thursday" },
+    { task_uuid: "t-copy", task_name: "Write the pricing copy", project_name: "Launch", start: planAt(22, 9), end: planAt(22, 10), reason: "After Plan the launch, which it waits on", after: "t-plan" },
+    { task_uuid: "t-ship", task_name: "Ship the pricing page", project_name: "Launch", start: planAt(23, 14), end: planAt(23, 15), reason: "Due Friday" },
+  ],
+  left: [{ task_uuid: "t-audit", task_name: "Audit the docs", reason: "it needs 6 hours and the week has 4 free" }],
+  by: "model",
+  model: "qwen3:4b-instruct",
+  local: true,
+}
+
+/**
+ * "Find a better time"'s options for an event, as POST /ai/schedule/reschedule
+ * answers them (gcal-16, RescheduleDialog): its time now, who is on it, and
+ * the times proposed instead, each with how many are free. Nothing is written
+ * until a time is confirmed (POST /ai/schedule/reschedule/confirm).
+ */
+export function rescheduleOptions(event: { uuid: string; title: string; start: string; end: string }, candidates: { start: string; end: string; free: number; total: number }[], participants: string[]) {
+  return {
+    msg: "ok",
+    data: {
+      enabled: true,
+      event_uuid: event.uuid,
+      title: event.title,
+      current_start: event.start,
+      current_end: event.end,
+      duration_mins: Math.round((Date.parse(event.end) - Date.parse(event.start)) / 60_000),
+      participants: participants.map((name, i) => ({ uuid: `p-${i}`, name })),
+      conflict_count: 0,
+      conflicts: [],
+      candidates: candidates.map((c) => ({ start: c.start, end: c.end, all_free: c.free === c.total, free_count: c.free, total: c.total })),
+    },
+  }
 }

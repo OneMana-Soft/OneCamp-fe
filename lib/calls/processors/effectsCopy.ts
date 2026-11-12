@@ -1,7 +1,7 @@
 // The words for the effects' choices (effects.ts), for the picker and its
 // notices: loaded with the picker, none of a call's first load.
 
-import type { BackdropId, Background, NoiseLevel } from "./effects"
+import type { BackdropId, Background, NoiseLevel, TouchUp } from "./effects"
 
 export const BACKDROPS: readonly { id: BackdropId; name: string }[] = [
   { id: "moss", name: "Meadow" },
@@ -16,6 +16,12 @@ export const NOISE_LEVELS: readonly { level: NoiseLevel; name: string; detail: s
   { level: "standard", name: "Standard", detail: "Your browser's own noise reduction" },
   { level: "strong", name: "Strong", detail: "Removes typing, traffic and fans, on this device" },
   { level: "off", name: "Off", detail: "Your sound as it is, for music" },
+]
+
+export const TOUCH_UPS: readonly { level: TouchUp; name: string }[] = [
+  { level: "off", name: "Off" },
+  { level: "subtle", name: "Subtle" },
+  { level: "smooth", name: "Smooth" },
 ]
 
 /** The words for a background, for a menu or a notice. Pure. */

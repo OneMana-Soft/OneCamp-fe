@@ -23,6 +23,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import type { UserProfileInterface } from "@/types/user"
 import { AGENT_TEMPLATES, scheduleDaysFor, type AgentTemplate } from "@/lib/agentTemplates"
+import { AUTONOMY, autonomyOf, type Autonomy } from "@/lib/agentAutonomy"
 import { governanceSentence } from "@/lib/agentCardCopy"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { AdminGet } from "@/services/endpoints/admin"
@@ -331,7 +332,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   }, [aguiEndpoint, aguiAuthHeader, aguiAuthSecret, agent?.id, remoteProtocol, remoteSecretMissing, askForRemoteSecret])
   const [ambient, setAmbient] = React.useState(false)
   const [ambientKeywords, setAmbientKeywords] = React.useState("")
-  const [autonomy, setAutonomy] = React.useState<"auto" | "approval" | "plan">("auto")
+  // A new agent asks first (ADMIN-16).
+  const [autonomy, setAutonomy] = React.useState<Autonomy>("approval")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = React.useState<{ name?: string; instructions?: string }>({})
@@ -423,7 +425,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAguiAuthHeader(agent.agui_auth_header || "")
       setAguiAuthSecret("")
       setAguiCheck(null)
-      setAutonomy(agent.autonomy === "approval" ? "approval" : agent.autonomy === "plan" ? "plan" : "auto")
+      setAutonomy(autonomyOf(agent.autonomy))
     } else {
       setAppliedTemplate(null)
       setName("")
@@ -455,7 +457,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAguiAuthHeader("")
       setAguiAuthSecret("")
       setAguiCheck(null)
-      setAutonomy("auto")
+      setAutonomy("approval")
     }
     setError(null)
     setOutcome(null)
@@ -512,7 +514,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setInstructions(d.instructions || "")
       setTools(new Set(d.enabled_tools || []))
       setTriggerType(d.trigger_type || "manual")
-      setAutonomy(d.autonomy === "approval" ? "approval" : d.autonomy === "plan" ? "plan" : "auto")
+      setAutonomy(autonomyOf(d.autonomy))
       if (d.max_steps) setMaxSteps(d.max_steps)
       setDmAble(!!d.dm_able)
     } catch (e) {
@@ -1232,7 +1234,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             )}
           </div>
 
-          <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
+          <div className="grid gap-2 rounded-lg bg-sunken p-3">
             <Label className="flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 text-warning-ink" /> Autonomy for write actions
             </Label>
@@ -1246,31 +1248,19 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               aria-label="Autonomy for write actions"
               className="grid gap-2 sm:grid-cols-2"
             >
-              {([
-                {
-                  value: "auto" as const,
-                  title: "Act autonomously",
-                  desc: "The agent performs its actions itself, within its tools, scope and permissions.",
-                },
-                {
-                  value: "approval" as const,
-                  title: "Require approval",
-                  desc: "The agent proposes each write for a human to approve; it then runs as the owner. (90/10)",
-                },
-                {
-                  value: "plan" as const,
-                  title: "Plan, then approve",
-                  desc: "The agent proposes its whole plan as one approval; approve once and all steps run as the owner.",
-                },
-              ]).map((opt) => (
+              {AUTONOMY.map((opt) => (
                 // A card of the interaction layer: the accent's tint and ring when chosen,
                 // and the check's place kept, so the title never moves (ST-36).
                 <RadioGroupPrimitive.Item key={opt.value} value={opt.value} {...ix("card")} className="hover-lift rounded-lg bg-raised p-2.5 text-left shadow-e1">
                   <span className="flex items-center gap-1.5 text-sm font-medium">
                     <MenuCheck checked={autonomy === opt.value} className="size-3.5 text-brand-text [&>svg]:size-3.5" />
-                    {opt.title}
+                    <span data-autonomy-title="">{opt.title}</span>
+                    {opt.recommended && (
+                      // A word, not a colour: the accent marks the chosen card.
+                      <span className="ml-auto rounded-full bg-sunken px-1.5 py-px text-2xs font-medium text-ink-2">Recommended</span>
+                    )}
                   </span>
-                  <span className="mt-0.5 block text-2xs text-muted-foreground">{opt.desc}</span>
+                  <span className="mt-0.5 block text-2xs text-muted-foreground">{opt.line}</span>
                 </RadioGroupPrimitive.Item>
               ))}
             </RadioGroupPrimitive.Root>

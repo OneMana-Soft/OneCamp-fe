@@ -1,24 +1,25 @@
 import axiosInstance from "@/lib/axiosInstance"
+import { seenWrite } from "@/lib/activity/inboxBadge"
 import { InboxPost } from "@/services/endpoints/inbox"
 
 /**
- * markActivitySeen tells the server the Inbox has been looked at, so its
- * badge counts from now. Reading the feed marks nothing: Home reads it on
- * every load, and when that marked it seen, opening the app cleared the
- * badge with replies and reactions still unseen. The Inbox asks instead.
- *
- * Silent and best-effort, as markChannelSeen: the Inbox clears its badge on
- * screen at once, and this makes the clearing last past the next sidebar
- * read. A failure leaves the server's count, which is then still right.
+ * The Inbox was looked at (reading the feed marks nothing: Home reads it).
+ * Answers the badge after the write; null: written, not counted; false: failed.
  */
-export async function markActivitySeen(): Promise<void> {
+export async function markActivitySeen(): Promise<number | null | false> {
+  const done = seenWrite()
   try {
-    await axiosInstance.post(InboxPost.MarkActivitySeen, undefined, {
+    const res = await axiosInstance.post(InboxPost.MarkActivitySeen, undefined, {
       // @ts-expect-error — suppress the global loading bar for this
       // background, non-interactive request.
       silent: true,
+      suppressErrorToast: true,
     })
+    const count = res.data?.data?.count
+    return typeof count === "number" ? count : null
   } catch {
-    // The next time the Inbox opens, it asks again.
+    return false
+  } finally {
+    done()
   }
 }

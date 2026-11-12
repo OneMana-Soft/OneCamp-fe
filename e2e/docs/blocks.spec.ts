@@ -272,6 +272,28 @@ test("on a phone, a long-press on a block opens its sheet, whose moves keep it o
   await phone.close()
 })
 
+// V-872: the release of a held block sends a click, which a slow phone sends late, onto the sheet that rose under
+// the finger. On a CPU slowed six times (CDP), as that phone, the sheet stays open and the click moves nothing.
+test("on a slow phone (CPU 6x), a long-press's release leaves the block's sheet open and moves nothing", async ({ browser }, testInfo) => {
+  test.setTimeout(300_000)
+  const relay = new CollabRelay()
+  const id = `${DOC.slice(0, -1)}e`
+  const sam = await openDocAs(browser, testInfo, relay, SAM, { id })
+  await write(sam, ["one", "two", "three"])
+  const phone = await openDocAs(browser, testInfo, relay, PRIYA, { id }, { phone: true })
+  await expect(phone.body).toContainText("three", { timeout: 15_000 })
+  await (await phone.page.context().newCDPSession(phone.page)).send("Emulation.setCPUThrottlingRate", { rate: 6 })
+  const sheet = phone.page.locator("[data-block-sheet]")
+  await holdUntil(phone.page, paragraphs(phone).nth(1), sheet)
+  for (let t = 200; t <= 4000; t += 200) {
+    await phone.page.waitForTimeout(200)
+    expect(await sheet.count(), `the block's sheet ${t} ms after it opened`).toBe(1)
+  }
+  expect(await texts(phone), "the release moved nothing").toEqual(["one", "two", "three"])
+  await sam.close()
+  await phone.close()
+})
+
 // A child page, for the page block Sam links with /link to page.
 const NOTES = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c60"
 type Ref = { kind: string; id: string }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { hoursChart, openOf, reportCSV, reportView, reportViewName, throughputChart, totalHours, weekLabel, type Report } from "./reports"
+import { reportCSV } from "./reportCSV"
+import { hoursChart, openOf, throughputChart, totalHours, weekLabel, type Report } from "./reports"
+import { reportFilters, reportView, reportViewName } from "./reportView"
 
 const report: Report = {
   weeks: ["2026-09-28", "2026-10-05"],
@@ -58,6 +60,28 @@ describe("reports", () => {
     const tabbed = reportCSV({ ...report, people: [{ ...report.people[0], user_name: "\t=1+1" }] }, (p) => p.user_name ?? "")
     expect(tabbed).toContain("'\t=1+1")
   })
+
+  // B9-b4 (linear-32): a CSV from every chart. The report's own CSV gains its
+  // flow chart's rows; a chart elsewhere (a dashboard's widget) asks for its
+  // own tables alone, and a table it doesn't have is never written.
+  it("writes the flow of work after the weeks, and only the tables asked for", () => {
+    const name = (p: { user_name?: string }) => p.user_name ?? "Nobody"
+    expect(reportCSV(report, name)).not.toContain("Week starting,To do")
+    const flow = [
+      { to_do: 4, in_progress: 2, in_review: 1, done: 0 },
+      { to_do: 3, in_progress: 2, in_review: 0, done: 3 },
+    ]
+    const withFlow = reportCSV({ ...report, flow }, name)
+    expect(withFlow).toContain("2026-10-05,1,4,0\n\nWeek starting,To do,In progress,In review,Done\n2026-09-28,4,2,1,0\n2026-10-05,3,2,0,3\n\nProject,")
+    expect(reportCSV({ weeks: report.weeks, done: report.done, added: report.added }, name, ["weeks"])).toBe("Week starting,Done,Added\n2026-09-28,3,2\n2026-10-05,1,4\n")
+    expect(reportCSV({ weeks: report.weeks, flow }, name, ["flow"])).toBe("Week starting,To do,In progress,In review,Done\n2026-09-28,4,2,1,0\n2026-10-05,3,2,0,3\n")
+    const priorities = [
+      { priority: "high", open: 2, overdue: 1 },
+      { priority: "", open: 1, overdue: 0 },
+    ]
+    expect(reportCSV({ priorities }, name, ["priorities"])).toBe("Priority,Open,Overdue\nHigh,2,1\nNo priority,1,0\n")
+    expect(reportCSV({ people: report.people }, name, ["people"])).toBe("Person,To do,In progress,In review,Overdue,Done\nMaya,1,1,0,1,3\nNobody,2,0,0,0,0\n")
+  })
 })
 
 describe("reportView (B9-b1)", () => {
@@ -74,9 +98,26 @@ describe("reportView (B9-b1)", () => {
     expect(reportView(q("projects=%20"))).toBeNull()
   })
   it("names a view by its saved name, or by its project, filtered when it was", () => {
-    expect(reportViewName({ filters: "[1]", name: "High work" }, "Launch")).toBe("High work")
-    expect(reportViewName({ filters: '[{"id":"task_priority"}]', name: "" }, "Launch")).toBe("Launch, filtered")
-    expect(reportViewName({ filters: "", name: "" }, "Launch")).toBe("Launch")
-    expect(reportViewName({ filters: "[]", name: "" }, undefined)).toBe("this project")
+    expect(reportViewName({ project: "p1", filters: "[1]", name: "High work" }, "Launch")).toBe("High work")
+    expect(reportViewName({ project: "p1", filters: '[{"id":"task_priority"}]', name: "" }, "Launch")).toBe("Launch, filtered")
+    expect(reportViewName({ project: "p1", filters: "", name: "" }, "Launch")).toBe("Launch")
+    expect(reportViewName({ project: "p1", filters: "[]", name: "" }, undefined)).toBe("this project")
+  })
+})
+
+describe("a view of no project: My tasks (L32)", () => {
+  const q = (s: string) => new URLSearchParams(s)
+  it("is read from mine=1, named My tasks, and keeps to the reader's own work once they are known", () => {
+    expect(reportView(q("view=reports&mine=1&filters=x&name=Low"))).toEqual({ project: "", filters: "x", name: "Low" })
+    expect(reportView(q("view=reports&mine=0"))).toBeNull()
+    expect(reportViewName({ project: "", filters: "", name: "" }, undefined)).toBe("My tasks")
+    expect(reportViewName({ project: "", filters: '[{"id":"task_priority"}]', name: "" }, undefined)).toBe("My tasks, filtered")
+    const mine = { project: "", filters: '[{"id":"task_priority","value":["low"]},{"id":"task_assignee_name","value":["0x9"]}]', name: "" }
+    expect(reportFilters(mine, undefined)).toBeNull()
+    expect(JSON.parse(reportFilters(mine, "0x5a")!)).toEqual([
+      { id: "task_priority", value: ["low"] },
+      { id: "task_assignee_name", value: ["0x5a"] },
+    ])
+    expect(reportFilters({ project: "p1", filters: "f", name: "" }, undefined)).toBe("f")
   })
 })

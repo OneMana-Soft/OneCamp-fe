@@ -31,6 +31,12 @@
    whole list each time a scroll began and ended. */
 @custom-variant settled (&:where(:not([data-list-moving] &)));
 
+/* The keys' place in a list (data-highlighted="true" on its row or card,
+   painted by hooks/useListKeyboard, so J and K draw no row). Weighed as a
+   plain class, as the classes it replaced were: a hover, a selection or a
+   focus ring the element has still wins over it. */
+@custom-variant lit (&:where([data-highlighted]));
+
 @theme inline {
   /* An entrance holds nothing once it ends (18 Oct 2026): tw-animate-css fills
      animate-in forwards, so every menu, popover and sheet kept the last frame,
@@ -1188,6 +1194,33 @@
   --hue-a2: var(--ink-2);
 }
 
+/* An event's own colour (calendar head B, More colours): the colour comes
+   inline as --own (lib/color/ownHue), and each theme cuts its solid, tint
+   and ink from it here, in its own hue, so a block paints in it at once. The
+   numbers are lib/color/ownColour's OWN_CUT, which a test holds them to: the
+   tint and the ink at fixed lightness with their chroma capped inside sRGB,
+   so the words keep AA on every fill; the solid moved only to stand out. A
+   browser without relative colour mixes the colour itself in. */
+.hue-own {
+  --hue: var(--own);
+  --hue-tint: color-mix(in oklab, var(--own) 12%, var(--sheet));
+  --hue-ink: color-mix(in oklab, var(--own) 40%, var(--foreground));
+  --hue-a1: var(--hue);
+  --hue-a2: var(--hue-ink);
+}
+@supports (color: oklch(from red l c h)) {
+  .hue-own {
+    --hue: oklch(from var(--own) min(l, 0.72) c h);
+    --hue-tint: oklch(from var(--own) 0.955 min(c, 0.02) h);
+    --hue-ink: oklch(from var(--own) 0.4 min(c, 0.065) h);
+  }
+  .dark .hue-own {
+    --hue: oklch(from var(--own) max(l, 0.52) c h);
+    --hue-tint: oklch(from var(--own) 0.28 min(c, 0.04) h);
+    --hue-ink: oklch(from var(--own) 0.88 min(c, 0.05) h);
+  }
+}
+
 /* AVATARS (design v3, §3.9). A person without a photo is a circle filled with
    their hue's avatar cut, a1 to a2 at 140 degrees, with white initials (600)
    and a soft inner ring; a photo covers it. An agent is a 32%-radius square
@@ -1438,6 +1471,10 @@
  * here: accent-color on :root never saw the theme.
  */
 body {
+  /* What a modal's scroll lock (react-remove-scroll, under every Radix dialog and sheet) writes here as it opens, at
+     the value it has where no scrollbar takes room (a phone, overlay scrollbars). A variable new on body restyles
+     every element under it: 10ms of a sheet's opening and of its closing on a table's page, 1ms with it here already. */
+  --removed-body-scroll-bar-size: 0px;
   --primary: var(--brand-text);
   --primary-foreground: var(--brand-foreground);
   --ring: var(--brand);
@@ -3397,6 +3434,19 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     min-width: 16px;
     font-size: 10px;
   }
+  /* A finger takes the action 9px past its 26px look, above and below (44px),
+     and out to its left: inside the card, which clips it, and short of the
+     ×'s column, the phone's pill included (V-889). A mouse's is the look. */
+  @media (pointer: coarse) {
+    .toast-action {
+      position: relative;
+    }
+    .toast-action::before {
+      content: "";
+      position: absolute;
+      inset: -9px 8px -9px -16px;
+    }
+  }
 
   .toast-close {
     position: absolute;
@@ -3414,11 +3464,26 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
       opacity: 1;
     }
   }
+  /* A toast with no timer stays until the person acts: with no hover, its ×
+     shows at rest, and it takes a 44px tap that reaches out and up, clear of
+     the action below it. Timed toasts keep the × hidden at rest. */
+  @media (hover: none) {
+    .toast-root[data-stays] .toast-close {
+      opacity: 1;
+    }
+    .toast-root[data-stays] .toast-close::before {
+      content: "";
+      position: absolute;
+      inset: -20px -4px -4px -20px;
+    }
+  }
 
   /* How long an action toast has left: a 2px line that shrinks to nothing,
-     stopped while the stack is open or the window is in the background. */
+     stopped while the stack is open or the window is in the background. It
+     takes no taps: on the phone's pill it lies in the action's reach. */
   .toast-timer {
     position: absolute;
+    pointer-events: none;
     left: 12px;
     right: 12px;
     bottom: 0;
@@ -3474,6 +3539,15 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     transform: scaleX(0);
   }
 }
+/* A call ringing you (slack-06 H2, components/calls/RingCard): the caller's
+   moss ring pulses out, and a bar drains to the ring's end; both still under
+   reduced motion (the last reduced-motion block). */
+@keyframes ring-pulse {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(1.25); opacity: 0; }
+}
+.ring-pulse { animation: ring-pulse 1.6s ease-out infinite; }
+.ring-drain { transform-origin: left; animation: toast-timer var(--ring-left, 30000ms) linear forwards; }
 /* Notices (shell T2): one strip at the top of the sheet, inside it. */
 @layer components {
   .notice {
@@ -4555,6 +4629,12 @@ button.palette-source:focus-visible {
   /* A drawer row's place tile: 32px at r9, as M8 draws it. */
   [data-drawer-tile] {
     border-radius: 9px;
+  }
+  /* A ring's card: a still moss ring, and no drain. */
+  .ring-pulse,
+  .ring-drain {
+    animation: none;
+    display: none;
   }
 }
 

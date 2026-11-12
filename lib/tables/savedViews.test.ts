@@ -11,7 +11,8 @@ const view = (over: Partial<TableView>): TableView => ({ id: "v1", table_id: "t"
 const state = (over: Partial<ViewState> = {}): ViewState => ({
   layout: "grid",
   rules: { sort: [], filters: [], match: "all" },
-  display: { rowHeight: "medium", hidden: [], summary: {}, widths: {}, boardGroup: null, colors: null, frozen: 1 },
+  // chart: a view keeps its chart's look (TABLES-BOARDS-11), none until one is chosen.
+  display: { rowHeight: "medium", hidden: [], summary: {}, widths: {}, boardGroup: null, colors: null, frozen: 1, chart: null },
   ...over,
 })
 
@@ -37,7 +38,7 @@ describe("a saved view", () => {
       state({
         layout: "board",
         rules: { sort: [{ field: "notes", dir: "desc" }], filters: [{ field: "notes", op: "contains", value: "call" }], match: "any" },
-        display: { rowHeight: "tall", hidden: ["stage"], summary: { notes: "count" }, widths: { notes: 300 }, boardGroup: null, colors: null, frozen: 1 },
+        display: { rowHeight: "tall", hidden: ["stage"], summary: { notes: "count" }, widths: { notes: 300 }, boardGroup: null, colors: null, frozen: 1, chart: null },
       }),
     )
   })
@@ -126,5 +127,15 @@ describe("a saved view on a device", () => {
     expect(keepsOwnChange(sorted, { id: "v1", opened: null }, kept({ rules: byNotes }), fields)).toBe(true)
     expect(keepsOwnChange(sorted, null, kept({ display: { ...DEFAULT_DISPLAY, hidden: ["notes"] } }), fields)).toBe(true)
     expect(keepsOwnChange(sorted, { id: "gone", opened: null }, kept({ rules: byNotes }), fields)).toBe(true)
+  })
+})
+
+// TABLES-BOARDS-11 (UX-TB-H3): a view keeps its chart's look, so everyone who opens it sees the same chart.
+describe("a saved view's chart", () => {
+  it("goes with the view, and a changed chart is a changed view", () => {
+    const look = { type: "pie", groupBy: "stage", op: "count", valueField: "" }
+    const saved = viewStateOf(view({ type: "chart", config: JSON.stringify({ display: { chart: look } }) }), fields)
+    expect(saved.display.chart).toEqual(look)
+    expect(sameViewState(saved, { ...saved, display: { ...saved.display, chart: { ...look, type: "bar" } } })).toBe(false)
   })
 })

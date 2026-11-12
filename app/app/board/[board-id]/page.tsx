@@ -18,10 +18,10 @@ import { warmCollabToken } from "@/lib/collabToken";
 import { focusHandOff } from "@/lib/ui/focusHandOff";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
-import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, Sparkles, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo, ShieldCheck } from "@/lib/icons";
+import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, Sparkles, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo, Code, ShieldCheck, Star } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { LoadFailureState } from "@/components/ui/load-failure-state";
-import { OWN_ERRORS } from "@/lib/axiosInstance";
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ActiveUsersBar } from "@/components/docEditor/ActiveUsersBar";
 import { DocBusContext } from "@/components/docEditor/registry/docBusContext";
 import { boardBusOf } from "@/lib/board/hereBus";
@@ -34,7 +34,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState } from "@/store/store";
+import { appMutate } from "@/lib/swrMutate";
+import { recentPlacesKey } from "@/lib/nav/placeRows";
 import { updateUserBoardTitle, removeUserBoard } from "@/store/slice/userSlice";
 import { openUI } from "@/store/slice/uiSlice";
 import { app_board_path } from "@/types/paths";
@@ -52,14 +55,17 @@ import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import WithAddWorkReads from "@/components/board/addWorkReads";
+import WithFrameNotes from "@/components/board/frameNotesReads";
 import { useLabelling } from "@/components/labels/labelData";
 import { NoLabelsYet } from "@/components/labels/noLabels";
+import { NoBoardCallsYet } from "@/components/board/noBoardCalls";
 
 // In the cluster, and in a phone's menu.
 const TOOLS = [
   ["templates", "Templates", LayoutGrid],
   ["frames", "Frames", Layers],
   ["addWork", "Add from OneCamp", ListTodo],
+  ["code", "Code block", Code],
 ] as const;
 
 // "board:" namespace prefix shared with the collaboration service so a single
@@ -83,6 +89,8 @@ const facilitation = lazyPart<React.ComponentProps<typeof BoardFacilitationPart>
 // room of the button's size while it comes; what they do comes with the board's tools (components/board/boardSignals).
 const BoardReact = lazyPiece(() => import("@/components/board/boardReact"));
 const BoardLabel = lazyPiece(() => import("@/components/labels/boardLabel")); // miro-44 L
+// The calls that showed the board (miro-27), a chunk of their own.
+const BoardCall = lazyPiece(() => import("@/components/board/boardCall"));
 
 // Ask AI wears the agent's colour, open or not: brand is for actions.
 const AI_BUTTON = (open: boolean) =>
@@ -186,6 +194,8 @@ export default function BoardPage() {
   // A press in the chrome for one of the board's tools (lazy, the workbench).
   const [command, setCommand] = React.useState<BoardCommand | null>(null);
   const run = (kind: BoardCommand["kind"]) => setCommand({ kind, at: Date.now() });
+  // A code block's Edit button on the canvas (miro-17): the workbench opens its dialog.
+  const editCode = React.useCallback((id: string) => setCommand({ kind: "code", id, at: Date.now() }), []);
   // Board options' hand-off of the focus as it closes (lib/ui/focusHandOff): a pick that opens one of our panels or
   // dialogs leaves the focus to it. The menu warms the panels' code as it opens, so Find's field took the focus before
   // the menu had faded, and the menu then gave it back to More: what was typed went to the button (V-195).
@@ -194,6 +204,15 @@ export default function BoardPage() {
   // miro-44 L: the label is read and written here; the lazy chip and picker draw once there's one or it's asked for.
   const [labelOpen, setLabelOpen] = React.useState(false);
   const labelling = useLabelling("board", boardId, labelOpen);
+  // Starred, as the sidebar has it (miro-46): a star is the person's own, so anyone who can open the board gives one.
+  const starred = useSelector((s: RootState) => !!s.users?.userSidebar?.userStarred?.some((p) => p.resource_uuid === boardId));
+  // It takes the page's client and player: its chunk has no shared core.
+  const callButton = (phone?: boolean) =>
+    me && (
+      <React.Suspense fallback={<span aria-hidden="true" className={phone ? "size-9 shrink-0" : "size-8 shrink-0"} />}>
+        <BoardCall board={boardId} selfUUID={me.id} http={axiosInstance} onPlay={(data) => dispatch(openUI({ key: "recordingPlayer", data }))} empty={<NoBoardCallsYet />} hasEditAccess={hasEditAccess} />
+      </React.Suspense>
+    );
   const labelChip = (phone?: boolean) => (labelling.label || labelOpen) && <React.Suspense><BoardLabel phone={phone} labelling={labelling} edit={hasEditAccess} open={labelOpen} onOpen={setLabelOpen} empty={<NoLabelsYet />} /></React.Suspense>;
 
   // The board's name, renamed in place in the top-left cluster.
@@ -214,7 +233,7 @@ export default function BoardPage() {
       apiEndpoint: BoardsPost.RecordBoardView,
       payload: { board_uuid: boardId },
       showErrorToast: false,
-    }).catch(() => {
+    }).then(() => appMutate(recentPlacesKey("board"))).catch(() => {
       // View tracking is best-effort; never surface an error.
     });
   }, [boardId, boardInfo, recordBoardView]);
@@ -311,8 +330,14 @@ export default function BoardPage() {
             <DropdownMenuSeparator />
           </>
         )}
+        {/* Star and unstar go through the workbench (lib/places/starring), off the route's first load. */}
+        <DropdownMenuItem onClick={() => run(starred ? "unstar" : "star")}>
+          <Star className={cn("mr-2 size-4", starred && "fill-camp-sun text-camp-sun")} aria-hidden="true" />
+          {starred ? "Unstar board" : "Star board"}
+        </DropdownMenuItem>
         {excalApi && (
           <>
+            <DropdownMenuSeparator />
             {/* PDF of the frames, the notes as CSV, a board file or a picture (miro-36). */}
             <DropdownMenuItem onClick={handOff.to(() => run("export"))}>
               <Download className="mr-2 size-4" />
@@ -421,6 +446,7 @@ export default function BoardPage() {
             }}
             theme={canvasTheme}
             onApiReady={setExcalApi}
+            onEditCode={editCode}
           />
         ) : (
           <div className="dot-ground flex h-full w-full items-center justify-center">
@@ -436,12 +462,12 @@ export default function BoardPage() {
 
         {/* The board's tools: templates, the sticky tool, the notes and frame bars, frames. */}
         {provider && (
-          <BoardWorkbench api={excalApi} provider={provider} boardId={boardId} editable={hasEditAccess} synced={synced} quiet={aiOpen} command={command} style={boardStyle} title={title} user={me} host={wrap} addWorkReads={WithAddWorkReads} />
+          <BoardWorkbench api={excalApi} provider={provider} boardId={boardId} editable={hasEditAccess} synced={synced} quiet={aiOpen} command={command} style={boardStyle} title={title} user={me} host={wrap} addWorkReads={WithAddWorkReads} frameNotes={WithFrameNotes} dispatch={dispatch} />
         )}
 
         {/* Timer, dot voting and follow-the-presenter */}
         {provider && excalApi && me && (
-          <facilitation.Part provider={provider} api={excalApi} editable={hasEditAccess} user={me} hereKey={hereBus.key} />
+          <facilitation.Part provider={provider} api={excalApi} editable={hasEditAccess} user={me} hereKey={hereBus.key} board={boardId} frameNotes={WithFrameNotes} http={axiosInstance} topic={boardInfo.board_mqtt_topic} />
         )}
 
         {/* Pinned comments (everyone with access sees them; editors can add) */}
@@ -467,7 +493,8 @@ export default function BoardPage() {
           templates, AI, comments and Share on the right. The name gives way
           first, so the two never meet on a narrow board. */}
       {!isMobile && (
-        <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex items-start justify-between gap-2">
+        // Marked as a bar at the board's top: a slide is fitted clear of it (presentFrame's BOARD_BARS).
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex items-start justify-between gap-2" data-board-top="">
           <div className={cn("flex min-w-0 gap-2", docked ? "items-center" : "flex-col items-start")}>
             <BoardTitleCluster
               backHref={app_board_path}
@@ -514,6 +541,7 @@ export default function BoardPage() {
               <React.Suspense fallback={<span aria-hidden="true" className="size-8 shrink-0" />}>
                 <BoardReact hereKey={hereBus.key} />
               </React.Suspense>
+              {callButton()}
               {hasEditAccess && (
                 <>
                   {TOOLS.map(([kind, label, Icon]) => (
@@ -548,10 +576,10 @@ export default function BoardPage() {
         <DocSaveNotice source={{ provider, live: true, collabStatus, synced, everSynced: synced }} thing="board" />
       )}
 
-      {/* Phone: one cluster low on the right, above the canvas's footer (at
-          the top it sat on Excalidraw's tool row and covered its last tools). */}
+      {/* Phone: one cluster above the canvas's footer (at the top it hid
+          Excalidraw's tools); the chip gives way to it (V-933). */}
       {isMobile && (
-        <div className="pointer-events-none absolute bottom-[5rem] right-3 z-20 flex items-center gap-2" data-board-phone-actions="" data-phone-foot="">
+        <div className="pointer-events-none absolute inset-x-3 bottom-[5rem] z-20 flex items-center justify-end gap-2" data-board-phone-actions="" data-phone-foot="">
           {labelChip(true)}
           <ChromeCluster label="Board tools" className="h-11 rounded-[14px] [&_button]:size-9">
             {hasEditAccess && (
@@ -573,6 +601,7 @@ export default function BoardPage() {
             <React.Suspense fallback={<span aria-hidden="true" className="size-9 shrink-0" />}>
               <BoardReact hereKey={hereBus.key} />
             </React.Suspense>
+            {callButton(true)}
             {menu(
               <ClusterButton label="Board options">
                 <Ellipsis />

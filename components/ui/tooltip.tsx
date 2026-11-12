@@ -1,97 +1,129 @@
 "use client"
 
 import * as React from "react"
-import * as TooltipPrimitive from "@radix-ui/react-tooltip"
+import type * as Radix from "@radix-ui/react-tooltip"
+import { Slot } from "@radix-ui/react-slot"
 
-import { cn } from "@/lib/utils/helpers/cn"
 import { isTouchScreen } from "@/lib/ui/touchScreen"
 import { useLongPress } from "@/hooks/useLongPress"
-import type { HandedOn } from "@/lib/keys/escape"
+import { lazyChunk } from "@/lib/loadChunk"
+import type { Ev, Shown, Tip } from "./tooltipBridge"
 
-/** The provider, with the 300ms window in which moving between tooltips skips the delay. */
-const TooltipProvider = ({ skipDelayDuration = 300, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) => (
-  <TooltipPrimitive.Provider skipDelayDuration={skipDelayDuration} {...props} />
+// By input: a mouse waits 400ms (300ms skip), keys show it, a touch screen a long press. Closed, only the trigger
+// draws (H2, 5 Nov); Radix comes on idle or with a mouse or keys, on its node (tooltipBridge); a mouse or a focus waits for it.
+const Skips = React.createContext<Tip["p"]>({})
+
+const TooltipProvider = ({ delayDuration: d, skipDelayDuration: s, disableHoverableContent: h, children }: Radix.TooltipProviderProps) => (
+  <Skips.Provider value={React.useMemo(() => ({ d, s, h }), [d, s, h])}>{children}</Skips.Provider>
 )
 
-/** Where a tooltip's long press listens: its trigger. */
-const Press = React.createContext<React.RefObject<HTMLElement | null> | null>(null)
+const chunk = lazyChunk(() => import("./tooltipBridge"))
+let code: typeof import("./tooltipBridge") | null = null
+export const warmTooltip = () => chunk.use(() => undefined).then((c) => (code ||= c))
+const warm = () => void warmTooltip()
+let idle = 0
+const onIdle = () => void (idle++ || ("requestIdleCallback" in window ? requestIdleCallback(warm, { timeout: 3000 }) : setTimeout(warm, 1500)))
 
-/**
- * A tooltip follows the input, not the width (21 Oct 2026). With a mouse it
- * waits 400ms (design v3, admin §8 H6), none when the pointer moves on from
- * another within the provider's 300ms, and keyboard focus shows it. On a
- * touch screen (lib/ui/touchScreen: a phone either way up, a tablet) only a
- * long press shows it, never a tap or the focus a closing menu gives back:
- * read by width, a phone held sideways put More's label over Save version.
- * A caller's open and onOpenChange still decide, for a long press as well.
- */
-const Tooltip = ({ children, delayDuration = 400, open, defaultOpen = false, onOpenChange, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) => {
+const TipOf = React.createContext<Tip | null>(null)
+
+const Tooltip = ({ children, delayDuration = 400, open, defaultOpen = false, onOpenChange, ...props }: Radix.TooltipProps) => {
   const [own, setOwn] = React.useState(defaultOpen)
+  const [joined, setJoined] = React.useState(false)
+  const [shown, show] = React.useState<Shown>(["closed"])
+  const m = React.useRef<Tip["m"]>({ hand: {}, due: null }).current
+  const isOpen = open ?? own
+  if (isOpen && !joined) setJoined(true)
+  m.live = joined
+  m.open = isOpen
   const set = (next: boolean) => {
     if (open === undefined) setOwn(next)
     onOpenChange?.(next)
   }
-  // One callback for the press, reading the latest `set`.
   const latest = React.useRef(set)
   React.useEffect(() => {
     latest.current = set
   })
+  React.useEffect(onIdle, [])
   const press = useLongPress(React.useCallback(() => latest.current(true), []), { threshold: 500 })
-  return (
-    <Press.Provider value={press.ref as React.RefObject<HTMLElement | null>}>
-      <TooltipPrimitive.Root delayDuration={delayDuration} {...props} open={open ?? own} onOpenChange={(next) => (next && isTouchScreen() ? undefined : set(next))}>
-        {children}
-      </TooltipPrimitive.Root>
-    </Press.Provider>
-  )
+  const settle = () => {
+    clearTimeout(m.timer)
+    m.timer = window.setTimeout(() => !m.open && !m.entered && !m.focused && setJoined(false), 200)
+  }
+  React.useEffect(() => {
+    if (joined && !isOpen) settle()
+    return () => clearTimeout(m.timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joined, isOpen])
+  const tip: Tip = {
+    live: joined,
+    shown,
+    show,
+    el: press.ref,
+    m,
+    join: (due) => {
+      if (m.live || isTouchScreen()) return
+      m.due = [...due, Date.now()]
+      setJoined(true)
+    },
+    settle,
+    root: { ...props, delayDuration, open: isOpen, onOpenChange: (next) => (next && isTouchScreen() ? undefined : set(next)) },
+    p: React.useContext(Skips),
+  }
+  return <TipOf.Provider value={tip}>{children}</TipOf.Provider>
 }
 
-const TooltipTrigger = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
->((props, ref) => {
-  const press = React.useContext(Press)
+const TooltipTrigger = React.forwardRef<HTMLButtonElement, Radix.TooltipTriggerProps>(({ asChild, ...props }, ref) => {
+  const tip = React.useContext(TipOf)!
+  const { m, el } = tip
   const refs = React.useCallback(
-    (el: HTMLButtonElement | null) => {
-      if (press) press.current = el
-      if (typeof ref === "function") ref(el)
-      else if (ref) ref.current = el
+    (node: HTMLButtonElement | null) => {
+      el.current = node
+      if (typeof ref === "function") ref(node)
+      else if (ref) ref.current = node
     },
-    [press, ref],
+    [el, ref],
   )
-  return <TooltipPrimitive.Trigger ref={refs} {...props} />
-})
-TooltipTrigger.displayName = TooltipPrimitive.Trigger.displayName
-
-// Closes on Esc, and the press goes on (lib/keys/escape).
-const passOn = (e: KeyboardEvent & HandedOn) => void (e.escapeHandedOn = true)
-
-const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <TooltipPrimitive.Portal >
-    <TooltipPrimitive.Content
-      ref={ref}
-      onEscapeKeyDown={passOn}
-
-      sideOffset={sideOffset}
-      className={cn(
-        // Ink, not the accent (DESIGN.md, accent budget): a tooltip is a label.
-        // Design v3 (shell M3): 24px, r6, padding 0 8, 12/510 white on ink
-        // (#2A2B30 in dark, --tooltip-bg), sliding 2px from its trigger with
-        // the fade, 120ms, no scale. Long text wraps rather than clips.
-        // Admin §8 H6 asks the same chip: 12/16 510, r6, padding 4/8, no
-        // arrow. Its dark ground stays the shell's --tooltip-bg (#2A2B30)
-        // rather than an inverted light chip, so one tooltip reads the same
-        // across the app.
-        "z-[var(--z-tooltip)] flex min-h-6 max-w-xs items-center overflow-hidden rounded-sm bg-[var(--tooltip-bg)] px-2 py-1 text-2xs font-medium text-white text-pretty duration-[120ms] ease-standard animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5",
-        className
-      )}
+  const on = <T extends React.SyntheticEvent>(name: Ev, mine?: (e: T) => unknown) => (e: T) => {
+    ;(props[name] as ((e: React.SyntheticEvent) => void) | undefined)?.(e)
+    if (e.defaultPrevented) return
+    mine?.(e)
+    m.hand[name]?.(e)
+  }
+  const Comp = asChild ? Slot : "button"
+  return (
+    <Comp
+      data-state={tip.shown[0]}
+      aria-describedby={tip.shown[1]}
       {...props}
+      ref={refs}
+      onPointerMove={on("onPointerMove", (e: React.PointerEvent) => e.pointerType !== "touch" && ((m.entered = true), tip.join(["onPointerMove", e])))}
+      onPointerLeave={on("onPointerLeave", () => {
+        m.entered = false
+        m.due = null
+        tip.settle()
+      })}
+      onPointerDown={on("onPointerDown", () => {
+        m.down = true
+        document.addEventListener("pointerup", () => (m.down = false), { once: true })
+      })}
+      onFocus={on("onFocus", (e) => m.down || ((m.focused = true), tip.join(["onFocus", e])))}
+      onBlur={on("onBlur", () => ((m.focused = false), (m.due = null), tip.settle()))}
+      onClick={on("onClick", () => (m.due = null))}
     />
-  </TooltipPrimitive.Portal>
-))
-TooltipContent.displayName = TooltipPrimitive.Content.displayName
+  )
+})
+TooltipTrigger.displayName = "TooltipTrigger"
+
+const TooltipContent = React.forwardRef<HTMLDivElement, Radix.TooltipContentProps>((props, ref) => {
+  const tip = React.useContext(TipOf)
+  return tip && !tip.live ? null : <Late tip={tip} props={props} to={ref} />
+})
+TooltipContent.displayName = "TooltipContent"
+
+function Late({ tip, props, to }: { tip: Tip | null; props: Radix.TooltipContentProps; to: React.ForwardedRef<HTMLDivElement> }) {
+  const [c, set] = React.useState(code)
+  React.useEffect(() => void (c || warmTooltip().then((x) => x && set(x))), [c])
+  return c && <c.TooltipChip tip={tip} {...props} ref={to} />
+}
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }

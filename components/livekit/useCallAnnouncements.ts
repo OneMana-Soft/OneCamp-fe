@@ -5,9 +5,10 @@
 // (lib/ui/announce), the call's only voice: joins and leaves gathered over two
 // seconds, and knocks too, said in the knock bar's words for everyone waiting
 // then; hands going up with their place in line (yours too) and coming down;
-// and recording or captions stopping (their starts are said by their own
-// pills). A queue leaves 1.5 s between sentences, so one never cuts another
-// off.
+// who started recording (a pill's live region mounts with its words, which
+// most screen readers miss: CALLS-07); and recording or captions stopping (a
+// captions start is said by its notice). A queue leaves 1.5 s between
+// sentences, so one never cuts another off.
 
 import { useEffect, useRef } from "react"
 import { announce } from "@/lib/ui/announce"
@@ -19,6 +20,8 @@ export interface AnnouncedCall {
   people: readonly { identity: string; name: string; you: boolean; hand: number | null }[]
   knocks: readonly { ticket: string; name: string }[]
   recording: boolean
+  /** Who started the recording, by the name people see, when the server says. */
+  recordingBy?: string
   captions: boolean
 }
 
@@ -87,6 +90,7 @@ export function useCallAnnouncements(call: AnnouncedCall) {
     }
     if (lowered.length === 1) say(handAnnouncement(lowered[0].name, false, null, lowered[0].you))
     if (lowered.length > 1) say(`${lowered.length} hands lowered`)
+    if (!before.recording && call.recording) say(call.recordingBy ? `${call.recordingBy} started recording` : "Recording started")
     if (before.recording && !call.recording) say("Recording stopped")
     if (before.captions && !call.captions) say("Captions are off")
   }, [call])

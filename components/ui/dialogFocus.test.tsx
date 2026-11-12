@@ -5,6 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 afterEach(cleanup)
 
@@ -90,6 +91,33 @@ describe("Dialog initial focus", () => {
         </DialogContent>
       </Dialog>,
     )
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"))
+  })
+
+  // A Select in a form keeps a native select of its own, hidden from people (visually hidden, aria-hidden, out of the
+  // tab order): it took the focus from the Name below it (B9-b4, Add to dashboard's keyboard open).
+  it("passes over a Select's own hidden native select to the first field", () => {
+    pointer(true)
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Add a widget</DialogTitle>
+          <DialogDescription>Pick what it shows.</DialogDescription>
+          <form>
+            <Select defaultValue="flow">
+              <SelectTrigger aria-label="Shows">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="flow">Flow of work</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input aria-label="Name" />
+          </form>
+        </DialogContent>
+      </Dialog>,
+    )
+    expect(document.querySelector('select[aria-hidden="true"]')).not.toBeNull()
     expect(document.activeElement).toBe(screen.getByLabelText("Name"))
   })
 

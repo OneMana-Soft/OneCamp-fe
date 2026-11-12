@@ -4,13 +4,12 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, differenceInCalendarDays, format, isSameDay, isSameMonth, isWeekend, parseISO } from "date-fns";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { cn } from "@/lib/utils/helpers/cn";
-import { HueBlock, dragPlaceholderClasses, hueBlock, hueBlockClasses } from "@/components/calendar/HueBlock";
+import { HueBlock, dragPlaceholderClasses, hueBlock, hueBlockClasses, hueMark } from "@/components/calendar/HueBlock";
 import { DayOverflow, dayMoreButton } from "@/components/calendar/dayOverflowPopover";
 import { useProjectHues } from "@/lib/projectHue";
 import { onDragCancel } from "@/lib/ui/dragCancel";
 import { PRESS_LIFT, holdLifted, pressBecomes } from "@/lib/ui/pressLift";
-import { hueOf, kindOf } from "@/components/calendar/calendarTones";
-import { HUE_CLASS } from "@/components/ui/graphics/hues";
+import { kindOf } from "@/components/calendar/calendarTones";
 import { dayKey, dayListTime, lastDayOf, layoutWeek, placeItems, type DatedItem, type Placed, type WeekBar } from "@/components/calendar/calendarLayout";
 import type { CalendarDraft } from "@/components/calendar/weekView";
 import { clockTime } from "@/lib/utils/date/clock";
@@ -364,10 +363,11 @@ export function MonthView<T extends MonthItem>({
                           data-event-uuid={bar.item.event_uuid}
                           className={cn(
                             "absolute top-0 h-1 rounded-[2px]",
-                            kind === "focus" ? "bg-ink-3" : kind === "away" ? "border border-dashed border-line-3" : cn(HUE_CLASS[hueOf(bar.item)], "bg-hue"),
+                            kind === "focus" ? "bg-ink-3" : kind === "away" ? "border border-dashed border-line-3" : cn(hueMark(bar.item).className, "bg-hue"),
                             parseISO(bar.item.event_end_time) < now && "opacity-55",
                           )}
                           style={{
+                            ...(kind === "event" ? hueMark(bar.item).style : undefined),
                             left: `calc(${(bar.col / n) * 100}% + ${bar.startsHere ? 4 : 0}px)`,
                             width: `calc(${(bar.span / n) * 100}% - ${(bar.startsHere ? 4 : 0) + (bar.endsHere ? 4 : 0)}px)`,
                           }}

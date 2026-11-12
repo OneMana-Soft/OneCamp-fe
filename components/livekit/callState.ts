@@ -257,7 +257,7 @@ export const CALL_TOPIC = "oc.call"
 // unconfirmed: whether they may be in the call couldn't be checked as they
 // connected, so the server put them out rather than let them stay (fail
 // closed, 21 Oct); they can join again once it can be.
-export type RemovalReason = "host" | "link_revoked" | "not_member" | "locked" | "unconfirmed" | "ended" | "unknown"
+export type RemovalReason = "host" | "link_revoked" | "not_member" | "locked" | "unconfirmed" | "went_to_room" | "share_held" | "ended" | "unknown"
 
 export interface CallRemoval {
   reason: RemovalReason
@@ -272,7 +272,7 @@ export interface CallRemoval {
 export function readRemovalPacket(payload: Uint8Array, sender: SignalSender | undefined): CallRemoval | null {
   const m = readSignal<Record<string, unknown>>(payload, sender, { topic: CALL_TOPIC, from: "server" })
   if (m?.t !== "removed") return null
-  const reason = m.reason === "host" || m.reason === "link_revoked" || m.reason === "not_member" || m.reason === "locked" || m.reason === "unconfirmed" ? m.reason : "unknown"
+  const reason = m.reason === "host" || m.reason === "link_revoked" || m.reason === "not_member" || m.reason === "locked" || m.reason === "unconfirmed" || m.reason === "went_to_room" ? m.reason : "unknown"
   return { reason, by: str(m.by) }
 }
 

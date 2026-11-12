@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 import {
   Combobox,
@@ -351,6 +351,18 @@ describe("a combobox's width", () => {
   })
 })
 
+describe("a combobox's height", () => {
+  it("never shrinks under a floor to fit the room on its side, so Radix's flip opens it where there is more room", () => {
+    // Radix measures the menu for its flip before it sets the room it leaves it (the available height): a menu held to
+    // that room never collides, so low on a page it opened below, three rows tall. Under its floor, 20rem or half the window
+    // less 3rem (the side with more room always has that), it collides, and flips.
+    render(<Language />)
+    open("Language")
+    const maxH = classes(screen.getByRole("dialog", { name: "Language" })).filter((c) => c.startsWith("max-h-"))
+    expect(maxH).toEqual(["max-h-[min(26rem,max(var(--radix-popover-content-available-height),min(20rem,50dvh_-_3rem)))]"])
+  })
+})
+
 describe("a combobox row under a finger", () => {
   // A menu item is 44px tall under a finger, where a target reaching past it
   // would take its neighbour's taps (app/phone.css F3); a picker's row too.
@@ -405,4 +417,51 @@ describe("the combobox's open menu", () => {
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.queryByText("Ada", { selector: "[cmdk-item]" })).toBeNull()
   })
+})
+
+// A menu opened before its chunk landed (a slow network or CPU: a key pressed as its field took the focus) is the same menu once the
+// chunk is here. Its next draw swapped the Suspense it opened in for the bare part, so React built the open menu again: its filter's
+// text and highlight lost, and Radix's unmount focus threw a keyboard's focus back to the trigger (taskLinks e2e at 1280 under load).
+describe("a menu opened before its chunk", () => {
+  it("keeps its filter and the focus when it draws again after the chunk lands", async () => {
+    // A module that hasn't fetched the menu yet (the setup fetches it once for every other test).
+    vi.resetModules()
+    const late = await import("./combobox")
+    function Pick({ rows }: { rows: string[] }) {
+      const [open, setOpen] = React.useState(false)
+      return (
+        <late.Combobox open={open} onOpenChange={setOpen}>
+          <late.ComboboxTrigger asChild>
+            <button type="button">Pick</button>
+          </late.ComboboxTrigger>
+          <late.ComboboxContent label="Pick">
+            <late.ComboboxInput placeholder="Find one…" />
+            <late.ComboboxList>
+              {rows.map((r) => (
+                <late.ComboboxItem key={r} value={r}>
+                  {r}
+                </late.ComboboxItem>
+              ))}
+            </late.ComboboxList>
+          </late.ComboboxContent>
+        </late.Combobox>
+      )
+    }
+    const { rerender } = render(<Pick rows={[]} />)
+    // A click alone fetches nothing on approach: the menu opens before its chunk (in its Suspense, nothing drawn), and draws once it lands.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Pick" }))
+      expect(screen.queryByPlaceholderText("Find one…")).toBeNull()
+    })
+    const filter = await screen.findByPlaceholderText("Find one…")
+    await waitFor(() => expect(document.activeElement).toBe(filter))
+    fireEvent.change(filter, { target: { value: "a" } })
+    // The rows arrive, as the project's tasks do over a network: the open menu draws again.
+    rerender(<Pick rows={["Ada", "Grace"]} />)
+    await screen.findByText("Ada")
+    await new Promise((done) => setTimeout(done, 20))
+    expect(screen.getByPlaceholderText("Find one…")).toBe(filter)
+    expect(filter).toHaveValue("a")
+    expect(document.activeElement).toBe(filter)
+  }, 30_000)
 })

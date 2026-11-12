@@ -8,8 +8,8 @@ function Page({ ask }: { ask: () => Promise<PublicResult<string>> }) {
   return data ? <p>{data}</p> : <GuestNotYet trouble={trouble} loading={<p>Loading</p>} gone={<p>Gone</p>} />
 }
 
-function Poller({ tick, every }: { tick: (first: boolean) => Promise<GuestPollOutcome>; every: number }) {
-  useGuestPoll("link", every, tick)
+function Poller({ tick, every, keyed = "link" }: { tick: (first: boolean) => Promise<GuestPollOutcome>; every: number; keyed?: string }) {
+  useGuestPoll(keyed, every, tick)
   return null
 }
 
@@ -108,6 +108,13 @@ describe("a guest page keeping itself up to date", () => {
     await wait(5_000) // back to its pace
     expect(tick).toHaveBeenCalledTimes(6)
     expect(tick).toHaveBeenLastCalledWith(false)
+  })
+
+  it("asks nothing for an empty key (a page with no link to ask for)", async () => {
+    const tick = vi.fn(async () => ({ ok: true }))
+    render(<Poller tick={tick} every={5000} keyed="" />)
+    await wait(20_000)
+    expect(tick).not.toHaveBeenCalled()
   })
 
   it("skips its turns while the page is hidden", async () => {

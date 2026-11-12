@@ -87,7 +87,7 @@ for (const theme of ["light", "dark"] as const) {
       test.setTimeout(420_000)
       await open(page, testInfo, BROKEN)
       const closed = page.getByRole("button", { name: "Calendars, Google needs connecting again" })
-      await expect(closed.locator("[data-google-broken]")).toBeVisible({ timeout: 60_000 })
+      await expect(closed.locator("[data-sync-broken]")).toBeVisible({ timeout: 60_000 })
       await shot(page, "c9-broken-closed", theme)
       await closed.click()
       const panel = page.locator("[data-calendars-panel]")

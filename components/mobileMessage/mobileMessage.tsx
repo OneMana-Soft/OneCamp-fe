@@ -22,6 +22,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GroupedReaction, StandardReaction, SyncCustomReaction } from "@/types/reaction";
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { COPIED } from "@/lib/chat/messageActionLabels";
 import { useCallback, useEffect, useRef, memo } from "react";
 import { useEditInPlace } from "@/hooks/useEditInPlace";
 import { useStableCallback } from "@/hooks/useStableCallback";
@@ -114,7 +115,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     const copyText = useCallback(() => {
         const t = removeHtmlTags(body)
 
-        copyToClipboard.copy(t, 'copied body text')
+        copyToClipboard.copy(t, COPIED.text)
     }, [body, copyToClipboard]);
 
     const handleLongPressPostComment = useCallback(() => {

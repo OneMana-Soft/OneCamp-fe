@@ -115,6 +115,7 @@ export function Toaster() {
             data-index={index}
             data-behind={index > 0 ? "" : undefined}
             data-tone={resolvedTone}
+            data-stays={Number.isFinite(ms) ? undefined : ""}
             style={
               {
                 "--toast-i": index,

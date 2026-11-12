@@ -12,7 +12,6 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { DashboardWidget } from "@/components/dashboards/DashboardWidget"
-import { WidgetDialog } from "@/components/dashboards/WidgetDialog"
 import { VIEWS } from "@/components/project/overviewViews"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { WorkTabs } from "@/components/task/WorkTabs"
@@ -34,6 +33,11 @@ import { areaHue } from "@/lib/areas"
 import { MAX_NAME, MAX_WIDGETS, dashboardHref, flowPlaces, moved, ordered, samePlaces, scopeWords, type Dashboard, type DashboardScope, type Widget } from "@/lib/dashboards"
 import { Globe, LayoutDashboard, Lock, Pencil, Plus, Trash2, Users } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { lazyDialog } from "@/lib/lazy/lazyDialog"
+
+// The widget editor is fetched the first time it opens: the page's first load
+// carries the widgets, not the editor (V-49).
+const WidgetDialog = lazyDialog(() => import("@/components/dashboards/WidgetDialog").then((m) => m.WidgetDialog), "the widget editor")
 
 const MINE = "mine-and-workspace"
 
@@ -266,7 +270,14 @@ function DashboardView({ id, compact, onGone }: { id: string; compact: boolean; 
         <DashboardDialog editing={dashboard} places={[{ scope: dashboard.scope, label: "" }]} onSave={(input) => one.change(input)} onClose={() => setDialog(null)} />
       )}
       {(dialog === "add" || (dialog && typeof dialog === "object")) && (
-        <WidgetDialog editing={typeof dialog === "object" ? dialog : undefined} inProject={dashboard.scope === "project"} onSave={saveWidget} onClose={() => setDialog(null)} />
+        <WidgetDialog
+          editing={typeof dialog === "object" ? dialog : undefined}
+          viewName={typeof dialog === "object" ? results.get(dialog.id)?.view : undefined}
+          project={dashboard.scope === "project" ? dashboard.project_id : undefined}
+          others={dashboard.scope !== "mine"}
+          onSave={saveWidget}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   )

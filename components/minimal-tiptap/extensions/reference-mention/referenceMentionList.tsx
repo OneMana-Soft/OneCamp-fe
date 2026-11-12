@@ -8,6 +8,8 @@ import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { CommandList, CommandTile, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { chipAllowed, suggestionPopup, type SuggestionListExtras } from "../suggestion-popup"
+import type { HitRef, HitRefKind } from "@/lib/search/hitRef"
+import type { SearchResult } from "@/services/searchService"
 import {
   encodeReferenceId,
   isDocEditor,
@@ -18,52 +20,31 @@ import {
   type ReferenceType,
 } from "./referenceTypes"
 
+/** Who a hit's second line names after its kind: who made the doc or board, who has the task. */
+const madeBy: Record<HitRefKind, (r: SearchResult) => string | undefined> = {
+  doc: (r) => r.doc?.doc_created_by_user_full_name,
+  board: (r) => r.board?.board_created_by_user_full_name,
+  task: (r) => r.task?.task_assignee_user_full_name,
+  project: () => undefined,
+}
+
 // Maps a raw unified-search hit to a compact ReferenceItem for the chosen
 // trigger. Returns null for hits that don't apply (so one search call can back
-// both the # and + pickers by filtering to the requested types).
-function mapSearchResult(result: any, types: ReferenceType[]): ReferenceItem | null {
+// both the # and + pickers by filtering to the requested types). A doc, board,
+// task or project is read as every picker that links one reads it
+// (lib/search/hitRef, handed in as readHit); its second line is this picker's own.
+function mapSearchResult(result: any, types: ReferenceType[], readHit: (r: SearchResult) => HitRef | null): ReferenceItem | null {
   const type = result?.type as string
   if (!types.includes(type as ReferenceType)) return null
-
-  switch (type) {
-    case "channel":
-      if (!result.channel?.ch_id || !result.channel?.ch_name) return null
-      return { routeId: result.channel.ch_id, label: result.channel.ch_name, refType: "channel" }
-    case "doc":
-      if (!result.doc?.doc_uuid) return null
-      return {
-        routeId: result.doc.doc_uuid,
-        label: result.doc.doc_title || "Untitled doc",
-        refType: "doc",
-        subtitle: result.doc.doc_created_by_user_full_name ? `Doc · ${result.doc.doc_created_by_user_full_name}` : "Doc",
-      }
-    case "board":
-      if (!result.board?.board_uuid) return null
-      return {
-        routeId: result.board.board_uuid,
-        label: result.board.board_title || "Untitled board",
-        refType: "board",
-        subtitle: result.board.board_created_by_user_full_name ? `Board · ${result.board.board_created_by_user_full_name}` : "Board",
-      }
-    case "task":
-      if (!result.task?.task_id) return null
-      return {
-        routeId: result.task.task_id,
-        label: result.task.task_name || "Untitled task",
-        refType: "task",
-        subtitle: result.task.task_assignee_user_full_name ? `Task · ${result.task.task_assignee_user_full_name}` : "Task",
-      }
-    case "project":
-      if (!result.project?.project_id) return null
-      return {
-        routeId: result.project.project_id,
-        label: result.project.project_name || "Untitled project",
-        refType: "project",
-        subtitle: "Project",
-      }
-    default:
-      return null
+  if (type === "channel") {
+    if (!result.channel?.ch_id || !result.channel?.ch_name) return null
+    return { routeId: result.channel.ch_id, label: result.channel.ch_name, refType: "channel" }
   }
+  const hit = readHit(result)
+  if (!hit) return null
+  const word = referenceTypeLabel(hit.kind)
+  const who = madeBy[hit.kind](result)
+  return { routeId: hit.id, label: hit.title, refType: hit.kind, subtitle: who ? `${word} · ${who}` : word }
 }
 
 /** The workspace's docs, boards, tasks, projects or channels called something, as the reader may see them (global search). */
@@ -71,11 +52,17 @@ export async function searchReferences(query: string, types: ReferenceType[]): P
   const q = query.trim()
   if (!q) return []
   try {
-    const res = await axiosInstance.post(PostEndpointUrl.GlobalSearch, { global_search_text: q })
+    // hitRef comes with the search, not with the editor: the editor's own
+    // chunks never carry it (the entity-link search and a table's link cell,
+    // both lazy, do), so linking it here re-splits none of them.
+    const [res, { hitRef }] = await Promise.all([
+      axiosInstance.post(PostEndpointUrl.GlobalSearch, { global_search_text: q }),
+      import("@/lib/search/hitRef"),
+    ])
     const page: any[] = res?.data?.data?.page ?? res?.data?.page ?? []
     const items: ReferenceItem[] = []
     for (const hit of page) {
-      const mapped = mapSearchResult(hit, types)
+      const mapped = mapSearchResult(hit, types, hitRef)
       if (mapped) items.push(mapped)
       if (items.length >= 8) break
     }
@@ -172,9 +159,11 @@ interface MakeReferenceSuggestionArgs {
   char: string
   types: ReferenceType[]
   pluginKey: PluginKey
-  emptyHint: string
+  emptyHint?: string
   /** The chip's node ("channelMention", "entityMention"): the menu opens only where it can go. */
   nodeName: string
+  /** Opens once a letter follows: "+1" is text. */
+  letterFirst?: boolean
 }
 
 // Builds a Tiptap mention suggestion config for a non-user trigger. The popup
@@ -184,16 +173,18 @@ export function makeReferenceSuggestion({
   char,
   types,
   pluginKey,
-  emptyHint,
+  emptyHint = "",
   nodeName,
+  letterFirst,
 }: MakeReferenceSuggestionArgs): MentionOptions["suggestion"] {
   const debouncedFetch = createDebouncedFetcher(types)
+  const canGo = chipAllowed(nodeName)
   return {
     char,
     pluginKey,
     items: async ({ query }: { query: string }) => debouncedFetch(query),
     // "#" or "+" in code is code (a heading anchor, an addition), not a chip.
-    allow: chipAllowed(nodeName),
+    allow: (p) => canGo(p) && (!letterFirst || /^(\p{L}|$)/u.test(p.state.doc.textBetween(p.range.from, p.range.to).slice(char.length))),
     render: suggestionPopup({
       component: forwardRef<ReferenceListRef, ReferenceListProps>(function ReferenceMenu(props, ref) {
         return <ReferenceList {...props} ref={ref} />
@@ -202,6 +193,8 @@ export function makeReferenceSuggestion({
         emptyHint,
         listLabel: types.includes("channel") ? "Link a channel" : "Link a doc, board, task or project",
       }),
+      // Started at the bare trigger (its empty search answers at once), shown at the letter.
+      isEmpty: (p) => !!letterFirst && !p.query,
     }),
   }
 }

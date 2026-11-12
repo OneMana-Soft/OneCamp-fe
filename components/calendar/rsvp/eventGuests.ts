@@ -9,7 +9,7 @@ import type { CalendarEventInterface, EventGuest, EventProposal } from "@/types/
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { answerCounts, answerOfMe, countsLine, inAnswerOrder, outsiderName, type AnswerCounts } from "@/lib/calendar/answers"
+import { answerCounts, answerOfMe, countsLine, inAnswerOrder, outsiderName, responseOf, type AnswerCounts } from "@/lib/calendar/answers"
 import { FACES_BEFORE_FOLD, type FaceGuest } from "@/components/calendar/rsvp/guestFaces"
 
 export interface EventGuests {
@@ -65,6 +65,17 @@ export function eventGuests(event: CalendarEventInterface, selfId: string | unde
 export function asksAnswer(event: CalendarEventInterface, guests: EventGuests, selfId: string | undefined, ended: boolean): boolean {
   const organiser = !event.event_created_by || (!!selfId && event.event_created_by.user_uuid === selfId)
   return !event.event_uuid.startsWith("gcal-") && !organiser && guests.answered && guests.mine !== undefined && !ended
+}
+
+/**
+ * The guests who said no, for the organiser's offer of a better time under
+ * the guests (gcal-16): only for the organiser (never a guest, even one the
+ * organiser lets change the event), of an event that keeps answers, isn't a
+ * Google copy and is still to come or under way. Pure.
+ */
+export function cantGo(g: EventGuests, at: { organiser: boolean; google: boolean; ended: boolean }): FaceGuest[] {
+  if (!at.organiser || at.google || at.ended || !g.answered) return []
+  return g.faces.filter((f) => !f.organiser && responseOf(f.response) === "declined")
 }
 
 /** Whether the Guests row folds to faces and the counts: above four guests, the organiser not counted. */

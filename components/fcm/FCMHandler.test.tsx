@@ -119,6 +119,15 @@ describe("a push while the app is open", () => {
     push({ type: "chat", type_id: `b0b00000-0000-4000-8000-00000000000b ${SELF}`, thread_id: "j1" })
     expect(previews).toHaveBeenCalledTimes(1)
   })
+
+  // A4 H3: Send me a test is asked for on Settings > Notifications, so its notice must show there. It opened that
+  // page, the page being read, so its preview was taken for one already on screen and the test showed nothing.
+  it("raises one for Send me a test on the page it was sent from", async () => {
+    await show()
+    at("/app/settings/notifications")
+    push({ type: "notify_test", title: "Test notification", body: "Notifications reach you here." })
+    expect(previews).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe("the device's push token", () => {

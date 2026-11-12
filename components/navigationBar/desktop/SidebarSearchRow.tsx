@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { Search } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
@@ -22,7 +22,7 @@ import { useModKey } from "@/hooks/useModKey"
  * panel (⌘J). Where AI is off the button is absent and the pill reads
  * "Search": no dead controls.
  */
-export function SidebarSearchRow() {
+export const SidebarSearchRow = memo(function SidebarSearchRow() {
   const dispatch = useDispatch()
   const mod = useModKey()
   const aiAvailable = useAIAvailable()
@@ -73,4 +73,4 @@ export function SidebarSearchRow() {
       </FeatureGate>
     </div>
   )
-}
+})

@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -10,7 +9,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BarChart3, SlidersHorizontal } from "@/lib/icons"
+import { SlidersHorizontal } from "@/lib/icons"
+import { InsightsMenuItem } from "@/components/task/insightsLink"
 import { useFetch } from "@/hooks/useFetch"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -18,7 +18,7 @@ import { boardQuery, insightsHref } from "@/lib/board/boardQuery"
 import type { TaskInfoInterface } from "@/types/task"
 import { accessOf, canEditTask } from "@/lib/work/access"
 import { mayMoveInto } from "@/lib/board/moveInto"
-import { useMyId } from "@/hooks/useMyId"
+import { useMyId, useWorkspaceAdmin } from "@/hooks/useMyId"
 import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
@@ -52,7 +52,7 @@ import { useProjectTypes } from "@/hooks/useProjectTypes"
 import { setTaskType, typeMade } from "@/lib/work/keysApi"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { assigneeLanes, priorityLanes, type BoardLanes } from "@/lib/board/lanes"
+import { assigneeLanes, laneToPriority, priorityLanes, type BoardLanes } from "@/lib/board/lanes"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { priorities } from "@/types/table"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -63,12 +63,11 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import { WorkState } from "@/components/task/workFrame"
 import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
 import { ErrorState } from "@/components/ui/error-state"
-import { EmptyState } from "@/components/ui/empty-state"
-import { SpotTasks } from "@/components/ui/graphics/spots"
-import { useProjectHue } from "@/lib/projectHue"
+import { NoProjectTasks } from "@/components/project/noProjectTasks"
 import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useMedia } from "@/context/MediaQueryContext"
 import { app_task_path } from "@/types/paths"
+import { inReaderZone } from "@/lib/tasks/readerZone"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -84,7 +83,6 @@ function PriorityMark({ value }: { value: string }) {
 }
 
 export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: string; className?: string }) => {
-    const projectHue = useProjectHue(projectId)
     const moveTask = useMoveTask()
     const { reassign, setPriority } = useTaskFields()
     // Status columns, one column per person (Linear's "group by assignee"), or per type (linear-03).
@@ -107,14 +105,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     const [globalFilter, setGlobalFilter] = useState("")
     const search = useDebounce(globalFilter, 300)
     const [tagFilter, setTagFilter] = useState<string[]>([])
-    const [viewableStatus, setColumnShown] = useBoardColumns({
-        backlog: false,
-        todo: true,
-        inProgress: true,
-        inReview: false,
-        done: true,
-        canceled: false,
-    })
+    const [viewableStatus, setColumnShown] = useBoardColumns(projectId || undefined)
 
     const urlParam = boardQuery(columnFilters, search)
     const closed = useClosedLimit()
@@ -122,6 +113,9 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     const open = useOpenLimit()
     const projectInfo = useFetch<ProjectInfoRawInterface>(
         projectId ? withQuery(`${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}`, urlParam, closed.param, open.param) : "",
+        undefined,
+        undefined,
+        inReaderZone(),
     )
     const p = projectInfo.data?.data
     const post = usePost()
@@ -138,7 +132,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                 : { task_name: name, task_project_uuid: projectId, task_status: grouping === "type" ? "todo" : column }
         if (grouping === "status" && lane !== undefined) {
             if (laneBy === "assignee") payload.task_assignee_uuid = forPerson(lane)
-            if (laneBy === "priority") payload.task_priority = lane
+            if (laneBy === "priority") payload.task_priority = laneToPriority(lane)
         }
         const typeId = grouping === "type" ? typeMove({}, column, byType?.options ?? []) : undefined
         const res = await post.makeRequest<typeof payload, { task_uuid?: string }>({
@@ -155,6 +149,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     // Which tasks the reader changes, adds and how the board is set up are
     // the server's answer (Work Access).
     const me = useMyId()
+    const admin = useWorkspaceAdmin()
     const access = accessOf(p)
     // A phone has no panel beside the board: a card opens the task's page,
     // as a row of the Tasks tab does. It dispatched the panel there, which a
@@ -330,7 +325,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                 </WorkState>
             ) : noTasks ? (
                 <WorkState className="px-4 sm:px-0">
-                    <EmptyState illustration={<SpotTasks hue={projectHue} />} title="No tasks yet" description="Create one and it shows here." />
+                    <NoProjectTasks projectId={projectId} canCreate={access.create_tasks} admin={admin} />
                 </WorkState>
             ) : (
             <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className="flex-1 overflow-hidden">
@@ -376,7 +371,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                     void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))
                                     // Into another row as well: it changes hands, or priority.
                                     if (!lane || lane.from === lane.to) return
-                                    if (laneBy === "priority") void setPriority(task.task_uuid, projectId, lane.to)
+                                    if (laneBy === "priority") void setPriority(task.task_uuid, projectId, laneToPriority(lane.to))
                                     else void reassign(task.task_uuid, projectId, lane.to === NO_ASSIGNEE ? null : members?.find((m) => m.user_uuid === lane.to) ?? null)
                                 }}
                                 lanes={lanes}
@@ -444,15 +439,7 @@ function BoardDisplayMenu({
             <DropdownMenuContent align="end" className="w-[200px]">
                 {/* Insights (B9-b1): the project's report, narrowed to this board's filters and search. First, so it
                     shows without scrolling: the menu runs past the fold at 1280x860 with a project's statuses. */}
-                <DropdownMenuItem asChild>
-                    <Link href={insights} className="gap-2">
-                        <BarChart3 className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                            Insights for this view
-                            {tagsLeftOut && <span className="block text-xs text-ink-3">without the tag filter</span>}
-                        </span>
-                    </Link>
-                </DropdownMenuItem>
+                <InsightsMenuItem href={insights} note={tagsLeftOut ? "without the tag filter" : undefined} />
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Group by</DropdownMenuLabel>
                 <DropdownMenuSeparator />

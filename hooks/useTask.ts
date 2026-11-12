@@ -14,6 +14,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoRawInterface } from "@/types/task"
 import type { WorkTask } from "@/lib/work/types"
+import { inReaderZone } from "@/lib/tasks/readerZone"
 
 export interface TaskState {
   task?: WorkTask
@@ -22,7 +23,7 @@ export interface TaskState {
 }
 
 export function useTask(id: string | null | undefined): TaskState {
-  const { data, isError, mutate } = useFetch<TaskInfoRawInterface>(id ? `${GetEndpointUrl.GetTaskInfo}/${id}` : "")
+  const { data, isError, mutate } = useFetch<TaskInfoRawInterface>(id ? `${GetEndpointUrl.GetTaskInfo}/${id}` : "", undefined, undefined, inReaderZone())
   return useMemo(
     () => ({
       task: data?.data,

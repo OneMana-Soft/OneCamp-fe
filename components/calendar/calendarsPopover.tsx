@@ -9,8 +9,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -22,15 +24,22 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { dayKey, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { Progress } from "@/components/ui/progress";
-import { googleSyncLine, googleSyncNext, useGoogleSync } from "@/lib/calendar/googleSync";
+import { OutlookOff, OutlookUnloaded } from "@/components/calendar/outlookOff";
+import { SYNC, syncLine, syncNext, useCalendarSync, useConnectorLink, type SyncProvider } from "@/lib/calendar/calendarSync";
+import { OutlookMark } from "@/components/ui/graphics/OutlookMark";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import type { UserProfileInterface } from "@/types/user";
 import { SaysLoadFailure } from "@/lib/http/loadFailure";
 import { GoogleMark } from "@/components/ui/graphics/GoogleMark";
 import { OWN_HUE } from "@/components/calendar/calendarTones";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
 import { apiErrorMessage } from "@/lib/utils/apiError";
+import { DefaultReminders, MINE } from "@/components/calendar/defaultReminders";
+import { CalendarTrash, warmCalendarTrash } from "@/components/calendar/calendarTrash";
 import { lazyView } from "@/lib/lazy/lazyView";
 import { CAMP_SWATCHES } from "@/components/ui/campSwatches";
-import { calendarListUrl, type CalendarView } from "@/lib/calendar/calendarList";
+import { calendarListUrl, readOnlyIn, type CalendarView } from "@/lib/calendar/calendarList";
+import { LockLine } from "@/components/calendar/visibilityLine";
 import type { CalendarView as ShownView } from "@/components/calendar/calendarApp";
 import { refreshSubscription, subscriptionWords, unsubscribe, useSubscriptions } from "@/lib/calendar/subscriptions";
 import { useSWRConfig } from "swr";
@@ -141,6 +150,8 @@ export interface CalendarRow {
   failed?: boolean;
   onToggle: () => void;
   onOnly?: () => void;
+  /** "Read-only in Google" (or Outlook): its provider lets OneCamp only read it (V-594), said atop its menu. */
+  readOnly?: string;
   menu?: ReactNode;
 }
 
@@ -230,6 +241,15 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
+            {row.readOnly ? (
+              // A status, not an action: a label the keys pass over, with the private line's lock, then a hairline.
+              <>
+                <DropdownMenuLabel className="font-normal" data-calendar-read-only="">
+                  <LockLine>{row.readOnly}</LockLine>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             {row.onOnly ? <DropdownMenuItem onSelect={row.onOnly}>Show only this</DropdownMenuItem> : null}
             {row.menu}
           </DropdownMenuContent>
@@ -311,6 +331,10 @@ export function CalendarsPanel({
     });
   const share = (calendar?: { id: string; name: string }) =>
     onDialog?.((close) => <SharePart.View fallback={null} render={(m) => <m.default calendar={calendar} onClose={close} />} />);
+  // A calendar's default reminders for the reader (head A): "mine" is their own and their invitations.
+  const defaultsOf = (calendar: { id: string; name: string }) => onDialog?.((close) => <DefaultReminders calendar={calendar} onClose={close} />);
+  // Your own deleted events, the last 30 days of them (calendar head B).
+  const trash = () => onDialog?.((close) => <CalendarTrash onClose={close} />);
   // A calendar in Google Calendar, Apple Calendar or Outlook (B8): its secret link.
   const elsewhere = (calendar?: { id: string; name: string }) =>
     onDialog?.((close) => <FeedPart.View fallback={null} render={(m) => <m.default calendar={calendar} onClose={close} />} />);
@@ -318,6 +342,11 @@ export function CalendarsPanel({
   // the events read again after each, and once a first read has brought its events.
   const subs = useSubscriptions(!!others?.mine.some((c) => c.kind === "subscribed"), onImported);
   const { mutate } = useSWRConfig();
+  // A move that finished brought calendars: the list is read again, so they're there to show or hide.
+  const moved = () => {
+    void mutate(calendarListUrl);
+    onImported?.();
+  };
   const reread = () => {
     void mutate(calendarListUrl);
     subs.refresh();
@@ -369,6 +398,8 @@ export function CalendarsPanel({
     failed: !!others?.error && !c.mine && !others.hidden.includes(c.id),
     onToggle: () => others?.toggle(c.id),
     onOnly: () => others?.only(c.id),
+    // Moved from Google or Outlook, where it is see-only (V-594): no new event goes on it.
+    readOnly: readOnlyIn(c) || undefined,
     warning: c.kind === "subscribed" ? subs.byCalendar.get(c.id)?.error : undefined,
     menu:
       c.kind === "subscribed" ? (
@@ -384,6 +415,7 @@ export function CalendarsPanel({
         <>
           {c.access === "manage" && !c.container_kind && onDialog ? <DropdownMenuItem onSelect={() => share(c.mine && c.kind === "personal" ? undefined : c)}>Share</DropdownMenuItem> : null}
           {onDialog ? <DropdownMenuItem onSelect={() => elsewhere(c)}>Show in another app</DropdownMenuItem> : null}
+          {onDialog && c.kind !== "external" ? <DropdownMenuItem onSelect={() => defaultsOf(c)}>Default reminders</DropdownMenuItem> : null}
           {others ? <ColourMenu value={others.hues[c.id] ?? ""} onChange={(h) => others.recolour(c.id, h)} /> : null}
           {extra}
         </>
@@ -417,6 +449,10 @@ export function CalendarsPanel({
                     <>
                       <DropdownMenuItem onSelect={() => share()}>Share</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => elsewhere()}>Show in another app</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => defaultsOf(MINE)}>Default reminders</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => trash()} onPointerEnter={() => void warmCalendarTrash()}>
+                        Trash
+                      </DropdownMenuItem>
                     </>
                   ) : (
                     r.menu
@@ -456,50 +492,57 @@ export function CalendarsPanel({
         <ArrowUpDown className="size-4 text-ink-3" aria-hidden="true" />
         <span className="flex-1">Import and export</span>
       </button>
-      {googleConnected ? <GoogleSection account={googleAccount} busy={busy} onConnect={connectGoogle} onDisconnect={disconnectGoogle} onMoved={onImported} /> : null}
-      {googleConnected ? null : (
-        <button
-          type="button"
-          onClick={connectGoogle}
-          disabled={busy}
-          className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11"
-        >
-          <GoogleMark className="size-4 shrink-0" />
-          <span className="flex-1">Connect Google Calendar</span>
-          <Plus className="size-3.5 text-ink-3" aria-hidden="true" />
-        </button>
+      {googleConnected ? (
+        <SyncSection provider="google" mark={<GoogleMark className="size-4 shrink-0" />} account={googleAccount} busy={busy} onConnect={connectGoogle} onDisconnect={disconnectGoogle} onMoved={moved} />
+      ) : (
+        <ConnectRow provider="google" mark={<GoogleMark className="size-4 shrink-0" />} onConnect={connectGoogle} busy={busy} />
       )}
+      <OutlookTile confirm={confirm} onMoved={moved} />
     </div>
   );
 }
 
+/** Connecting a calendar provider: its mark, "Connect Google Calendar", and a plus. */
+function ConnectRow({ provider, mark, onConnect, busy }: { provider: SyncProvider; mark: ReactNode; onConnect: () => void; busy?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onConnect}
+      disabled={busy}
+      data-sync-tile={provider}
+      className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11"
+    >
+      {mark}
+      <span className="flex-1">Connect {SYNC[provider].calendar}</span>
+      <Plus className="size-3.5 text-ink-3" aria-hidden="true" />
+    </button>
+  );
+}
+
 /**
- * Google Calendar once connected (calendar B6): its mark and name, with the
- * account and how it stands (the move's progress, then how long since both
- * were in step) as its status line; moving everything from Google while
+ * A calendar provider once connected (Google B6, Outlook B7): its mark and
+ * name, with the account and how it stands (the move's progress, then how
+ * long since both were in step) as its status line; moving everything while
  * nothing has moved, or, once it stopped answering (C9), the line says so
- * in danger ink and connecting Google again is the one thing to do, in brand
+ * in danger ink and connecting it again is the one thing to do, in brand
  * ink; and Disconnect, last and quiet.
  */
-function GoogleSection({ account, busy, onConnect, onDisconnect, onMoved }: { account?: string; busy?: boolean; onConnect: () => void; onDisconnect: () => void; onMoved?: () => void }) {
-  const { sync, ready, starting, error, start, words } = useGoogleSync(onMoved);
+function SyncSection({ provider, mark, account, busy, onConnect, onDisconnect, onMoved }: { provider: SyncProvider; mark: ReactNode; account?: string; busy?: boolean; onConnect: () => void; onDisconnect: () => void; onMoved?: () => void }) {
+  const { sync, ready, starting, error, start, words } = useCalendarSync(provider, onMoved);
+  const { name, calendar } = SYNC[provider];
   const moving = sync?.state === "moving";
-  const status = googleSyncLine(account, sync);
-  const next = googleSyncNext(sync);
+  const status = syncLine(provider, account ?? sync?.account, sync) || "Connected";
+  const next = syncNext(provider, sync);
   return (
-    <div className="grid" data-google-sync={sync?.state ?? "none"}>
+    <div className="grid" data-sync-tile={provider} {...{ [`data-${provider}-sync`]: sync?.state ?? "none" }}>
       <div className="flex items-start gap-2.5 px-1.5 py-1.5">
-        <span className="flex h-5 items-center">
-          <GoogleMark className="size-4 shrink-0" />
-        </span>
+        <span className="flex h-5 items-center">{mark}</span>
         <div className="grid min-w-0 flex-1 gap-0.5">
-          <p className="text-ui leading-5 text-ink">Google Calendar</p>
-          {status ? (
-            <p className={cn("line-clamp-2 break-words text-meta", sync?.state === "broken" ? "text-danger-ink" : "text-ink-3")} role="status" data-google-account="">
-              {status}
-            </p>
-          ) : null}
-          {moving ? <Progress value={sync.progress} className="mt-1 h-1" aria-label="Moving from Google" /> : null}
+          <p className="text-ui leading-5 text-ink">{calendar}</p>
+          <p className={cn("line-clamp-2 break-words text-meta", sync?.state === "broken" ? "text-danger-ink" : "text-ink-3")} role="status" {...{ [`data-${provider}-account`]: "" }}>
+            {status}
+          </p>
+          {moving ? <Progress value={sync.progress} className="mt-1 h-1" aria-label={`Moving from ${name}`} /> : null}
         </div>
       </div>
       {next ? (
@@ -524,9 +567,70 @@ function GoogleSection({ account, busy, onConnect, onDisconnect, onMoved }: { ac
         disabled={busy}
         className="flex h-7 items-center rounded-lg pl-8 pr-1.5 text-left text-meta text-ink-3 outline-none hover:bg-hover hover:text-danger-ink focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11"
       >
-        Disconnect Google Calendar
+        Disconnect {calendar}
       </button>
     </div>
+  );
+}
+
+/**
+ * Outlook Calendar beside Google's (B7): off, in words, until the admin adds
+ * a Microsoft app; then Connect, through the connectors and back to the
+ * calendar; once linked, the same section as Google's. A person links only
+ * their own account; only an admin is shown how to add the app. A read that
+ * failed says so in one quiet line (CR-B22 G1); while loading, nothing.
+ */
+function OutlookTile({ confirm, onMoved }: { confirm?: (o: { title: string; description: string; confirmText?: string; destructive?: boolean; onConfirm: () => void | Promise<void> }) => void; onMoved?: () => void }) {
+  const { sync, failed } = useCalendarSync("microsoft");
+  const off = sync?.available === false;
+  const link = useConnectorLink("microsoft", !!sync?.available);
+  const profile = useFetchOnlyOnce<UserProfileInterface>(off ? GetEndpointUrl.SelfProfile : "");
+  const mark = <OutlookMark className="size-4 shrink-0" />;
+  const connect = () => void link.connect();
+  if (failed || link.failed) {
+    return (
+      <p className="flex h-8 items-center gap-2.5 px-1.5 text-meta text-ink-3" data-sync-tile="microsoft">
+        {mark}
+        <OutlookUnloaded />
+      </p>
+    );
+  }
+  if (!sync) return null;
+  if (off) {
+    const admin = !!profile.data?.data?.user_is_admin;
+    return (
+      <div className="grid" data-sync-tile="microsoft">
+        <div className="flex items-start gap-2.5 px-1.5 py-1.5">
+          <span className="flex h-5 items-center">{mark}</span>
+          <div className="grid min-w-0 flex-1 gap-0.5">
+            <p className="text-ui leading-5 text-ink">Outlook Calendar</p>
+            <p className="text-meta text-ink-3 text-pretty">
+              <OutlookOff admin={admin} />
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (link.connected === undefined) return null;
+  if (!link.connected) return <ConnectRow provider="microsoft" mark={mark} onConnect={connect} busy={link.busy} />;
+  return (
+    <SyncSection
+      provider="microsoft"
+      mark={mark}
+      busy={link.busy}
+      onConnect={connect}
+      onMoved={onMoved}
+      onDisconnect={() =>
+        confirm?.({
+          title: "Disconnect Outlook Calendar?",
+          description: "OneCamp and Outlook stop keeping in step. What you moved from Outlook stays here. You can connect it again at any time.",
+          confirmText: "Disconnect Outlook Calendar",
+          destructive: true,
+          onConfirm: link.disconnect,
+        })
+      }
+    />
   );
 }
 

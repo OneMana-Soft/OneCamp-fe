@@ -98,3 +98,11 @@ describe("a custom view's length", () => {
     expect(["1d", "8d", "1w", "5w", "4", "", null, "4dd"].map(parseSpan)).toEqual(Array(8).fill(undefined))
   })
 })
+
+// CAL-40: a delete's Open Trash (lib/calendar/deleteEvent trashRoute) opens the calendar's Trash by its address.
+describe("the Trash in the address", () => {
+  it("is read as asked only when it says so", () => {
+    expect(calendarPlace(new URLSearchParams("date=2026-10-19&trash=1"))).toEqual({ date: new Date(2026, 9, 19), trash: true })
+    expect(calendarPlace(new URLSearchParams("trash=yes"))).toEqual({})
+  })
+})

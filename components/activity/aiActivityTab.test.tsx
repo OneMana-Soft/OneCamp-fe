@@ -7,7 +7,7 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   useAIAvailable: () => aiOn,
   useFeature: () => aiOn,
 }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, isLoading: false }) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, isLoading: false, mutate: async () => {} }) }))
 // The drill button shows only where the workspace has the drill set up; here it hasn't.
 vi.mock("@/services/governanceDrillService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/governanceDrillService")>()),
@@ -21,8 +21,10 @@ vi.mock("next/navigation", () => ({
 }))
 // The Inbox reads the right panel (the reading pane): closed here.
 vi.mock("react-redux", () => ({ useDispatch: () => () => {}, useSelector: () => undefined }))
-vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
-vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
+vi.mock("@/services/unreadCache", () => ({ recountInbox: () => {} }))
+vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => 0 }))
+// The From OneCamp AI group sits atop All too (V-577); its own test is components/ai/inboxNudges.
+vi.mock("@/components/ai/InboxNudges", () => ({ default: () => null }))
 vi.mock("@/components/activity/activityFeedList", () => ({
   ActivityFeedList: () => <div>other activity</div>,
 }))

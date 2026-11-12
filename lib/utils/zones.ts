@@ -21,14 +21,15 @@ export function timeZones(first: string = browserTZ()): string[] {
 }
 
 /**
- * A zone's name as Intl says it ("long", "longGeneric", "shortOffset"), or ""
- * when it can't. `keep` false builds a formatter that isn't kept: the zone
- * list asks once for each of some 420 zones.
+ * A zone's name as Intl says it ("long", "short", "longGeneric", "shortOffset"),
+ * at `at` (now when absent: "EDT" in July, "EST" in December), or "" when it
+ * can't. `keep` false builds a formatter that isn't kept: the zone list asks
+ * once for each of some 420 zones.
  */
-export function zoneName(tz: string, style: "long" | "longGeneric" | "shortOffset", keep = true): string {
+export function zoneName(tz: string, style: "long" | "short" | "longGeneric" | "shortOffset", keep = true, at?: Date): string {
   try {
     const f = keep ? dateTimeFormat("en-US", { timeZone: tz, timeZoneName: style }) : new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: style })
-    return f.formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""
+    return f.formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? ""
   } catch {
     return ""
   }

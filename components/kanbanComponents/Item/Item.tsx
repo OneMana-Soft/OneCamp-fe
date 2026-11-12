@@ -59,8 +59,6 @@ interface Props {
     task: TaskInfoInterface
     /** A status to show on the card, when its column does not already say it. */
     statusBadge?: string
-    /** Where the keyboard is on the board (lib/listKeys). */
-    highlighted?: boolean
     /** Picked for a change to many tasks at once. */
     selected?: boolean
     fadeIn?: boolean
@@ -316,7 +314,6 @@ export const Item = React.memo(
                 handleProps,
                 task,
                 statusBadge,
-                highlighted,
                 selected,
                 index,
                 listeners,
@@ -406,7 +403,8 @@ export const Item = React.memo(
                             "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sunken",
                             opened && !dragging && "bg-[color-mix(in_oklab,var(--brand-muted)_40%,var(--raised))] ring-[1.5px] ring-inset ring-brand",
                             selected && "bg-sel",
-                            highlighted && !opened && "ring-1 ring-inset ring-brand/45",
+                            // The keys' place (painted, lit:); lifted, the lift's ring, inset.
+                            !opened && (lifted ? "lit:ring-inset" : "lit:ring-1 lit:ring-inset lit:ring-brand/45"),
                             lifted && "ring-2 ring-brand shadow-e3",
                             // My Tasks: the project's 3px edge along the top, inside the radius.
                             edgeHue && ["before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:rounded-t-[10px] before:bg-hue before:content-['']", HUE_CLASS[edgeHue]],

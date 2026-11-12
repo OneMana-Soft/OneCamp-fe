@@ -1,10 +1,12 @@
-import { act } from "@testing-library/react"
+import { act, cleanup, fireEvent, within } from "@testing-library/react"
 import { forwardRef, type ReactNode } from "react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import rightPanelSlice from "@/store/slice/desktopRightPanelSlice"
 import splitSlice from "@/store/slice/splitSlice"
+import { openInSplit, setActive, setHere, setRoom, setSizes, setSplitOn } from "@/store/slice/splitActions"
+import { MAIN } from "@/lib/split"
 import { AppRouterProvider } from "@/lib/navigation/appRouter"
 import { renderAtAddress } from "@/lib/testing/nextAddress"
 import { LayoutContent } from "./LayoutContent"
@@ -43,6 +45,7 @@ const { draws, stub } = vi.hoisted(() => {
   }
 })
 const total = () => [...draws.values()].reduce((a, b) => a + b, 0)
+const drawn = () => [...draws.entries()].map(([k, n]) => `${k} ${n}`).join(", ")
 // The daily note's watch (AgentNoteOnOpen): how often it comes and goes.
 const notes = vi.hoisted(() => ({ mounted: 0, unmounted: 0 }))
 
@@ -59,7 +62,14 @@ vi.mock("@/components/banner/AdminBanners", () => ({ AdminBanners: stub("AdminBa
 vi.mock("@/components/banner/FeaturesNotice", () => ({ FeaturesNotice: stub("FeaturesNotice") }))
 vi.mock("@/context/LoadingContext", () => ({ SheetProgressBar: stub("SheetProgressBar") }))
 vi.mock("@/components/error/PanelErrorBoundary", () => ({ PanelErrorBoundary: stub("PanelErrorBoundary") }))
-vi.mock("@/components/rightPanel/rightPanel", () => ({ PreloadPanels: stub("PreloadPanels"), RightPanel: stub("RightPanel"), usePreloadPanels: () => undefined }))
+// The shell's TaskInPlace warms the task sheet once the page is idle (lib/offline/warmAhead) through panelLoaders: a
+// mock without it threw "No panelLoaders export" from that timer, as an unhandled error, whenever it fired in this file.
+vi.mock("@/components/rightPanel/rightPanel", () => ({
+  PreloadPanels: stub("PreloadPanels"),
+  RightPanel: stub("RightPanel"),
+  usePreloadPanels: () => undefined,
+  panelLoaders: { task: async () => ({ warmTaskParts: () => undefined }) },
+}))
 vi.mock("@/components/ui/PageTransition", () => ({ PageTransition: stub("PageTransition") }))
 vi.mock("@/components/ai/AgentNoteOnOpen", async () => {
   const { useEffect } = await import("react")
@@ -90,6 +100,8 @@ vi.mock("@/components/ui/resizable", () => ({
   }),
 }))
 
+afterEach(cleanup)
+
 function Page() {
   return <p>the page</p>
 }
@@ -109,7 +121,7 @@ async function shellAt(url: string) {
     url,
   )
   await settled()
-  return at
+  return { ...at, store }
 }
 
 /**
@@ -143,11 +155,68 @@ describe("the shell's render budget", () => {
     expect(total() - before).toBe(0)
   })
 
-  it("is counted: the shell draws again when the path moves (it follows the page)", async () => {
+  // H1, "the shell holds still" (FLUIDITY-LEAD-11, 5 Nov 2026): on a
+  // profiling build of beta 3750d5b14 the shell drew once or twice on every
+  // move and on the first click, and ~300 chrome components with it (Home
+  // 1,897 renders, Inbox 4,272). It read the path itself, and the whole split
+  // slice, so `here` (written on every move) and `used` (the first click's
+  // setActive) drew it though it draws neither. The sidebar and the page follow
+  // the path on their own.
+  it("draws the shell 0 times when the path moves", async () => {
+    const at = await shellAt("/app/home")
+    const before = total()
+    act(() => at.go("/app/inbox"))
+    act(() => at.go("/app/channel/c4a70000-0000-4000-8000-000000000002"))
+    act(() => at.go("/app/channel/c4a70000-0000-4000-8000-000000000003"))
+    await settled()
+    expect(total() - before, drawn()).toBe(0)
+  })
+
+  // FollowRoute, the leaf beside the shell, writes the page's own item to split's `here` on each move (going to an
+  // item open beside swaps the two, store/slice/splitSlice); the shell draws nothing for it (above).
+  it("writes the page's item to split's here when the path moves (FollowRoute)", async () => {
+    const at = await shellAt("/app/home")
+    const here = () => at.store.getState().split.here
+    expect(here()).toBeNull()
+    act(() => at.go("/app/channel/c4a70000-0000-4000-8000-000000000002"))
+    expect(here()).toEqual({ kind: "channel", id: "c4a70000-0000-4000-8000-000000000002" })
+    act(() => at.go("/app/doc/d0c50000-0000-4000-8000-000000000001"))
+    expect(here()).toEqual({ kind: "doc", id: "d0c50000-0000-4000-8000-000000000001" })
+    act(() => at.go("/app/inbox"))
+    expect(here()).toBeNull()
+  })
+
+  it("draws the shell 0 times on a split write that changes nothing it draws", async () => {
+    const at = await shellAt("/app/channel/c4a70000-0000-4000-8000-000000000002")
+    const before = total()
+    act(() => {
+      // The same item again, the switch as it is, the room as it is, sizes as they are.
+      at.store.dispatch(setHere({ kind: "channel", id: "c4a70000-0000-4000-8000-000000000002" }))
+      at.store.dispatch(setSplitOn(true))
+      at.store.dispatch(setRoom(at.store.getState().split.room))
+      at.store.dispatch(setSizes({}))
+      // The page, already the active view: only `used` learns it.
+      at.store.dispatch(setActive(MAIN))
+    })
+    expect(total() - before, drawn()).toBe(0)
+  })
+
+  it("draws the shell 0 times on the first pointerdown in the page", async () => {
+    const at = await shellAt("/app/home")
+    const before = total()
+    const page = within(at.container).getByText("the page")
+    act(() => void fireEvent.pointerDown(page))
+    act(() => void fireEvent.focusIn(page))
+    expect(total() - before, drawn()).toBe(0)
+  })
+
+  it("is counted: the shell draws again when what it draws moves (a view opened beside)", async () => {
     const at = await shellAt("/app/home")
     const before = draws.get("Shell") ?? 0
-    act(() => at.go("/app/inbox"))
-    expect((draws.get("Shell") ?? 0) - before).toBe(1)
+    act(() => void at.store.dispatch(openInSplit({ kind: "channel", id: "c4a70000-0000-4000-8000-000000000002" })))
+    expect((draws.get("Shell") ?? 0) - before).toBeGreaterThan(0)
+    await settled()
+    expect(at.container.querySelectorAll('[data-stub="SplitPane"]').length).toBe(1)
   })
 })
 

@@ -20,21 +20,31 @@ const DropdownMenu = DropdownMenuPrimitive.Root
 // A menu that joins on a press (components/ui/menuOnDemand) opens through it too.
 export function Press({ onPointerDown, onClick, ...props }: React.ComponentProps<typeof Slot>) {
   const held = React.useRef(false)
-  return (
-    <Slot
-      {...props}
-      onPointerDown={(e) => {
-        held.current = !e.defaultPrevented && !props["aria-expanded"] && !!window.matchMedia?.("(max-width: 639px), (pointer: coarse) and (max-height: 500px)").matches
-        if (held.current) e.preventDefault()
-        else onPointerDown?.(e)
-      }}
-      onClick={(e) => {
-        onClick?.(e)
-        if (held.current && !e.defaultPrevented) onPointerDown?.(e as never)
-        held.current = false
-      }}
-    />
-  )
+  return <Slot {...props} {...pressHandlers(held, !!props["aria-expanded"], { onPointerDown, onClick })} />
+}
+
+/**
+ * Press's two handlers, for a trigger that draws its own button and needs no
+ * Slot (menuOnDemand: Press, Slot and SlotClone are three components more in each task row).
+ * `held`: a ref the trigger keeps; `expanded`: whether its menu is open.
+ */
+export function pressHandlers<E extends Element>(
+  held: React.MutableRefObject<boolean>,
+  expanded: boolean,
+  own: { onPointerDown?: (e: React.PointerEvent<E>) => void; onClick?: (e: React.MouseEvent<E>) => void },
+) {
+  return {
+    onPointerDown: (e: React.PointerEvent<E>) => {
+      held.current = !e.defaultPrevented && !expanded && !!window.matchMedia?.("(max-width: 639px), (pointer: coarse) and (max-height: 500px)").matches
+      if (held.current) e.preventDefault()
+      else own.onPointerDown?.(e)
+    },
+    onClick: (e: React.MouseEvent<E>) => {
+      own.onClick?.(e)
+      if (held.current && !e.defaultPrevented) own.onPointerDown?.(e as never)
+      held.current = false
+    },
+  }
 }
 
 const DropdownMenuTrigger = ({ asChild, children, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) => (

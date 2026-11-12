@@ -31,7 +31,8 @@ import { TaskTableFieldFilter, warmFieldFilter } from "@/components/task/taskTab
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
-import { Filter, Plus, Search, SlidersHorizontal, Users } from "@/lib/icons"
+import axiosInstance from "@/lib/axiosInstance"
+import { Filter, Plus, Rocket, Search, SlidersHorizontal, Users } from "@/lib/icons"
 import { cycleFilter } from "@/lib/tasks/cycles"
 import type { Grouping } from "@/lib/tasks/grouping"
 import { DUE_WEEK } from "@/lib/tasks/listAddress"
@@ -135,7 +136,7 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
     const o = statusOpts.find((x) => x.value === v)
     return o ? (isBuiltInStatus(o.value) ? t(o.value, { defaultValue: o.label }) : o.label) : v
   }
-  const chips: { id: string; facet: string; words: string; glyph?: React.ReactNode }[] = []
+  const chips: { id: string; facet: string; words: React.ReactNode; glyph?: React.ReactNode }[] = []
   const status = valuesOf("task_status")
   if (status.length) {
     const first = statusOpts.find((o) => o.value === status[0])
@@ -151,6 +152,10 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
     const first = types.find((x) => x.id === kinds[0])
     chips.push({ id: "task_work_type", facet: "Type", words: kinds.map((v) => types.find((x) => x.id === v)?.name ?? "a type").join(", "), glyph: first ? <TaskTypeGlyph type={first} className="text-ink-2" decorative /> : undefined })
   }
+  // A project's releases (jira-04): the chip's words and the facet's list come with their chunk (releaseFacet).
+  const inRelease = valuesOf("task_release")
+  if (projectId && inRelease.length)
+    chips.push({ id: "task_release", facet: "Release", words: <ReleaseParts.View fallback="…" render={(m) => <m.ReleaseWords projectId={projectId} http={axiosInstance} chosen={inRelease} />} /> })
   const who = valuesOf("task_assignee_name")
   if (who.length) chips.push({ id: "task_assignee_name", facet: "Assignee", words: who.map((u) => displayNameOf(people2.find((p) => p.uid === u)) || "someone").join(", ") })
   const proj = valuesOf("task_project_name")
@@ -187,6 +192,9 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
       if (Date.now() - lastG < 1500) return
       const el = e.target as HTMLElement | null
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.closest("[role=dialog],[role=menu],[data-right-panel]"))) return
+      // Not the toolbar's key: no layout (checkVisibility).
+      const create = (e.key === "c" || e.key === "C" || e.altKey) && canCreate
+      if (e.key !== "/" && e.key !== "f" && e.key !== "F" && !create) return
       // Only the list that is on screen answers (a kept tab is hidden).
       if (!bar.current || !bar.current.checkVisibility?.()) return
       if (e.key === "/") {
@@ -196,7 +204,7 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault()
         setFilterOpen(true)
-      } else if ((e.key === "c" || e.key === "C" || e.altKey) && canCreate) {
+      } else if (create) {
         e.preventDefault()
         newTask(e)
       }
@@ -248,6 +256,14 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
                   <span className="truncate">{k.name}</span>
                 </DropdownMenuCheckboxItem>
               ))}
+            </FacetSub>
+          )}
+          {projectId && (
+            <FacetSub label="Release" glyph={<Rocket className="size-3.5 text-ink-3" />}>
+              <ReleaseParts.View
+                fallback={<ProjectTypesState loading failed={false} what="releases" />}
+                render={(m) => <m.ReleaseFacet projectId={projectId} http={axiosInstance} chosen={inRelease} onToggle={(id) => toggle("task_release", id)} State={ProjectTypesState} />}
+              />
             </FacetSub>
           )}
           {projectId ? (
@@ -351,6 +367,7 @@ export { WorkSegmented }
 // is a chunk of its own, with the app's select: a list's first screen draws
 // only the button (app/firstLoad.test.ts).
 const Display = lazyView(() => import("@/components/task/displayMenu"))
+const ReleaseParts = lazyView(() => import("@/components/task/releaseFacet"))
 /** Starts loading Display's body, as its button does on pointer or focus. */
 export const warmDisplay = () => Display.warm()
 

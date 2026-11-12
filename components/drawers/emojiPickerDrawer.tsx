@@ -152,10 +152,11 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
 
     return (
         <Drawer detent="half" open={localOpen} onOpenChange={(open) => { if (!open) close() }} repositionInputs={false}>
-            <DrawerContent data-emoji-sheet="">
+            {/* Its search stays at the top as the grid scrolls under it: that edge never fades (app/interaction.css, V-619). */}
+            <DrawerContent data-emoji-sheet="" data-pinned-top="">
                 <DrawerTitle className="sr-only">Pick an emoji</DrawerTitle>
                 <DrawerDescription className="sr-only">Search, or go to a group</DrawerDescription>
-                <div ref={headRef} className="sticky top-0 z-[1] bg-pop px-3 pb-1 pt-1">
+                <div ref={headRef} data-pins-top="" className="sticky top-0 z-[1] bg-pop px-3 pb-1 pt-1">
                     <SearchInput value={query} onValueChange={setQuery} placeholder="Search" aria-label="Search emoji" className="rounded-[10px]" />
                     {query ? null : (
                         <div role="group" aria-label="Emoji groups" data-vaul-no-drag="" className="mt-1.5 flex">

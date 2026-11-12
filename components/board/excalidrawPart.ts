@@ -44,17 +44,21 @@ export function useExcalidrawParts(host: HTMLElement | null, selector: string, o
   const [parts, setParts] = React.useState<readonly HTMLElement[]>(NONE)
   React.useEffect(() => {
     if (!on || !host) return setParts(NONE)
-    const look = () => {
-      const found = Array.from(host.querySelectorAll<HTMLElement>(selector))
-      setParts((prev) => (same(prev, found) ? prev : found))
-    }
-    look()
-    // Batched by the browser, and only for nodes added or removed.
-    const mo = new MutationObserver(look)
-    mo.observe(host, { childList: true, subtree: true })
-    return () => mo.disconnect()
+    return watchParts(host, selector, (found) => setParts((prev) => (same(prev, found) ? prev : found)))
   }, [host, selector, on])
   return parts
+}
+
+/**
+ * Hands `seen` every part inside `host` that `selector` matches, in the page's order: now, and again each time nodes
+ * are added or removed under it (batched by the browser), as parts come and go. Returns the stop.
+ */
+export function watchParts(host: Element, selector: string, seen: (parts: HTMLElement[]) => void): () => void {
+  const look = () => seen(Array.from(host.querySelectorAll<HTMLElement>(selector)))
+  look()
+  const mo = new MutationObserver(look)
+  mo.observe(host, { childList: true, subtree: true })
+  return () => mo.disconnect()
 }
 
 /** The first such part (Excalidraw's tool bar, its phone footer); null while it isn't there. */

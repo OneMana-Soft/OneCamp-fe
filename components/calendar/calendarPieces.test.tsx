@@ -13,6 +13,8 @@ vi.mock("@/hooks/usePost", () => ({
     isSubmitting: false,
   }),
 }))
+// Outlook's tile beside Google's (calendar B7) reads its link: none here.
+vi.mock("@/lib/calendar/calendarSync", async (orig) => ({ ...(await orig<typeof import("@/lib/calendar/calendarSync")>()), useCalendarSync: () => ({ sync: undefined, ready: false, starting: false, error: "", start: () => undefined, words: "" }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: { title: string; onConfirm: () => unknown }) => sent.confirms.push(opts) }))
 
 import { MonthView } from "./monthView"
@@ -253,6 +255,8 @@ describe("an event's own call", () => {
     return a
   }
   const CALL = { slug: "design-review-k3x9p2qa", address: "/r/design-review-k3x9p2qa" }
+  // Its own room (gcal-15), with guest access and its rooms on: a guest link may be added to it.
+  const ROOM = { join: "/app/meet/e/e3", guest_links: true }
   const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-0000000000a2", user_name: "Maya Chen" } as NonNullable<CalendarEventInterface["event_created_by"]>
   const ev = (over: Partial<CalendarEventInterface> = {}): CalendarEventInterface => ({
     event_uuid: "e3",
@@ -280,11 +284,11 @@ describe("an event's own call", () => {
 
   it("is offered to whoever may change the event: taken off once it has one, added while it has none, hasn't ended and has no link in its notes", () => {
     const may = { mayChange: true, google: false, ended: false }
-    expect(eventCallChoice(ev(), may)).toBe("add")
+    expect(eventCallChoice(ev({ event_room: ROOM }), may)).toBe("add")
     expect(eventCallChoice(ev({ event_call: CALL }), may)).toBe("remove")
     expect(eventCallChoice(ev({ event_call: CALL }), { ...may, ended: true })).toBe("remove")
-    expect(eventCallChoice(ev(), { ...may, ended: true })).toBeNull()
-    expect(eventCallChoice(ev({ event_description: "<p>Join https://meet.example.com/abc</p>" }), may)).toBeNull()
+    expect(eventCallChoice(ev({ event_room: ROOM }), { ...may, ended: true })).toBeNull()
+    expect(eventCallChoice(ev({ event_room: ROOM, event_description: "<p>Join https://meet.example.com/abc</p>" }), may)).toBeNull()
     expect(eventCallChoice(ev({ event_call: CALL }), { ...may, mayChange: false })).toBeNull()
     expect(eventCallChoice(ev({ event_call: CALL }), { ...may, google: true })).toBeNull()
   })
@@ -307,22 +311,104 @@ describe("an event's own call", () => {
     const join = screen.getByRole("link", { name: "Join call" })
     expect(join.getAttribute("href")).toBe("/app/meet/join/r/design-review-k3x9p2qa")
     expect(join.getAttribute("target")).toBeNull()
-    expect(screen.queryByRole("button", { name: "Add a call" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Add a guest link" })).toBeNull()
   })
 
-  it("is added from the card by its organiser, to an event with no call that hasn't ended", async () => {
-    render(<EventPopover event={ev()} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
-    fireEvent.click(screen.getByRole("button", { name: "Add a call" }))
+  // gcal-15: its own room takes the card's first action (Join call), so a guest link is added from More.
+  it("is added from the card's More by its organiser, to an event with no call that hasn't ended", async () => {
+    render(<EventPopover event={ev({ event_room: ROOM })} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    fireEvent.click(await moreItem("Add a guest link"))
     await waitFor(() => expect(sent.requests).toHaveLength(1))
-    expect(sent.requests[0]).toMatchObject({ method: "POST", appendToUrl: "/e3/call" })
+    expect(sent.requests[0]).toMatchObject({ method: "POST", appendToUrl: "/e3/call", failureTitle: "Couldn't add a guest link" })
   })
 
-  it("isn't offered on someone else's event, a subscribed calendar's, Google's, or one that has ended", () => {
+  it("isn't offered on someone else's event, a subscribed calendar's, Google's, one that has ended, or with guest access off", async () => {
     const ended = { event_start_time: new Date(2026, 9, 15, 8).toISOString(), event_end_time: new Date(2026, 9, 15, 9).toISOString() }
-    for (const e of [ev({ event_created_by: MAYA }), ev({ event_read_only: true }), ev({ event_uuid: "gcal-e3" }), ev(ended)]) {
+    const off = { event_room: { ...ROOM, guest_links: false } }
+    for (const e of [ev({ event_room: ROOM, event_created_by: MAYA }), ev({ event_room: ROOM, event_read_only: true }), ev({ event_room: ROOM, event_uuid: "gcal-e3" }), ev({ event_room: ROOM, ...ended }), ev(off)]) {
       const { unmount } = render(<EventPopover event={e} anchor={anchorEl()} now={now} selfId="5e1f0000-0000-4000-8000-0000000000ff" onClose={vi.fn()} onOpenFull={vi.fn()} />)
-      expect(screen.queryByRole("button", { name: "Add a call" }), e.event_uuid).toBeNull()
+      fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" })
+      await screen.findByRole("menu")
+      expect(screen.queryByRole("menuitem", { name: "Add a guest link" }), e.event_uuid).toBeNull()
+      expect(screen.queryByRole("button", { name: /Add a (call|guest link)/ }), e.event_uuid).toBeNull()
       unmount()
     }
+  })
+})
+
+/** The card's More menu, opened from the keyboard as Radix opens it in a test, and one of its items. */
+async function moreItem(name: string) {
+  fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" })
+  return screen.findByRole("menuitem", { name })
+}
+
+// gcal-15 head B: every OneCamp event has a call room, made the first time someone joins it. The event's read says
+// where a member joins it (event_room), and only to someone who may: Google's copy, own time (focus, away) and a
+// busy-only reader's Busy block come without one. One rule (lib/calendar/joinLink): a guest call going on is joined
+// at its door; else a call link its notes carry, where its people were told to meet; else its own room, in the app.
+describe("every event's call room (gcal-15)", () => {
+  const anchorEl = () => {
+    const a = document.createElement("button")
+    document.body.appendChild(a)
+    return a
+  }
+  const ORIGIN = "https://camp.example.com"
+  const ROOM = { join: "/app/meet/e/e4", guest_links: false }
+  const CALL = { slug: "roadmap-review-p4k8m2zq", address: "/r/roadmap-review-p4k8m2zq" }
+  const MEET = "<p>Join https://meet.example.com/abc</p>"
+  const ev = (over: Partial<CalendarEventInterface> = {}): CalendarEventInterface => ({
+    event_uuid: "e4",
+    event_title: "Roadmap review",
+    event_start_time: new Date(2026, 9, 15, 14, 0).toISOString(),
+    event_end_time: new Date(2026, 9, 15, 15, 0).toISOString(),
+    event_description: "",
+    ...over,
+  })
+
+  it("is joined in the app, at the event's own room, and that page is what a copy of the link shares", () => {
+    expect(eventCallOf(ev({ event_room: ROOM }), ORIGIN)).toEqual({ join: "/app/meet/e/e4", share: "https://camp.example.com/app/meet/e/e4", own: true })
+  })
+
+  it("gives way to a guest call going on, joined at its door, and to a call link its notes carry", () => {
+    expect(eventCallOf(ev({ event_room: ROOM, event_call: CALL }), ORIGIN)).toEqual({
+      join: "/app/meet/join/r/roadmap-review-p4k8m2zq",
+      share: "https://camp.example.com/r/roadmap-review-p4k8m2zq",
+      own: true,
+    })
+    expect(eventCallOf(ev({ event_room: ROOM, event_description: MEET }), ORIGIN)).toEqual({ join: "https://meet.example.com/abc", share: "https://meet.example.com/abc", own: false })
+  })
+
+  it("is none where the read gives no room: Google's copy, own time, a busy-only reader's Busy block", () => {
+    // Google's copy keeps the link its notes carry, as before.
+    expect(eventCallOf(ev({ event_uuid: "gcal-e4" }), ORIGIN)).toBeNull()
+    expect(eventCallOf(ev({ event_uuid: "gcal-e4", event_description: MEET }), ORIGIN)).toMatchObject({ join: "https://meet.example.com/abc", own: false })
+    expect(eventCallOf(ev({ event_is_focus: true, event_room: null }), ORIGIN)).toBeNull()
+    expect(eventCallOf(ev({ event_is_away: true }), ORIGIN)).toBeNull()
+    expect(eventCallOf(ev({ event_title: "Busy", event_visibility: "private", event_created_by: undefined }), ORIGIN)).toBeNull()
+  })
+
+  it("offers Join call on the card of a fresh event, in this tab, the primary from ten minutes before", () => {
+    const { unmount } = render(<EventPopover event={ev({ event_room: ROOM })} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const join = screen.getByRole("link", { name: "Join call" })
+    expect(join.getAttribute("href")).toBe("/app/meet/e/e4")
+    expect(join.getAttribute("target")).toBeNull()
+    expect(join.className).not.toMatch(/bg-brand/)
+    unmount()
+    render(<EventPopover event={ev({ event_room: ROOM })} anchor={anchorEl()} now={new Date(2026, 9, 15, 13, 52)} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    expect(screen.getByRole("link", { name: "Join call" }).className).toMatch(/bg-brand/)
+  })
+
+  it("offers no Join on a card the read gave no room", () => {
+    render(<EventPopover event={ev({ event_title: "Busy", event_visibility: "private" })} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    expect(screen.queryByRole("link", { name: /Join/ })).toBeNull()
+  })
+
+  it("is joined from the agenda in this tab", () => {
+    // Five minutes off: the agenda offers Join from ten minutes before.
+    const soon = ev({ event_room: ROOM, event_start_time: new Date(2026, 9, 15, 10, 5).toISOString(), event_end_time: new Date(2026, 9, 15, 11).toISOString() })
+    render(<CalendarAgenda desktop days={[{ day: new Date(2026, 9, 15), items: [soon] }]} onOpen={vi.fn()} now={now} />)
+    const join = screen.getByRole("link", { name: /Join/ })
+    expect(join.getAttribute("href")).toBe("/app/meet/e/e4")
+    expect(join.getAttribute("target")).toBeNull()
   })
 })

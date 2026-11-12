@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import * as React from "react"
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, warmTooltip } from "./tooltip"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 import { onEscape } from "@/lib/keys/onEscape"
 import { MediaQueryProvider } from "@/context/MediaQueryContext"
+
+// Its asserts are synchronous under fake timers: the Radix side is here before they start.
+warmBeforeTests(warmTooltip)
 
 // A tooltip closes on Escape (WCAG 1.4.13), and it is no layer of the page's
 // (lib/keys/escape): the same press goes on to what the page has open. The

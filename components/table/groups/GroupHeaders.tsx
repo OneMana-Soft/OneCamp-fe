@@ -3,7 +3,8 @@
 // A grouped view's headers (tables V2b): the group's value, how many rows it
 // holds and, in the grid, its totals under the summary bar's columns. One
 // button opens or collapses the group. A chunk of its own (DataTableGrid's
-// GroupPart): a table that doesn't group never loads it.
+// GroupPart): a table that doesn't group never loads it. A table's chart names
+// its groups with this chunk's groupLabel (the table's page hands it over).
 
 import * as React from "react"
 import { Check, ChevronRight } from "@/lib/icons"
@@ -19,7 +20,7 @@ import { groupLabel, type GroupLayout, type GroupOf } from "@/lib/tables/groups"
 import type { GroupRule } from "@/lib/tables/viewRules"
 import { alignsRight, optionsOf, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
 
-export { groupedBody, toggleShut } from "@/lib/tables/groups"
+export { groupedBody, groupLabel, toggleShut } from "@/lib/tables/groups"
 
 /** What a grouped grid's body draws its headers with: its places, this chunk, the levels and a header's totals. */
 export interface GroupBody {

@@ -142,6 +142,9 @@ export function taskFieldAnswer(
       return { kind: "short_text" }
     case "money":
       return { kind: "number" }
+    case "formula":
+      // A form never sets a formula (the server works it out, and refuses a set in words).
+      return { kind: "short_text" }
     default:
       return { kind: field.type }
   }

@@ -17,6 +17,7 @@ import { embedFor, type Embed } from "@/lib/embeds/providers"
 import { entityOfHref, type EntityRef } from "@/lib/liveEntity/href"
 import { CAPTURE } from "@/lib/board/binding"
 import { newElementId } from "@/lib/board/ids"
+import { isCodeBlock, isCodeBlockLink } from "@/lib/board/codeBlocks"
 
 /**
  * The kinds that draw a card: the things with a page of their own that the
@@ -25,8 +26,8 @@ import { newElementId } from "@/lib/board/ids"
  */
 export const CARD_KINDS: ReadonlySet<string> = new Set(["task", "doc", "project"])
 
-/** What a link on the board draws: a card, a framed site, or nothing (a plain link). */
-export type BoardEmbed = { card: EntityRef } | { frame: Embed } | null
+/** What a link on the board draws: a card, a framed site, a code block (lib/board/codeBlocks), or nothing (a plain link). */
+export type BoardEmbed = { card: EntityRef } | { frame: Embed } | { code: true } | null
 
 /** Where links are read: the app's origin, an admin's embed hosts, and which kinds draw a card. */
 export interface EmbedPlace {
@@ -36,6 +37,7 @@ export interface EmbedPlace {
 }
 
 export function boardEmbedOf(link: string, where: EmbedPlace): BoardEmbed {
+  if (isCodeBlockLink(link, where.origin)) return { code: true }
   const ref = entityOfHref(link, where.origin)
   if (ref) return where.isCardKind(ref.kind) ? { card: ref } : null
   let host = ""
@@ -102,6 +104,11 @@ export function isCard(el: { type?: string; customData?: Record<string, unknown>
   return el.type === "embeddable" && el.customData?.kind === "card"
 }
 
+/** Whether an element draws itself: a card or a code block. Excalidraw's link popup and style panel mean nothing for one. */
+export function isLiveBlock(el: { type?: string; customData?: Record<string, unknown> | null }): boolean {
+  return isCard(el) || isCodeBlock(el)
+}
+
 /**
  * Whether Excalidraw's link popup is open over a card: the popup asked for ("info" when the pointer comes onto a
  * selected linked element, "editor" from its menu) while the one thing selected is a card. A card is its own link,
@@ -115,7 +122,7 @@ export function linkPopupOverCard(
   const ids = Object.keys(appState.selectedElementIds).filter((id) => appState.selectedElementIds[id])
   if (ids.length !== 1) return false
   const el = elements.find((e) => e.id === ids[0])
-  return !!el && isCard(el)
+  return !!el && isLiveBlock(el)
 }
 
 /**
@@ -133,7 +140,7 @@ export function onlyCardsSelected(
   let cards = 0
   for (const el of elements) {
     if (!ids.has(el.id)) continue
-    if (!isCard(el)) return false
+    if (!isLiveBlock(el)) return false
     cards++
   }
   return cards === ids.size

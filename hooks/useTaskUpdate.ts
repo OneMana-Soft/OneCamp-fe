@@ -296,5 +296,12 @@ export const useTaskUpdate = ({ live = false }: { live?: boolean } = {}) => {
         Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => mutate(key));
     }, [mutate, getTaskKeys, cache]);
 
-    return { optimisticCreateTask, optimisticUpdateTask, optimisticUpdateTasks, optimisticSetTaskField, optimisticDeleteTask, revalidateTaskKeys };
+    // A task read again as its reader, its panel and its project's lists: a
+    // value told with none (V-698), or a formula's that may have changed (J-F).
+    const rereadTask = useCallback((taskId: string, projectId: string) => {
+        void mutate(`${GetEndpointUrl.GetTaskInfo}/${taskId}`);
+        revalidateTaskKeys(projectId);
+    }, [mutate, revalidateTaskKeys]);
+
+    return { optimisticCreateTask, optimisticUpdateTask, optimisticUpdateTasks, optimisticSetTaskField, optimisticDeleteTask, revalidateTaskKeys, rereadTask };
 };

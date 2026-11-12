@@ -5,6 +5,8 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { useRouter } from "next/navigation"
 import {
     AlarmClock,
+    Bell,
+    BellOff,
     Bookmark,
     BookmarkCheck,
     Copy,
@@ -20,6 +22,7 @@ import {
 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
+import { COPIED } from "@/lib/chat/messageActionLabels"
 import { useMessageAddOn } from "@/lib/addOns/messages"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
 import { reminderChoices } from "@/lib/utils/later"
@@ -33,6 +36,7 @@ import { Button } from "@/components/ui/button"
 import { DeleteConfirm } from "@/components/message/deleteConfirm"
 import { PinSheetRow } from "@/components/conversation/pins/PinSheetRow"
 import type { ConversationRef } from "@/lib/conversation/types"
+import { useThreadFollow } from "@/components/conversation/useThreadFollow"
 
 /** The message the sheet acts on, drawn lifted above it (C61). */
 export interface MessageSheetPreview {
@@ -61,8 +65,10 @@ export interface MessageActionSheetProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     preview?: MessageSheetPreview | null
-    /** The message's own thread, for Reply in thread and Copy link. */
-    threadPath: string
+    /** The message's own thread, for Reply in thread and Copy link; a reply has none. */
+    threadPath?: string
+    /** On the thread's own page: no tile to open the thread it is on. */
+    inThread?: boolean
     forwardPath?: string
     laterTarget?: LaterTarget | null
     onReply?: () => void
@@ -77,6 +83,8 @@ export interface MessageActionSheetProps {
     messageText?: string
     /** The conversation the message may be pinned in (chat B25), and the message. */
     pin?: { conversation: ConversationRef | null; messageId: string }
+    /** The thread the message roots (its own id), for Follow thread: replies yet or not. */
+    followRoot?: string
 }
 
 function Tile({ icon: Icon, label, onClick, active }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; active?: boolean }) {
@@ -100,7 +108,11 @@ function Row({ icon: Icon, label, onClick, danger, busy, buttonRef }: { icon: Re
         <button
             ref={buttonRef}
             type="button"
-            onClick={onClick}
+            // Busy (V-699, DB-123 F3): it says so and takes no tap until its work is known.
+            aria-busy={busy || undefined}
+            onClick={() => {
+                if (!busy) onClick()
+            }}
             className={cn(
                 "flex h-12 w-full items-center gap-3 border-b border-line px-1 text-left text-ui last:border-b-0 active:bg-hover",
                 "focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
@@ -114,21 +126,43 @@ function Row({ icon: Icon, label, onClick, danger, busy, buttonRef }: { icon: Re
 }
 
 /**
+ * "Follow thread" or "Unfollow thread" (V-699): the More menu's
+ * FollowMenuItem as a sheet row, on the one standing (useThreadFollow). The
+ * sheet closes as it follows; the thread page's bell shows the standing.
+ */
+function FollowRow({ root, onDone }: { root: string; onDone: () => void }) {
+    const { following, loading, label, toggle } = useThreadFollow(root)
+    return (
+        <Row
+            icon={following ? BellOff : Bell}
+            label={label}
+            busy={loading}
+            onClick={() => {
+                onDone()
+                void toggle()
+            }}
+        />
+    )
+}
+
+/**
  * The phone's long-press sheet (design v3 chat, C61). The pressed message is
  * lifted above the sheet as a copy on the raised surface (iMessage's
  * pattern), so you see what you act on; the sheet is the shared one
  * (components/ui/drawer: the pop step at e4, 20px top corners, the 36×5
  * grabber and its one scrim, 32% ink with no blur): six recent reactions at
  * 44px and a "+", three 72px tiles (Reply in thread, Reply with quote, Save),
- * then 48px rows. Edit and Delete are yours only; Delete is in danger ink. A
- * light buzz marks the threshold where the phone has one. Reduced motion: it
- * simply appears.
+ * then 48px rows. Edit and Delete are yours only; Delete is in danger ink and
+ * asks first. A light buzz marks the threshold where the phone has one.
+ * Reduced motion: it simply appears. A phone's thread page opens it too, for
+ * its root (inThread) and its replies (no threadPath: no tiles, no link).
  */
 export function MessageActionSheet({
     open,
     onOpenChange,
     preview,
     threadPath,
+    inThread,
     forwardPath,
     laterTarget,
     onReply,
@@ -142,6 +176,7 @@ export function MessageActionSheet({
     isAdmin,
     messageText,
     pin,
+    followRoot,
 }: MessageActionSheetProps) {
     const router = useRouter()
     const copyToClipboard = useCopyToClipboard()
@@ -248,21 +283,26 @@ export function MessageActionSheet({
                         </button>
                     </div>
 
-                    <div className="flex gap-2">
-                        <Tile icon={MessageSquareText} label="Thread" onClick={then(() => router.push(threadPath))} />
-                        {onReply && <Tile icon={Reply} label="Quote" onClick={then(onReply)} />}
-                        {laterTarget && <Tile icon={saved ? BookmarkCheck : Bookmark} label={saved ? "Saved" : "Save"} active={!!saved} onClick={toggleSave} />}
-                    </div>
+                    {((threadPath && !inThread) || onReply || laterTarget) && (
+                        <div className="flex gap-2">
+                            {threadPath && !inThread && <Tile icon={MessageSquareText} label="Thread" onClick={then(() => router.push(threadPath))} />}
+                            {onReply && <Tile icon={Reply} label="Quote" onClick={then(onReply)} />}
+                            {laterTarget && <Tile icon={saved ? BookmarkCheck : Bookmark} label={saved ? "Saved" : "Save"} active={!!saved} onClick={toggleSave} />}
+                        </div>
+                    )}
 
                     <div className="flex flex-col">
                         <Row icon={Copy} label="Copy text" onClick={then(copyText)} />
-                        <Row
-                            icon={Link}
-                            label="Copy link"
-                            onClick={then(() => copyToClipboard.copy(`${window.location.protocol}//${window.location.host}${threadPath}`, "copied link"))}
-                        />
+                        {threadPath && (
+                            <Row
+                                icon={Link}
+                                label="Copy link"
+                                onClick={then(() => copyToClipboard.copy(`${window.location.protocol}//${window.location.host}${threadPath}`, COPIED.link))}
+                            />
+                        )}
                         {makeTask && <Row icon={ListTodo} label="Make a task" onClick={then(makeTask, 150)} />}
                         {laterTarget && !saved && <Row icon={AlarmClock} label="Remind me tomorrow morning" onClick={remindTomorrow} />}
+                        {followRoot && <FollowRow root={followRoot} onDone={close} />}
                         {forwardPath && <Row icon={Forward} label="Forward" onClick={then(() => router.push(forwardPath))} />}
                         {pin && <PinSheetRow conversation={pin.conversation} messageId={pin.messageId} onDone={close} />}
                         {addOn.actions.map(({ key, label, icon, busy, run }) => (

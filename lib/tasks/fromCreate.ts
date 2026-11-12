@@ -23,7 +23,7 @@ export function taskFromCreate(id: string, body: Record<string, unknown>, at: nu
     task_description: text(body.task_description),
     task_status: status,
     task_custom_status: isBuiltInStatus(status) ? "" : status,
-    task_priority: text(body.task_priority) || "medium",
+    task_priority: text(body.task_priority),
     task_label: text(body.task_label),
     task_project: { project_uuid: text(body.task_project_uuid) },
     task_assignee: assignee ? { user_uuid: assignee } : undefined,

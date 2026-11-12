@@ -52,7 +52,7 @@ describe("a refused sign-in", () => {
   it.each([
     ["signin_cancelled", "Sign-in cancelled", "neutral", "Sign-in was cancelled. Try again when you're ready."],
     ["signin_expired", "Sign-in expired", "neutral", "That sign-in took too long or was already used. Start again."],
-    ["seat_limit", "No free seat", "warning", /no room for another person/],
+    ["seat_limit", "No free seat", "warning", /Your admin has been told; try again/],
     ["oauth_email_unverified", "Email not verified", "warning", /hasn't verified this email address/],
     ["oauth_not_invited", "Not invited yet", "warning", /isn't invited to this workspace/],
     ["oauth_failed", "Couldn't sign you in", "error", "Signing in with Google or GitHub didn't finish. Please try again."],

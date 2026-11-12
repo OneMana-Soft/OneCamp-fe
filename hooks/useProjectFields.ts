@@ -11,7 +11,9 @@ import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { holdsProjectTasks } from "@/lib/taskStatus"
-import type { FieldOption, FieldType, TaskField } from "@/lib/tasks/fields"
+import type { FieldBuiltin, FieldOption, FieldType, TaskField } from "@/lib/tasks/fields"
+import { inReaderZone } from "@/lib/tasks/readerZone"
+import type { FormulaPreview } from "@/services/tableCalls"
 import type { ProjectInfoRawInterface } from "@/types/project"
 
 export const projectFieldsKey = (projectId: string) => `${GetEndpointUrl.ProjectFields}/${projectId}/fields`
@@ -24,13 +26,16 @@ export interface FieldInput {
   removed_options?: string[]
   currency?: string
   on_card?: boolean
+  /** A formula field's text; on a change, none keeps it. */
+  formula?: string
 }
 
 const NONE: TaskField[] = []
+const NO_BUILTINS: FieldBuiltin[] = []
 
 export function useProjectFields(projectId: string | undefined) {
   const key = projectId ? projectFieldsKey(projectId) : ""
-  const { data, isLoading, isError, mutate } = useFetch<{ data: { fields: TaskField[]; can_edit: boolean } }>(key, undefined, { revalidateOnFocus: false })
+  const { data, isLoading, isError, mutate } = useFetch<{ data: { fields: TaskField[]; can_edit: boolean; builtins?: FieldBuiltin[] } }>(key, undefined, { revalidateOnFocus: false })
   const { mutate: mutateAll } = useSWRConfig()
   // Taking an option away or deleting a field changes tasks' values on the
   // server, so what the app holds of the project's tasks is fetched again.
@@ -39,10 +44,11 @@ export function useProjectFields(projectId: string | undefined) {
   const create = useCallback(
     async (input: FieldInput) => {
       const res = await axiosInstance.post(projectFieldsKey(projectId!), input)
-      await mutate()
+      // A formula has a value on every task once it exists: the tasks held are read again.
+      await Promise.all([mutate(), input.type === "formula" ? refreshTasks() : undefined])
       return (res.data as { data: TaskField }).data
     },
-    [projectId, mutate],
+    [projectId, mutate, refreshTasks],
   )
   const update = useCallback(
     async (id: string, input: FieldInput) => {
@@ -59,6 +65,14 @@ export function useProjectFields(projectId: string | undefined) {
     },
     [projectId, mutate],
   )
+  // A draft formula checked as its admin types it, in their zone (TODAY()); 403 for anyone else.
+  const preview = useCallback(
+    async (formula: string, fieldId?: string) => {
+      const res = await axiosInstance.post(`${projectFieldsKey(projectId!)}/preview`, { formula, field_id: fieldId }, inReaderZone())
+      return (res.data as { data: FormulaPreview }).data
+    },
+    [projectId],
+  )
   const remove = useCallback(
     async (id: string) => {
       await axiosInstance.post(`${projectFieldsKey(projectId!)}/${id}/delete`, {})
@@ -69,6 +83,7 @@ export function useProjectFields(projectId: string | undefined) {
 
   return {
     fields: data?.data?.fields ?? NONE,
+    builtins: data?.data?.builtins ?? NO_BUILTINS,
     canEdit: !!data?.data?.can_edit,
     isLoading,
     isError,
@@ -76,6 +91,7 @@ export function useProjectFields(projectId: string | undefined) {
     update,
     reorder,
     remove,
+    preview,
     refresh: mutate,
     refreshTasks,
     // The client, for restoreService's restore: the lazy dialog may not import it itself (V-49).

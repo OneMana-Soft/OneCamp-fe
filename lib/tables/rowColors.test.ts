@@ -71,7 +71,7 @@ describe("a view's row colours", () => {
     const kept = { field: "stage" }
     const held = [row("a", { stage: "Won" }), row("b", { stage: "Lost" })]
     expect(Object.fromEntries(rowHues(held, fields, kept, null))).toEqual({ a: "moss", b: "berry" })
-    const edits = new Map([["a", { saving: { stage: "Lost" }, saved: {}, copy: null }]])
+    const edits = new Map([["a", { saving: { stage: "Lost" }, saved: {}, copy: null, unsaved: {} }]])
     expect(Object.fromEntries(rowHues(held, fields, kept, null, edits))).toEqual({ a: "berry", b: "berry" })
     // The edit gone (the row read again, as it was), its copy's hue again.
     expect(Object.fromEntries(rowHues(held, fields, kept, null))).toEqual({ a: "moss", b: "berry" })
@@ -202,7 +202,7 @@ describe("a view's cell colours", () => {
     expect(reads).toBe(4)
     expect(again.get("r1")).toBe(first.get("r1"))
     // An edit not saved yet makes r0 the highest: every step moves.
-    const edits = new Map([["r0", { saving: { cost: 500 }, saved: {}, copy: null }]])
+    const edits = new Map([["r0", { saving: { cost: 500 }, saved: {}, copy: null, unsaved: {} }]])
     expect(Object.fromEntries(cellTints(counted, all, scale, null, edits))).toEqual({ r0: { cost: "moss-4" }, r1: { cost: "moss-1" }, r2: { cost: "moss-1" }, r3: { cost: "moss-1" } })
   })
 

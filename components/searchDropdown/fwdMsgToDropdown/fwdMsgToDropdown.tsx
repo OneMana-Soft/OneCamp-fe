@@ -5,7 +5,7 @@ import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
 import { PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
 import type { ChannelAndUserListInterfaceReq, ChannelAndUserListInterfaceResp } from "@/types/user"
-import {SearchableItem} from "@/types/search";
+import { searchPlacesOf, type SearchPlace } from "@/lib/search/userAndChannel";
 import {FwdMsgToProfileAvatar} from "@/components/searchDropdown/fwdMsgToDropdown/fwdMsgToProfileAvatar";
 import {MultiSelectSearch} from "@/components/multiSelectSearch/multiSelectSearch";
 import { useState } from "react";
@@ -18,19 +18,8 @@ interface ForwardMessageDropdownProps {
     className?: string
 }
 
-// Create a proper interface that extends SearchableItem without conflicts
-interface ForwardMessageSearchItem extends SearchableItem {
-    user_profile_object_key?: string
-    user_uuid?: string
-    user_dgraph_uid?: string
-    channel_uuid?: string
-    channel_dgraph_uid?: string
-    user_name?: string
-    channel_name?: string
-    grp_id?: string
-    grp_dgraph_uid?: string
-    grp_name?: string
-}
+// The app's one search's places (lib/search/userAndChannel), as the board's Start a call lists them too.
+type ForwardMessageSearchItem = SearchPlace
 
 export function ForwardMessageDropdown({
                                            onSelect,
@@ -55,21 +44,7 @@ export function ForwardMessageDropdown({
 
             if (!response) return []
 
-            return response.map((item) => ({
-                id: item.user_uuid || item.channel_uuid || item.grp_id || "",
-                name: item.user_name || item.channel_name || item.grp_name || "",
-                type: item.user_uuid ? "user" : item.grp_id ? "groupChat" : "channel",
-                user_profile_object_key: item.user_profile_object_key,
-                user_uuid: item.user_uuid,
-                user_dgraph_uid: item.user_dgraph_uid,
-                channel_uuid: item.channel_uuid,
-                channel_dgraph_uid: item.channel_dgraph_uid,
-                user_name: item.user_name,
-                channel_name: item.channel_name,
-                grp_id: item.grp_id,
-                grp_dgraph_uid: item.grp_dgraph_uid,
-                grp_name: item.grp_name,
-            }))
+            return searchPlacesOf(response)
         } catch (error) {
             console.error("Search error:", error)
             return []

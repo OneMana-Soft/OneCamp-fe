@@ -36,3 +36,13 @@ describe("creating an agent from a template", () => {
         expect(screen.getByRole("button", { name: "Weekly status report" }).getAttribute("aria-pressed")).toBe("false")
     })
 })
+
+// ADMIN-16: a template that posts to a channel asks first; a read-only one
+// keeps acting on its own.
+describe("a template's autonomy", () => {
+    it("Weekly status report asks first", async () => {
+        const { AGENT_TEMPLATES } = await import("@/lib/agentTemplates")
+        expect(AGENT_TEMPLATES.find((t) => t.name === "Weekly status report")?.autonomy).toBe("approval")
+        expect(AGENT_TEMPLATES.find((t) => t.name === "Channel Q&A helper")?.autonomy).toBe("auto")
+    })
+})

@@ -25,6 +25,7 @@ import { FileCheck2, Printer } from "@/lib/icons"
 import { SETTINGS_PLACES } from "@/lib/adminSections"
 import EvidencePackView from "@/components/admin/EvidencePackView"
 import { usePlan } from "@/hooks/usePlan"
+import { UNLOCK_CONTROLS } from "@/lib/plan/planWords"
 import { getEvidencePack, downloadEvidencePack, type EvidencePack } from "@/services/settingsService"
 
 /**
@@ -118,7 +119,7 @@ export default function EvidencePackPage() {
                         plan.upgradeUrl ? (
                             <Button asChild size="sm">
                                 <a href={plan.upgradeUrl} target="_blank" rel="noopener noreferrer">
-                                    See the licence
+                                    {UNLOCK_CONTROLS}
                                 </a>
                             </Button>
                         ) : undefined

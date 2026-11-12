@@ -55,3 +55,20 @@ describe("finding a better time", () => {
     expect(document.querySelector("[data-schedule-note]")?.textContent).toBe(NOTE)
   })
 })
+
+// gcal-16: the event's offer after a decline hides once its time moved, so
+// the dialog tells whoever opened it where it moved the meeting to.
+describe("a better time confirmed", () => {
+  it("tells its opener the time it moved the meeting to", async () => {
+    post
+      .mockResolvedValueOnce({ data: { data: { enabled: true, event_uuid: "e1", title: "Standup", current_start: slot.start, current_end: slot.end, duration_mins: 30, participants: [], conflict_count: 0, conflicts: [], candidates: [slot] } } })
+      .mockResolvedValueOnce({ data: { data: { event_uuid: "e1", title: "Standup", start: slot.start, end: slot.end } } })
+    const onRescheduled = vi.fn()
+    await act(async () => {
+      render(<RescheduleDialog open onOpenChange={vi.fn()} eventUUID="e1" onRescheduled={onRescheduled} />)
+    })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /1 of 2 free/ })))
+    expect(post.mock.calls[1][1]).toMatchObject({ event_uuid: "e1", start: slot.start, end: slot.end })
+    expect(onRescheduled).toHaveBeenCalledWith({ start: slot.start, end: slot.end })
+  })
+})

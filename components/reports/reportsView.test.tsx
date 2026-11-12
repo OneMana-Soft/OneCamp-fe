@@ -30,10 +30,19 @@ const report: Report = {
 
 let answer: { data?: { data: Report }; isLoading?: boolean; isError?: unknown } = { data: { data: report } }
 const asked: string[] = []
+// Who the reader is (L32): asked only for My tasks' view, whose report keeps to their own work.
+const SAM = { data: { data: { uid: "0x5a" } } }
+let profile: { data?: typeof SAM.data; isError?: unknown } = SAM
+const askedMe: string[] = []
+const askMeAgain = vi.fn()
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
     return { ...answer, mutate: vi.fn() }
+  },
+  useFetchOnlyOnce: (url: string) => {
+    if (url) askedMe.push(url)
+    return url ? { ...profile, mutate: askMeAgain } : { mutate: askMeAgain }
   },
 }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
@@ -45,6 +54,10 @@ vi.mock("next/navigation", () => ({ useSearchParams: () => address, useRouter: (
 const download = vi.fn(() => true)
 vi.mock("@/lib/utils/file/downloadTextFile", () => ({ downloadTextFile: (...a: unknown[]) => download(...(a as [])) }))
 
+// Add to dashboard is drawn by its own piece: here, what Reports hands it.
+const added = vi.fn()
+vi.mock("@/components/dashboards/addToDashboardPiece", () => ({ AddToDashboardDialog: (p: unknown) => (added(p), null), warmAddToDashboard: () => {} }))
+
 const { ReportsView } = await import("@/components/reports/ReportsView")
 
 beforeEach(() => {
@@ -55,7 +68,9 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   asked.length = 0
+  askedMe.length = 0
   answer = { data: { data: report } }
+  profile = SAM
 })
 
 describe("ReportsView", () => {
@@ -103,15 +118,44 @@ describe("ReportsView", () => {
     render(<ReportsView />)
     expect(screen.getByRole("button", { name: "Show all work, not only Q4 launch, filtered" })).toBeTruthy()
     expect(screen.getByRole("button", { name: /^Projects: Q4 launch/ })).toBeTruthy()
+    expect(askedMe).toEqual([])
   })
 
-  it("asks for the weeks and zone it shows, and downloads what it shows", () => {
+  // L32: My tasks' view has no one project; its report is the reader's own work, in all their projects.
+  it("opened from My tasks, waits for who the reader is, then asks for their own work with no projects (L32)", () => {
+    address = new URLSearchParams({ view: "reports", mine: "1", filters: '[{"id":"task_priority","value":["high"]}]' })
+    profile = {}
+    const { rerender } = render(<ReportsView />)
+    expect(askedMe[0]).toBe("/user/profile")
+    expect(asked.filter(Boolean)).toEqual([])
+    profile = SAM
+    rerender(<ReportsView />)
+    const q = new URL(asked.filter(Boolean).at(-1)!, "http://x").searchParams
+    expect(q.get("projects")).toBeNull()
+    expect(JSON.parse(q.get("filters")!)).toEqual([{ id: "task_priority", value: ["high"] }, { id: "task_assignee_name", value: ["0x5a"] }])
+    expect(screen.getByRole("button", { name: "Show all work, not only My tasks, filtered" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /^Projects: All projects/ })).toBeTruthy()
+  })
+
+  it("opened from My tasks, says so when who the reader is can't be read, and Try again asks again (L32)", () => {
+    address = new URLSearchParams({ view: "reports", mine: "1" })
+    profile = { isError: new Error("offline") }
+    answer = {} // no report is asked without who the reader is
+    render(<ReportsView />)
+    expect(asked.filter(Boolean)).toEqual([])
+    expect(screen.getByText(/couldn.t load/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(askMeAgain).toHaveBeenCalledTimes(1)
+  })
+
+  it("asks for the weeks and zone it shows, and downloads what it shows", async () => {
     render(<ReportsView />)
     // Once, after the remembered choices are read: nothing asked before them.
     expect(asked.filter(Boolean)[0]).toBe("/project/report?tz=Asia%2FKolkata&weeks=12")
     expect(new Set(asked.filter(Boolean)).size).toBe(1)
     fireEvent.click(screen.getByRole("button", { name: /Download CSV/ }))
-    expect(download).toHaveBeenCalledWith("onecamp-report-2026-10-05.csv", expect.stringContaining("Q4 launch"), "text/csv")
+    // The CSV's writer is a chunk of its own (lib/reportCSV), fetched as it is asked for.
+    await vi.waitFor(() => expect(download).toHaveBeenCalledWith("onecamp-report-2026-10-05.csv", expect.stringContaining("Q4 launch"), "text/csv"))
   })
 
   it("says what to do when there are no projects to report on", () => {
@@ -131,6 +175,23 @@ describe("ReportsView", () => {
     render(<ReportsView />)
     expect(screen.getByText(/couldn.t load/i)).toBeTruthy()
     expect(screen.getByRole("combobox", { name: "Weeks" })).toBeTruthy()
+  })
+
+  // B9-b4 (CR-B14 W12): Add to dashboard adds the report's question as it stands: the projects picked, or the
+  // view it was opened from with that view's filters, and its weeks; one project's dashboards are offered too.
+  it("adds its question to a dashboard as it stands: the projects picked, or a view's project and filters", () => {
+    localStorage.setItem("oc_report_projects", JSON.stringify(["q4"]))
+    localStorage.setItem("oc_report_weeks", "4")
+    render(<ReportsView />)
+    fireEvent.click(screen.getByRole("button", { name: "Add to dashboard" }))
+    expect(added).toHaveBeenLastCalledWith(expect.objectContaining({ preset: { kind: "throughput", query: { projects: ["q4"], filters: undefined, weeks: 4 } }, project: "q4" }))
+    cleanup()
+    address = new URLSearchParams({ view: "reports", projects: "p1", filters: '[{"id":"task_priority","value":["high"]}]', name: "High work" })
+    render(<ReportsView />)
+    fireEvent.click(screen.getByRole("button", { name: "Add to dashboard" }))
+    expect(added).toHaveBeenLastCalledWith(
+      expect.objectContaining({ preset: { kind: "throughput", query: { projects: ["p1"], filters: [{ id: "task_priority", value: ["high"] }], weeks: 4 } }, project: "p1" }),
+    )
   })
 
   it("forgets a remembered project that's gone instead of showing an empty report", () => {

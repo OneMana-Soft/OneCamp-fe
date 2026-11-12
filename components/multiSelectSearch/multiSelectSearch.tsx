@@ -18,6 +18,8 @@ interface MultiSelectSearchProps<T extends SearchableItem> {
     onSearch: (query: string) => Promise<T[]>
     renderItem?: (item: T, isHighlighted: boolean) => React.ReactNode
     placeholder?: string
+    /** The input's accessible name, where no visible label names it. */
+    inputLabel?: string
     maxItems?: number
     debounceTime?: number
     className?: string
@@ -29,6 +31,7 @@ export function MultiSelectSearch<T extends SearchableItem>({
                                                                 onSearch,
                                                                 renderItem,
                                                                 placeholder = "Search…",
+                                                                inputLabel,
                                                                 maxItems,
                                                                 debounceTime = 300,
                                                                 className,
@@ -157,6 +160,7 @@ export function MultiSelectSearch<T extends SearchableItem>({
                     onKeyDown={handleKeyDown}
                     onFocus={() => query.trim() && setIsOpen(true)}
                     placeholder={selectedItems.length === 0 ? placeholder : ""}
+                    aria-label={inputLabel}
                     className="flex-1 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     disabled={isMaxItemsReached}
                 />

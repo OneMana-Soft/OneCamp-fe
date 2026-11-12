@@ -15,7 +15,9 @@
 const DEFAULT_TTL_MS = 30_000
 
 const inflight = new Map<string, Promise<unknown>>()
-const kept = new Map<string, { at: number; value: unknown }>()
+// n: the request's order, so an older one answered last never puts its answer back.
+const kept = new Map<string, { at: number; n: number; value: unknown }>()
+let sent = 0
 
 /** The kept answer for key, if it is younger than ttlMs. */
 export function peekShared<T>(key: string, ttlMs = DEFAULT_TTL_MS, now = Date.now()): T | undefined {
@@ -26,8 +28,8 @@ export function peekShared<T>(key: string, ttlMs = DEFAULT_TTL_MS, now = Date.no
 
 /**
  * Runs fn once for concurrent callers of the same key, and answers from the
- * kept value while it is fresh. fresh: true skips the kept value (still
- * joining a request already in flight).
+ * kept value while it is fresh. fresh: true asks again, past the kept value
+ * and a request in flight, which may predate a change (V-577).
  */
 export function sharedRequest<T>(
     key: string,
@@ -37,20 +39,26 @@ export function sharedRequest<T>(
     if (!opts.fresh) {
         const hit = peekShared<T>(key, opts.ttlMs)
         if (hit !== undefined) return Promise.resolve(hit)
+        const running = inflight.get(key)
+        if (running) return running as Promise<T>
     }
-    const running = inflight.get(key)
-    if (running) return running as Promise<T>
-    const p = fn()
+    const n = ++sent
+    const p: Promise<T> = fn()
         .then((value) => {
-            kept.set(key, { at: Date.now(), value })
+            const last = kept.get(key)
+            if (last && last.n > n) return last.value as T
+            kept.set(key, { at: Date.now(), n, value })
             return value
         })
-        .finally(() => inflight.delete(key))
+        .finally(() => {
+            if (inflight.get(key) === p) inflight.delete(key)
+        })
     inflight.set(key, p)
     return p
 }
 
-/** Drops the kept answer, after something changed it. */
+/** Drops the kept answer, after something changed it (its order stays). */
 export function forgetShared(key: string): void {
-    kept.delete(key)
+    const hit = kept.get(key)
+    if (hit) hit.at = -Infinity
 }

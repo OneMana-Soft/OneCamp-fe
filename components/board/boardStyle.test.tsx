@@ -159,15 +159,27 @@ describe("snapping to shapes", () => {
 })
 
 describe("a board's style", () => {
-  it("is clean on a board that opened empty, and hand-drawn on one that has a drawing, until someone chooses", async () => {
+  // TABLES-BOARDS-16 (UX-TB-H1): this case said a board with a drawing and no stored style was hand-drawn. Nothing
+  // writes the style a new board starts in, so every board made in the app turned hand-drawn on its second open.
+  it("is clean on every board until someone chooses hand-drawn, drawn or not", async () => {
     const empty = board()
     const { result } = renderHook(() => useBoardStyle(empty.provider, true))
     expect(result.current[0]).toBe("clean")
     const drawn = board()
     drawn.doc.getMap("elements").set("n1", { id: "n1" })
     const second = renderHook(() => useBoardStyle(drawn.provider, true))
+    expect(second.result.current[0]).toBe("clean")
+    act(() => second.result.current[1]("sketch"))
     expect(second.result.current[0]).toBe("sketch")
+    expect(drawn.doc.getMap("boardMeta").get("style")).toBe("sketch")
     act(() => second.result.current[1]("clean"))
     expect(second.result.current[0]).toBe("clean")
+  })
+
+  it("reads anything stored but hand-drawn as clean", () => {
+    const odd = board()
+    odd.doc.getMap("elements").set("n1", { id: "n1" })
+    odd.doc.getMap("boardMeta").set("style", "comic")
+    expect(renderHook(() => useBoardStyle(odd.provider, true)).result.current[0]).toBe("clean")
   })
 })

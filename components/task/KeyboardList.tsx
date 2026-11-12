@@ -9,8 +9,10 @@ import { useListKeyboard } from "@/hooks/useListKeyboard"
 import { useFetch } from "@/hooks/useFetch"
 import { PANEL_INCLUDE, seedPanelParts, type PanelParts } from "@/lib/work/panelIncludes"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { ListSelectionContext, useRowState } from "@/hooks/useListSelection"
-import { createSelectionStore } from "@/lib/listSelection"
+import { useStore } from "react-redux"
+import { ListSelectionContext, useRowSelected } from "@/hooks/useListSelection"
+import { createSelectionStore, type SelectionStore } from "@/lib/listSelection"
+import type { RootState } from "@/store/store"
 import { cn } from "@/lib/utils/helpers/cn"
 import { LIST_FIELDS, PROJECT_FIELDS, type ListField } from "@/lib/listKeys"
 import type { CycleChoice } from "@/lib/work/backlog"
@@ -27,7 +29,8 @@ const BulkTaskBar = dynamic(() => import("@/components/task/BulkTaskBar").then((
  * move, X selects, Enter opens, S, A, T and P change what is selected, with
  * the selection's toolbar at the foot; on a project's backlog, Shift+C moves
  * it into a cycle. Rows and cards inside mark themselves with data-task-id
- * and read their state with useRowState. On a phone the list is as it was.
+ * and read their selection with useRowSelected (the keys' place is painted).
+ * On a phone the list is as it was.
  */
 export function KeyboardList({
   tasks,
@@ -61,8 +64,6 @@ export function KeyboardList({
   // A project's lists offer its milestones (Shift+M); its backlog, its cycles too (Shift+C).
   const fields = cycles ? (listProjectId ? PROJECT_WITH_CYCLE : WITH_CYCLE) : listProjectId ? PROJECT_FIELDS : LIST_FIELDS
   useListKeyboard({ containerRef: ref, store, enabled: !isMobile && !paused, onEdit: setPicker, fields })
-  const hovered = useHoverIntent(ref)
-  const highlighted = React.useSyncExternalStore(store.subscribe, () => store.get().highlighted, () => null)
   // Another page, a filter or a change that moved a task off the list: what
   // went is no longer selected, so nothing out of sight is changed.
   React.useEffect(() => store.keepOnly(new Set(tasks.map((t) => t.task_uuid))), [store, tasks])
@@ -70,10 +71,7 @@ export function KeyboardList({
     <ListSelectionContext.Provider value={store}>
       <div ref={ref} className={cn("relative", className)}>
         {children}
-        {/* The task the pointer rests on, and the one the keys are on, load
-            before they're opened: the panel opens on its data, not a wait. */}
-        <TaskPrefetch id={hovered} />
-        <TaskPrefetch id={highlighted} />
+        <RestingPrefetch box={ref} store={store} />
         {!isMobile && (
           <BulkTaskBar
             store={store}
@@ -103,17 +101,16 @@ const PROJECT_WITH_CYCLE: readonly ListField[] = [...PROJECT_FIELDS, "cycle"]
  */
 export const taskRowClass = "h-9 [&>td]:py-1.5"
 
-/** A task's row in a table: marked for the keys, tinted when selected, edged when highlighted, with its box first. */
+/** A task's row in a table: marked for the keys, tinted when selected, edged when highlighted (painted: lit), with its box first. */
 export function TaskTableRow({ id, children }: { id: string; children: React.ReactNode }) {
-  const { highlighted, selected } = useRowState(id)
+  const selected = useRowSelected(id)
   return (
     <TableRow
       data-task-id={id}
       data-state={selected ? "selected" : undefined}
-      data-highlighted={highlighted || undefined}
       aria-selected={selected}
       tabIndex={-1}
-      className={cn(taskRowClass, "group/row outline-none", highlighted && "bg-muted/60 shadow-[inset_2px_0_0_var(--primary)]")}
+      className={cn(taskRowClass, "group/row outline-none lit:bg-muted/60 lit:shadow-[inset_2px_0_0_var(--primary)]")}
     >
       <TableCell className="w-8 pr-0">
         <TaskRowCheck id={id} selected={selected} />
@@ -140,25 +137,64 @@ export function TaskRowCheck({ id, selected }: { id: string; selected: boolean }
 /** How long the pointer rests on a task before it is fetched: a pass across the list fetches nothing. */
 export const HOVER_INTENT_MS = 90
 
-/** The task (data-task-id) the pointer has rested on inside the box. */
-function useHoverIntent(ref: React.RefObject<HTMLElement | null>): string | null {
-  const [id, setId] = React.useState<string | null>(null)
+/**
+ * How long the keys rest on a task before it is fetched. Longer than the
+ * pointer's: a quick hand's J lands every ~120 ms, and under 90 ms the keys
+ * rested between nearly every two presses (38 requests in 20 J, FLUIDITY-24).
+ * Enter loads the keys' task at once, so opening never waits for this.
+ */
+export const KEY_REST_MS = 250
+
+/**
+ * The tasks the pointer (HOVER_INTENT_MS) and the keys (KEY_REST_MS) rest on
+ * load before they're opened; a pass or a J burst fetches nothing, an opened
+ * one at once. A leaf: what rests draws only this.
+ */
+function RestingPrefetch({ box, store }: { box: React.RefObject<HTMLElement | null>; store: SelectionStore }) {
+  const [hovered, setHovered] = React.useState<string | null>(null)
+  const [keyed, setKeyed] = React.useState<string | null>(null)
+  const app = useStore<RootState>()
   React.useEffect(() => {
-    const box = ref.current
-    if (!box) return
-    let timer: ReturnType<typeof setTimeout> | null = null
+    const el = box.current
+    if (!el) return
+    let pointer: ReturnType<typeof setTimeout> | null = null
+    let keys: ReturnType<typeof setTimeout> | null = null
     const over = (e: Event) => {
       const task = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-task-id]")?.dataset.taskId : undefined
-      if (timer) clearTimeout(timer)
-      if (task) timer = setTimeout(() => setId(task), HOVER_INTENT_MS)
+      if (pointer) clearTimeout(pointer)
+      if (task) pointer = setTimeout(() => setHovered(task), HOVER_INTENT_MS)
     }
-    box.addEventListener("pointerover", over)
+    let was = store.get().highlighted
+    const moved = store.subscribe(() => {
+      const id = store.get().highlighted
+      if (id === was) return
+      was = id
+      if (keys) clearTimeout(keys)
+      keys = setTimeout(() => setKeyed(id), KEY_REST_MS)
+    })
+    // Opened (Enter, a click): the panel's task, if it is the keys' place, loads now.
+    const opened = app.subscribe(() => {
+      const p = app.getState().rightPanel.rightPanelState
+      const id = p.isOpen ? p.data.taskUUID : null
+      if (!id || id !== store.get().highlighted) return
+      if (keys) clearTimeout(keys)
+      setKeyed(id)
+    })
+    el.addEventListener("pointerover", over)
     return () => {
-      box.removeEventListener("pointerover", over)
-      if (timer) clearTimeout(timer)
+      el.removeEventListener("pointerover", over)
+      moved()
+      opened()
+      if (pointer) clearTimeout(pointer)
+      if (keys) clearTimeout(keys)
     }
-  }, [ref])
-  return id
+  }, [box, store, app])
+  return (
+    <>
+      <TaskPrefetch id={hovered} />
+      <TaskPrefetch id={keyed} />
+    </>
+  )
 }
 
 /** Loads a task's details, with the panel's other reads, into the cache the panel reads (it renders nothing). */

@@ -13,6 +13,7 @@ import { isTyping } from "@/lib/goKeys"
 import { useEntityLinks } from "@/services/entityLinkService"
 import { EntityLinkPicker } from "@/components/entityLink/EntityLinkPicker"
 import { LinkedItemsList } from "@/components/entityLink/LinkedItemsSection"
+import { ProjectBoardsLink } from "@/components/project/projectBoardsLink"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { FileCard, FileRow, UploadingFileCard } from "@/components/project/fileCard"
 import { MenuCheck } from "@/components/ui/menuCheck"
@@ -22,6 +23,7 @@ import {
     ProjectFilesSkeleton,
     SORTS,
     TYPE_FILTERS,
+    filesTabState,
     shownFiles,
     useProjectFiles,
     type FileSort,
@@ -71,13 +73,12 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
     }
 
     const links = useEntityLinks("project", projectId)
-    const linked = links.docs.length + links.boards.length
+    const { linked, loading, nothing } = filesTabState(p, links)
     const mayLink = canLink && !links.forbidden
-    const loading = p.list.isLoading || (links.isLoading && linked === 0)
     const failed = !!p.list.isError && !p.list.data
     const shown = React.useMemo(() => shownFiles(p.files, type, sort, query), [p.files, type, sort, query])
     const filtering = type !== "all" || !!query.trim()
-    const empty = !loading && !failed && p.files.length === 0 && p.uploading.length === 0 && linked === 0
+    const empty = !loading && !failed && nothing
     const pickFiles = () => fileInputRef.current?.click()
 
     // "U" uploads, from anywhere on the tab but a field.
@@ -249,9 +250,12 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                         )}
                         {linked > 0 && (
                             <section aria-label="Linked docs and boards">
-                                <h3 className={cn(sectionTitle, "mb-3 flex items-baseline gap-2")}>
-                                    Linked docs and boards <span className="text-meta font-normal tabular-nums text-ink-3">{linked}</span>
-                                </h3>
+                                <div className="mb-3 flex max-w-xl items-baseline gap-2">
+                                    <h3 className={cn(sectionTitle, "flex items-baseline gap-2")}>
+                                        Linked docs and boards <span className="text-meta font-normal tabular-nums text-ink-3">{linked}</span>
+                                    </h3>
+                                    <ProjectBoardsLink projectId={projectId} boards={links.boards.length} className="ml-auto" />
+                                </div>
                                 <div className="flex max-w-xl flex-col gap-1.5">
                                     <LinkedItemsList docs={links.docs} boards={links.boards} canEdit={mayLink} onRemove={links.removeLink} />
                                 </div>

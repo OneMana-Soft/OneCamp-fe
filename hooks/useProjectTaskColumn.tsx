@@ -19,13 +19,13 @@ import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {useDispatch} from "react-redux";
 import { BlockedBadge } from "@/components/task/BlockedBadge"
 import { FieldValueView } from "@/components/task/fieldValue"
-import type { TaskField } from "@/lib/tasks/fields"
+import { alignsRight, type TaskField } from "@/lib/tasks/fields"
 
 // A field's column is keyed by its filter id, which the server always sends.
 // A field without one is left out, and said once, rather than a column with
 // no id taking the whole list or board down (TanStack throws on one).
-/** The filters the server applies that no column shows: the cycle (business/Cycle) and the type (business/WorkTaxonomy, linear-03). */
-export const SERVER_FILTERS = ["task_cycle", "task_work_type"] as const
+/** The filters the server applies that no column shows: the cycle (business/Cycle), the type (business/WorkTaxonomy, linear-03), the release (jira-04). */
+export const SERVER_FILTERS = ["task_cycle", "task_work_type", "task_release"] as const
 /** Their carrier columns, never drawn. */
 export const SERVER_FILTERS_HIDDEN = Object.fromEntries(SERVER_FILTERS.map((id) => [id, false])) as Record<(typeof SERVER_FILTERS)[number], false>
 
@@ -276,7 +276,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
         // (business/TaskField); values aren't sorted on.
         ...keyedFields(fields).map((f): ColumnDef<TaskInfoInterface> => ({
             id: f.filter_id,
-            meta: { label: f.name, ...(f.type === "money" || f.type === "number" ? { align: "right" } : {}) },
+            meta: { label: f.name, ...(alignsRight(f) ? { align: "right" } : {}) },
             accessorFn: (row) => row.task_fields?.[f.id],
             header: ({ column }) => <TaskTableColumnHeader column={column} title={f.name} />,
             cell: ({ row }) => <FieldValueView field={f} value={row.original.task_fields?.[f.id]} nameOf={nameOf} className="max-w-[14rem]" />,

@@ -188,8 +188,8 @@ export function clockRange(start: Moment, end: Moment, options: ClockOptions = {
 const DAY_MS = 24 * 60 * 60 * 1000
 const WALL_CLOCK: Intl.DateTimeFormatOptions = { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23" }
 
-/** A moment's wall clock in the zone it is read in, on a clock with no zone (milliseconds), where every day is 24 hours long. */
-function wallClock(d: Date, o: ClockOptions): number {
+/** A moment's wall clock in the zone it is read in, as milliseconds on a zoneless clock where every day is 24 hours. */
+export function wallClock(d: Date, o: ClockOptions): number {
   let parts: Intl.DateTimeFormatPart[]
   try {
     parts = dateTimeFormat("en-US", { ...WALL_CLOCK, timeZone: o.timeZone }).formatToParts(d)

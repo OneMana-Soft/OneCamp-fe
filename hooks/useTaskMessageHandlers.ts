@@ -11,6 +11,7 @@ import type { msgTaskDatesInterface, msgTaskFieldInterface } from "@/services/mq
 import { useSWRConfig } from "swr";
 import { projectFieldsKey } from "@/hooks/useProjectFields";
 import { optionOf, withField, type FieldValues, type TaskField } from "@/lib/tasks/fields";
+import { applyFieldMessage } from "@/lib/tasks/fieldMessage";
 import { useTaskUpdate } from "@/hooks/useTaskUpdate";
 import { useWorkChanges } from "@/hooks/useWorkChanges";
 import { appMutate } from "@/lib/swrMutate";
@@ -28,12 +29,14 @@ interface UseTaskMessageHandlersProps {
 
 export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps) => {
     const dispatch = useDispatch()
-    const { optimisticUpdateTasks, optimisticSetTaskField } = useTaskUpdate()
+    const { optimisticUpdateTasks, optimisticSetTaskField, rereadTask } = useTaskUpdate()
     const { cache } = useSWRConfig()
     const workChanges = useWorkChanges()
+    const { rereadFormulas } = workChanges
 
     // A chain of tasks moved along arrives as a message each; the board, the
-    // list and the timeline change once for the lot, not once per task.
+    // list and the timeline change once for the lot, not once per task, and
+    // where a formula reads a task's dates (V-762) are read again once for it.
     const pendingDates = useRef(new Map<string, Map<string, DatesPatch>>())
     const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queueDates = useCallback((projectId: string, patch: DatesPatch) => {
@@ -45,9 +48,12 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
             flushTimer.current = null
             const all = pendingDates.current
             pendingDates.current = new Map()
-            for (const [project, patches] of all) optimisticUpdateTasks([...patches.values()], project)
+            for (const [project, patches] of all) {
+                optimisticUpdateTasks([...patches.values()], project)
+                rereadFormulas(patches.keys(), project)
+            }
         }, DATES_BATCH_MS)
-    }, [optimisticUpdateTasks])
+    }, [optimisticUpdateTasks, rereadFormulas])
     useEffect(() => () => {
         if (flushTimer.current) clearTimeout(flushTimer.current)
     }, [])
@@ -81,31 +87,37 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
     // Someone set a task's value of one of its project's fields: lists, boards
     // and its panel show it, merged into the task's other values. A field or
     // an option this app hasn't loaded yet (made or renamed a moment ago)
-    // sends it for the project's fields again.
+    // sends it for the project's fields again. A change told with no value
+    // (lib/tasks/fieldMessage) reads the task and its lists again.
     const handleTaskFieldMessage = useCallback(
         (messageStr: string) => {
             try {
                 const m: msgTaskFieldInterface | undefined = JSON.parse(messageStr)?.data
                 if (!m?.task_uuid || !m.project_uuid || !m.field_id) return
-                const value = m.value ?? null
-                optimisticSetTaskField(m.task_uuid, m.project_uuid, m.field_id, value)
-                void appMutate(
-                    `${GetEndpointUrl.GetTaskInfo}/${m.task_uuid}`,
-                    (current: { data?: { task_fields?: FieldValues } } | undefined) =>
-                        current?.data ? { ...current, data: { ...current.data, task_fields: withField(current.data.task_fields, m.field_id, value) } } : current,
-                    { revalidate: false },
-                )
-                const key = projectFieldsKey(m.project_uuid)
-                const known = (cache.get(key)?.data as { data?: { fields?: TaskField[] } } | undefined)?.data?.fields
-                const field = known?.find((f) => f.id === m.field_id)
-                const ids = Array.isArray(value) ? value : typeof value === "string" ? [value] : []
-                const stale = known && (!field || ((field.type === "select" || field.type === "multi_select") && ids.some((id) => !optionOf(field, id))))
-                if (stale) void appMutate(key)
+                const panel = `${GetEndpointUrl.GetTaskInfo}/${m.task_uuid}`
+                applyFieldMessage(m, {
+                    reread: () => rereadTask(m.task_uuid, m.project_uuid),
+                    write: (value) => {
+                        optimisticSetTaskField(m.task_uuid, m.project_uuid, m.field_id, value)
+                        void appMutate(
+                            panel,
+                            (current: { data?: { task_fields?: FieldValues } } | undefined) =>
+                                current?.data ? { ...current, data: { ...current.data, task_fields: withField(current.data.task_fields, m.field_id, value) } } : current,
+                            { revalidate: false },
+                        )
+                        const key = projectFieldsKey(m.project_uuid)
+                        const known = (cache.get(key)?.data as { data?: { fields?: TaskField[] } } | undefined)?.data?.fields
+                        const field = known?.find((f) => f.id === m.field_id)
+                        const ids = Array.isArray(value) ? value : typeof value === "string" ? [value] : []
+                        const stale = known && (!field || ((field.type === "select" || field.type === "multi_select") && ids.some((id) => !optionOf(field, id))))
+                        if (stale) void appMutate(key)
+                    },
+                })
             } catch (error) {
                 console.error("[MQTT] Task field message handling error:", error)
             }
         },
-        [optimisticSetTaskField, cache]
+        [optimisticSetTaskField, rereadTask, cache]
     )
 
     // A Work Change Log entry (WCL-2): a teammate's change shows on every open

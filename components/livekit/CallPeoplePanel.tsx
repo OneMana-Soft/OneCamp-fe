@@ -33,7 +33,7 @@ import { PersonActionsMenu, type CallAct } from "./callHosting"
 import { personTags, type CallPerson } from "./callPeople"
 import { HandBadge } from "./HandBadge"
 import { feedbackLabel, placeIn } from "@/lib/calls/hands"
-import { InviteWordShown } from "./invite"
+import { InviteWordShown } from "./inviteWordShown"
 import { qualityNote, type QualityVerdict } from "./callQualityNotes"
 
 const NOTHING_HELD: ReadonlySet<CallHold> = new Set()

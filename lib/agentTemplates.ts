@@ -1,4 +1,5 @@
 import type { AgentTriggerType } from "@/services/agentService"
+import type { Autonomy } from "@/lib/agentAutonomy"
 
 /**
  * Ready-made agents: one click fills the create form, the person reviews it and
@@ -22,7 +23,7 @@ export interface AgentTemplate {
   description: string
   instructions: string
   tools: string[]
-  autonomy: "auto" | "approval" | "plan"
+  autonomy: Autonomy
   trigger:
     | { type: Extract<AgentTriggerType, "manual" | "mention"> }
     | { type: "schedule"; days: "daily" | "weekdays" | string[]; time: string }
@@ -42,7 +43,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       "Keep it under 200 words, lead with what needs a decision, and post it in the channel you are set to " +
       "post in. Never change a task: this report only reads.",
     tools: ["list_projects", "list_project_tasks", "summarize_channel", "send_message"],
-    autonomy: "auto",
+    // It posts in a channel: that waits for a yes (ADMIN-16).
+    autonomy: "approval",
     trigger: { type: "schedule", days: ["MO"], time: "09:00" },
     next: "Pick the channel it posts in under Trigger.",
   },

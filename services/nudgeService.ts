@@ -25,6 +25,8 @@ export interface Nudge {
     priority: number
     created_at: string
     updated_at: string
+    /** Counted by the Inbox badge: urgent, and raised since the last look (the server's one rule, V-577). */
+    unread?: boolean
 }
 
 interface NudgeListResponse {
@@ -34,13 +36,9 @@ interface NudgeListResponse {
 
 export const NUDGES_KEY = "ai/nudges"
 
-/**
- * The nudge list. The bell sits in both navigation bars, so both ask at once;
- * they share one request. fresh: true when the panel opens, so what the person
- * sees is current.
- */
+/** The nudge list. fresh: true asks the server again, so what the person sees is current. */
 export function getNudges(opts: { fresh?: boolean } = {}): Promise<NudgeListResponse> {
-    return sharedRequest(NUDGES_KEY, fetchNudges, { fresh: opts.fresh })
+    return sharedRequest(NUDGES_KEY, fetchNudges, opts)
 }
 
 async function fetchNudges(): Promise<NudgeListResponse> {

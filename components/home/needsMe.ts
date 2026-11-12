@@ -16,9 +16,10 @@ import { displayNameOf } from "@/lib/personName"
 import type { StatusKind } from "@/components/ui/graphics/glyphs"
 import type { UnifiedActivityItem } from "@/types/activity"
 import type { TaskInfoInterface } from "@/types/task"
-import type { UserDMInterface } from "@/types/user"
+import type { UserDMInterface, UserProfileDataInterface } from "@/types/user"
 import type { WaitingApproval } from "@/lib/rules/approvals"
 import { collapseEchoes } from "@/lib/activity/feedPages"
+import { messageNoticeHref } from "@/lib/activity/messageNotice"
 import { dueLabel } from "@/lib/utils/dueLabel"
 
 export type NeedsKind = "agent" | "approval" | "reply" | "due" | "email"
@@ -50,10 +51,12 @@ export interface NeedsItem {
   status?: StatusKind
   due?: string
   overdue?: boolean
+  /** The AI's commitment overdue, not a task: its memory item is refId. */
+  commitment?: boolean
   project?: { id: string; name: string }
   /** What it belongs to, for an agent request ("in Q4 launch"). */
   context?: string
-  /** The thing to act on: a task's uuid and project, a post to reply under, a pending action. */
+  /** The thing to act on: a task's uuid and project, a post to reply under, a pending action, a memory item. */
   taskUuid?: string
   projectUuid?: string
   /** A task's status as it was (its custom id or built-in key), for Done's Undo. */
@@ -107,24 +110,45 @@ const WEEK = 7 * 24 * 3600 * 1000
 export function mentionsToNeeds(items: UnifiedActivityItem[], selfId: string | undefined, now: Date): NeedsItem[] {
   const waiting = collapseEchoes(
     items.filter(
-      (a) => a.activity_type === "MENTION" && a.mention && a.priority !== "low" && now.getTime() - Date.parse(a.time) < WEEK,
+      (a) => (isMessageMention(a) || (a.activity_type === "MENTION" && a.mention)) && a.priority !== "low" && now.getTime() - Date.parse(a.time) < WEEK,
     ),
   )
   const out: NeedsItem[] = []
+  const seen = new Set<string>()
+  // One row per message, keyed by its id, whichever way its mention came.
+  const add = (row: NeedsItem) => {
+    if (seen.has(row.id)) return
+    seen.add(row.id)
+    out.push(row)
+  }
   for (const a of waiting) {
+    // A mention an edit added (notif head A): the notice names the message,
+    // its place by title while its reader can open it, and no words.
+    const n = a.notice
+    if (n) {
+      if (!n.actor) continue
+      const message = n.data?.post_id ?? n.data?.message_id
+      const open = n.resource_kind === "channel" && n.can_open
+      add({
+        id: `mention:${message ?? n.id}`,
+        kind: "reply",
+        ...mentionedYou(n.actor, open ? n.title : undefined, true),
+        quote: "",
+        href: messageNoticeHref(n, selfId) ?? undefined,
+        postUuid: open ? n.data?.post_id : undefined,
+        when: a.time,
+      })
+      continue
+    }
     const m = a.mention!
     const post = m.mention_post
     const chat = m.mention_chat
     const by = post?.post_by ?? chat?.chat_from
     if (!by) continue
-    const name = displayNameOf(by) || "Someone"
-    const first = name.split(/\s+/)[0]
-    const place = post?.post_channel?.ch_name ? ` in #${post.post_channel.ch_name}` : chat ? " in a message" : ""
-    out.push({
+    add({
       id: `mention:${post?.post_uuid ?? chat?.chat_uuid ?? a.time}`,
       kind: "reply",
-      title: `${first} mentioned you${place}`,
-      person: { id: by.user_uuid, name, bot: !!by.is_bot },
+      ...mentionedYou(by, post?.post_channel?.ch_name, !!chat),
       quote: quoteOf(post?.post_text ?? chat?.chat_body_text ?? "", selfId),
       href: post?.post_channel?.ch_uuid ? `/app/channel/${post.post_channel.ch_uuid}/${post.post_uuid}` : undefined,
       postUuid: post?.post_uuid,
@@ -132,6 +156,18 @@ export function mentionsToNeeds(items: UnifiedActivityItem[], selfId: string | u
     })
   }
   return out
+}
+
+/** A message.mentioned notice of a message's own words, not of a reply's (a reply's mention isn't listed here either). */
+function isMessageMention(a: UnifiedActivityItem): boolean {
+  return a.activity_type === "NOTICE" && a.notice?.kind === "message.mentioned" && !a.notice.data?.comment_uuid
+}
+
+/** A mention's row title and its person: "Jonas mentioned you in #engineering", or "in a message". */
+function mentionedYou(by: UserProfileDataInterface, channel: string | undefined, inMessage: boolean): Pick<NeedsItem, "title" | "person"> {
+  const name = displayNameOf(by) || "Someone"
+  const place = channel ? ` in #${channel}` : inMessage ? " in a message" : ""
+  return { title: `${name.split(/\s+/)[0]} mentioned you${place}`, person: { id: by.user_uuid, name, bot: !!by.is_bot } }
 }
 
 /** DMs with unread messages: someone is waiting on an answer. */

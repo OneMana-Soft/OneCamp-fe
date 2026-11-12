@@ -105,7 +105,8 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await page.locator("[data-card]", { hasText: `Line ${ROWS - 1}` }).getByRole("button").click()
     const record = page.locator("[data-record-panel]")
     await expect(record).toBeVisible({ timeout: 30_000 })
-    await expect(record).toHaveAttribute("aria-label", new RegExp(`^Line ${ROWS - 1}, a row of`))
+    // Its name: the side panel's label, or on a phone the sheet's title (TABLES-BOARDS-25).
+    await expect(record).toHaveAccessibleName(new RegExp(`^Line ${ROWS - 1}, a row of`))
     await record.getByRole("button", { name: "Close" }).click()
     await expect(record).toHaveCount(0)
 

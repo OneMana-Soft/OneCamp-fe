@@ -20,6 +20,8 @@ import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryP
 import type { ComponentType } from "react"
 import { lazyPart } from "@/lib/lazy/lazyPart"
 import { FilterChip } from "@/components/task/filterChip"
+import { InsightsMenuItem } from "@/components/task/insightsLink"
+import { insightsHref } from "@/lib/board/boardQuery"
 import { PartRetry } from "@/components/ui/part-retry"
 
 type KanbanFilterProps = { activeList: string[]; updateList: (l: string[]) => void }
@@ -52,8 +54,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
 import { ErrorState } from "@/components/ui/error-state"
-import { EmptyState } from "@/components/ui/empty-state"
-import { SpotTasks } from "@/components/ui/graphics/spots"
+import { NothingAssigned } from "@/components/myTask/nothingAssigned"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -65,14 +66,7 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
 
     const [activeProject, setActiveProject] = useState<string[]>([])
     const [priorityFilter, setPriorityFilter] = useState<string[]>([])
-    const [viewableStatus, setColumnShown] = useBoardColumns({
-        backlog: false,
-        todo: true,
-        inProgress: true,
-        inReview: false,
-        done: true,
-        canceled: false,
-    })
+    const [viewableStatus, setColumnShown] = useBoardColumns("mine")
 
     // The priority filter used to be left out of this request, so choosing a
     // priority on My Tasks changed nothing.
@@ -129,7 +123,10 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                                 <span className="hidden sm:inline">Display</span>
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[150px]">
+                        <DropdownMenuContent align="end" className="w-[200px]">
+                            {/* Insights (L32): My tasks' report, the reader's own work, with the filters this board asks with. */}
+                            <InsightsMenuItem href={insightsHref(undefined, JSON.parse(new URLSearchParams(urlParam).get("filters") ?? "[]"), "", "")} />
+                            <DropdownMenuSeparator />
                             <DropdownMenuLabel>{t("toggleColumns")}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             {taskStatuses.map((column) => (
@@ -162,7 +159,7 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                 </WorkState>
             ) : noTasks ? (
                 <WorkState>
-                    <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} />
+                    <NothingAssigned />
                 </WorkState>
             ) : (
             <KeyboardList tasks={boardTasks} canEdit={canEditMine} placement="overlay" className="flex-1 overflow-hidden">
@@ -170,7 +167,7 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                     <TaskBoard
                         columns={columns}
                         visible={visible}
-                        // Only in projects where I am an admin: the server allows no more.
+                        // Only the tasks each project's rule lets me change (Work Access).
                         canDrag={canEditMine}
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                         boardKey="my-tasks"

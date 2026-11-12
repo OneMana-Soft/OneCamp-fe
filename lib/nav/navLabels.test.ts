@@ -18,7 +18,7 @@ const root = resolve(__dirname, "..", "..")
 const NAMES = new Set(["OneCamp", "AI", "DMs", "API", "GitHub", "Gmail", "Slack", "MCP", "SSO"])
 
 /** Product names of more than one word, read as one name. */
-const PRODUCTS = ["Google Calendar"]
+const PRODUCTS = ["Google Calendar", "Outlook Calendar"]
 
 /** The first title-cased word after the first, if any ("My Tasks" gives "Tasks"). */
 function titleCasedWord(label: string): string | undefined {

@@ -11,6 +11,7 @@ import { MqttMessageType } from "@/services/mqttService"
 import type { ProjectInfoInterface, ProjectInfoRawInterface } from "@/types/project"
 import type { TaskInfoInterface } from "@/types/task"
 import type { UserProfileInterface } from "@/types/user"
+import { inReaderZone } from "@/lib/tasks/readerZone"
 
 /** A board's columns, each a status category, in the order a list reads them. */
 export const COLUMNS = [
@@ -41,7 +42,7 @@ export function useProjectBoard(projectId: string, opts: { mine?: boolean; enabl
   const uid = self.data?.data?.uid
   const ready = project.state === "ok" && (!opts.mine || !!uid)
   const query = GetTaskStatusQueryParamByStatus({ assigneeFilter: opts.mine && uid ? [uid] : [], priorityFilter: [] })
-  const res = useFetch<ProjectInfoRawInterface>(ready ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}?${query}` : "", undefined, undefined, OWN_ERRORS)
+  const res = useFetch<ProjectInfoRawInterface>(ready ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}?${query}` : "", undefined, undefined, inReaderZone(OWN_ERRORS))
 
   const { mutate } = res
   const again = React.useRef<ReturnType<typeof setTimeout> | null>(null)

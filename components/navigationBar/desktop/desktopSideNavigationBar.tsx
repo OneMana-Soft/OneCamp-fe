@@ -245,7 +245,7 @@ export function MorePopover({ links, children }: { links: DesktopNavType[]; chil
  * More, on the selected chip the primary rows wear (QA F-31). A grey name on an
  * idle row didn't read as where you are.
  */
-function MoreRow({ links }: { links: DesktopNavType[] }) {
+const MoreRow = memo(function MoreNav({ links }: { links: DesktopNavType[] }) {
   const current = links.find((l) => l.variant === "sidebarActive");
   const fade = useChipFade(!!current);
   return (
@@ -263,7 +263,7 @@ function MoreRow({ links }: { links: DesktopNavType[] }) {
       </button>
     </MorePopover>
   );
-}
+})
 
 /** The four primary rows and More. */
 export function PrimaryNav({ links, more, inboxPulse }: { links: DesktopNavType[]; more: DesktopNavType[]; inboxPulse?: boolean }) {
@@ -287,8 +287,8 @@ interface SectionProps {
   /** Where the heading itself goes (Projects opens every project). */
   href?: string;
   rows: DesktopChildrenNavType[];
-  /** The first-run row shown in place of an empty section. */
-  invite?: { label: string; onClick: () => void };
+  /** The first-run row in place of an empty section; it does what "+" does. */
+  invite?: string;
   /** At most this many rows, the rest behind "Show N more". */
   cap?: number;
   /** No header and never folded: the list's own title already names it (the tablet's channel list). */
@@ -305,7 +305,7 @@ interface SectionProps {
  */
 const rowKey = (r: DesktopChildrenNavType) => r.path;
 
-export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel, href, rows: liveRows, invite, cap, bare = false }: SectionProps) {
+export const SidebarSection = memo(function NavSection({ title, open: openProp, setOpen, onAdd, addLabel, href, rows: liveRows, invite, cap, bare = false }: SectionProps) {
   const [showAll, setShowAll] = useState(false);
   const open = bare || openProp;
   // A row never moves under the pointer: DMs follow their latest message,
@@ -361,9 +361,9 @@ export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel
       {open && (
         <div className="shell-sect-rows flex flex-col gap-px" data-instant={lastInputWasPointer() ? undefined : "true"} {...holdOrder}>
           {rows.length === 0 && invite ? (
-            <button type="button" onClick={invite.onClick} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-ink-3">
+            <button type="button" onClick={onAdd} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-ink-3">
               <span className="shell-invite-tile" aria-hidden="true"><Plus /></span>
-              <span className="truncate">{invite.label}</span>
+              <span className="truncate">{invite}</span>
             </button>
           ) : (
             <>
@@ -381,4 +381,4 @@ export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel
       )}
     </section>
   );
-}
+})

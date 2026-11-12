@@ -79,6 +79,8 @@ export interface ApiEvent {
   organiser: { user_uuid: string }
   /** Its colour (one of the camp hues; none for its calendar's), busy or free, and who may see it. */
   hue?: string
+  /** What it links, by reference (lib/calendar/eventFiles). */
+  files?: { kind: string; uuid: string }[]
   transparency?: "opaque" | "transparent"
   visibility?: "default" | "public" | "private"
   /** What its guests may do: change it, invite others, see who else is on it. */
@@ -190,13 +192,18 @@ export function readApiEventRequest(id: string) {
   return { method: "GET", apiEndpoint: CALENDAR_EVENTS, appendToUrl: `/${encodeURIComponent(id)}`, quiet: true } as const
 }
 
-export function createApiEventRequest(input: ApiEventInput) {
+/**
+ * A new event. Its failure is said in a toast titled for it, or, for a form
+ * that says one refusal in place (saysInPlace: the event form's Calendar row,
+ * V-594), in the app's write-failure toast a turn later, which the form claims
+ * for that refusal (lib/http/writeSaid) and leaves for any other.
+ */
+export function createApiEventRequest(input: ApiEventInput, saysInPlace = false) {
   return {
     method: "POST",
     apiEndpoint: CALENDAR_EVENTS,
     payload: input,
-    showErrorToast: true,
-    failureTitle: "Couldn't create the event",
+    ...(saysInPlace ? {} : { showErrorToast: true, failureTitle: "Couldn't create the event" }),
   } as const
 }
 
@@ -283,12 +290,12 @@ export interface ApiReminders {
  * its series'): null goes back to the default, [] is none. Saved without a
  * toast (STEP4_PLAN §4 #5); the row says itself when it couldn't be.
  */
-export function setRemindersRequest(id: string, minutes: number[] | null) {
+export function setRemindersRequest(id: string, minutes: number[] | null, email: number[] = []) {
   return {
     method: "PUT",
     apiEndpoint: CALENDAR_EVENTS,
     appendToUrl: `/${encodeURIComponent(id)}/reminders`,
-    payload: { minutes },
+    payload: { minutes, email: minutes ? email : [] },
     quiet: true,
   } as const
 }
@@ -303,14 +310,17 @@ export function snoozeReminderRequest(id: string, until: "5m" | "start" | "1m") 
   } as const
 }
 
-/** Gives an event (a series, from any of its instances) its own call, or answers the one it has (calendar B11). */
+/**
+ * Gives an event (a series, from any of its instances) a guest link on its room, or answers the one it has (calendar
+ * B11; "Add a guest link" since gcal-15, every event having its room).
+ */
 export function addCallRequest(id: string) {
   return {
     method: "POST",
     apiEndpoint: CALENDAR_EVENTS,
     appendToUrl: `/${encodeURIComponent(id)}/call`,
     showErrorToast: true,
-    failureTitle: "Couldn't add a call",
+    failureTitle: "Couldn't add a guest link",
   } as const
 }
 

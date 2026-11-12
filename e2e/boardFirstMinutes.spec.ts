@@ -1,10 +1,11 @@
 import { join } from "node:path"
-import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from "@playwright/test"
+import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test"
 // The app's server side, faked: fixtures for the API, and one in-memory
 // collaboration server. Nothing leaves the machine.
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, note, shape } from "../scripts/fluidity/fakeBoard.mjs"
-import { SHOT_THEMES, reviewShot } from "./stubbedApp"
+import { finger } from "./finger"
+import { SHOT_THEMES, reviewShot, tidy } from "./stubbedApp"
 
 // A Miro team's first ten minutes on a OneCamp board (whiteboard W-1;
 // miro-07, miro-11, miro-19, miro-04): a sticky note on N and a run of them
@@ -68,6 +69,30 @@ async function open(
   }
   return { context, page, collab, elements, notes, words }
 }
+
+/**
+ * Hand-drawn style from the More menu, as a person chooses it: a board is clean until someone does
+ * (TABLES-BOARDS-16), and only a hand-drawn board writes its notes in the handwriting face (Excalifont).
+ */
+async function chooseHandDrawn(b: Awaited<ReturnType<typeof open>>, device: keyof typeof DEVICES = "computer") {
+  await press(boardMenu(b.page, device), device)
+  await press(b.page.getByRole("menuitemcheckbox", { name: "Hand-drawn style" }), device)
+  await expect.poll(() => b.collab.doc(NAME).getMap("boardMeta").get("style"), { timeout: 5_000 }).toBe("sketch")
+  // Choosing closes the menu. As it goes, Radix may give focus back to More, a timer after the menu has left the page
+  // (FocusScope's unmount). On a loaded machine that hand-back came after the next step had focused the canvas or
+  // opened a note's words, and took focus from them (the words typed went to the board's shortcuts). So the next step
+  // waits until the menu is gone, its hand-back timer has run, and focus is out of the menu, wherever it went.
+  await expect(b.page.getByRole("menu")).toHaveCount(0, { timeout: 5_000 })
+  await b.page.evaluate(() => new Promise((done) => setTimeout(done, 0)))
+  await expect.poll(() => b.page.evaluate(() => !document.activeElement?.closest('[role="menu"]')), { timeout: 5_000 }).toBe(true)
+}
+
+/** The board's menu: More at a desk, Board options in a phone's cluster. */
+const boardMenu = (page: Page, device: keyof typeof DEVICES) =>
+  page.getByRole("button", { name: device === "phone" ? "Board options" : "More", exact: true })
+
+/** A press as the device makes it: a click at a desk, a tap on a phone. */
+const press = (target: Locator, device: keyof typeof DEVICES) => (device === "phone" ? target.tap() : target.click())
 
 /** A point on the canvas, from its top left, in page pixels. */
 async function at(page: Page, x: number, y: number) {
@@ -205,6 +230,130 @@ test.describe("a board's first ten minutes", () => {
     await expect.poll(() => (b.collab.doc(NAME).getMap("boardMeta").get("frameOrder") as string[] | undefined)?.length ?? 0, { timeout: 5_000 }).toBe(3)
     await b.context.close()
   })
+
+  // TABLES-BOARDS-16 (UX-TB-H1): nothing writes the style a board starts in, and a board with a drawing and no stored
+  // style read as hand-drawn, so every board made in the app was hand-drawn from its second open. Clean until chosen.
+  type Drawn = Shared & { fontFamily?: number; roughness?: number }
+
+  /**
+   * A note with words and a rectangle, as each device makes them: N and a click, then R and a drag, at a desk; the
+   * board's own "Add a note", then the tool row's rectangle and a finger's stroke, on a phone. Then the shape is let go
+   * (a press on empty ground), so a shot shows both notes and the shape, and no style panel over them. Returns the new
+   * note's words and the rectangles drawn, as the server has them.
+   */
+  async function noteAndShape(b: Awaited<ReturnType<typeof open>>, device: keyof typeof DEVICES) {
+    const { page } = b
+    const drawn = () => b.elements() as Drawn[]
+    // The shared demo's banner stands over the board's top on a first open, and pushes a phone's canvas down under the
+    // finger: closed, so both devices draw on the board as it rests (and as it is after a reopen).
+    await tidy(page)
+    if (device === "phone") {
+      await page.getByRole("button", { name: "Add a note" }).tap()
+    } else {
+      await page.locator(".excalidraw").first().focus()
+      await page.keyboard.press("n")
+      await expect(page.locator("[data-note-ghost]")).toBeAttached()
+      const p = await at(page, 520, 320)
+      await page.mouse.click(p.x, p.y)
+    }
+    await expect(page.locator("textarea.excalidraw-wysiwyg")).toBeVisible({ timeout: 5_000 })
+    await page.keyboard.type("This week", { delay: 10 })
+    await page.keyboard.press("Escape")
+    await expect.poll(() => b.notes().length, { timeout: 5_000 }).toBe(2)
+    const fresh = b.notes().find((n) => n.id !== "old")!
+
+    await page.keyboard.press("Escape")
+    // Clear of the notes and the board's bars. A phone's note lands in the middle of the view, and its bars stand over
+    // the canvas's foot, so the finger draws in the ground between the two, measured: a stroke begun on a bar is the
+    // bar's, and draws nothing. The view rests at the scene's origin (open's kept camera), so a note's place is the
+    // canvas's.
+    const [from, to, ground] = device === "phone" ? await phoneGround(page, fresh) : [await at(page, 760, 200), await at(page, 900, 300), await at(page, 1000, 480)]
+    if (device === "phone") {
+      await page.locator('label:has([data-testid="toolbar-rectangle"])').tap()
+      await expect(page.locator('[data-testid="toolbar-rectangle"]')).toBeChecked()
+      // At a finger's pace, a move a frame, and the finger rests before it lifts (a lift mid-move is a fling).
+      const f = await finger(page)
+      await f.down(from.x, from.y)
+      for (let i = 1; i <= 8; i++) {
+        await f.move(from.x + ((to.x - from.x) * i) / 8, from.y + ((to.y - from.y) * i) / 8)
+        await page.waitForTimeout(16)
+      }
+      await page.waitForTimeout(150)
+      await f.up()
+    } else {
+      await page.locator(".excalidraw").first().focus()
+      await page.keyboard.press("r")
+      await page.mouse.move(from.x, from.y)
+      await page.mouse.down()
+      await page.mouse.move(to.x, to.y, { steps: 6 })
+      await page.mouse.up()
+    }
+    const shapes = () => drawn().filter((e) => e.type === "rectangle" && e.customData?.kind !== "note")
+    await expect.poll(() => shapes().length, { timeout: 5_000 }).toBe(1)
+    // Let go: nothing selected, so Excalidraw's style panel is gone.
+    if (device === "phone") await page.touchscreen.tap(ground.x, ground.y)
+    else await page.mouse.click(ground.x, ground.y)
+    await expect(page.locator(".excalidraw .App-menu__left")).toBeHidden()
+    const words = () => drawn().find((e) => e.type === "text" && e.containerId === fresh.id)
+    return { words, shapes }
+  }
+
+  /** On a phone: a shape's two corners and a bare spot beside it, between the note just made and the board's bars. */
+  async function phoneGround(page: Page, noteMade: Shared) {
+    const canvas = (await page.locator(".excalidraw").first().boundingBox())!
+    const bars = (await page.getByRole("toolbar", { name: "Facilitation" }).boundingBox())!
+    const top = canvas.y + noteMade.y + (noteMade.height ?? 0) + 16
+    const bottom = bars.y - 16
+    expect(bottom - top, "room for a shape between the note and the board's bars").toBeGreaterThan(40)
+    return [
+      { x: canvas.x + 40, y: top },
+      { x: canvas.x + 190, y: bottom },
+      { x: canvas.x + 340, y: (top + bottom) / 2 },
+    ]
+  }
+
+  /** The board's menu says whether it is hand-drawn; it closes again, and focus leaves it, before a shot. */
+  async function expectHandDrawn(b: Awaited<ReturnType<typeof open>>, device: keyof typeof DEVICES, checked: boolean) {
+    await press(boardMenu(b.page, device), device)
+    await expect(b.page.getByRole("menuitemcheckbox", { name: "Hand-drawn style" })).toHaveAttribute("aria-checked", String(checked))
+    await b.page.keyboard.press("Escape")
+    await expect(b.page.getByRole("menu")).toHaveCount(0, { timeout: 5_000 })
+  }
+
+  for (const device of ["computer", "phone"] as const) {
+    for (const theme of SHOT_THEMES) {
+      test(`a board reopened after drawing still makes clean notes and shapes (${device}, ${theme})`, async ({ browser }) => {
+        test.setTimeout(90_000)
+        const b = await open(browser, device, { theme, drawing: [...note("old", 120, 120, "Last week")] })
+        const { words, shapes } = await noteAndShape(b, device)
+        // The note's words in the plain sans (lib/board/notes STYLE_FONT clean: 6); the rectangle straight-edged
+        // (roughness 0), not sketched.
+        await expect.poll(() => words()?.fontFamily, { timeout: 5_000 }).toBe(6)
+        await expect.poll(() => shapes().map((e) => e.roughness), { timeout: 5_000 }).toEqual([0])
+        await expectHandDrawn(b, device, false)
+        await reviewShot(b.page, "board-reopened-clean", theme)
+        await b.context.close()
+      })
+
+      // The other half of the rule: the style belongs to the board, so a board someone made hand-drawn stays so.
+      test(`a board set to Hand-drawn stays hand-drawn after a reopen (${device}, ${theme})`, async ({ browser }) => {
+        test.setTimeout(90_000)
+        const b = await open(browser, device, { theme, drawing: [...note("old", 120, 120, "Last week")] })
+        await chooseHandDrawn(b, device)
+        // Reopened: the page again, from the same server.
+        await b.page.reload({ waitUntil: "load" })
+        await expect(b.page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
+        expect(b.collab.doc(NAME).getMap("boardMeta").get("style")).toBe("sketch")
+        const { words, shapes } = await noteAndShape(b, device)
+        // The note's words in the handwriting face (STYLE_FONT sketch: 5); the rectangle sketched (roughness > 0).
+        await expect.poll(() => words()?.fontFamily, { timeout: 5_000 }).toBe(5)
+        await expect.poll(() => shapes().map((e) => (e.roughness ?? 0) > 0), { timeout: 5_000 }).toEqual([true])
+        await expectHandDrawn(b, device, true)
+        await reviewShot(b.page, "board-reopened-sketch", theme)
+        await b.context.close()
+      })
+    }
+  }
 
   test("on a phone, a note from the board's own button, a template from the empty board, and the library and frames from its options", async ({ browser }) => {
     test.setTimeout(120_000)
@@ -416,6 +565,7 @@ test.describe("a note's words fit it", () => {
     const landed = new Promise<void>((resolve) => (land = resolve))
     const b = await open(browser, "computer", { route: holdFaces(["Excalifont"], landed) })
     const { page } = b
+    await chooseHandDrawn(b)
     const ready = () => page.evaluate(() => document.fonts.check("18px Excalifont", "Write"))
     await page.locator(".excalidraw").first().focus()
     await page.keyboard.press("n")
@@ -423,6 +573,8 @@ test.describe("a note's words fit it", () => {
     const p = await at(page, 420, 300)
     await page.mouse.click(p.x, p.y)
     await expect(page.locator("textarea.excalidraw-wysiwyg")).toBeVisible({ timeout: 5_000 })
+    // The words typed go to the note: its editor has focus.
+    await expect(page.locator("textarea.excalidraw-wysiwyg")).toBeFocused({ timeout: 5_000 })
     await page.keyboard.type(LONG, { delay: 5 })
     await page.keyboard.press("Escape")
     expect(await ready(), "the face is still on its way").toBe(false)
@@ -628,12 +780,15 @@ test.describe("a board's faces come from this server", () => {
       },
     })
     const { page } = b
+    await chooseHandDrawn(b)
     await page.locator(".excalidraw").first().focus()
     await page.keyboard.press("n")
     await expect(page.locator("[data-note-ghost]")).toBeAttached()
     const p = await at(page, 420, 300)
     await page.mouse.click(p.x, p.y)
     await expect(page.locator("textarea.excalidraw-wysiwyg")).toBeVisible({ timeout: 5_000 })
+    // The words typed go to the note: its editor has focus.
+    await expect(page.locator("textarea.excalidraw-wysiwyg")).toBeFocused({ timeout: 5_000 })
     await page.keyboard.type("Ship it", { delay: 5 })
     await page.keyboard.press("Escape")
     const face = () =>

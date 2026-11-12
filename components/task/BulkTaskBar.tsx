@@ -20,10 +20,12 @@ import { useBulkTaskUpdate, type BulkResult } from "@/hooks/useBulkTaskUpdate"
 import { useDeleteTasks } from "@/hooks/useDeleteTasks"
 import { DatePanel, quickDays } from "@/components/ui/date-field-panels"
 import { shortDate } from "@/lib/utils/date/shortDate"
-import { priorities } from "@/types/table"
 import { ProjectsGet } from "@/services/endpoints/projects"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { readOnlyWords } from "@/lib/work/readOnlyWords"
 import { MAX_TAG_LENGTH, tagTone } from "@/lib/tags"
 import { notDone, selectionTags, tagState, tasksCount, whyNotDone, type BulkChange } from "@/lib/bulkTasks"
+import { BULK_PRIORITIES, prioritySaid } from "@/lib/tasks/bulkPriority"
 import type { CycleChoice } from "@/lib/work/backlog"
 import { useProjectMilestones } from "@/hooks/useProjectMilestones"
 import { ErrorState } from "@/components/ui/error-state"
@@ -101,6 +103,12 @@ export function BulkTaskBar({
   const options = statusOptions ?? own.options
   const bulk = useBulkTaskUpdate(listProjectId)
   const deleteTasks = useDeleteTasks(listProjectId)
+  const { mutate: rowsCache, cache } = useSWRConfig()
+  // Why the rest can't change, by each project's rule (PROJECTS-23); a
+  // project's list reads its project's from the page's own read.
+  const listProject = listProjectId ? (cache.get(`${GetEndpointUrl.GetProjectInfo}/${listProjectId}`)?.data as ProjectInfoRawInterface | undefined)?.data : undefined
+  const words = readOnlyWords(selected.filter((t) => !canEdit(t)), editable.length, listProject)
+  const { line, why } = words ?? {}
 
   // A key can ask for a picker the bar can't offer: nothing here this person
   // may change, or people to assign across several projects. Say so, rather
@@ -109,10 +117,8 @@ export function BulkTaskBar({
   React.useEffect(() => {
     if (!blocked) return
     onPicker(null)
-    toast({
-      title: editable.length === 0 ? "Only a project's admins can change its tasks" : "Pick tasks from one project to assign them",
-    })
-  }, [blocked, editable.length, onPicker])
+    toast(editable.length === 0 && line ? { title: line, description: why } : { title: "Pick tasks from one project to assign them" })
+  }, [blocked, editable.length, onPicker, line, why])
 
   // Each field's change, the pickers' below and the palette's: the request for
   // the tasks this person may change, then what it did, said once.
@@ -124,7 +130,7 @@ export function BulkTaskBar({
   }
   const change = {
     status: (value: string) => run({ field: "status", value, options }, `${moved(n)} to ${options.find((o) => o.value === value)?.label ?? value}`),
-    priority: (value: string) => run({ field: "priority", value }, `Set ${tasksCount(n)} to ${priorities.find((p) => p.value === value)?.label ?? value} priority`),
+    priority: (value: string) => run({ field: "priority", value }, prioritySaid(n, value)),
     assignee: (user: UserProfileDataInterface | null) =>
       run({ field: "assignee", user }, user ? `Assigned ${tasksCount(n)} to ${displayNameOf(user)}` : `Unassigned ${tasksCount(n)}`),
     /** An ISO time, or "" to take the due date off. */
@@ -140,7 +146,6 @@ export function BulkTaskBar({
   // The palette acts on the selection (linear-28 H1b). What it lists is made
   // from this render's handlers as it opens, reading what a page needs (the
   // people, the tags, the milestones) through the keys the pickers below read.
-  const { mutate: rowsCache } = useSWRConfig()
   const paletteSelection = React.useRef<SelectionForPalette<UserProfileDataInterface> | null>(null)
   React.useEffect(() => {
     let read: Milestone[] = []
@@ -152,7 +157,7 @@ export function BulkTaskBar({
             fields: fields.filter(({ field }) => field !== "assignee" || !!project).map(({ field, key }) => ({ field, key })),
             statusOptions: options,
             onStatus: (value) => void change.status(value),
-            priorityOptions: [...priorities].reverse(),
+            priorityOptions: BULK_PRIORITIES,
             onPriority: (value) => void change.priority(value),
             people: async () => (project ? ((await readInto<ProjectInfoRawInterface>(rowsCache, membersKey(project))).data?.project_members ?? []) : []),
             nameOf: displayNameOf,
@@ -193,7 +198,6 @@ export function BulkTaskBar({
   }, [count])
 
   if (selected.length === 0) return null
-  const readOnly = selected.length - editable.length
 
   return (
     <div
@@ -209,9 +213,11 @@ export function BulkTaskBar({
         className="pointer-events-auto flex max-w-[calc(100%-2rem)] items-center gap-1 overflow-x-auto rounded-xl bg-pop p-1.5 pl-3 shadow-e3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
       >
         <span className="mr-1 whitespace-nowrap text-sm font-medium tabular-nums">{selected.length} selected</span>
-        {readOnly > 0 && (
-          <span className="mr-1 whitespace-nowrap text-xs text-muted-foreground" title="Only a project's admins can change its tasks.">
-            {editable.length === 0 ? "· only a project's admins can change these" : `· ${readOnly} you can't change`}
+        {words && (
+          // The why in the app's tip (tipLayer), above the bar, not a native title.
+          <span className="tip-above tip-wide mr-1 whitespace-nowrap text-xs text-muted-foreground" data-tip={words.why}>
+            · {words.line}
+            <span className="sr-only">. {words.why}</span>
           </span>
         )}
         {editable.length > 0 &&
@@ -242,7 +248,7 @@ export function BulkTaskBar({
                   {field === "priority" && (
                     <OptionList
                       placeholder="Set priority…"
-                      items={[...priorities].reverse().map((p) => ({ value: p.value, search: p.label, node: <TaskPriorityCell priority={p} /> }))}
+                      items={BULK_PRIORITIES.map((p) => ({ value: p.value, search: p.label, node: <TaskPriorityCell priority={p} /> }))}
                       onPick={change.priority}
                     />
                   )}

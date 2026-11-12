@@ -15,9 +15,9 @@ import type { Dispatch } from "@reduxjs/toolkit"
 import { ToastAction } from "@/components/ui/toast"
 import { toast } from "@/hooks/use-toast"
 import { docDeleted, docRestored } from "@/lib/docCache"
-import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import { addPlace, deleteDoc, duplicateDoc, removePlace, restoreDoc } from "@/services/docGraphService"
-import { starPlace, unstarPlace } from "@/store/slice/userSlice"
+import { apiErrorCode, apiErrorStatus } from "@/lib/utils/apiError"
+import { failed, star, starOf, unstar } from "@/lib/places/starring"
+import { deleteDoc, duplicateDoc, restoreDoc } from "@/services/docGraphService"
 import { openUI } from "@/store/slice/uiSlice"
 import type { Place } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
@@ -33,11 +33,6 @@ export interface DocRef {
 export const named = (d: DocRef) => (d.title.trim() ? `“${d.title.trim()}”` : "the untitled doc")
 
 const OWN = { ownErrors: true }
-
-/** Says that something didn't happen, and why. */
-function failed(title: string, err: unknown, fallback = "Try again in a moment.") {
-  toast({ variant: "destructive", title, description: apiErrorMessage(err, fallback) })
-}
 
 /** The pages inside a doc that went with it, after a word ("and", "with"); "" when none did. */
 const pagesInside = (count: number, word: string) => (count > 1 ? ` ${word} ${count - 1} ${count === 2 ? "page" : "pages"} inside` : "")
@@ -66,36 +61,13 @@ export function purgeWarning(name: string, subpages: number | undefined): string
 export const pagesLeftInTrash = (kept: number | undefined) =>
   kept ? `${kept} ${kept === 1 ? "page" : "pages"} you don't have full access to ${kept === 1 ? "stays" : "stay"} in the trash.` : undefined
 
-/** Stars a doc: in Starred at once, then on the server; put back if it refuses. Resolves whether it is starred. */
-export async function starDoc(dispatch: Dispatch, d: DocRef): Promise<boolean> {
-  const place: Place = { kind: "star", resource_kind: "doc", resource_uuid: d.id, position: "", title: d.title, icon: d.icon, href: `${app_doc_path}/${d.id}` }
-  dispatch(starPlace({ place }))
-  try {
-    await addPlace("star", "doc", d.id, undefined, OWN)
-    return true
-  } catch (err) {
-    dispatch(unstarPlace({ resource_uuid: d.id }))
-    failed(`Couldn't star ${named(d)}`, err)
-    return false
-  }
-}
+/** Stars a doc (lib/places/starring). Resolves whether it is starred. */
+export const starDoc = (dispatch: Dispatch, d: DocRef): Promise<boolean> =>
+  star(dispatch, starOf("doc", d.id, d.title, `${app_doc_path}/${d.id}`, d.icon), `Couldn't star ${named(d)}`)
 
-/**
- * Takes a doc's star away: gone from Starred at once, back if the server
- * refuses (was is its place there, when the menu has it). Resolves whether
- * the star is gone.
- */
-export async function unstarDoc(dispatch: Dispatch, d: DocRef, was?: Place): Promise<boolean> {
-  dispatch(unstarPlace({ resource_uuid: d.id }))
-  try {
-    await removePlace("star", d.id, OWN)
-    return true
-  } catch (err) {
-    if (was) dispatch(starPlace({ place: was }))
-    failed(`Couldn't remove ${named(d)} from starred`, err)
-    return false
-  }
-}
+/** Takes a doc's star away, back if the server refuses (was is its place in Starred, when the menu has it). */
+export const unstarDoc = (dispatch: Dispatch, d: DocRef, was?: Place): Promise<boolean> =>
+  unstar(dispatch, d.id, was, `Couldn't remove ${named(d)} from starred`)
 
 /**
  * Copies a doc with the pages inside it, and says so. From the doc's own page

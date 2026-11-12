@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
@@ -153,6 +155,41 @@ describe("the combobox on a phone", () => {
     }
     // As a popover's trigger does: a button's type unless the chip names its own.
     expect(chip.getAttribute("type")).toBe("button")
+  })
+
+  it("ends its list with the shared bottom fade, drawn while more rows sit below and over no footer; the strip is the sheet's own", async () => {
+    render(<Owner />)
+    fireEvent.click(screen.getByRole("combobox", { name: "Owner" }))
+    const sheet = await screen.findByRole("dialog", { name: "Owner" })
+    const menu = sheet.querySelector<HTMLElement>("[data-combobox-content]")!
+    // The list's end: a mark held at the scroller's foot while rows sit below it, at the last row once scrolled there.
+    const end = menu.lastElementChild as HTMLElement
+    expect(end.hasAttribute("data-sheet-end")).toBe(true)
+    expect(end.getAttribute("aria-hidden")).toBe("true")
+    expect(end.className.split(/\s+/)).toEqual(expect.arrayContaining(["sticky", "bottom-0"]))
+    // The home-indicator strip is the sheet's own (DrawerContent's), so the last row scrolls clear of it.
+    expect(sheet.hasAttribute("data-overlay-holds-footer")).toBe(false)
+    expect(sheet.className.split(/\s+/)).toContain("pb-[env(safe-area-inset-bottom)]")
+    // How it draws (app/phone.css) is the next test's.
+  })
+
+  it("draws its list's end fade a row tall, in a rule of its own keyed on the sheet's no-footer mark; a pinned footer's stays 12px, with no :has()", () => {
+    // At a list's end the fade is the only cue that rows sit below, so it reaches into the last row's text in view: 12px
+    // lay under a whole row's text, and the list read as one that ends. Whether a footer follows is the sheet's own mark
+    // (data-overlay-holds-footer), not a :has() on its body, which restyled the body's subtree as a sheet opened.
+    const css = readFileSync(join(process.cwd(), "app/phone.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, decls]) => ({ selectors: selectors.split(",").map((x) => x.replace(/\s+/g, " ").trim()), decls }))
+    const prop = (decls: string, name: string) => decls.match(new RegExp(`(?:^|;)\\s*${name}:\\s*([^;]+);`))?.[1].trim()
+    const naming = (selector: string) => rules.filter((r) => r.selectors.includes(selector))
+    const [footers] = naming("[data-sheet-footer]::before")
+    expect(footers.selectors.filter((x) => x.includes(":has("))).toEqual([])
+    expect(prop(footers.decls, "height")).toBe("12px")
+    // The end takes the footers' look, so the two never differ but in height, and draws nothing until its own rule says so.
+    expect(footers.selectors).toContain("[data-sheet-end]::before")
+    expect(naming("[data-sheet-end]::before").map((r) => prop(r.decls, "content"))).toEqual(['""', "none"])
+    const END = "[data-v3-sheet]:not([data-overlay-holds-footer]) [data-sheet-body][data-more-below] [data-sheet-end]::before"
+    // A row (--m-hit, 44px) and 4px: wherever the edge cuts the rows, it reaches the text middle of the last row above it.
+    expect(naming(END).map((r) => [r.selectors, prop(r.decls, "content"), prop(r.decls, "height")])).toEqual([[[END], '""', "48px"]])
   })
 
   it("in a sheet, opens as a panel of that sheet with Back, never a sheet over it", async () => {

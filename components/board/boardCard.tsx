@@ -32,6 +32,8 @@ import { PostEndpointUrl } from "@/services/endPoints"
  */
 export function BoardEmbedView({ embed, pointer = null }: { embed: NonNullable<BoardEmbed>; pointer?: CardPointer }) {
   if ("frame" in embed) return <EmbedFrame embed={embed} />
+  // A code block draws from its element, not its link (boardExcalidraw's renderEmbeddable).
+  if ("code" in embed) return null
   return <LiveCard kind={embed.card.kind} id={embed.card.id} pointer={pointer} />
 }
 

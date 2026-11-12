@@ -55,8 +55,6 @@ export interface NavUnreadCounts {
     laterDue?: number
     /** Open tasks of yours that are due. */
     tasksDue?: number
-    /** OneCamp AI nudges marked urgent (0 where AI is off). */
-    urgentNudges?: number
 }
 
 /**
@@ -71,9 +69,13 @@ function variantFor(path: readonly string[], segment: string): DesktopNavType["v
     return isNavSectionActive(path, segment) ? "sidebarActive" : "ghost"
 }
 
-/** The Inbox row's number: what has no row of its own, plus urgent nudges. DMs badge their own rows. Pure. */
-export function inboxBadgeCount(counts: Pick<NavUnreadCounts, "activity" | "urgentNudges">): number {
-    return Math.max(0, counts.activity || 0) + Math.max(0, counts.urgentNudges || 0)
+/**
+ * The Inbox row's number: the server's count of what has no row of its own,
+ * urgent OneCamp AI nudges among it, by its one rule (V-577), so the phone
+ * bar, the title and the favicon show the same. DMs badge their own rows. Pure.
+ */
+export function inboxBadgeCount(counts: Pick<NavUnreadCounts, "activity">): number {
+    return Math.max(0, counts.activity || 0)
 }
 
 export function buildPrimaryNavLinks(

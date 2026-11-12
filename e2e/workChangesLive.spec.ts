@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
-import { SAM, brokerOn, expectEveryCallAnswered, mqttConfig, stubBackend, withStatus } from "./stubbedApp"
+import { SAM, brokerOn, expectEveryCallAnswered, mqttConfig, reviewShot, stubBackend, withStatus } from "./stubbedApp"
 
 // A teammate's change reaches a board that is already open (projects WCL-2;
 // ROWS asana-19 and jira-19), through the Work Change Log's one feed
@@ -11,14 +11,17 @@ import { SAM, brokerOn, expectEveryCallAnswered, mqttConfig, stubBackend, withSt
 // the log's head and reads the board again.
 //
 // Permission model: the feed grants nothing. The server answers each reader
-// only the entries they may see; this applies them to what is open.
+// only the entries they may see; this applies them to what is open. A money
+// field's value is its project's admins' only (V-698): its change comes with
+// no value (refetch: true), and the app reads the task again as this member.
 
 const P = "5d1c7e2a-8b4f-4c3d-9e6a-1f2b3c4d5e6f"
 const T = "00000000-0000-4000-8000-0000000000b7"
 const TEAMMATE = "00000000-0000-4000-8000-00000000d0e1"
 const TOPIC = `project/${P}`
-// MqttMessageType.Task_Changed (services/mqttService.ts).
+// MqttMessageType.Task_Changed and Task_Field (services/mqttService.ts).
 const TASK_CHANGED = 40
+const TASK_FIELD = 33
 const NONE = "0001-01-01T00:00:00Z"
 const BEFORE = "Draft launch email"
 const AFTER = "Send launch email"
@@ -52,6 +55,8 @@ interface Server {
   boardHeld?: Promise<void>
   /** Tasks a teammate made since the board opened, in its To do column after the first. */
   made: { uuid: string; name: string }[]
+  /** The task's Budget in cents, once set: the project then has that money field, shown on cards. */
+  budget?: number
 }
 
 /** The log as it is when the board opens: 41 entries from before, so its head is "41". */
@@ -98,6 +103,7 @@ function task(server: Server, uuid = T, name = server.name) {
     task_attachments: [],
     task_blocked_by: [],
     task_blocks: [],
+    task_fields: uuid === T && server.budget !== undefined ? { [BUDGET]: server.budget } : {},
   }
 }
 
@@ -146,7 +152,7 @@ async function stubBoard(page: Page, testInfo: TestInfo, server: Server) {
       data: { project_uuid: P, state: "starting", date: null, optimistic: null, pessimistic: null, by_pace: null, by_links: null, open: 1, unit: "tasks", per_week: 0, weeks: 0, held_by: [], held_count: 0 },
     },
     [`/project/${P}/statuses`]: { msg: "ok", data: { built_in: [], custom: [], colors: [], max: 20 } },
-    [`/project/${P}/fields`]: { msg: "ok", data: { fields: [], can_edit: true } },
+    [`/project/${P}/fields`]: () => ({ msg: "ok", data: { fields: server.budget === undefined ? [] : [BUDGET_FIELD], can_edit: true } }),
     [`/project/${P}/tags`]: { msg: "ok", data: [] },
     [`/project/${P}/types`]: { msg: "ok", data: [], icons: [] },
     [`/project/${P}/estimates`]: { msg: "ok", data: { scale: null, kinds: [], can_edit: true } },
@@ -321,4 +327,72 @@ for (const [where, use] of [
       await expectEveryCallAnswered(page)
     })
   })
+}
+
+// V-698: only a project's admins may read its money fields' values, so a money value's change reaches every member
+// alike with no value (refetch: true): live, as MESSAGE_TASK_FIELD and as the log's own message, and in GET
+// /work/changes. Each app reads the task again as itself. Applied as a value, it wrote null, and the admin's open
+// board lost the amount until a reload. Sam is the project's admin here, so the read answers him the new amount.
+const BUDGET = "00000000-0000-4000-8000-0000000000f1"
+const BUDGET_FIELD = { id: BUDGET, project_id: P, name: "Budget", type: "money", options: [], currency: "INR", on_card: true, position: 0, filter_id: `field:${BUDGET}` }
+
+/** The admin's change of the budget, as every member hears it: entry `sequence` of the log, with no value. */
+const budgetTold = (sequence: number) => changed(sequence, "task.updated", T, { field_id: BUDGET, refetch: true })
+
+/** An amount in cents as the page writes it in the field's currency. */
+const amount = (page: Page, cents: number) => page.evaluate((c) => new Intl.NumberFormat(undefined, { style: "currency", currency: "INR" }).format(c / 100), cents)
+
+/** The board open with the task's budget at 1,200, its reads then held: what the card shows meanwhile is the app's own. */
+async function openBudgetBoard(page: Page, testInfo: TestInfo) {
+  const server = newServer()
+  server.budget = 120_000
+  const broker = await openBoard(page, testInfo, server)
+  const [was, now] = [await amount(page, 120_000), await amount(page, 150_000)]
+  await expect(card(page, BEFORE)).toContainText(was)
+  const boardReads = server.boardReads
+  let answerBoard = () => {}
+  server.boardHeld = new Promise<void>((resolve) => (answerBoard = resolve))
+  // An admin sets the budget to 1,500: the log has it, with no value.
+  server.budget = 150_000
+  server.log.push(budgetTold(42))
+  return { server, broker, was, now, boardReads, answerBoard: () => answerBoard() }
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const [where, use] of [
+    ["on a phone, by touch", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }],
+    ["on a laptop", { viewport: { width: 1280, height: 860 } }],
+  ] as const) {
+    test.describe(`a money field's change told with no value (V-698), ${where}, ${theme}`, () => {
+      test.use({ ...use, colorScheme: theme })
+
+      test("caught up from the log, the admin's amount stays on the card and is read again", async ({ page }, testInfo) => {
+        const { server, was, now, boardReads, answerBoard } = await openBudgetBoard(page, testInfo)
+        // No message reached the app; the tab is shown again, and it catches up from the place it kept.
+        await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+        await expect.poll(() => keptOnDevice(page, "work-cursor"), { timeout: 15_000 }).toBe("42")
+        expect(server.reads.slice(1), "read from the place it kept").toContain(HEAD)
+        await expect.poll(() => server.boardReads, { message: "the board reads the task again", timeout: 15_000 }).toBeGreaterThan(boardReads)
+        await expect(card(page, BEFORE), "the amount stays on the card while it reads").toContainText(was)
+        await reviewShot(page, "money-catchup-reading", theme)
+        answerBoard()
+        await expect(card(page, BEFORE), "the card shows the amount the server answers").toContainText(now, { timeout: 15_000 })
+        await reviewShot(page, "money-catchup", theme)
+        await expectEveryCallAnswered(page)
+      })
+
+      test("heard live, the admin's amount stays on the card and is read again", async ({ page }, testInfo) => {
+        const { broker, server, was, now, boardReads, answerBoard } = await openBudgetBoard(page, testInfo)
+        const field = { type: TASK_FIELD, data: { task_uuid: T, project_uuid: P, field_id: BUDGET, value: null, refetch: true, by: TEAMMATE } }
+        expect(broker.publish(TOPIC, field), "the app is live on the project's topic").toBe(1)
+        expect(broker.publish(TOPIC, message(server.log.at(-1)!))).toBe(1)
+        await expect.poll(() => server.boardReads, { message: "the board reads the task again", timeout: 15_000 }).toBeGreaterThan(boardReads)
+        await expect(card(page, BEFORE), "the amount stays on the card while it reads").toContainText(was)
+        answerBoard()
+        await expect(card(page, BEFORE), "the card shows the amount the server answers").toContainText(now, { timeout: 15_000 })
+        await reviewShot(page, "money-live", theme)
+        await expectEveryCallAnswered(page)
+      })
+    })
+  }
 }

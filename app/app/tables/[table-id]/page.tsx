@@ -18,7 +18,7 @@ import {
 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
-import { DataTableGrid, SelectionPart, TableKeysPart } from "@/components/table/DataTableGrid"
+import { DataTableGrid, GroupPart, SelectionPart, TableKeysPart } from "@/components/table/DataTableGrid"
 import { BoardPart, CalendarPart, ChartPart, CleanupPart, FindPart, FormsPart, GalleryPart, ListPart, TimelinePart, MadeByAiPart, MenusPart, PresencePart, RecordPart, RulesPart, SaveDotPart, SharePart, TrashPart, ViewsPart, warmView } from "@/components/table/lazyParts"
 import { warmCellPickers } from "@/components/table/cellPickerPart"
 import { loadPopover } from "@/components/ui/popoverOnDemand"
@@ -32,6 +32,7 @@ import {
 } from "@/services/tableService"
 import { filterCount, fitRules, freshFilter, groupingOf, keepInSight, KEPT_NOTE, loadViewRules, MAX_FILTERS, namesMe, NO_RULES, saveViewRules, searchRows, withoutComputed, type ViewRules } from "@/lib/tables/viewRules"
 import { ROWS_HELD_MAX } from "@/lib/tables/useTableRows"
+import { rulesToSpec } from "@/lib/tables/query"
 import { TableEditProvider, VIEW_ONLY_WHY } from "@/lib/tables/tableEdit"
 import { useRowWindow } from "@/hooks/useRowWindow"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -61,6 +62,7 @@ import type { TableCommand } from "@/lib/tables/tableKeys"
 import { showPageKeys } from "@/lib/shortcuts/pageGroups"
 import { openPalette } from "@/lib/ui/palette"
 import { lazyChunk } from "@/lib/loadChunk"
+import { whenIdle } from "@/lib/whenIdle"
 import type { CleanStep, TransformMatch } from "@/lib/tables/transform"
 import type { FindMarks } from "@/lib/tables/findMarks"
 import type { ViewRows } from "@/lib/tables/viewRows"
@@ -208,10 +210,15 @@ export default function TableDetailPage() {
   // A row's record, the find bar, a cell's picker, a popover and the menus'
   // insides are a click, tap or key away: their chunks load once the table is
   // drawn and the page is idle (V-475: a tap has no hover to ask first).
+  // Drawn is its view on screen, not its bundle read: no skeleton of the
+  // page's left (ViewSkeleton), as the commit left them (a first draw with the
+  // bundle in has counted none yet). Asked for as the bundle came, these went
+  // ahead of a phone's list, whose own chunk and rules were on their way.
   const loaded = !!bundle
+  const skeleton = useSkeletonShown()
   React.useEffect(() => {
-    if (!loaded) return
-    const warm = () => {
+    if (!loaded || skeletonOnScreen()) return
+    return whenIdle(() => {
       void RecordPart.prefetch()
       void FindPart.prefetch()
       void SelectionPart.prefetch()
@@ -219,14 +226,8 @@ export default function TableDetailPage() {
       void loadPopover()
       warmColumnMenus()
       warmRuleMenus()
-    }
-    if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(warm)
-      return () => window.cancelIdleCallback(id)
-    }
-    const id = window.setTimeout(warm, 1500)
-    return () => window.clearTimeout(id)
-  }, [loaded])
+    })
+  }, [loaded, skeleton])
   const reload = React.useCallback(() => void refresh(), [refresh])
   // A change to one row asks for that row's page; one without, for everything held.
   const changed = React.useCallback((rowId?: string) => void refresh(rowId), [refresh])
@@ -273,6 +274,7 @@ export default function TableDetailPage() {
   const warmMenus = React.useCallback(() => void MenusPart.prefetch(), [])
   const searchRef = React.useRef<HTMLInputElement>(null)
   const exporting = React.useRef(false)
+  const [viewName, setViewName] = React.useState<string>()
   const [saveState, setSaveState] = React.useState<SaveState>("saved")
   const [savedAt, setSavedAt] = React.useState<Date | null>(null)
   const narrow = useNarrow()
@@ -283,14 +285,6 @@ export default function TableDetailPage() {
       setDescription(bundle.table.description || "")
     }
   }, [bundle?.table?.name, bundle?.table?.description]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // A cheap signature of the row set so the Chart view re-aggregates when
-  // rows change. Above the early returns, with every other hook.
-  const chartDataVersion = React.useMemo(() => {
-    let latest = ""
-    for (const r of held.rows) if (r.updated_at > latest) latest = r.updated_at
-    return `${held.total ?? held.rows.length}:${latest}`
-  }, [held.rows, held.total])
 
   const fieldsKnown = !!bundle?.fields
   React.useEffect(() => {
@@ -341,10 +335,13 @@ export default function TableDetailPage() {
   // The server's windows come ruled; the browser rules only the rows it holds,
   // with the rules' chunk (loaded beside the bundle). Until it lands, or the
   // profile says who "me" is for rules naming me, such a view draws its
-  // skeleton, never rows its rules would hide. A chart reads no rows here.
+  // skeleton, never rows its rules would hide. A chart asks the server its numbers, under the same rules bar.
   const applying = RulesPart.useLoaded()
+  // The chart asks the grid's own query and names its groups as the grouped list does (that chunk's groupLabel).
+  const groupHeads = GroupPart.useLoaded(activeView === "chart")
+  const chartUsing = React.useMemo(() => (groupHeads ? { rulesToSpec, groupLabel: groupHeads.groupLabel } : null), [groupHeads])
   const awaitingMe = profile.isLoading && namesMe(rules.filters)
-  const ruling = !windowed && (!applying || awaitingMe) && activeView !== "chart"
+  const ruling = !windowed && (!applying || awaitingMe)
   const ruled = React.useMemo(
     () => (windowed ? held.rows : applying && !awaitingMe ? applying.applyViewRules(held.rows, bundle?.fields || [], rules, me) : []),
     [windowed, applying, awaitingMe, held.rows, bundle?.fields, rules, me],
@@ -623,7 +620,7 @@ export default function TableDetailPage() {
       work()
       return true
     }
-    const rulesBar = activeView !== "chart" && !openRow
+    const rulesBar = !openRow
     const ask = (menu: "filter" | "sort") => setAskedRules((a) => ({ menu, n: (a?.n ?? 0) + 1 }))
     const run: Record<TableCommand, () => boolean> = {
       switchTable: () => did(() => openPalette({ entry: keys.SWITCH_TABLE })),
@@ -722,17 +719,17 @@ export default function TableDetailPage() {
     return { tableId, fields, rows, complete: held.complete, rules, me: who, answers: bundle.row_query, query }
   }
 
-  // The export reads every row the view shows: a chunk of its own, read on
-  // use, off the table's first screen.
-  const exportAs = async (format: "csv" | "xlsx") => {
+  // An export or a print reads the view's every row: a chunk read on use,
+  // off the table's first screen.
+  const exportAs = async (format: "csv" | "xlsx" | "pdf") => {
     if (exporting.current) return
     exporting.current = true
     try {
       const v = await viewNow()
       const { exportRows: write } = await import("@/lib/tables/exportRows")
-      await write({ ...v, format, name: t.name, shown: shownFields, widths: display.widths, total: held.total, toast })
+      await write({ ...v, format, view: viewName, name: t.name, shown: shownFields, widths: display.widths, total: held.total, toast })
     } catch {
-      toast({ tone: "error", variant: "destructive", title: "Couldn't export the table", description: "Check your connection and try again." })
+      toast({ tone: "error", variant: "destructive", title: `Couldn't ${format === "pdf" ? "print" : "export"} the table`, description: "Check your connection and try again." })
     } finally {
       exporting.current = false
     }
@@ -891,7 +888,7 @@ export default function TableDetailPage() {
                   {...open}
                   madeByAi={madeByAi}
                   onShare={(visibility) => saveTable({ visibility })}
-                  onExport={(format) => void exportAs(format)}
+                  onExport={exportAs}
                   onTrash={() => setTrashOpen(true)}
                   onFind={finds ? () => openFind("replace") : undefined}
                   onClean={rowsView(activeView) ? (step) => setCleaning({ step }) : undefined}
@@ -967,7 +964,7 @@ export default function TableDetailPage() {
               </span>
             }
             render={(m) => (
-              <m.TableViews tableId={tableId} views={bundle.views} fields={fields} canManage={!!bundle.can_manage} layout={activeView} rules={rules} display={display} onApply={applyView} onLayout={showView} />
+              <m.TableViews tableId={tableId} views={bundle.views} fields={fields} canManage={!!bundle.can_manage} layout={activeView} rules={rules} display={display} onApply={applyView} onLayout={showView} onChosen={setViewName} />
             )}
           />
           <ViewTabs active={activeView} onPick={showView} hue={hueFor(tableId)} onForms={bundle.can_manage ? openForms : undefined} />
@@ -978,8 +975,8 @@ export default function TableDetailPage() {
             body that scrolls inside the frame, and one place where a view
             says it has nothing to show. No box: the views sit on the sheet. */}
         <div className="flex min-h-0 flex-1 flex-col" data-table-frame="" aria-busy={ruling || undefined}>
-          {/* The chart has its own choices in the same toolbar row. */}
-          {activeView !== "chart" && <ViewRulesBar
+          {/* The chart's rules are the view's (TABLES-BOARDS-11): its choices sit in a row of their own under them. */}
+          <ViewRulesBar
             fields={sortedFields}
             rules={rules}
             onChange={changeRules}
@@ -1001,11 +998,11 @@ export default function TableDetailPage() {
                   ? null
                   : { reading: held.reading, failed: held.failed, onLoadAll: () => held.all(true), onRetry: held.retry }
             }
-            end={toolbarEnd}
+            end={activeView !== "chart" && toolbarEnd}
             notice={refusedInBody ? null : (refused ?? held.sumsOut)}
             noticeRetry={held.recount ? { busy: held.recounting, onRetry: held.recount } : null}
             asked={askedRules}
-          />}
+          />
           {finding && finds ? (
             <FindPart.View
               fallback={null}
@@ -1028,7 +1025,7 @@ export default function TableDetailPage() {
           ) : null}
           {/* The grid waits for its rules as itself: its header, and its rows as
               on their way, in the element the rows then fill. */}
-          {ruling && (activeView !== "grid" || listMode) ? (
+          {ruling && activeView !== "chart" && (activeView !== "grid" || listMode) ? (
             <ViewSkeleton view={activeView === "grid" ? "list" : activeView} />
           ) : (activeView === "grid" || listMode) &&
             (listMode ? (
@@ -1048,6 +1045,7 @@ export default function TableDetailPage() {
                     scrollTo={listTo}
                     found={listMarks}
                     edits={commit.edits}
+                    onRetry={commit.retryCell}
                     empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
                   />
                 )}
@@ -1194,7 +1192,7 @@ export default function TableDetailPage() {
             />
           ) : null}
           {activeView === "chart" && (
-            <ChartPart.View fallback={<ViewSkeleton view="chart" />} render={(m) => <m.DataTableChart tableId={tableId} fields={fields} dataVersion={chartDataVersion} />} />
+            <ChartPart.View fallback={<ViewSkeleton view="chart" />} render={(m) => <m.DataTableChart tableId={tableId} fields={fields} rules={rules} answers={bundle.row_query} using={chartUsing} look={display.chart} onLook={(chart) => changeDisplay({ chart })} onClear={clearFilters} rows={held.rows} total={held.total} />} />
           )}
         </div>
       </div>
@@ -1282,8 +1280,35 @@ function TablePageSkeleton({ view = "grid" }: { view?: ViewChoice }) {
   )
 }
 
+/**
+ * The page's skeletons on screen (ViewSkeleton: the page's while the table is
+ * read, a view's while its chunk or the rules its rows wait for are on their
+ * way), told to whoever watches: the table is drawn once none is. A view's
+ * chunk landing draws only that view (lazyView), never the page, so the page
+ * learns its view is drawn from the last skeleton going.
+ */
+const skeletons = { shown: 0, watchers: new Set<() => void>() }
+function showSkeleton(by: 1 | -1) {
+  skeletons.shown += by
+  skeletons.watchers.forEach((watch) => watch())
+}
+function watchSkeletons(watch: () => void) {
+  skeletons.watchers.add(watch)
+  return () => void skeletons.watchers.delete(watch)
+}
+const skeletonOnScreen = () => skeletons.shown > 0
+/** Whether a skeleton of the page's is on screen: drawn again as that changes. */
+function useSkeletonShown(): boolean {
+  return React.useSyncExternalStore(watchSkeletons, skeletonOnScreen, () => true)
+}
+
 /** A view's shape while it loads: the page's, and a view whose chunk is on its way. */
 function ViewSkeleton({ view }: { view: ViewChoice | "list" }) {
+  // Counted while on screen, from its commit: the page warms what's a tap away once none is.
+  React.useLayoutEffect(() => {
+    showSkeleton(1)
+    return () => showSkeleton(-1)
+  }, [])
   return (
     <>
         {view === "list" ? (

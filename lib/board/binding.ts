@@ -4,9 +4,11 @@
  * the scene's changes into the document. Excalidraw folds a change left out
  * of history into the person's next step, so an undo took back teammates'
  * work (e2e/boardUndo.spec.ts): the document's copies go on with NEVER.
+ * Only types a board draws pass (./elementTypes).
  */
 
 import type { SceneData } from "@excalidraw/excalidraw/types"
+import { isBoardElement } from "./elementTypes"
 
 /** Excalidraw's CaptureUpdateAction (its import loads the library); pinned by the test. */
 export const CAPTURE = {
@@ -91,6 +93,7 @@ export function mergeShared<T extends BoardElement>(scene: readonly T[], shared:
   for (const el of scene) merged.set(el.id, el)
   let adopted = 0
   for (const remote of shared) {
+    if (!isBoardElement(remote)) continue
     const cur = merged.get(remote.id)
     if (cur && !takes(cur, remote)) continue
     merged.set(remote.id, cloneElement(remote))
@@ -130,7 +133,7 @@ export function mergeChanged<T extends BoardElement>(
   let adopted = 0
   for (const id of wanted) {
     const remote = read(id)
-    if (!remote || typeof remote !== "object") continue
+    if (!remote || !isBoardElement(remote)) continue
     const i = at(id)
     const cur = i >= 0 ? scene[i] : undefined
     if (cur && !takes(cur, remote)) continue
@@ -197,6 +200,7 @@ export function storeScene(shared: Pick<SharedElements, "get" | "set">, scene: r
 export function changedElements<T extends BoardElement>(shared: Pick<SharedElements, "get">, scene: readonly T[]): T[] {
   const changed: T[] = []
   for (const el of scene) {
+    if (!isBoardElement(el)) continue
     const existing = shared.get(el.id)
     const deleted = el.isDeleted ?? false
     if (!existing && deleted) continue

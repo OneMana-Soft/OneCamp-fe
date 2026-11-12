@@ -35,7 +35,7 @@ export default function TaskActivity({ taskActivity, line, openOtherUserProfile 
 
     // A kind of change this build doesn't know (a newer server's) is left
     // out rather than taking the whole history down with it.
-    const phrase = taskActivityConst[taskActivity.activity_type]?.key
+    const phrase = taskActivityConst[taskActivity.activity_type]
     if (!phrase) return null
 
     const folded = !!line && line.changes.length > 1
@@ -64,7 +64,8 @@ export default function TaskActivity({ taskActivity, line, openOtherUserProfile 
                 ) : (
                     // After the name, mid-sentence: "Sam Rivera updated the
                     // description", not "Sam Rivera Updated...".
-                    <>{lowerFirst(t(phrase, { field: taskActivity.activity_next_state }))}.</>
+                    // A priority taken off (none next) has its own words, kept out of en.json (on every page).
+                    <>{taskActivity.activity_type === "priorityUpdate" && !taskActivity.activity_next_state ? "removed the priority" : lowerFirst(t(phrase, { field: taskActivity.activity_next_state }))}.</>
                 )}{" "}
                 <time className="text-ink-3" dateTime={taskActivity.activity_time} title={taskActivity.activity_time ? fullDateTime(new Date(taskActivity.activity_time)) : undefined}>
                     · {shortAgo(taskActivity.activity_time)}

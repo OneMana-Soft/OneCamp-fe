@@ -13,6 +13,7 @@ import {
   Shield,
   Target,
   Wrench,
+  Zap,
 } from "@/lib/icons"
 import { Bug, Diamond, FlaskConical, Palette, SquareCheck, Stamp } from "@/lib/workIcons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -30,6 +31,7 @@ export const TYPE_ICONS = {
   milestone: Diamond,
   approval: Stamp,
   request: Inbox,
+  epic: Zap,
   flag: Flag,
   book: BookOpen,
   wrench: Wrench,

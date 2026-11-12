@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDownToLine, ArrowUpDown, CalendarDays, Globe, Link2, ListTodo, Plug, Plus, Share2, Unlink, UserPlus } from "@/lib/icons"
+import { ArrowDownToLine, ArrowUpDown, Bell, CalendarDays, Globe, Link2, ListTodo, Plug, Plus, Share2, Trash2, Unlink, UserPlus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { calendarListUrl } from "@/lib/calendar/calendarList"
 import { OWN_HUE } from "@/components/calendar/calendarTones"
@@ -25,13 +25,19 @@ import { useSWRConfig } from "swr"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { ViewOptionRows } from "@/components/calendar/viewOptions"
 import { lazyView } from "@/lib/lazy/lazyView"
-import { googleSyncLine, googleSyncNext, useGoogleSync } from "@/lib/calendar/googleSync"
+import { syncLine, syncNext, useCalendarSync, useConnectorLink } from "@/lib/calendar/calendarSync"
+import { OutlookMark } from "@/components/ui/graphics/OutlookMark"
+import { OutlookOff, OutlookUnloaded } from "@/components/calendar/outlookOff"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import type { UserProfileInterface } from "@/types/user"
 import { teammateCalendar, useCalendarRows } from "@/lib/calendar/otherCalendars"
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GoogleMark } from "@/components/ui/graphics/GoogleMark"
 import { useRouter } from "next/navigation"
 import { calendarRoute } from "@/lib/calendar/route"
+import { DefaultReminders, MINE, warmDefaultReminders } from "@/components/calendar/defaultReminders"
+import { CalendarTrash, warmCalendarTrash } from "@/components/calendar/calendarTrash"
 
 // Import and export (calendar A4) and Share (A6), as the Calendars panel offers them.
 const ImportExport = lazyView(() => import("@/components/calendar/importExport/importExportDialog"))
@@ -68,13 +74,25 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
     const [isToggling, setIsToggling] = React.useState(false)
     const confirm = useConfirm()
     // The dialog open over the drawer, if any: the drawer stays mounted under it.
-    const [dialog, setDialog] = React.useState<"move" | "share" | "feed" | "subscribe" | null>(null)
+    const [dialog, setDialog] = React.useState<"move" | "share" | "feed" | "subscribe" | "defaults" | "trash" | null>(null)
     const moving = dialog !== null
     const rows = useCalendarRows()
     const [adding, setAdding] = React.useState(false)
     const [addError, setAddError] = React.useState("")
-    const google = useGoogleSync(() => globalMutate((key) => typeof key === "string" && key.startsWith(GetEndpointUrl.GoogleCalendarEvents)))
-    const googleNext = googleSyncNext(google.sync)
+    // A finished move brought events and calendars: both are read again, so its calendars are there to pick.
+    const onMoved = React.useCallback(() => {
+        void globalMutate(calendarListUrl)
+        void globalMutate((key) => typeof key === "string" && key.startsWith(GetEndpointUrl.GoogleCalendarEvents))
+    }, [globalMutate])
+    const google = useCalendarSync("google", onMoved)
+    const googleNext = syncNext("google", google.sync)
+    // Outlook (B7): its own group under Google's once the server has said where it stands; its Disconnect,
+    // which loses something, in the last group beside Google's (C7).
+    const outlook = useCalendarSync("microsoft", onMoved)
+    const outlookLink = useConnectorLink("microsoft", !!outlook.sync?.available)
+    // A read that failed says so in Outlook's group (CR-B22 G1).
+    const outlookShown = outlook.failed || outlookLink.failed || (!!outlook.sync && (outlook.sync.available === false || outlookLink.connected !== undefined))
+    const outlookLinked = !!outlook.sync?.available && outlookLink.connected === true
 
     function closeDrawer() {
         setOpenState(false)
@@ -88,6 +106,14 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
             confirmText: "Disconnect Google Calendar",
             destructive: true,
             onConfirm: () => handleGCalToggle(false),
+        })
+    const askDisconnectOutlook = () =>
+        confirm({
+            title: "Disconnect Outlook Calendar?",
+            description: "OneCamp and Outlook stop keeping in step. What you moved from Outlook stays here.",
+            confirmText: "Disconnect Outlook Calendar",
+            destructive: true,
+            onConfirm: outlookLink.disconnect,
         })
 
     // Connects Google through its consent screen (or connects it again once
@@ -189,6 +215,10 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
             <ShareCalendar.View fallback={null} render={(m) => <m.default onClose={closeDialog} />} />
         ) : dialog === "feed" ? (
             <FeedCalendar.View fallback={null} render={(m) => <m.default onClose={closeDialog} />} />
+        ) : dialog === "defaults" ? (
+            <DefaultReminders calendar={MINE} onClose={closeDialog} />
+        ) : dialog === "trash" ? (
+            <CalendarTrash onClose={closeDialog} />
         ) : dialog === "subscribe" ? (
             <Subscribe.View
                 fallback={null}
@@ -216,6 +246,8 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                     <DrawerItem icon={ArrowUpDown} label="Import and export" onClick={openImportExport} />
                     <DrawerItem icon={Share2} label="Share my calendar" onClick={() => { void ShareCalendar.warm(); setDialog("share") }} />
                     <DrawerItem icon={Link2} label="Show my calendar in another app" onClick={() => { void FeedCalendar.warm(); setDialog("feed") }} />
+                    <DrawerItem icon={Bell} label="Default reminders" onClick={() => { void warmDefaultReminders(); setDialog("defaults") }} />
+                    <DrawerItem icon={Trash2} label="Trash" onClick={() => { void warmCalendarTrash(); setDialog("trash") }} />
                 </SheetGroup>
                     {/* Google Calendar as the computer's panel has it (B6): its mark, name and how it
                         stands (in danger ink once Google stopped answering, C9), then the move or
@@ -230,7 +262,7 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-body leading-5 text-foreground">Google Calendar</span>
                                         <span className={cn("mt-0.5 line-clamp-2 break-words text-xs", google.sync?.state === "broken" ? "text-danger-ink" : "text-muted-foreground")} role="status" data-google-account="">
-                                            {googleSyncLine(gcalStatus?.data?.accountEmail, google.sync) || "Connected"}
+                                            {syncLine("google", gcalStatus?.data?.accountEmail, google.sync) || "Connected"}
                                         </span>
                                     </span>
                                 </div>
@@ -245,6 +277,11 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                                 trailing={<Plus className="size-4 text-muted-foreground" aria-hidden="true" />} />
                         )}
                     </SheetGroup>
+                    {outlookShown ? (
+                        <SheetGroup label="Outlook Calendar" data-drawer-outlook="">
+                            <OutlookRows outlook={outlook} link={outlookLink} />
+                        </SheetGroup>
+                    ) : null}
                     {/* The same calendars as the computer's panel, under the same names (A6): yours, then others'. */}
                     <SheetCaption>My calendars</SheetCaption>
                     <SheetGroup label="My calendars" data-drawer-calendars="">
@@ -271,9 +308,10 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                     <SheetGroup label="View" data-drawer-view-options="">
                         <ViewOptionRows phone />
                     </SheetGroup>
-                    {isConnected ? (
+                    {isConnected || outlookLinked ? (
                         <SheetGroup label="Disconnect">
-                            <DrawerItem icon={Unlink} label="Disconnect Google Calendar" destructive disabled={isToggling} onClick={askDisconnect} />
+                            {isConnected ? <DrawerItem icon={Unlink} label="Disconnect Google Calendar" destructive disabled={isToggling} onClick={askDisconnect} /> : null}
+                            {outlookLinked ? <DrawerItem icon={Unlink} label="Disconnect Outlook Calendar" destructive disabled={outlookLink.busy} onClick={askDisconnectOutlook} /> : null}
                         </SheetGroup>
                     ) : null}
                     {/* The switches apply as they're flipped: nothing to undo, so the footer closes. */}
@@ -281,6 +319,62 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                 </div>
             </DrawerContent>
         </Drawer>
+        </>
+    )
+}
+
+/**
+ * Outlook Calendar's rows as the computer's panel has it (B7): off, in words,
+ * until the admin adds a Microsoft app (an admin also gets the how-to);
+ * Connect, through the connectors; once linked, how it stands, and the move
+ * or connecting it again; a read that failed, in one quiet line (CR-B22 G1). Its group, and its Disconnect in the drawer's last
+ * group, are the drawer's.
+ */
+function OutlookRows({ outlook, link }: { outlook: ReturnType<typeof useCalendarSync>; link: ReturnType<typeof useConnectorLink> }) {
+    const off = outlook.sync?.available === false
+    const profile = useFetchOnlyOnce<UserProfileInterface>(off ? GetEndpointUrl.SelfProfile : "")
+    const next = syncNext("microsoft", outlook.sync)
+    const mark = <OutlookMark className="size-5 shrink-0" />
+    if (outlook.failed || link.failed) {
+        return (
+            <div className="flex min-h-12 items-center gap-3 px-3 py-2" data-sync-tile="microsoft">
+                <span className="flex size-8 shrink-0 items-center justify-center">{mark}</span>
+                <span className="min-w-0 flex-1 text-body text-muted-foreground">
+                    <OutlookUnloaded />
+                </span>
+            </div>
+        )
+    }
+    if (!outlook.sync) return null
+    const admin = !!profile.data?.data?.user_is_admin
+    return off ? (
+        <div className="flex min-h-14 items-start gap-3 px-3 py-2" data-sync-tile="microsoft">
+            <span className="flex size-8 shrink-0 items-center justify-center">{mark}</span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-body leading-5 text-foreground">Outlook Calendar</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground text-pretty">
+                    <OutlookOff admin={admin} />
+                </span>
+            </span>
+        </div>
+    ) : !link.connected ? (
+        <DrawerItem leading={mark} label="Connect Outlook Calendar" onClick={() => void link.connect()} disabled={link.busy} trailing={<Plus className="size-4 text-muted-foreground" aria-hidden="true" />} />
+    ) : (
+        <>
+            <div className="flex min-h-14 items-center gap-3 px-3 py-2" data-sync-tile="microsoft" data-microsoft-sync={outlook.sync.state}>
+                <span className="flex size-8 shrink-0 items-center justify-center">{mark}</span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-body leading-5 text-foreground">Outlook Calendar</span>
+                    <span className={cn("mt-0.5 line-clamp-2 break-words text-xs", outlook.sync.state === "broken" ? "text-danger-ink" : "text-muted-foreground")} role="status" data-microsoft-account="">
+                        {syncLine("microsoft", outlook.sync.account, outlook.sync) || "Connected"}
+                    </span>
+                </span>
+            </div>
+            {next ? (
+                <DrawerItem icon={next.reconnect ? Plug : ArrowDownToLine} label={next.label} primary={next.reconnect} disabled={next.reconnect && link.busy}
+                    description={outlook.error || (outlook.sync.state === "failed" ? outlook.words : undefined)}
+                    onClick={() => void (next.reconnect ? link.connect() : outlook.start())} />
+            ) : null}
         </>
     )
 }

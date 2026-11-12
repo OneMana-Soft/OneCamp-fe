@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { EventRecordings, readArtefacts } from "@/components/calendar/eventRecordings"
+import { EventRecordings } from "@/components/calendar/eventRecordings"
+import { readArtefacts } from "@/lib/calls/callArtefacts"
 import { pinTestClock } from "@/lib/testing/testClock"
 
 const ME = "0b6e5d4c-3b2a-4190-8f7e-6d5c4b3a2910"

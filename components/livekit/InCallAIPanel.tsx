@@ -8,6 +8,9 @@ import { AiComposer } from "@/components/ai/AiComposer";
 import { AiMark } from "@/components/ai/AiMark";
 import { useAIStatus, AIStatusResponse } from "@/services/aiService";
 import { InCallQAItem } from "./useInCallAgent";
+import { hearingLine, type InCallHearing } from "./inCallHearing";
+import { CALL_PANEL_FOOT } from "./callPanelClasses";
+import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils/helpers/cn";
 
 interface InCallAIPanelProps {
@@ -18,6 +21,10 @@ interface InCallAIPanelProps {
     onAsk: (question: string) => void;
     onCancel: () => void;
     onClose: () => void;
+    /** Asks your own failed question again, in its place (Try again). */
+    onRetry?: (id: string) => void;
+    /** What it can hear: it answers from the call's transcript only, and says so (CALLS-05). */
+    hearing: InCallHearing;
 }
 
 // Quick-prompt chips — the highest-signal asks during a live call.
@@ -33,8 +40,13 @@ export function InCallAIPanel({
     onAsk,
     onCancel,
     onClose,
+    onRetry,
+    hearing,
 }: InCallAIPanelProps) {
     const { getStatus } = useAIStatus();
+    // Read again while it listens, for how long it has heard.
+    const now = useNow(hearing.on, 10_000);
+    const heard = hearingLine(hearing, now);
     const [input, setInput] = React.useState("");
     const [status, setStatus] = React.useState<AIStatusResponse | null>(null);
     const [statusLoading, setStatusLoading] = React.useState(true);
@@ -81,16 +93,20 @@ export function InCallAIPanel({
         // AI's own pieces in dark (hub.md section 9): its mark, your question
         // in the neutral bubble, the answer flat beside the mark, the mark
         // breathing while it thinks (no spinner in the AI), and its composer.
-        <div data-in-call-ai="" className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @7xl:h-[calc(100%-24px-100px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
+        <div data-in-call-ai="" role="complementary" aria-label="Ask about this call" className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @7xl:h-[calc(100%-24px-100px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
             <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3">
                 <div className="flex items-center gap-2.5">
                     {/* The AI is agent identity: the agent square, not the accent. */}
                     <AiMark size={24} />
                     <div>
                         <p className="text-heading leading-tight">Ask about this call</p>
-                        <p className="flex items-center gap-1.5 text-meta leading-tight text-ink-3" title={aiEnabled && modelLabel ? `Powered by ${modelLabel} · shared with the call` : undefined}>
-                            <span aria-hidden className="size-1.5 rounded-[3px] bg-camp-moss" />
-                            Listening · shared with everyone in the call
+                        <p data-in-call-hearing="" className="flex items-center gap-1.5 text-meta leading-tight text-ink-3" title={aiEnabled && modelLabel ? `Powered by ${modelLabel} · shared with the call` : undefined}>
+                            <span aria-hidden className={cn("size-1.5 rounded-[3px]", heard.listening ? "bg-camp-moss" : "bg-ink-3")} />
+                            {/* Only the state is a live region: the heard time changes every minute, and would be read out over the call. */}
+                            <span>
+                                <span role="status">{heard.state}</span>
+                                {heard.detail ? ` · ${heard.detail}` : null}
+                            </span>
                         </p>
                     </div>
                 </div>
@@ -120,24 +136,43 @@ export function InCallAIPanel({
                 ) : items.length === 0 ? (
                     <div data-in-call-empty="" className="flex h-full flex-col items-center justify-center gap-4 px-2 text-center">
                         <AiMark size={40} />
-                        <div className="space-y-1">
-                            <p className="text-heading">Ask about the call</p>
-                            <p className="text-ui-sm text-pretty text-ink-2">
-                                I answer from what&apos;s been said so far: decisions, action items, or a quick recap. Everyone in the call sees the answer.
-                            </p>
-                        </div>
-                        <div className="mt-2 flex w-full flex-col gap-2">
-                            {SUGGESTIONS.map((s) => (
-                                <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => submit(s)}
-                                    className="rounded-[10px] bg-raised px-3 py-2 text-left text-ui-sm text-foreground shadow-e1 transition-shadow hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                                >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
+                        {!hearing.on ? (
+                            // Nothing to answer from: what would let it listen, not suggestions it can't answer.
+                            <>
+                                <p className="text-ui-sm text-pretty text-ink-2">
+                                    {hearing.onTurnOn
+                                        ? "Turn on captions so I can follow the call. Everyone in it is told first."
+                                        : "Transcripts are off for this workspace, so I can't follow the call."}
+                                </p>
+                                {hearing.onTurnOn ? (
+                                    <Button variant="secondary" aria-label="Turn on captions for everyone" onClick={hearing.onTurnOn}>
+                                        Turn on captions
+                                    </Button>
+                                ) : null}
+                            </>
+                        ) : (
+                            <div className="space-y-1">
+                                <p className="text-heading">Ask about the call</p>
+                                <p className="text-ui-sm text-pretty text-ink-2">
+                                    I answer from what&apos;s been said so far: decisions, action items, or a quick recap. Everyone in the call sees the answer.
+                                </p>
+                            </div>
+                        )}
+                        {heard.ready ? (
+                            <div className="mt-2 flex w-full flex-col gap-2">
+                                {SUGGESTIONS.map((s) => (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => submit(s)}
+                                        className="rounded-[10px] bg-raised px-3 py-2 text-left text-ui-sm text-foreground shadow-e1 transition-shadow hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                        data-touch-target=""
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : null}
                     </div>
                 ) : (
                     items.map((it) => (
@@ -151,7 +186,15 @@ export function InCallAIPanel({
                                 <AiMark size={20} breathing={!it.answer && !it.error} className="mt-0.5" />
                                 <div className="min-w-0 flex-1 text-ui leading-[22px]">
                                     {it.error ? (
-                                        <span className="text-danger-ink">{it.error}</span>
+                                        <div className="flex flex-col items-start gap-1.5">
+                                            <span className="text-danger-ink">{it.error}</span>
+                                            {/* Your own ask, asked again in its place; someone else's is theirs to ask. */}
+                                            {it.mine && onRetry && !isStreaming ? (
+                                                <Button variant="secondary" size="sm" onClick={() => onRetry(it.id)}>
+                                                    Try again
+                                                </Button>
+                                            ) : null}
+                                        </div>
                                     ) : it.answer ? (
                                         <MarkdownMessage content={it.answer} className="text-ui leading-[22px]" />
                                     ) : (
@@ -166,20 +209,19 @@ export function InCallAIPanel({
                 )}
             </div>
 
-            <div className="shrink-0 px-3 pb-3 pt-1">
-                <AiComposer
-                    inputRef={inputRef}
-                    value={input}
-                    onChange={setInput}
-                    onSend={() => submit(input)}
-                    onStop={onCancel}
-                    streaming={isStreaming}
-                    disabled={!aiEnabled}
-                    disabledNote={!statusLoading && !aiEnabled ? "AI is unavailable" : undefined}
-                    placeholder="Ask about this call…"
-                    maxLength={2000}
-                />
-            </div>
+            <AiComposer
+                className={CALL_PANEL_FOOT}
+                inputRef={inputRef}
+                value={input}
+                onChange={setInput}
+                onSend={() => submit(input)}
+                onStop={onCancel}
+                streaming={isStreaming}
+                disabled={!aiEnabled}
+                disabledNote={!statusLoading && !aiEnabled ? "AI is unavailable" : undefined}
+                placeholder="Ask about this call…"
+                maxLength={2000}
+            />
         </div>
     );
 }

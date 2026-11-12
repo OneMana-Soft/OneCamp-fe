@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { BACKDROP_IDS, NO_EFFECTS, readBackground, readEffects, readNoise, sameBackground, writeEffects } from "./effects"
-import { BACKDROPS, backgroundName } from "./effectsCopy"
+import { BACKDROP_IDS, NO_EFFECTS, cameraOn, lookOf, readBackground, readEffects, readNoise, readTouchUp, sameBackground, sameLook, writeEffects, type CallEffects } from "./effects"
+import { BACKDROPS, TOUCH_UPS, backgroundName } from "./effectsCopy"
 import { BACKDROP_INKS, paintBackdrop, type Paint2D } from "./backdrops"
 import { coverCrop } from "./picture"
 import { FRAME_BUDGET_MS, STRAIN_QUIET_MS, lighter, watchStrain } from "./strain"
@@ -35,23 +35,86 @@ describe("a background and a noise level, read from anywhere", () => {
 
   it("is remembered on this device, and starts with none where it can't be", () => {
     expect(readEffects()).toEqual(NO_EFFECTS)
-    writeEffects({ background: { kind: "backdrop", id: "dusk" }, noise: "strong" })
-    expect(readEffects()).toEqual({ background: { kind: "backdrop", id: "dusk" }, noise: "strong" })
+    writeEffects({ ...NO_EFFECTS, background: { kind: "backdrop", id: "dusk" }, noise: "strong" })
+    expect(readEffects()).toEqual({ background: { kind: "backdrop", id: "dusk" }, noise: "strong", touchUp: "off", lowLight: false })
     window.localStorage.setItem("onecamp.call.effects", "{not json")
     expect(readEffects()).toEqual(NO_EFFECTS)
   })
 })
 
+describe("a touch-up and low light, read from anywhere", () => {
+  it("start off, keep what they know, and read a choice saved before they existed as off", () => {
+    expect(NO_EFFECTS).toMatchObject({ touchUp: "off", lowLight: false })
+    expect(readTouchUp("subtle")).toBe("subtle")
+    expect(readTouchUp("smooth")).toBe("smooth")
+    for (const junk of [null, undefined, "max", 2, true]) expect(readTouchUp(junk)).toBe("off")
+    // Saved by the picker before touch-up and low light were in it.
+    window.localStorage.setItem("onecamp.call.effects", JSON.stringify({ background: { kind: "blur", strength: "light" }, noise: "strong" }))
+    expect(readEffects()).toEqual({ background: { kind: "blur", strength: "light" }, noise: "strong", touchUp: "off", lowLight: false })
+    // Low light is on only when it says so.
+    window.localStorage.setItem("onecamp.call.effects", JSON.stringify({ touchUp: "smooth", lowLight: "yes" }))
+    expect(readEffects()).toMatchObject({ touchUp: "smooth", lowLight: false })
+    writeEffects({ ...NO_EFFECTS, touchUp: "subtle", lowLight: true })
+    expect(readEffects()).toEqual({ ...NO_EFFECTS, touchUp: "subtle", lowLight: true })
+  })
+
+  it("are one look on the camera with its background, which is on when any of the three is", () => {
+    const e: CallEffects = { background: { kind: "none" }, noise: "strong", touchUp: "off", lowLight: false }
+    expect(lookOf(e)).toEqual({ background: { kind: "none" }, touchUp: "off", lowLight: false })
+    expect(cameraOn(lookOf(e))).toBe(false)
+    expect(cameraOn(lookOf({ ...e, touchUp: "subtle" }))).toBe(true)
+    expect(cameraOn(lookOf({ ...e, lowLight: true }))).toBe(true)
+    expect(cameraOn(lookOf({ ...e, background: { kind: "picture" } }))).toBe(true)
+    expect(sameLook(lookOf(e), lookOf({ ...e, noise: "off" }))).toBe(true)
+    expect(sameLook(lookOf(e), lookOf({ ...e, touchUp: "smooth" }))).toBe(false)
+    expect(sameLook(lookOf(e), lookOf({ ...e, lowLight: true }))).toBe(false)
+    expect(sameLook(lookOf({ ...e, background: { kind: "blur", strength: "light" } }), lookOf({ ...e, background: { kind: "blur", strength: "strong" } }))).toBe(false)
+  })
+
+  it("name each touch-up level in words, in the picker's order", () => {
+    expect(TOUCH_UPS.map((t) => [t.level, t.name])).toEqual([
+      ["off", "Off"],
+      ["subtle", "Subtle"],
+      ["smooth", "Smooth"],
+    ])
+  })
+})
+
 describe("a busy computer", () => {
   it("gets a lighter blur first, then the browser's own noise reduction, and never loses a background on its own", () => {
-    const step1 = lighter({ background: { kind: "blur", strength: "strong" }, noise: "strong" })
-    expect(step1?.next).toEqual({ background: { kind: "blur", strength: "light" }, noise: "strong" })
+    const step1 = lighter({ ...NO_EFFECTS, background: { kind: "blur", strength: "strong" }, noise: "strong" })
+    expect(step1?.next).toEqual({ ...NO_EFFECTS, background: { kind: "blur", strength: "light" }, noise: "strong" })
     expect(step1?.said).toContain("lighter")
     const step2 = lighter(step1!.next)
-    expect(step2?.next).toEqual({ background: { kind: "blur", strength: "light" }, noise: "standard" })
+    expect(step2?.next).toEqual({ ...NO_EFFECTS, background: { kind: "blur", strength: "light" }, noise: "standard" })
     // A backdrop may be what keeps a room private: it is never taken away unasked.
     expect(lighter(step2!.next)).toBeNull()
-    expect(lighter({ background: { kind: "backdrop", id: "sky" }, noise: "standard" })).toBeNull()
+    expect(lighter({ ...NO_EFFECTS, background: { kind: "backdrop", id: "sky" } })).toBeNull()
+  })
+
+  it("takes the touch-up down before the blur, keeps low light to the last, and still never a background", () => {
+    const steps: CallEffects[] = []
+    const said: string[] = []
+    let e: CallEffects = { background: { kind: "blur", strength: "strong" }, noise: "strong", touchUp: "smooth", lowLight: true }
+    for (let step = lighter(e); step; step = lighter(e)) {
+      e = step.next
+      steps.push(e)
+      said.push(step.said)
+    }
+    expect(steps).toEqual([
+      { background: { kind: "blur", strength: "strong" }, noise: "strong", touchUp: "subtle", lowLight: true },
+      { background: { kind: "blur", strength: "strong" }, noise: "strong", touchUp: "off", lowLight: true },
+      { background: { kind: "blur", strength: "light" }, noise: "strong", touchUp: "off", lowLight: true },
+      { background: { kind: "blur", strength: "light" }, noise: "standard", touchUp: "off", lowLight: true },
+      { background: { kind: "blur", strength: "light" }, noise: "standard", touchUp: "off", lowLight: false },
+    ])
+    expect(said).toEqual([
+      "Your computer is busy, so your touch-up is subtler for now.",
+      "Your computer is busy, so touch-up is off for now.",
+      "Your computer is busy, so your background blur is lighter for now.",
+      "Your computer is busy, so strong noise reduction is off for now. Your browser's own is on.",
+      "Your computer is busy, so low light is off for now.",
+    ])
   })
 
   it("counts as struggling after three slow checks, says so once a minute, and stops when asked", () => {

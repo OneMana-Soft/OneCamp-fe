@@ -13,7 +13,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { AlignLeft, Download, Eraser, Eye, EyeOff, FileSpreadsheet, Globe, LayoutTemplate, List, Lock, Replace, RotateCcw, Scissors, Trash2, Upload } from "@/lib/icons"
+import { AlignLeft, Download, Eraser, Eye, EyeOff, FileSpreadsheet, Globe, LayoutTemplate, List, Lock, Printer, Replace, RotateCcw, Scissors, Trash2, Upload } from "@/lib/icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/helpers/cn"
 import { fieldKind } from "@/lib/fieldTypes/registry"
@@ -107,8 +107,8 @@ export function TableMoreMenu({
   madeByAi: boolean
   /** Who sees the table: the workspace, or only its owner. */
   onShare: (visibility: Visibility) => Promise<unknown>
-  /** The view as a file: a CSV, or an Excel workbook. */
-  onExport: (format: "csv" | "xlsx") => void
+  /** The view as a file: a CSV, an Excel workbook, or the print dialog's PDF. */
+  onExport: (format: "csv" | "xlsx" | "pdf") => void
   onTrash: () => void
   /** Find and replace over the view: none where the view has no find (a board, a chart). */
   onFind?: () => void
@@ -201,6 +201,9 @@ export function TableMoreMenu({
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onExport("xlsx")}>
             <FileSpreadsheet /> Export Excel
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onExport("pdf")}>
+            <Printer /> Print or save as PDF
           </DropdownMenuItem>
           {onFind || onClean ? <DropdownMenuSeparator /> : null}
           {onFind ? (

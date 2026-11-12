@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   /** Each row render asks for its avatar once: calls per profile key = renders per row. */
   avatarCalls: new Map<string, number>(),
   urls: [] as string[],
+  /** The plan's seats, as GET /admin/plan answers them; null: a workspace with no limit. */
+  seats: null as null | { used: number; limit: number },
   /** What the card asked usePost to send. */
   requests: [] as Record<string, unknown>[],
   people: Array.from({ length: 520 }, (_, i) => ({
@@ -36,6 +38,10 @@ vi.mock("@/hooks/useFetch", () => ({
       if (pageIndex >= state.answeredPages) return { data: undefined, isLoading: true, isError: undefined, mutate: () => {} }
       const slice = state.people.slice(pageIndex * pageSize, pageIndex * pageSize + pageSize + 1)
       return { data: { data: slice.slice(0, pageSize), has_more: slice.length > pageSize }, isLoading: false, isError: undefined, mutate: () => {} }
+    }
+    if (url === "/admin/plan" && state.seats) {
+      const links = { licence: "https://shop.example/buy?plan=lifetime", pricing: "https://shop.example/pricing" }
+      return { data: { data: { plan: "free", free_plan: true, locked: [], controls: [], links, ...state.seats } }, isLoading: false, isError: undefined, mutate: () => {} }
     }
     return { data: undefined, isLoading: false, isError: undefined, mutate: () => {} }
   },
@@ -74,6 +80,7 @@ beforeEach(() => {
   state.avatarCalls.clear()
   state.urls.length = 0
   state.requests.length = 0
+  state.seats = null
 })
 afterEach(cleanup)
 
@@ -195,5 +202,25 @@ describe("the members list", () => {
     expect(screen.getByText(/couldn't load everyone\. 200 are shown\./i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /try again/i }))
     expect(state.retried).toBe(1)
+  })
+})
+
+// DB-134 F1: at 23 of 25 the toolbar's meter ("2 places left" over its bar)
+// stood beside the limit note ("Free plan: 23 of 25 people, 2 places left."
+// over a second bar): one fact twice, and at 390 bar, card, bar.
+describe("the plan's seats on Members", () => {
+  it("near the limit, the note is the one figure: no meter beside it", async () => {
+    state.seats = { used: 23, limit: 25 }
+    render(<UserCard />)
+    await screen.findByRole("link", { name: "Remove the 25-person limit" })
+    expect(document.querySelectorAll("[data-seat-meter]")).toHaveLength(0)
+    expect(document.querySelectorAll(".people-meter-track")).toHaveLength(1)
+  })
+
+  it("below the note's line, the meter is the quiet figure", () => {
+    state.seats = { used: 10, limit: 25 }
+    render(<UserCard />)
+    expect(document.querySelectorAll("[data-seat-meter]")).toHaveLength(1)
+    expect(document.querySelectorAll("[data-seat-limit-note]")).toHaveLength(0)
   })
 })

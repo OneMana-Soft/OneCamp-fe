@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import type { ReactNode } from "react"
+import { Phone } from "lucide-react"
 import { Headphones, PhoneOff } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { PeopleLine } from "@/components/ui/peopleLine"
@@ -11,13 +12,9 @@ import { firstNameOf } from "@/lib/personName"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { HuddleFace, HuddleFacts } from "@/lib/calls/huddle"
 import type { CallSessionRead } from "@/components/livekit/callState"
-
-/** "4 min", "1 h 5 min", "under a minute": how long an ended call ran. Pure. */
-export function callLength(seconds: number): string {
-  const min = Math.round(seconds / 60)
-  if (min < 1) return "under a minute"
-  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`
-}
+import { huddleCallOf } from "@/lib/calls/huddleCall"
+import type { CallKind } from "@/lib/calls/callRef"
+import { callLength } from "@/lib/calls/callLength"
 
 /** "0:42", "4:05", "1:02:09": how long a call has been on at now; no start, or one ahead of this clock, is "0:00". Pure. */
 export function elapsed(since: string | undefined, now: number): string {
@@ -50,6 +47,16 @@ export function huddleCardState(facts: HuddleFacts, read: CallSessionRead | unde
   return { state, came: facts.came, people: facts.people }
 }
 
+/** The card's one action, Join or Call back (Call again): a small button, 44 px tall on touch (DESIGN-BUILD-118 F4). */
+const ACTION = "shrink-0 pointer-coarse:min-h-11"
+
+/** "Call Sam back", "Call the group back": Call back's name. Pure. */
+export function callBackLabel(caller: string | undefined, group: boolean): string {
+  if (group) return "Call the group back"
+  const name = firstNameOf(caller ?? "") || caller
+  return name ? `Call ${name} back` : "Call back"
+}
+
 export interface CallCardProps {
   facts: HuddleFacts
   /** The conversation's call read (Call State), while the post's call may be on. */
@@ -59,6 +66,12 @@ export interface CallCardProps {
   faces: (came: HuddleFace[]) => ReactNode
   /** The page that joins the call; no Join without it (a preview). */
   href?: string
+  /** Who started the call (the post's author), for Call back's name. */
+  caller?: string
+  /** The reader started it: a missed call reads "No answer" and "Call again". */
+  mine?: boolean
+  /** A group's call: Call back names the group, not its caller. */
+  group?: boolean
 }
 
 /**
@@ -67,11 +80,12 @@ export interface CallCardProps {
  * long it ran and who came; a call nobody answered, "Missed call". It reads
  * nothing itself: the post's facts and the call's read come in as props.
  */
-export default function CallCard({ facts, read, inChannel, faces, href }: CallCardProps) {
+export function CallCard({ facts, read, inChannel, faces, href, caller, mine = false, group = false }: CallCardProps) {
   const { state, came, people } = huddleCardState(facts, read, inChannel)
   const live = state === "live"
   const now = useNow(live)
-  const title = live ? "Huddle on now" : state === "missed" ? "Missed call" : state === "ended" ? "Huddle ended" : "Huddle"
+  const missed = state === "missed"
+  const title = live ? "Huddle on now" : missed ? (mine ? "No answer" : "Missed call") : state === "ended" ? "Huddle ended" : "Huddle"
   const meta = live ? elapsed(facts.started, now) : state === "ended" && facts.seconds > 0 ? callLength(facts.seconds) : ""
   return (
     <div
@@ -88,8 +102,8 @@ export default function CallCard({ facts, read, inChannel, faces, href }: CallCa
         {state === "missed" ? <PhoneOff /> : <Headphones />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-baseline gap-1.5">
-          <span className="font-semibold text-ink">{title}</span>
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate font-semibold text-ink">{title}</span>
           {meta && <span data-call-length="" className="text-meta tabular-nums text-ink-3">· {meta}</span>}
         </span>
         {(came.length > 0 || people > 0) && state !== "missed" && (
@@ -100,10 +114,33 @@ export default function CallCard({ facts, read, inChannel, faces, href }: CallCa
         )}
       </span>
       {live && href && (
-        <Button asChild size="sm" className="shrink-0">
+        <Button asChild size="sm" className={ACTION}>
           <Link href={href} prefetch={false} onClick={(e) => e.stopPropagation()} aria-label="Join the huddle">Join</Link>
+        </Button>
+      )}
+      {/* A missed call, in Join's place: the one called calls back, the one who called calls again (slack-06 H2). */}
+      {missed && href && (
+        <Button asChild size="sm" variant="outline" className={ACTION}>
+          <Link href={href} prefetch={false} onClick={(e) => e.stopPropagation()} aria-label={mine ? undefined : callBackLabel(caller, group)}>
+            <Phone aria-hidden="true" />
+            {mine ? "Call again" : "Call back"}
+          </Link>
         </Button>
       )}
     </div>
   )
+}
+
+/**
+ * A huddle post's card once its call has ended (huddlePost loads it). A missed
+ * DM's or group's call offers Call back through its door, as Huddle opens it,
+ * to the people it rang, and Call again to the one who started it: the facts'
+ * by, written at the call's end (slack-06 H2). A card without by, written
+ * before, offers neither, so nobody is offered to call themselves back.
+ */
+export default function EndedCallCard({ at, self, ...card }: Omit<CallCardProps, "href" | "caller" | "mine" | "group"> & { at?: { kind: CallKind; id: string }; self?: string }) {
+  const by = card.facts.by
+  const href = card.facts.missed && by && self && at?.kind !== "channel" ? huddleCallOf(at, self)?.href : undefined
+  const caller = card.facts.came.find((f) => f.uuid === by)?.name
+  return <CallCard {...card} href={href} caller={caller} mine={!!by && by === self} group={at?.kind === "group"} />
 }

@@ -7,7 +7,9 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 // pasted list into one invitation each and opens OneCamp.
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }))
-const invite = vi.hoisted(() => vi.fn(async () => ({ ok: true, answer: {} })))
+// Each email went: the step opens OneCamp at once. (An answer without
+// email_sent now keeps the step open with the links: firstRunInvites.test.)
+const invite = vi.hoisted(() => vi.fn(async () => ({ ok: true, answer: { email_sent: true } })))
 vi.mock("@/services/invitationService", () => ({ invite }))
 
 import { ActiveThemeProvider } from "@/components/activeTheme/activeTheme"

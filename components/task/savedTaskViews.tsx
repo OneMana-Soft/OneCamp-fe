@@ -4,15 +4,17 @@
 // the list shows now (filters, sort, columns) and come back to it in one
 // click. Private to the person, kept per project and for My Tasks. The panel
 // is shared by the desktop toolbar (a popover) and the phone filter drawers
-// (a tab), which own their own list state and pass it in.
+// (a tab), which own their own list state and pass it in. Each view can be
+// put on a dashboard (B9-b4, Add to dashboard), as the Display menu's can.
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { AddViewToDashboard } from "@/components/dashboards/addViewToDashboard"
 import { Input } from "@/components/ui/input"
 import { Trash2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useTaskViews } from "@/hooks/useTaskViews"
-import { sameView, type TaskViewState } from "@/lib/tasks/views"
+import { sameView, scopeProject, type TaskViewState } from "@/lib/tasks/views"
 import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
@@ -70,6 +72,7 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
                 {/* The view in use: the shared check at the row's end, as a select's chosen option has it. */}
                 <MenuCheck checked={active?.id === v.id} />
               </button>
+              <AddViewToDashboard view={v} project={scopeProject(scope)} className="sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto" />
               <Button
                 variant="ghost"
                 size="icon"

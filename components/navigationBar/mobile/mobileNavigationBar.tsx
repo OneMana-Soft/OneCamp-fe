@@ -34,7 +34,6 @@ export const LARGE_TITLES: Record<string, string> = {
 export function MobileNavigationBar({
                                                children,
                                                banners,
-                                               disableBottomPadding = false,
                                            }: Readonly<{
     children: React.ReactNode;
     /**
@@ -43,7 +42,6 @@ export function MobileNavigationBar({
      * desktop shell stacks them above its sheet.
      */
     banners?: React.ReactNode;
-    disableBottomPadding?: boolean;
 }>) {
 
     // Seed + keep-fresh the sidebar unread counts (channels/DMs/activity) that
@@ -54,7 +52,7 @@ export function MobileNavigationBar({
     // No room kept for a bottom bar that this page hides.
     const pathname = usePathname() ?? "";
     const router = useAppRouter();
-    const noBottomBar = disableBottomPadding || pageOwnsBottomEdge(pathname);
+    const noBottomBar = pageOwnsBottomEdge(pathname);
     // A tab's root: the theme's glow under the top bar, pull to refresh, and
     // nowhere for an edge swipe to go back to.
     const tabRoot = isTabRoot(pathname);

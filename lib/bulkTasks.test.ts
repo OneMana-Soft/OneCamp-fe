@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { bulkOp, bulkRequest, notDone, selectionTags, tagState } from "./bulkTasks"
+import { BULK_PRIORITIES, prioritySaid } from "./tasks/bulkPriority"
 import { BUILT_IN_STATUSES } from "./taskStatus"
 import { PostEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoInterface } from "@/types/task"
@@ -105,5 +106,16 @@ describe("the tags across a selection", () => {
       { name: "ops", current: false },
     ])
     expect(selectionTags([task()], [])).toEqual([])
+  })
+})
+
+// UX-PROJECTS-H1 (PROJECTS-14): the bar's priority picker offered no way to
+// take a priority off, though the request takes "" (H1-BE).
+describe("the bar's priority", () => {
+  it("offers No priority last, and says it took the priority off", () => {
+    expect(BULK_PRIORITIES.map((p) => p.value)).toEqual(["urgent", "high", "medium", "low", ""])
+    expect(BULK_PRIORITIES.at(-1)?.label).toBe("No priority")
+    expect(prioritySaid(2, "high")).toBe("Set 2 tasks to High priority")
+    expect(prioritySaid(1, "")).toBe("Took the priority off 1 task")
   })
 })

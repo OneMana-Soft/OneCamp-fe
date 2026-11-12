@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useLatch } from "@/hooks/useLatch"
 import { createPortal } from "react-dom"
 import { format, isValid, parse } from "date-fns"
 
@@ -56,8 +57,7 @@ function PickerFrame({
   const sheet = useSheetMode()
   const { inSheet, host } = useSheetPanel(sheet && open, label, () => onOpenChange(false))
   // Mounted from the first open on, so the sheet can animate away.
-  const [used, setUsed] = React.useState(false)
-  if (sheet && open && !inSheet && !used) setUsed(true)
+  const used = useLatch(!!(sheet && open && !inSheet))
   // Where overlays float, the popover opens once its picker is in: Radix
   // places it by its first size, and a stand-in's kept a taller panel below
   // its field, cut at the window's foot. One that can't load shuts.

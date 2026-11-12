@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useDispatch } from "react-redux"
 import { localDay } from "@/lib/utils/timeZone"
@@ -96,7 +96,7 @@ interface SidebarHeaderProps {
  * on hover; compose opens the new-message picker. Home is the Home row and
  * G H, so the mark no longer goes home (owner decision 4).
  */
-export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps) {
+export const SidebarHeader = memo(function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps) {
   const dispatch = useDispatch()
   const name = useWorkspaceName()
   const [draw, setDraw] = useState(false)
@@ -159,7 +159,7 @@ export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps
       </Tooltip>
     </div>
   )
-}
+})
 
 /**
  * The workspace menu (design v3, shell M1): 264px, r12, e3, dropping 4px under

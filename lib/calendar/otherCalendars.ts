@@ -17,7 +17,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { projectHue } from "@/lib/projectHue"
 import { isCampHue, type CampHue } from "@/lib/campHue"
 import { listOf } from "@/lib/utils/listOf"
-import type { CalendarEventInterface } from "@/types/calendar"
+import type { CalendarEventInterface, EventRoom } from "@/types/calendar"
 import { OWN_HUE, otherHue } from "@/components/calendar/calendarTones"
 
 export type { CalendarView }
@@ -34,6 +34,9 @@ interface OtherEvent {
   all_day: boolean
   hue?: string
   kind?: string
+  visibility?: string
+  /** Its call room (gcal-15), to a reader who may join it; none on a Busy block. */
+  room?: EventRoom | null
 }
 
 // The choices kept on this device: one store, which the calendar, its panel
@@ -85,6 +88,8 @@ export function asGridEvent(e: OtherEvent, cal: CalendarView | undefined, hues: 
     calendar_name: cal?.name,
     event_is_focus: e.kind === "focus",
     event_is_away: e.kind === "out_of_office",
+    event_visibility: e.visibility,
+    event_room: e.room ?? null,
   }
 }
 

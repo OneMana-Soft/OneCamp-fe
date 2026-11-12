@@ -60,9 +60,12 @@ export function calendarRoute(to: CalendarPlace = {}, others?: URLSearchParams):
   return s ? `/app/calendar?${s}` : "/app/calendar"
 }
 
+// trash: Open Trash's ask (lib/calendar/deleteEvent).
+type Place = { date?: Date; view?: CalendarView; event?: string; span?: CalendarSpan; trash?: true }
+
 /** What a calendar address says, each part only when it is well formed. Pure. */
-export function calendarPlace(params: Pick<URLSearchParams, "get">): { date?: Date; view?: CalendarView; event?: string; span?: CalendarSpan } {
-  const out: { date?: Date; view?: CalendarView; event?: string; span?: CalendarSpan } = {}
+export function calendarPlace(params: Pick<URLSearchParams, "get">): Place {
+  const out: Place = {}
   const date = parseDay(params.get("date"))
   if (date) out.date = date
   const view = params.get("view")
@@ -72,5 +75,6 @@ export function calendarPlace(params: Pick<URLSearchParams, "get">): { date?: Da
   if (event && /^[\w-]{1,200}$/.test(event)) out.event = event
   const span = parseSpan(params.get("span"))
   if (span) out.span = span
+  if (params.get("trash") === "1") out.trash = true
   return out
 }

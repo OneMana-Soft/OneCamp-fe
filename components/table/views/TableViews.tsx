@@ -67,6 +67,7 @@ export function TableViews({
   display,
   onApply,
   onLayout,
+  onChosen,
 }: {
   tableId: string
   /** The table's views as the reader's bundle lists them: the shared ones, and their own. */
@@ -81,6 +82,8 @@ export function TableViews({
   onApply: (state: ViewState) => void
   /** Shows the table in another layout, as its tab does: the palette's "Switch view…" lists the layouts too. */
   onLayout?: (layout: ViewChoice) => void
+  /** Told the saved view shown, by name, as it changes: picked, made, renamed or deleted here (a print's title). */
+  onChosen?: (name: string | undefined) => void
 }) {
   const confirm = useConfirm()
   const [list, setList] = React.useState(views ?? [])
@@ -116,6 +119,7 @@ export function TableViews({
   }, [])
 
   const current = list.find((v) => v.id === chosen) ?? null
+  React.useEffect(() => onChosen?.(current?.name), [current?.name, onChosen])
   const now: ViewState = { layout, rules, display: drawnAs(display) }
   const changed = !!current && !sameViewState(viewStateOf(current, fields), now)
   const mayChange = !!current && mayChangeView(current, canManage)

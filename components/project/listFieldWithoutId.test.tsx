@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { Provider } from "react-redux"
 
 import { pinTestClock } from "@/lib/testing/testClock"
@@ -18,7 +18,7 @@ pinTestClock()
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => server.search,
   usePathname: () => "/app/project/p",
 }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
@@ -44,15 +44,23 @@ const server = vi.hoisted(() => {
   const fields = [
     { ...field, id: "c", name: "Channel", type: "select", position: 0, filter_id: "field_c", options: [{ id: "o1", label: "Blog", color: "violet" }] },
     { ...field, id: "a", name: "Area", type: "multi_select", position: 1, options: [{ id: "o2", label: "Data loss", color: "red" }] },
+    // One the server hides from this reader (V-698W): a money field's is, to anyone not an admin of its project.
+    { ...field, id: "t", name: "Tier", type: "select", position: 2, filter_id: "field_t", hidden: true, options: [{ id: "o3", label: "Gold", color: "amber" }] },
   ]
   return {
+    // The page's address, and each list read it made.
+    search: new URLSearchParams(),
+    reads: [] as string[],
     nothing: answer(undefined),
     tasks: answer({ msg: "ok", pageCount: 1, data: { project_uuid: "p", project_name: "Q4 launch", project_is_admin: 1, project_is_member: 1, project_access: admin, project_tasks: [task] } }),
     fields: answer({ msg: "ok", data: { fields, can_edit: false } }),
   }
 })
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => (url === "/project/p/fields" ? server.fields : url.startsWith("/project/taskList/") ? server.tasks : server.nothing),
+  useFetch: (url: string) => {
+    if (url.startsWith("/project/taskList/")) server.reads.push(url)
+    return url === "/project/p/fields" ? server.fields : url.startsWith("/project/taskList/") ? server.tasks : server.nothing
+  },
   useFetchOnlyOnce: () => server.nothing,
   useMediaFetch: () => server.nothing,
 }))
@@ -93,5 +101,26 @@ describe("a project's list with a field that came without its filter id", () => 
     fireEvent.click(screen.getByRole("button", { name: /Fields/ }))
     expect(screen.getByText("Blog")).toBeTruthy()
     expect(screen.queryByText("Data loss")).toBeNull()
+  })
+})
+
+// V-698W: a field the server hides from its reader narrows nothing for them on
+// the server, so a filter on it from an address or a saved view goes, as one on
+// a deleted field does, before the list (and its CSV) is read with it; and its
+// values are never offered.
+describe("a project's list with a field the server hides from its reader (V-698W)", () => {
+  it("drops a filter on it from the address, keeps the others, and offers none of its values", async () => {
+    cleanup()
+    server.search = new URLSearchParams({ filters: JSON.stringify([{ id: "field_t", value: ["o3"] }, { id: "field_c", value: ["o1"] }]) })
+    server.reads.length = 0
+    render(page())
+    expect(await screen.findByText("Write the launch post")).toBeTruthy()
+    await waitFor(() => expect(decodeURIComponent(server.reads.at(-1) ?? "")).not.toContain("field_t"))
+    expect(decodeURIComponent(server.reads.at(-1) ?? "")).toContain("field_c")
+    fireEvent.click(screen.getByRole("button", { name: /Fields/ }))
+    expect(screen.getByText("Blog")).toBeTruthy()
+    expect(screen.queryByText("Gold")).toBeNull()
+    expect(screen.queryByText("Tier")).toBeNull()
+    server.search = new URLSearchParams()
   })
 })

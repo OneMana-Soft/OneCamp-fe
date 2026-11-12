@@ -9,6 +9,7 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import type { EditKind, TimelineTask } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
 import { stuckRoom } from "@/hooks/useTimelineView"
+import { waitingOn } from "@/lib/tasks/waitingOn"
 
 /**
  * Whether a bar holds its whole name: a 12.5px name runs about 7px a
@@ -110,7 +111,7 @@ export const TimelineBar = memo(function TimelineBar({
   const icons = (done ? 1 : 0) + (blocked > 0 ? 1 : 0) + (late ? 1 : 0)
   const inside = !milestone && fitsName(task.task_name, width - (face ? 24 : 0), icons)
   const handles = canEdit && !milestone && width >= 18
-  const waits = blocked > 0 ? `Waiting on ${blocked} ${blocked === 1 ? "task" : "tasks"}` : ""
+  const waits = blocked > 0 ? waitingOn(blocked) : ""
   const tip = [task.task_name, label, who, waits].filter(Boolean).join(" · ")
   const tail = late && lateTail > 0 && !milestone ? Math.max(6, lateTail) : 0
   // Room after the bar for the dependency handle, then the name of a short bar.

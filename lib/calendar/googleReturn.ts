@@ -1,7 +1,7 @@
 import type { useToast } from "@/hooks/use-toast"
 
 /**
- * Back from Google's consent screen: the server's connectors callback lands
+ * Back from Google's (or Outlook's) consent screen: the server's connectors callback lands
  * on the calendar with ?connector=success|error (CAL-BUG-8). Said once, then
  * dropped from the address. A chunk of its own, since only a return from
  * Google needs it.
@@ -10,8 +10,13 @@ export function sayGoogleReturn(status: () => unknown, events: () => unknown, to
   const params = new URLSearchParams(window.location.search)
   const said = params.get("connector")
   const provider = params.get("provider")
-  if (!said || (provider && provider !== "google_calendar")) return
-  if (said === "success") {
+  // Outlook's comes back the same way (B7): its calendars come in with the move it offers next.
+  const outlook = provider === "microsoft_calendar"
+  if (!said || (provider && provider !== "google_calendar" && !outlook)) return
+  if (outlook) {
+    if (said === "success") toast({ title: "Outlook Calendar is connected", description: "Open Calendars and move everything from Outlook.", tone: "success" })
+    else toast({ title: "Couldn't connect Outlook Calendar", description: "The sign-in didn't finish. Try again from Calendars.", variant: "destructive" })
+  } else if (said === "success") {
     void Promise.resolve(status()).then((res) => {
       const who = (res as { data?: { accountEmail?: string } } | undefined)?.data?.accountEmail
       toast({ title: "Google Calendar is connected", description: who ? `Connected as ${who}.` : "Its events show here now.", tone: "success" })

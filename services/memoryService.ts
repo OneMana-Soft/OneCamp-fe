@@ -7,7 +7,7 @@
  * This service powers the "what does my workspace know" surface.
  */
 
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { sharedRequest } from "@/lib/utils/sharedRequest"
 import { AiGet, AiPost } from "@/services/endpoints/ai"
 import { browserTZ } from "@/lib/utils/timeZone"
@@ -22,6 +22,8 @@ export interface MemoryItem {
   status: MemoryStatus
   owner_user_id?: string
   due_at?: string
+  /** Overdue past needing its person now: asked "Still relevant?". */
+  stale?: boolean
   channel_uuid?: string
   project_uuid?: string
   chat_grp_id?: string
@@ -171,7 +173,9 @@ export function getBriefing(): Promise<BriefingResult> {
 }
 
 async function fetchBriefing(tz: string): Promise<BriefingResult> {
-  const res = await axiosInstance.get(`${AiGet.GetAIBriefing}?tz=${encodeURIComponent(tz)}`)
+  // A background read: its cards hide when it fails, so a failure raises no
+  // toast over the screen (V-577).
+  const res = await axiosInstance.get(`${AiGet.GetAIBriefing}?tz=${encodeURIComponent(tz)}`, OWN_ERRORS)
   const d = res.data?.data
   // Normalize every collection to an array regardless of the payload shape.
   // A Go nil slice marshals to JSON `null`, and an older/cached backend or a
@@ -219,7 +223,8 @@ export function getAttention(): Promise<AttentionResult> {
 }
 
 async function fetchAttention(tz: string): Promise<AttentionResult> {
-  const res = await axiosInstance.get(`${AiGet.GetAIAttention}?tz=${encodeURIComponent(tz)}`)
+  // A background read, quiet when it fails: see fetchBriefing.
+  const res = await axiosInstance.get(`${AiGet.GetAIAttention}?tz=${encodeURIComponent(tz)}`, OWN_ERRORS)
   const d = res.data?.data
   // Normalize the shape so the card never crashes on a null/omitted slice
   // (Go nil slice → JSON null) or a partial response — see getBriefing.

@@ -14,8 +14,11 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { inviteImportedPeople } from "@/services/importService"
 import { isPlaceholderEmail } from "@/lib/importInvites"
+import { usePlan } from "@/hooks/usePlan"
+import { LimitNote } from "@/components/admin/plan/LimitNote"
 
-type Answer = { tone: "ok" | "error"; text: string }
+/** seat: the free plan is full, said by the limit note rather than in red. */
+type Answer = { tone: "ok" | "error" | "seat"; text: string }
 
 /** What one invitation from a profile came to, in a sentence. Pure. */
 export function placeholderInviteAnswer(run: Awaited<ReturnType<typeof inviteImportedPeople>>): Answer {
@@ -25,7 +28,7 @@ export function placeholderInviteAnswer(run: Awaited<ReturnType<typeof inviteImp
       : { tone: "ok", text: "Invited. They get an email with a link to join." }
   }
   if (run.alreadyInvited.length) return { tone: "ok", text: "They were already invited." }
-  if (run.seatLimit) return { tone: "error", text: run.seatLimit.msg }
+  if (run.seatLimit) return { tone: "seat", text: run.seatLimit.msg }
   return { tone: "error", text: run.failed[0]?.msg ?? "That didn't work. Try again." }
 }
 
@@ -34,6 +37,8 @@ export function InvitePlaceholder({ userUUID, email, name }: { userUUID: string;
   const self = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, { revalidateOnFocus: false })
   const [busy, setBusy] = useState(false)
   const [answer, setAnswer] = useState<Answer | null>(null)
+  // Read only once the plan's limit is met here, for its figures and the way past it.
+  const plan = usePlan({ enabled: answer?.tone === "seat" })
 
   if (!self.data?.data?.user_is_admin) return null
 
@@ -60,7 +65,10 @@ export function InvitePlaceholder({ userUUID, email, name }: { userUUID: string;
           Invite to the workspace
         </Button>
       ) : null}
-      {answer && (
+      {answer?.tone === "seat" && plan.limit > 0 ? (
+        // The refusal says the plan is full, whatever an older count said.
+        <LimitNote.Part asAdmin used={plan.limit} limit={plan.limit} links={plan.links} className="w-full text-left" />
+      ) : answer && (
         <p
           role={answer.tone === "error" ? "alert" : "status"}
           className={answer.tone === "error" ? "text-xs text-danger-ink text-center max-w-[260px]" : "text-xs text-muted-foreground text-center max-w-[260px]"}

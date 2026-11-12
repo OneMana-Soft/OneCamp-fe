@@ -5,6 +5,9 @@ let aiOn = true
 let admin = true
 let caps: string[] = []
 const pushed: string[] = []
+// Your stars, as the sidebar's store has them, and the boards you opened lately (miro-46).
+let starredPlaces: unknown[] | undefined
+let recentPlaces: unknown = undefined
 
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
@@ -16,6 +19,7 @@ vi.mock("@/hooks/useCapabilities", () => ({
 }))
 vi.mock("@/hooks/useFetch", () => ({
     useFetchOnlyOnce: () => ({ data: { data: { user_is_admin: admin, user_uuid: "u1", user_name: "Sam Rivera" } } }),
+    useFetch: (key: string) => (key.startsWith("/places/recent?resource_kind=board") ? { data: recentPlaces } : { data: undefined }),
 }))
 vi.mock("@/hooks/useLogout", () => ({ useLogout: () => ({ logout: () => {} }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: (p: string) => pushed.push(p) }) }))
@@ -29,7 +33,14 @@ const started: number[] = []
 const ended: number[] = []
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil, focusUntil }) }))
 const dispatched: unknown[] = []
-vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => (a: unknown) => dispatched.push(a) }))
+// The store holds your stars and nothing else: any other read finds nothing, as it did before.
+vi.mock("react-redux", () => ({ useSelector: (pick: (s: unknown) => unknown) => {
+    try {
+        return pick({ users: { userSidebar: { userStarred: starredPlaces } } })
+    } catch {
+        return undefined
+    }
+}, useDispatch: () => (a: unknown) => dispatched.push(a) }))
 vi.mock("@/hooks/useFocusTime", () => ({
     useFocusTime: () => ({ start: async () => (started.push(1), true), end: async () => (ended.push(1), true), busy: false }),
 }))
@@ -53,6 +64,8 @@ beforeEach(() => {
     admin = true
     caps = []
     pushed.length = 0
+    starredPlaces = undefined
+    recentPlaces = undefined
     focusUntil = null
     pausedUntil = null
     themeSet = []
@@ -264,5 +277,53 @@ describe("the More menu's look", () => {
         expect(screen.getByRole("button", { name: /^Your profile/ })).toBeTruthy()
         // A row is 44px.
         expect(screen.getByRole("button", { name: /^My tasks/ }).className.split(/\s+/)).toContain("h-11")
+    })
+})
+
+// Starred and recent boards on a phone (miro-46): the phone has no sidebar, so
+// its More carries the sidebar's Starred places and Recent boards, each only
+// when it has something, each row opening its place.
+describe("the More sheet's places", () => {
+    const place = (resource_kind: string, resource_uuid: string, title: string) => ({ kind: "star", resource_kind, resource_uuid, position: "", title, href: `/app/${resource_kind}/${resource_uuid}` })
+
+    it("lists what you starred, docs and boards, and opens one with a tap", () => {
+        starredPlaces = [place("doc", "d1", "Launch plan"), place("board", "b1", "Q4 launch")]
+        open()
+        const label = screen.getByText("Starred")
+        expect(label).toBeTruthy()
+        expect(screen.getByRole("button", { name: /Launch plan/ })).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", { name: /Q4 launch/ }))
+        expect(pushed).toEqual(["/app/board/b1"])
+    })
+
+    it("lists the boards you opened lately, newest first", () => {
+        recentPlaces = { data: { places: [{ ...place("board", "b2", "Retro"), kind: "recent" }, { ...place("board", "b1", "Q4 launch"), kind: "recent" }] } }
+        open()
+        expect(screen.getByText("Recent boards")).toBeTruthy()
+        const rows = screen.getAllByRole("button").map((b) => b.textContent)
+        expect(rows.indexOf("Retro")).toBeLessThan(rows.indexOf("Q4 launch"))
+        fireEvent.click(screen.getByRole("button", { name: /Retro/ }))
+        expect(pushed).toEqual(["/app/board/b2"])
+    })
+
+    // DESIGN-BUILD-119 F1: above Work, the places pushed Calendar, Docs, Boards and Tables below the sheet's cut at
+    // rest, with no cue. Work's doors come first; the places follow them.
+    it("keeps Work's doors first: Starred and Recent boards come after Tables", () => {
+        starredPlaces = [place("board", "b1", "Q4 launch")]
+        recentPlaces = { data: { places: [{ ...place("board", "b2", "Retro"), kind: "recent" }] } }
+        open()
+        const rows = screen.getAllByRole("button").map((b) => b.textContent)
+        expect(rows.indexOf("Tables")).toBeGreaterThan(-1)
+        expect(rows.indexOf("Tables")).toBeLessThan(rows.indexOf("Q4 launch"))
+        expect(rows.indexOf("Tables")).toBeLessThan(rows.indexOf("Retro"))
+    })
+
+    it("shows neither heading when there is nothing, and stays quiet while the recent read fails or is offline", () => {
+        starredPlaces = []
+        recentPlaces = undefined
+        open()
+        expect(screen.queryByText("Starred")).toBeNull()
+        expect(screen.queryByText("Recent boards")).toBeNull()
+        expect(screen.getByText("Work")).toBeTruthy()
     })
 })

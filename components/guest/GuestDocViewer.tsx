@@ -24,6 +24,7 @@ import { EditorContent } from "@tiptap/react"
 import { DOC_EDITOR_CLASS, useDocEditor } from "@/components/docEditor/useDocEditor"
 import { GuestReaderContext } from "@/components/minimal-tiptap/guestReader"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
+import { useLatch } from "@/hooks/useLatch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -72,9 +73,8 @@ export function GuestDocViewer({ documentName, tokenFetcher, labelledBy }: Guest
   // back to false, and the provider never says "synced" again when its socket
   // survived the blip, so waiting on the flag swapped a connected document for
   // the skeleton, and then "Can't reach the document", until a reload.
-  const [arrived, setArrived] = useState(false)
-  if (synced && !arrived) setArrived(true)
-  const ready = !!provider && !!editor && (synced || arrived)
+  const arrived = useLatch(synced)
+  const ready = !!provider && !!editor && arrived
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     if (ready) {

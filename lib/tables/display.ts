@@ -1,9 +1,7 @@
-// How a reader looks at a table: the row height, the fields they hid, list
-// mode on a phone and the summary under each column. Per reader and per
-// table, in their browser, until saved views exist (content.md T04: "keep the
-// per-reader rules"). Pure apart from the storage, which never throws.
+// How a table draws: as a reader's browser keeps it, per table, and as a saved
+// view does (lib/tables/savedViews). Pure apart from the storage, which never throws.
 
-import type { TableField } from "@/services/tableService"
+import { isNumeric, type TableField } from "@/services/tableService"
 import type { RowColors } from "@/lib/tables/applyRules"
 
 /** The four row heights (T06): short 32, medium 40 (default), tall 64, extra tall 104. */
@@ -69,6 +67,8 @@ export interface TableDisplay {
   colors: RowColors | null
   /** As kept: read by the timeline and the Gantt (lib/tables/tableTimeline readTimelineLook). */
   timeline?: unknown
+  /** As kept: read by the chart (lib/tables/chartLook). */
+  chart?: unknown
   /** How many leading columns stay put sideways, 1 to MAX_FROZEN (a phone keeps one: frozenCount). */
   frozen: number
 }
@@ -93,6 +93,32 @@ export function frozenCount(frozen: number, columns: number, phone: boolean): nu
 export function frozenMarks(col: number, count: number): { "data-frozen"?: number; "data-frozen-edge"?: ""; "data-sticky-lead"?: "" } {
   if (col >= count) return {}
   return col === count - 1 ? { "data-frozen": col, "data-frozen-edge": "", "data-sticky-lead": "" } : { "data-frozen": col, "data-sticky-lead": "" }
+}
+
+/**
+ * A column's width, by what it holds. The grid lays out at fixed widths
+ * (table-layout: fixed) so a column keeps its width as rows scroll in and out.
+ */
+export function columnWidth(f: TableField): number {
+  switch (f.type) {
+    case "checkbox":
+      return 120
+    case "number":
+      return 128
+    case "date":
+      return 152
+    case "select":
+      return 168
+    case "formula":
+    case "rollup":
+      return isNumeric(f) ? 136 : 184
+    case "multi_select":
+    case "person":
+    case "relation":
+      return 200
+    default:
+      return 232
+  }
 }
 
 /** How far in from the gutter each frozen column after the first sticks, as table.css reads them: the widths before it, added up. */
@@ -130,6 +156,7 @@ export function readDisplay(saved: unknown): TableDisplay {
     ),
     colors: raw.colors ?? null,
     timeline: raw.timeline ?? null,
+    chart: raw.chart ?? null,
     frozen: typeof raw.frozen === "number" && Number.isInteger(raw.frozen) && raw.frozen >= 1 && raw.frozen <= MAX_FROZEN ? raw.frozen : 1,
   }
 }

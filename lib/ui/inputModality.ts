@@ -8,13 +8,24 @@
  */
 
 let last: "pointer" | "key" = "pointer"
+let at: Element | null = null
+let box: HTMLElement | null = null
 let listening = false
+
+/** A menu or a dialog (a popover is one). */
+export const MENU_OR_DIALOG = "[role=menu],[role=dialog]"
+
+function note() {
+  at = document.activeElement
+  box = at?.closest<HTMLElement>(MENU_OR_DIALOG) ?? null
+}
 
 function listen() {
   if (listening || typeof window === "undefined") return
   listening = true
-  window.addEventListener("pointerdown", () => { last = "pointer" }, { capture: true, passive: true })
+  window.addEventListener("pointerdown", () => { last = "pointer"; note() }, { capture: true, passive: true })
   window.addEventListener("keydown", (e) => {
+    note()
     // A modifier on its own is not an action.
     if (!["Shift", "Control", "Alt", "Meta"].includes(e.key)) last = "key"
   }, { capture: true, passive: true })
@@ -24,6 +35,12 @@ function listen() {
 export function lastInputWasPointer(): boolean {
   listen()
   return last === "pointer"
+}
+
+/** The menu or dialog the focus was in at the last key or press, once what had it is off the page (a picked row). */
+export function goneBox(): HTMLElement | null {
+  listen()
+  return at?.isConnected ? null : box
 }
 
 /** Starts listening, so the first answer is a real one. Call once a surface mounts. */

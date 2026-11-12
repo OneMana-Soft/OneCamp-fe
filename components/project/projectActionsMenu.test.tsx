@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 // The desktop project header folds its tools into one "⋯" menu. Every action
 // it used to show as an icon must still be reachable, by name.
@@ -25,10 +26,27 @@ vi.mock("@/components/project/ProjectAccessDialog", () => ({ ProjectAccessDialog
 vi.mock("@/hooks/useProjectLinks", () => ({ useProjectLinks: () => ({ links: [] }) }))
 vi.mock("@/components/project/ProjectLinksDialog", () => ({ ProjectLinksDialog: () => <div data-testid="links" /> }))
 
+// Later (linear-45 #1): the member's own list, and its one picker, loaded on the click.
+let laterSaved: { id: string } | undefined
+const laterSave = vi.fn((input: unknown) => Promise.resolve(input))
+const laterRemove = vi.fn(() => Promise.resolve())
+vi.mock("@/hooks/useLater", () => ({
+  useSavedEntry: () => laterSaved,
+  useLaterActions: () => ({ save: laterSave, remind: vi.fn(), done: vi.fn(), remove: laterRemove }),
+}))
+const PICKED = new Date("2026-10-16T03:30:00Z")
+vi.mock("@/components/later/reminderPicker", () => ({
+  default: ({ onPick }: { onPick: (at: Date) => void }) => (
+    <div role="dialog" aria-label="Remind me"><button type="button" onClick={() => onPick(PICKED)}>Set reminder</button></div>
+  ),
+}))
+
 const { ProjectActionsMenu } = await import("@/components/project/ProjectToolButtons")
 const { GetEndpointUrl } = await import("@/services/endPoints")
 
 afterEach(cleanup)
+// Later's picked moment is a date: the file runs on the one test clock.
+pinTestClock()
 
 function openMenu() {
   const trigger = screen.getByRole("button", { name: "Project actions" })
@@ -139,5 +157,28 @@ describe("the project header's actions", () => {
     for (const name of ["Edit project name", "Who can change tasks", "Intake forms"]) {
       expect(screen.queryByRole("menuitem", { name })).toBeNull()
     }
+  })
+
+  // A project is saved for Later, and reminded about, from its own menu
+  // (linear-45 #1), by whoever sees its tools: the entry is their own.
+  it("saves the project for Later, and reminds its member about it at a time picked", async () => {
+    render(<ProjectActionsMenu projectId="q4-1" projectName="Q4 launch" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Save for later" }))
+    expect(laterSave).toHaveBeenCalledWith(expect.objectContaining({ item_type: "project", item_id: "q4-1", link: "/app/project/q4-1", title: "Q4 launch", remind_at: null }))
+    openMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remind me…" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Set reminder" }))
+    expect(laterSave).toHaveBeenLastCalledWith(expect.objectContaining({ item_type: "project", item_id: "q4-1", remind_at: PICKED.toISOString() }))
+    laterSave.mockClear()
+  })
+
+  it("says the project is saved, and takes it out of Later", () => {
+    laterSaved = { id: "l9" }
+    render(<ProjectActionsMenu projectId="q4-1" projectName="Q4 launch" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Saved for later" }))
+    expect(laterRemove).toHaveBeenCalledWith("l9")
+    laterSaved = undefined
   })
 })

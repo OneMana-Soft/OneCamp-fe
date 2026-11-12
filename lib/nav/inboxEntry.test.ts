@@ -34,11 +34,19 @@ describe("Inbox and Mail", () => {
     expect(GO_KEYS.map((g) => g.label)).not.toContain("Activity")
   })
 
-  it("badges the sidebar's Inbox row with notifications and urgent nudges, never DMs", () => {
-    expect(inboxBadgeCount({ activity: 2, urgentNudges: 1 })).toBe(3)
-    const inbox = buildPrimaryNavLinks(["", "app", "home"], { channel: 4, dm: 9, activity: 0, urgentNudges: 0 }).find((l) => l.title === "Inbox")
+  // V-577: the web added the open urgent nudges to the server's count, outside
+  // its one rule, so a months-old nudge kept the owner's badge at 1 after every
+  // look, and the phone bar, the title and the favicon said 0. The server
+  // counts them now (business/Activity UnreadActivityCount); every surface
+  // shows its number alone.
+  it("badges the sidebar's Inbox row with the server's number alone, never DMs, as the phone bar does", () => {
+    expect(inboxBadgeCount({ activity: 2, ...({ urgentNudges: 1 } as object) })).toBe(2)
+    const inbox = buildPrimaryNavLinks(["", "app", "home"], { channel: 4, dm: 9, activity: 0 }).find((l) => l.title === "Inbox")
     expect(inbox?.label).toBe("")
-    expect(read("components/navigationBar/desktop/desktopNavigationBar.tsx")).toMatch(/urgentNudges: nudges/)
+    const desktop = read("components/navigationBar/desktop/desktopNavigationBar.tsx")
+    expect(desktop).toMatch(/activity: userSidebarState\.totalUnreadActivityCount,/)
+    expect(desktop).not.toMatch(/useNudgeCount|urgentNudges/)
+    expect(read("components/navigationBar/mobile/mobileBottomNavigationBar.tsx")).toMatch(/case "activity":\s*return userSidebarState\.totalUnreadActivityCount/)
   })
 
   it("lists Mail behind More", () => {
@@ -49,7 +57,11 @@ describe("Inbox and Mail", () => {
     expect(read("components/navigationBar/mobile/mobileBottomNavigationBar.tsx")).toMatch(/label: "Inbox", page: "app\/inbox"/)
   })
 
-  it("holds OneCamp AI's nudges at the top of Priority, where the bell was", () => {
-    expect(read("components/activity/activityListTabs.tsx")).toMatch(/effectiveTab === "priority" && <InboxNudges \/>/)
+  // The Inbox opens on All, so what the badge counts is there too (V-577):
+  // the one group, at the top of All and of Priority.
+  it("holds OneCamp AI's nudges at the top of All and of Priority, one group for both", () => {
+    const tabs = read("components/activity/activityListTabs.tsx")
+    expect(tabs).toMatch(/\(effectiveTab === "all" \|\| effectiveTab === "priority"\) && <InboxNudges \/>/)
+    expect(tabs.match(/<InboxNudges/g)).toHaveLength(1)
   })
 })

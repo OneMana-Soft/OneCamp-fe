@@ -9,6 +9,7 @@ import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Pl
 import { Plug } from "lucide-react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import type { ReturnFocus } from "@/components/ui/returnFocus"
 import { Command as CommandPrimitive } from "cmdk"
 import { useTheme } from "next-themes"
 import { CommandGroup, CommandItem } from "@/components/ui/command"
@@ -211,7 +212,8 @@ function aiSourceIcon(source: UnifiedSource) {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function CommandPalette() {
+/** Its close focus (components/ui/returnFocus) comes from the eager loader: this lazy chunk never imports it. */
+export function CommandPalette(back: Partial<ReturnFocus> = {}) {
   const [open, setOpen] = React.useState(false)
   // Search or Ask (design v3, P2). What was asked for; Ask only holds where AI is on.
   const [requestedMode, setRequestedMode] = React.useState<PaletteMode>("search")
@@ -1433,6 +1435,7 @@ export function CommandPalette() {
           data-phone={isPhone ? "" : undefined}
           className="palette"
           aria-describedby={undefined}
+          {...back}
           onEscapeKeyDown={(e) => {
             // Esc closes the peek first, then the palette.
             if (peek) {

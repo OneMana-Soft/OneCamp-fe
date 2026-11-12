@@ -4,7 +4,7 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useSaysLoadFailure } from "@/lib/http/loadFailure";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {PermissionLockedNotice} from "@/components/admin/PlanLockedNotice";
+import {PermissionLockedNotice} from "@/components/admin/PermissionLockedNotice";
 import {PageFrame, PageFrameHeader} from "@/components/ui/settingsPage";
 import {lastAppRoute} from "@/components/navigationBar/desktop/SettingsNav";
 import Link from "next/link";

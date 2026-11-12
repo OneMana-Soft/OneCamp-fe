@@ -119,6 +119,33 @@ describe("the agenda card", () => {
     expect(container.querySelector<HTMLElement>("[data-agenda-bar]")!.style.background).toBe("var(--ink-3)")
   })
 
+  // Calendar head B (gcal-1a): a colour of its own (More colours) is drawn as the calendar draws it, cut for the theme by
+  // hue-own from the --own it is given inline, so its first paint is its own colour, never its calendar's first.
+  it("draws an event's own colour as the calendar does, in a row, an all-day chip and the phone's strip", () => {
+    vi.setSystemTime(at(9, 0))
+    const own = { event_hue: "#1a73e8" }
+    answer = {
+      isLoading: false,
+      data: { data: [ev("Launch sync", 10, 30, 11, 30, own), ev("Offsite", 0, 0, 0, 0, { ...own, event_all_day: true, event_start_date: "2026-10-11", event_end_date: "2026-10-12" })] },
+    }
+    const { container } = render(
+      <>
+        <TodayAgenda />
+        <TodayStrip />
+      </>,
+    )
+    const marks = [
+      container.querySelector<HTMLElement>("[data-agenda-bar]")!,
+      container.querySelector<HTMLElement>(".chip > span")!,
+      container.querySelector<HTMLElement>("[data-today-scroller] [data-agenda-row] span > span")!,
+    ]
+    for (const mark of marks) {
+      expect(mark.classList.contains("hue-own")).toBe(true)
+      expect(mark.style.getPropertyValue("--own")).toBe("#1a73e8")
+      expect(mark.style.background).toBe("var(--hue)")
+    }
+  })
+
   // Calendar B3a: an invitation is answered where it shows, with the card's control.
   describe("an invitation", () => {
     const organiser = { user_uuid: "maya", user_name: "Maya Chen" }

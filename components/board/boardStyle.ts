@@ -41,9 +41,11 @@ export function useBoardMeta<T>(
   return [value, write]
 }
 
-/** One that never said is clean if it opened empty (a new board) and hand-drawn otherwise, as it has always been drawn. */
-const readStyle = (stored: unknown, doc: Doc): BoardStyle =>
-  stored === "clean" || stored === "sketch" ? stored : doc.getMap("elements").size === 0 ? "clean" : "sketch"
+/**
+ * Clean unless someone chose hand-drawn (TABLES-BOARDS-16): nothing writes the style a new board starts in, so a
+ * board that never said is read clean whether or not it has a drawing.
+ */
+const readStyle = (stored: unknown): BoardStyle => (stored === "sketch" ? "sketch" : "clean")
 
 /** A board's style (owner, 21 Oct, O4), kept with the board so everyone draws in it. */
 export function useBoardStyle(provider: HocuspocusProvider | null, synced: boolean): [BoardStyle | null, (s: BoardStyle) => void] {

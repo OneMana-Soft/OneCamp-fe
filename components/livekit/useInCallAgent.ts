@@ -5,6 +5,7 @@ import { useRoomContext, useLocalParticipant } from "@livekit/components-react";
 import { RoomEvent, RemoteParticipant, DataPacket_Kind } from "livekit-client";
 import { CallsPost } from "@/services/endpoints/calls";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
+import { apiErrorMessage } from "@/lib/utils/apiError";
 import { readSignal, senderOf } from "@/lib/calls/signals";
 
 /**
@@ -42,6 +43,11 @@ export interface InCallQAItem {
 }
 
 const AI_TOPIC = "oc.ai";
+
+/** An ask that got no answer at all. */
+const UNREACHABLE = "Couldn't reach the assistant. Check your connection and try again.";
+/** An ask the server failed, in the caller's words (apiErrorMessage keeps a refusal's own reason). */
+const NOT_ANSWERED = "The assistant couldn't answer just now. Try again in a moment.";
 
 // Wire format for the data channel. Kept tiny + versioned for forward-compat.
 interface AIWireQuestion {
@@ -235,9 +241,9 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
                 });
 
                 if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    const m = (errData as any)?.msg || `AI request failed: ${response.statusText}`;
-                    finish("", m);
+                    const data = await response.json().catch(() => ({}));
+                    // The shared rules for error words: a refusal's own reason, never a fault's developer text.
+                    finish("", apiErrorMessage({ response: { status: response.status, data } }, NOT_ANSWERED));
                     return;
                 }
 
@@ -309,13 +315,25 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
                         ),
                     );
                 } else {
-                    finish(accumulated, err.message || "Streaming failed");
+                    // No answer at all (offline, or the line dropped mid-answer): the browser's own words name the machinery.
+                    finish(accumulated, UNREACHABLE);
                 }
             } finally {
                 setIsStreaming(false);
             }
         },
         [broadcast, getTranscript, isStreaming, localParticipant, roomId],
+    );
+
+    // Try again: your own failed ask, asked again in its place.
+    const retry = useCallback(
+        async (id: string) => {
+            const failed = items.find((it) => it.id === id && it.mine && it.error);
+            if (!failed || isStreaming) return;
+            setItems((prev) => prev.filter((it) => it.id !== id));
+            await ask(failed.question);
+        },
+        [items, isStreaming, ask],
     );
 
     const cancel = useCallback(() => {
@@ -333,7 +351,7 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
         };
     }, []);
 
-    return { items, ask, cancel, isStreaming };
+    return { items, ask, retry, cancel, isStreaming };
 }
 
 /**

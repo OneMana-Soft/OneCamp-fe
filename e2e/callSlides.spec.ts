@@ -154,6 +154,35 @@ test.describe("at 1280", () => {
     server.setMetadata({ board: { ...live, slide: undefined } })
     await expect(stage).toHaveAttribute("data-slide-placed", "")
     await expect(slides.getByRole("button", { name: "Whole board" })).toBeVisible()
+    // A screen reader hears the room go back to the whole board too.
+    await expect(page.getByRole("toolbar", { name: "Board controls" }).locator("[aria-live='polite']")).toHaveText("Whole board")
+  })
+
+  test("a page key in the chat beside the stage pages the chat, and only the call's own keys move the room", async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const live = { uuid: BOARD, by: YOU.identity, draw: "everyone", slide: "f-q4" }
+    const { acts, stage } = await joinWithBoard(page, testInfo, live)
+    await expect(stage).toHaveAttribute("data-slide-placed", "f-q4", { timeout: 30_000 })
+    await page.getByRole("button", { name: "Chat", exact: true }).click()
+    const beside = page.getByRole("region", { name: /^Channel, view \d of \d$/ })
+    await expect(beside).toBeVisible()
+    // The focus in the chat's scroller, where Tab into its messages leaves it.
+    const focused = await beside.evaluate((el) => {
+      const box = [...el.querySelectorAll<HTMLElement>("*")].find((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY))
+      if (!box) return false
+      if (box.tabIndex < 0) box.tabIndex = -1
+      box.focus()
+      return document.activeElement === box
+    })
+    expect(focused).toBe(true)
+    const before = acts.length
+    await page.keyboard.press("PageDown")
+    await page.keyboard.press("PageUp")
+    // From the page, a clicker's key still moves everyone.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await page.keyboard.press("PageDown")
+    await expect.poll(lastAct(acts)).toEqual({ action: "board_slide", slide: "f-plan" })
+    expect(acts.slice(before)).toEqual([{ action: "board_slide", slide: "f-plan" }])
   })
 
   test("everyone else's camera follows the room's slide, and they see which it is but can't move it", async ({ page }, testInfo) => {

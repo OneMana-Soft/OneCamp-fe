@@ -36,7 +36,10 @@ describe("the stage's reflow", () => {
     const src = readFileSync(resolve(__dirname, "VideoConference.tsx"), "utf8")
     expect(src).toMatch(/flipTiles\(/)
     expect(src).not.toMatch(/transition-\[[^\]]*(width|height)/)
-    const tile = readFileSync(resolve(__dirname, "StageTile.tsx"), "utf8")
-    expect(tile).not.toMatch(/transition-\[[^\]]*(width|height)/)
+    // The call's tile and the body it shares with the recording (TileBody).
+    for (const file of ["StageTile.tsx", "TileBody.tsx"]) {
+      const tile = readFileSync(resolve(__dirname, file), "utf8")
+      expect(tile).not.toMatch(/transition-\[[^\]]*(width|height)/)
+    }
   })
 })

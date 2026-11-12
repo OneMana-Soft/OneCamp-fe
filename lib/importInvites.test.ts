@@ -66,6 +66,13 @@ describe("inviting the people an import brought across", () => {
     expect(seatLine({ used: 25, limit: 25, left: 0 })).toMatch(/^Your free plan is full: all 25 places are taken/)
   })
 
+  // An import bigger than the room says both numbers (ADMIN-02).
+  it("says how many came across when they don't all fit", () => {
+    expect(seatLine({ used: 23, limit: 25, left: 2 }, 60)).toBe("60 people came across, and your free plan has room for 2 more (23 of 25 places taken).")
+    expect(seatLine({ used: 23, limit: 25, left: 2 }, 2)).toBe("Your free plan has room for 2 more people (23 of 25 places taken).")
+    expect(seatLine({ used: 25, limit: 25, left: 0 }, 60)).toMatch(/^Your free plan is full: all 25 places are taken/)
+  })
+
   it("says why the rest aren't listed, leaving out what is zero", () => {
     expect(notListedLine({ already_members: 3, already_invited: 0, no_email: 2, left: 1 })).toBe(
       "Not listed: 3 already here, 2 without an email address, 1 who had left.",

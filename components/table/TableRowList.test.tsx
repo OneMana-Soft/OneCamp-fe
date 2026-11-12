@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { TableRowList } from "@/components/table/TableRowList"
+import { TableEditProvider } from "@/lib/tables/tableEdit"
 import { scrollBox, sizeBoxes } from "@/lib/testing/virtualBox"
 import type { TableField, TableRow } from "@/services/tableService"
 
@@ -106,12 +107,82 @@ describe("a view read in windows, on a phone", () => {
 // record, closed before the save answered, showed the old value.
 describe("a row whose edit is saving", () => {
   it("shows the edit over its copy, and is marked as saving", () => {
-    const edits = new Map([["r1", { saving: { cost: 1207 }, saved: {}, copy: null }]])
+    const edits = new Map([["r1", { saving: { cost: 1207 }, saved: {}, copy: null, unsaved: {} }]])
     render(<TableRowList fields={fields} edits={edits} rows={rowsOf(2)} onOpen={() => {}} />)
     const row = screen.getByRole("button", { name: /Line 1/ })
     expect(row.textContent).toMatch(/Cost\s*1,207$/)
     expect(row.closest("li")!.getAttribute("aria-busy")).toBe("true")
     expect(screen.getByRole("button", { name: /Line 0/ }).closest("li")!.hasAttribute("aria-busy")).toBe(false)
+  })
+
+  // V-583: an edit the server asked to have again later (503) is kept, shown and marked as not saved.
+  it("shows an edit the server asked to have again, marked as not saved", () => {
+    const edits = new Map([["r1", { saving: {}, saved: {}, copy: null, unsaved: { cost: 1207 } }]])
+    render(<TableRowList fields={fields} edits={edits} rows={rowsOf(2)} onOpen={() => {}} />)
+    const row = screen.getByRole("button", { name: /Line 1 Not saved/ })
+    expect(row.textContent).toMatch(/Cost\s*1,207$/)
+    expect(row.closest("li")!.hasAttribute("data-unsaved")).toBe(true)
+    expect(row.closest("li")!.hasAttribute("aria-busy")).toBe(false)
+    expect(screen.getByRole("button", { name: /Line 0/ }).closest("li")!.hasAttribute("data-unsaved")).toBe(false)
+  })
+
+  // V-640: once the toast with Retry had closed, nothing could send a kept
+  // edit again. The row's mark is a Retry of its own, a button beside the
+  // row's, sending each kept edit through the cell's one retry when pressed.
+  it("offers the row's kept edits back from its mark, only when it is pressed", () => {
+    const retry = vi.fn()
+    const rows = rowsOf(2)
+    const edits = new Map([["r1", { saving: {}, saved: {}, copy: null, unsaved: { item: "Line 1b", cost: 1207 } }]])
+    render(<TableRowList fields={fields} edits={edits} rows={rows} onOpen={() => {}} onRetry={retry} />)
+    expect(retry).not.toHaveBeenCalled()
+    const mark = screen.getByRole("button", { name: "Retry saving Item and Cost" })
+    expect(mark.getAttribute("type")).toBe("button")
+    expect(mark.tabIndex).toBe(0)
+    expect(mark.closest("li")).toBe(screen.getByRole("button", { name: /Line 1b Not saved/ }).closest("li"))
+    fireEvent.click(mark)
+    expect(retry.mock.calls).toEqual([
+      [rows[1], "item"],
+      [rows[1], "cost"],
+    ])
+    expect(screen.getAllByRole("button", { name: /^Retry saving/ })).toHaveLength(1)
+  })
+
+  // DESIGN-BUILD-129's F1b: a row's cells kept from a range write (a paste) are retried with the whole write, so
+  // its mark is named for that write, once, as useCellCommit counts it (named); a cell kept alone keeps its name.
+  it("names a mark for the kept range write its cells belong to, once, beside a cell kept alone", () => {
+    const rows = rowsOf(2)
+    const named = { item: "the paste: 2 cells and 1 new row", cost: "the paste: 2 cells and 1 new row" }
+    const edits = new Map([
+      ["r0", { saving: {}, saved: {}, copy: null, unsaved: { item: "Line 0b", cost: 1207 }, named }],
+      ["r1", { saving: {}, saved: {}, copy: null, unsaved: { item: "Line 1b", cost: 9 }, named: { cost: "the paste: 2 cells and 1 new row" } }],
+    ])
+    render(<TableRowList fields={fields} edits={edits} rows={rows} onOpen={() => {}} onRetry={() => {}} />)
+    expect(screen.getByRole("button", { name: "Retry saving the paste: 2 cells and 1 new row" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Retry saving Item and the paste: 2 cells and 1 new row" })).toBeTruthy()
+  })
+
+  // DESIGN-BUILD-122's F3: a mark pressed with the focus hands it to its row's own button, never to the page;
+  // a press that came without the focus (a tap) moves none.
+  it("hands the focus its mark held to the row's own button when the mark is pressed", () => {
+    const rows = rowsOf(2)
+    const edits = new Map([["r1", { saving: {}, saved: {}, copy: null, unsaved: { cost: 1207 } }]])
+    render(<TableRowList fields={fields} edits={edits} rows={rows} onOpen={() => {}} onRetry={() => {}} />)
+    const mark = screen.getByRole("button", { name: "Retry saving Cost" })
+    fireEvent.click(mark)
+    expect(document.activeElement).toBe(document.body)
+    mark.focus()
+    fireEvent.click(mark)
+    expect(document.activeElement).toBe(mark.closest("li")!.querySelector("button"))
+  })
+
+  it("draws no Retry for a reader who may only view the table (V-170)", () => {
+    const edits = new Map([["r1", { saving: {}, saved: {}, copy: null, unsaved: { cost: 1207 } }]])
+    render(
+      <TableEditProvider value={false}>
+        <TableRowList fields={fields} edits={edits} rows={rowsOf(2)} onOpen={() => {}} onRetry={vi.fn()} />
+      </TableEditProvider>,
+    )
+    expect(screen.queryByRole("button", { name: /Retry saving/ })).toBeNull()
   })
 })
 

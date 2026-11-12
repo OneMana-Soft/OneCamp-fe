@@ -9,16 +9,12 @@
 import { displayNameOf } from "@/lib/personName"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { PreJoin } from "@/components/livekit/PreJoin"
 import { LazyVideoConference as VideoConference } from "@/components/livekit/LazyCall"
 import { CallRemoved } from "@/components/livekit/CallStage"
-import { CallEndScreen } from "@/components/livekit/CallEndScreen"
-import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
 import { useTranscriptionConfig } from "@/components/livekit/CallView"
+import dynamic from "next/dynamic"
 import { peopleInCall, type CallStateRead } from "@/components/livekit/callState"
 import { dropMeetingHandoff, peekMeetingHandoff, rememberGuestLink, rememberedGuestLink } from "@/components/livekit/instantMeeting"
-import { Button } from "@/components/ui/button"
-import { InviteLinkRow, InvitePanel } from "./invite"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useConfirm } from "@/hooks/useConfirm"
 import { callToast } from "./callSurface"
@@ -27,8 +23,8 @@ import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiEr
 import { GetEndpointUrl } from "@/services/endPoints"
 import { guestMeetingLink } from "@/services/guestService"
 import { instantMeetingPath, joinInstantMeeting, newInstantMeetingLink } from "@/services/callService"
+import { CompanionMode, MemberCallEnd, MemberPreJoin, memberCompanion, useMemberCallLifecycle } from "@/components/livekit/LazyCompanion"
 import { roomLink } from "@/services/guestDoor"
-import Link from "next/link"
 import { useCallSession } from "@/components/livekit/useCallSession"
 import type { UserProfileInterface } from "@/types/user"
 
@@ -62,7 +58,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   }, [meetingId])
   const transcriptionConfig = useTranscriptionConfig()
   const [link, setLink] = useState(() => rememberedGuestLink(meetingId))
-  const life = useCallLifecycle(
+  const life = useMemberCallLifecycle(
     useCallback(
       async ({ language }) => {
         try {
@@ -88,6 +84,8 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   const unavailable = !state && isError ? meetingUnavailable(apiErrorStatus(isError), apiErrorCode(isError)) : null
   // The meeting's id in Call State, for what its host does to it in the call.
   const call = useCallSession({ kind: "meeting", id: meetingId }, waiting ? "waiting" : life.phase === "in-call" ? "in-call" : "over")
+  // Another device of yours in this meeting (meet-04): a companion, present only, or Switch here.
+  const companion = memberCompanion(life, call?.session, self.data?.data.user_uuid)
 
   const back = useCallback(() => {
     if (window.history.length > 1) router.back()
@@ -110,12 +108,12 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   )
 
   if (life.phase === "removed" || life.phase === "failed") {
-    return <CallEndScreen call={life} noun="meeting" onBack={back} />
+    return <MemberCallEnd call={life} noun="meeting" onBack={back} companion={companion?.onJoin} />
   }
   if (unavailable && life.phase !== "in-call") {
     return <CallRemoved kind="unavailable" title={unavailable.title} detail={unavailable.detail} primary={{ label: "Start a new meeting", onClick: () => router.push("/app/meet/instant") }} onBack={back} />
   }
-  if (life.phase === "left") return <CallEndScreen call={life} noun="meeting" onBack={back} />
+  if (life.phase === "left") return <MemberCallEnd call={life} noun="meeting" onBack={back} companion={companion?.onJoin} />
   if (life.phase === "in-call" && life.token) {
     return (
       <div className="relative h-full w-full">
@@ -131,6 +129,8 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
           audio={life.choice.audio}
           video={life.choice.video}
           tracks={life.choice.tracks}
+          screen={life.screen}
+          companionMode={CompanionMode}
           sessionId={call?.session?.id}
           lobby={call?.waiting}
           extraStatus={<InviteControl link={roomAddress || link} room={!!roomAddress} onNewLink={newLink} confirm={confirm} />}
@@ -140,11 +140,12 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
     )
   }
   return (
-    <PreJoin
+    <MemberPreJoin
       onJoin={life.join}
       username={displayNameOf(self.data?.data) || ""}
       hueId={self.data?.data.user_uuid}
       joinLabel="Join meeting"
+      companion={companion}
       place={place}
       joining={life.phase === "joining"}
       joinError={life.joinError}
@@ -162,72 +163,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
 const PLACE = "in an instant meeting"
 const ROOM_PLACE = "in your room"
 
-/**
- * Invite (CALL-BUG-17): the guest link again, a new one, or the old one turned
- * off, which also takes out everyone still on it. A personal room's is its
- * address, which has no end and is changed in the room's settings, never
- * here. On a phone it is the link glyph alone, beside the call's other pills.
- */
-function InviteControl({
-  link,
-  room,
-  onNewLink,
-  confirm,
-}: {
-  link: string
-  room?: boolean
-  onNewLink: (revokePrevious: boolean) => Promise<void>
-  confirm: ReturnType<typeof useConfirm>
-}) {
-  const [busy, setBusy] = useState(false)
-  const fresh = async () => {
-    setBusy(true)
-    try {
-      await onNewLink(false)
-    } catch (e) {
-      callToast({ title: "Couldn't make a new link", description: (e as Error).message, variant: "destructive" })
-    } finally {
-      setBusy(false)
-    }
-  }
-  const turnOffOld = () =>
-    confirm({
-      title: "Turn off the old link?",
-      description: "It stops working, and anyone still in the meeting from it is removed. You get a new link to share.",
-      confirmText: "Turn off the old link",
-      destructive: true,
-      onConfirm: () => onNewLink(true),
-    })
-  return (
-    <InvitePanel
-      label="Invite a guest"
-      title="Invite a guest"
-      description={room ? "Anyone with your room's address can ask to come in." : "Anyone with the link can join as a guest while the meeting lasts."}
-      body={
-        link ? (
-          <InviteLinkRow link={link} label={room ? "Your room's address" : "Guest link"} />
-        ) : (
-          <p className="mt-2.5 text-ink-2">The link was shown in the tab that started the meeting. Make a new one to share it from here.</p>
-        )
-      }
-      actions={
-        room ? (
-          <Button size="sm" variant="ghost" asChild>
-            <Link href="/app/meet/room" target="_blank" rel="noopener noreferrer">
-              Room settings
-            </Link>
-          </Button>
-        ) : (
-          <>
-            <Button size="sm" variant={link ? "ghost" : "default"} onClick={() => void fresh()} busy={busy}>
-              Get a new link
-            </Button>
-            <Button size="sm" variant="ghost" className="text-danger-ink" onClick={turnOffOld}>
-              Turn off the old link
-            </Button>
-          </>
-        )
-      }
-    />
-  )
-}
+// Invite is drawn only in the call, among its pills, so it loads with the
+// call, as a conversation call's (CallView's ConversationInvite) does: the
+// call's code is then the same on every call page (callBuildsOnceGuard).
+const InviteControl = dynamic(() => import("./MeetingInvite").then((m) => m.InviteControl), { ssr: false })

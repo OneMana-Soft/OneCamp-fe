@@ -13,6 +13,7 @@ import { dayAndTime } from "@/lib/utils/date/clock"
 import { calendarRoute } from "@/lib/calendar/route"
 import { tablePath } from "@/lib/tables/route"
 import { count } from "@/lib/utils/count"
+import { messageNoticeHref } from "@/lib/activity/messageNotice"
 
 /** The place a notice names when its reader can't open the page now. */
 export const UNOPENED_PLACE = "a page you can't open"
@@ -59,14 +60,30 @@ function personNamed(n: NoticeItem): UserProfileDataInterface | undefined {
   return n.data?.person ? ({ user_uuid: n.data.person, user_name: n.data.person_name ?? "" } as UserProfileDataInterface) : undefined
 }
 
+/** The comment a notice is about, or in: its id, when it names one. */
+function commentOf(n: NoticeItem): string | undefined {
+  return n.data?.comment_uuid || n.data?.comment_id || undefined
+}
+
+/** A mention's verb, in a thing's own words or in a comment on it: every Inbox line of a mention says it so. Pure. */
+export function mentionVerb(inComment?: boolean): string {
+  return inComment ? "mentioned you in a comment on" : "mentioned you in"
+}
+
 /** A notice in words. */
 export function noticeWords(n: NoticeItem): NoticeWords {
   const place = n.can_open && n.title ? n.title : n.can_open ? "Untitled" : UNOPENED_PLACE
   // An agent's work is the agent's sentence; the person who asked it shows in its badge.
   const actor = n.agent ?? n.actor
   switch (n.kind) {
+    // A mention in a doc's or a task's words, or in a comment on one; in a
+    // channel's or a conversation's message, where a reply is said as its
+    // message is (notif head A).
     case "doc.mentioned":
-      return { actor, verb: "mentioned you in", place, preview: "" }
+    case "task.mentioned":
+      return { actor, verb: mentionVerb(!!commentOf(n)), place, preview: "" }
+    case "message.mentioned":
+      return { actor, verb: mentionVerb(), place: messagePlace(n), preview: "" }
     // A comment on a table's row (business/TableComments): the place is the
     // row in its table, "Acme in Deals".
     case "table_row.mentioned":
@@ -79,6 +96,7 @@ export function noticeWords(n: NoticeItem): NoticeWords {
         preview: "You mentioned them, but the table isn't shared with them, so they weren't told.",
       }
     case "doc.comment.created":
+    case "task.commented":
       return { actor, verb: "commented on", place, preview: "" }
     case "doc.shared":
       return { actor, verb: "shared", place, preview: `With you. ${LEVEL_LINE[n.data?.level ?? ""] ?? LEVEL_LINE.view}` }
@@ -109,6 +127,17 @@ export function noticeWords(n: NoticeItem): NoticeWords {
     case "calendar.cancelled":
     case "calendar.rsvp":
       return calendarWords(n, actor)
+    // A run's moment, to whoever asked the agent (business/AIAgent
+    // notifyTriggerer): it answered, or it needs them. The place is where they
+    // asked; its words come only while they can still open it.
+    case "agent.replied":
+    case "agent.blocked":
+      return {
+        actor,
+        verb: n.kind === "agent.replied" ? "replied to you in" : "needs you in",
+        place: messagePlace(n),
+        preview: n.can_open ? n.data?.text ?? "" : "",
+      }
     // A project's rule told its reader about a task (package 9). A rule has
     // no face: the sentence is the rule's, the task its place.
     case "work.rule":
@@ -150,6 +179,15 @@ export function noticeWords(n: NoticeItem): NoticeWords {
         place: `${n.data?.work || "work"} under their name`,
         preview: "Hand them on, or turn their links off, in Settings under Docs.",
       }
+    // The free plan's limit kept someone out. Only an admin is sent their
+    // address (data.text); the line is the server's, with the plan's figure.
+    case "member.seat_refused":
+      return {
+        actor: { user_uuid: n.resource_uuid, user_name: n.can_open && n.data?.text ? n.data.text : "Someone" } as UserProfileDataInterface,
+        verb: "couldn't join:",
+        place: "your free plan is full",
+        preview: n.can_open ? (n.data?.line ?? "") : "",
+      }
     case "doc.mention.unshared":
       // Asked of whoever wrote the mention: the person they mentioned can't open the page.
       return {
@@ -179,11 +217,20 @@ export function noticeWords(n: NoticeItem): NoticeWords {
   return { actor, verb: "changed", place, preview: "" }
 }
 
+/** Where a message was, or an agent was asked: its channel, or the conversation, while its reader can open it. */
+function messagePlace(n: NoticeItem): string {
+  if (!n.can_open) return "a conversation you can't open"
+  if (n.resource_kind === "channel") return n.title ? `#${n.title}` : "a channel"
+  return "your conversation"
+}
+
 /** The badge a notice carries before an agent's or an app's takes over. */
 export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
   switch (n?.kind) {
     case "doc.mentioned":
     case "doc.mention.unshared":
+    case "task.mentioned":
+    case "message.mentioned":
     case "table_row.mentioned":
     case "table_row.mention.unshared":
       return "mention"
@@ -192,6 +239,7 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
     case "calendar.invited":
     case "doc.access_requested":
     case "doc.access_answered":
+    case "member.seat_refused":
       return "invite"
     case "doc.proposal.accepted":
     case "doc.proposal.declined":
@@ -200,7 +248,10 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
     case "thread.resolved":
     case "thread.reopened":
     case "calendar.rsvp":
+    case "agent.replied":
       return "reply"
+    case "agent.blocked":
+      return "mention"
     // A rule's own notices: no one wrote them, so they lead with the rule's mark.
     case "work.rule":
     case "work.rule.paused":
@@ -215,8 +266,11 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
  * thread, one about a comment the thread it is in (B7: the doc's comments
  * page, which on a wider screen is the doc with its panel).
  */
-export function noticeHref(n: NoticeItem | undefined): string | null {
+export function noticeHref(n: NoticeItem | undefined, viewer?: string): string | null {
+  // An agent's moment opens where it was asked, at the message it answers; a mention, at its message.
+  if (n?.resource_kind === "channel" || n?.resource_kind === "conversation") return messageNoticeHref(n, viewer)
   if (n?.resource_kind === "departed_member") return n.can_open ? "/app/admin?tab=docs#docs-departed" : null
+  if (n?.resource_kind === "seat_refused") return n.can_open ? "/app/admin?tab=plan" : null
   if (n?.resource_kind === "event") {
     if (n.kind === "booking.created") return calendarRoute({ event: n.resource_uuid })
     // An event its guest or organiser can still open opens: the instance a
@@ -247,19 +301,20 @@ export function noticeHref(n: NoticeItem | undefined): string | null {
   if (n.kind.startsWith("thread.")) {
     return n.data?.thread_id ? `${doc}/comment/${encodeURIComponent(n.data.thread_id)}` : `${doc}/comment`
   }
-  if (n.kind === "doc.comment.created") {
-    const comment = n.data?.comment_uuid || n.data?.comment_id
+  // A comment, or a mention in one, opens that comment.
+  const comment = commentOf(n)
+  if (n.kind === "doc.comment.created" || (n.kind === "doc.mentioned" && comment)) {
     return comment ? `${doc}/comment?comment=${encodeURIComponent(comment)}` : `${doc}/comment`
   }
   return doc
 }
 
+/** The notice kinds that mention their reader. */
+const MENTION_KINDS = new Set(["doc.mentioned", "table_row.mentioned", "task.mentioned", "message.mentioned"])
+
 /** Whether an inbox item is a mention of its reader, of any kind. */
 export function isMention(item: UnifiedActivityItem): boolean {
-  return (
-    item.activity_type === "MENTION" ||
-    (item.activity_type === "NOTICE" && (item.notice?.kind === "doc.mentioned" || item.notice?.kind === "table_row.mentioned"))
-  )
+  return item.activity_type === "MENTION" || (item.activity_type === "NOTICE" && MENTION_KINDS.has(item.notice?.kind ?? ""))
 }
 
 /** What a guest's answer says of them, as a sentence: "is going to". */

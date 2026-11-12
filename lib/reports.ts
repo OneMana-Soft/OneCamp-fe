@@ -1,9 +1,9 @@
 // The reports view's data (GET /project/report, business/Project/report.go)
-// and the pure helpers that turn it into what's drawn and downloaded.
+// and the pure helpers that turn it into what's drawn (its CSV is lib/reportCSV).
 
 import type { NormalizedChart } from "@/lib/utils/chartSpec"
 import { ProjectsGet } from "@/services/endpoints/projects"
-import { csvLine } from "@/lib/csv"
+import { MONTHS_SHORT } from "@/lib/utils/date/months"
 
 export interface ReportCounts {
   to_do: number
@@ -84,13 +84,27 @@ export interface Insights {
   fields?: InsightField[]
   /** More fields than the report slices by (20): narrowing to a project slices by its own. */
   fields_capped?: boolean
+  /** How big the open work and the work done are, the whole report's (missing from servers before L32). */
+  effort?: InsightEffort
+}
+
+/** How big work is: its points, where its project estimates in them, and its hours, from estimates in time. Size, never money. */
+export interface Effort {
+  points: number
+  hours: number
+}
+
+/** The effort of the work open now and of the work done in the weeks shown. */
+export interface InsightEffort {
+  open: Effort
+  done: Effort
 }
 
 /** A custom field the report slices work by. */
 export interface InsightField {
   by: `field:${string}`
   name: string
-  type: "select" | "multi_select" | "person"
+  type: "select" | "multi_select" | "person" | "checkbox" | "text" | "url" | "number" | "money" | "date"
   project_uuid: string
 }
 
@@ -105,18 +119,30 @@ export interface InsightPoint {
   person_uuid?: string
   priority?: string
   type_id?: string
-  /** The task's keys in each field it is sliced by ("" for none). */
+  /** The task's keys each way it is sliced (labels, cycle, a field: "" for none). */
   in?: Record<string, string[]>
 }
 
-/** The spreads of one project, person, priority, type or custom field's value; an empty key is the work with none. */
+/** The ways the server slices work (business/Project/insights.go), a custom field's as "field:<id>". */
+export type SliceBy = "project" | "person" | "priority" | "type" | "status" | "labels" | "cycle" | "estimate" | `field:${string}`
+
+/**
+ * The spreads of one project, person, priority, type, status, label, cycle,
+ * estimate or field's value, with its counts and effort; an empty key is the
+ * work with none, "Other" a text field's rest past its top values.
+ */
 export interface InsightSlice {
-  by: "project" | "person" | "priority" | "type" | `field:${string}`
+  by: SliceBy
   key: string
   name: string
   cycle: Spread
   lead: Spread
   age: Spread
+  /** Missing from servers before L32. */
+  open?: number
+  overdue?: number
+  done?: number
+  effort?: InsightEffort
 }
 
 /** The flow of work at the end of one week: the open tasks by where they stand, and what got done since the report began. */
@@ -133,28 +159,6 @@ export function reportKey(tz: string, weeks: number, projects: string[] = [], fi
   if (projects.length > 0) q.set("projects", [...projects].sort().join(","))
   if (filters) q.set("filters", filters)
   return `${ProjectsGet.ProjectReport}?${q.toString()}`
-}
-
-/**
- * The list or board view a report was opened from (lib/board/boardQuery's
- * insightsHref): its one project, its filters as the board sends them, and
- * its saved name ("" for a view never saved); null when the address names no
- * one project. Pure.
- */
-export function reportView(q: { get(name: string): string | null }): { project: string; filters: string; name: string } | null {
-  const project = (q.get("projects") ?? "").trim()
-  if (!project || project.includes(",")) return null
-  return { project, filters: q.get("filters") ?? "", name: (q.get("name") ?? "").trim() }
-}
-
-/**
- * What a report opened from a view says it shows (reportView's view): the
- * saved view's name, or else its project's, filtered when the view was. Pure.
- */
-export function reportViewName(view: { filters: string; name: string }, projectName: string | undefined): string {
-  if (view.name) return view.name
-  const project = projectName || "this project"
-  return view.filters && view.filters !== "[]" ? `${project}, filtered` : project
 }
 
 /** The spans a report can cover, in weeks. */
@@ -175,7 +179,7 @@ export function weekLabel(iso: string, locale?: string): string {
   if (!y || !m || !d) return iso
   const date = new Date(Date.UTC(y, m - 1, d))
   if (locale) return date.toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" })
-  return `${d} ${MONTHS[m - 1]}`
+  return `${d} ${MONTHS_SHORT[m - 1]}`
 }
 
 /**
@@ -184,9 +188,8 @@ export function weekLabel(iso: string, locale?: string): string {
  * app: day before month, never the browser's "Oct 6". Pure.
  */
 export function dayLabel(at: Date): string {
-  return `${at.getDate()} ${MONTHS[at.getMonth()]}`
+  return `${at.getDate()} ${MONTHS_SHORT[at.getMonth()]}`
 }
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /** Done and added each week, as a chart. Pure. */
 export function throughputChart(r: Pick<Report, "weeks" | "done" | "added">): NormalizedChart {
@@ -238,17 +241,3 @@ export function hoursChart(r: Report): NormalizedChart | null {
 
 /** The weekly total of hours, to one decimal. */
 export const totalHours = (r: Report) => Math.round((r.hours ?? []).reduce((a, h) => a + h, 0) * 10) / 10
-
-
-/** The report as CSV: the weeks, then each project and each person. Pure. */
-export function reportCSV(r: Report, personName: (p: ReportPersonRow) => string): string {
-  const lines = [csvLine(["Week starting", "Done", "Added", "Hours"])]
-  r.weeks.forEach((w, i) => lines.push(csvLine([w, r.done[i] ?? 0, r.added[i] ?? 0, r.hours ? (r.hours[i] ?? 0) : ""])))
-  const counts = ["To do", "In progress", "In review", "Overdue", "Done"]
-  const row = (c: ReportCounts) => [c.to_do, c.in_progress, c.in_review, c.overdue, c.done]
-  lines.push("", csvLine(["Project", ...counts]))
-  for (const p of r.projects) lines.push(csvLine([p.project_name, ...row(p)]))
-  lines.push("", csvLine(["Person", ...counts]))
-  for (const p of r.people) lines.push(csvLine([personName(p), ...row(p)]))
-  return lines.join("\n") + "\n"
-}

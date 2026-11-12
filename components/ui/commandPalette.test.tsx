@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Profiler } from "react"
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { SearchResult } from "@/services/searchService"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
@@ -83,6 +83,8 @@ vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => ({}) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
 import { CommandPalette, closestName, commandKeys } from "@/components/ui/CommandPalette"
+import { CommandPaletteLoader } from "@/components/ui/CommandPaletteLoader"
+import { watchInputModality } from "@/lib/ui/inputModality"
 import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
 import { openPalette, onPaletteState } from "@/lib/ui/palette"
 import { FEATURE_AI } from "@/hooks/useClientConfig"
@@ -848,5 +850,28 @@ describe("scopes by a prefix (linear-28)", () => {
     const again = open(false)
     expect(scopeChip()).toBeNull()
     expect(again.placeholder).not.toBe("Search people…")
+  })
+})
+
+describe("the palette's close focus, through its loader (V-829)", () => {
+  // The palette is lazy, so the shared rule's handlers (components/ui/returnFocus)
+  // are held by its eager loader and handed to it whole: opened by ⌘K from a
+  // focused button, Escape gives the focus back to that button.
+  it("gives the focus back to the button ⌘K was pressed on", async () => {
+    render(
+      <>
+        <button type="button">Launch plan</button>
+        <CommandPaletteLoader />
+      </>,
+    )
+    watchInputModality()
+    const button = screen.getByRole("button", { name: "Launch plan" })
+    button.focus()
+    act(() => void fireEvent.keyDown(button, { key: "k", ctrlKey: true }))
+    const input = await waitFor(() => document.querySelector<HTMLInputElement>("[cmdk-input]") ?? Promise.reject(new Error("the palette is not open")))
+    await waitFor(() => expect(document.activeElement).toBe(input))
+    fireEvent.keyDown(input, { key: "Escape" })
+    await waitFor(() => expect(document.querySelector("[cmdk-input]")).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(button))
   })
 })

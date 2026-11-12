@@ -58,7 +58,7 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: (t: Record<strin
 // The app's theme as it resolves (next-themes): a share link's canvas follows it.
 let appTheme: string | undefined = "light"
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: appTheme }) }))
-let scene: { id: string; version: number; versionNonce: number; isDeleted: boolean }[] = []
+let scene: { id: string; type?: string; version: number; versionNonce: number; isDeleted: boolean }[] = []
 /** Excalidraw is still loading its own (empty) scene, which replaces whatever was put on before it. */
 let loading = false
 const api = {
@@ -171,7 +171,7 @@ describe("a call's guest drawing on the board on its stage", () => {
     await waitFor(() => expect(canvas.viewModeEnabled).toBe(false))
     expect(asked.at(-1)).toMatchObject({ username: "Priya (guest)", userId: "guest-p1" })
     expect((canvas.UIOptions as { tools?: { image?: boolean } }).tools?.image).toBe(false)
-    scene = [{ id: "s1", version: 1, versionNonce: 5, isDeleted: false }]
+    scene = [{ id: "s1", type: "rectangle", version: 1, versionNonce: 5, isDeleted: false }]
     act(() => (canvas.onChange as (els: unknown[]) => void)(scene))
     expect(doc.getMap("elements").get("s1")).toMatchObject({ id: "s1", version: 1, versionNonce: 5 })
   })
@@ -201,13 +201,13 @@ describe("a call's guest drawing on the board on its stage", () => {
     render(viewer({ canDraw: true, user: { id: "guest-p1", name: "Priya (guest)" } }))
     await waitFor(() => expect(canvas.viewModeEnabled).toBe(false))
 
-    memberDoc.getMap("elements").set("m1", { id: "m1", version: 1, versionNonce: 3, isDeleted: false })
+    memberDoc.getMap("elements").set("m1", { id: "m1", type: "rectangle", version: 1, versionNonce: 3, isDeleted: false })
     await waitFor(() => expect(api.updateScene).toHaveBeenCalledWith(expect.objectContaining({ captureUpdate: "NEVER" })))
     const drawn = api.updateScene.mock.calls.at(-1)![0] as { elements: { id: string }[] }
     expect(drawn.elements.map((e) => e.id)).toEqual(["m1"])
 
     const merges = api.updateScene.mock.calls.length
-    scene = [{ id: "m1", version: 1, versionNonce: 3, isDeleted: false }, { id: "g1", version: 1, versionNonce: 8, isDeleted: false }]
+    scene = [{ id: "m1", type: "rectangle", version: 1, versionNonce: 3, isDeleted: false }, { id: "g1", type: "rectangle", version: 1, versionNonce: 8, isDeleted: false }]
     act(() => (canvas.onChange as (els: unknown[]) => void)(scene))
     expect(memberDoc.getMap("elements").get("g1")).toMatchObject({ id: "g1", versionNonce: 8 })
     // The guest's own write is no teammate's change: nothing is merged back onto their canvas.
@@ -283,7 +283,9 @@ describe("cursors on the board on a call's stage", () => {
     await waitFor(() => expect(canvas.viewModeEnabled).toBe(true))
     // The canvas has its API: the board was read onto it (hydrate marks the count).
     await waitFor(() => expect(document.querySelector("[data-guest-board]")?.getAttribute("data-board-elements")).toBe("0"))
-    expect(document.querySelector("[data-board-cursors]")).toBeNull()
+    // The layer is there for everyone's laser (miro-28): no cursor and no name on it.
+    expect(document.querySelector("[data-board-cursors]")).not.toBeNull()
+    expect(document.querySelector("[data-cursor]")).toBeNull()
     expect(canvas.onPointerUpdate).toBeUndefined()
     expect(awareness.sent).toEqual([])
   })

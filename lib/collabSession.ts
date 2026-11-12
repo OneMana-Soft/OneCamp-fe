@@ -290,8 +290,16 @@ export function trackUnsentEdits(provider: HocuspocusProvider) {
 
 type OpenEvent = Parameters<HocuspocusProvider['onOpen']>[0]
 type ServerMessageEvent = Parameters<HocuspocusProvider['onMessage']>[0]
+type AwarenessChange = { added: number[]; updated: number[]; removed: number[] }
 
 class SessionProvider extends HocuspocusProvider {
+  /** Only this tab's own presence goes out: the provider would send every client it heard, which the server drops. */
+  override awarenessUpdateHandler({ added, updated, removed }: AwarenessChange, origin: unknown) {
+    const mine = (client: number) => client === this.document.clientID
+    const own = { added: added.filter(mine), updated: updated.filter(mine), removed: removed.filter(mine) }
+    if (own.added.length || own.updated.length || own.removed.length) super.awarenessUpdateHandler(own, origin)
+  }
+
   /** Compare lineages before a returning copy syncs (docs; not boards). */
   checksLineage = true
   /** The lineage of the copy this Y.Doc holds; undefined until it first synced. */

@@ -12,11 +12,11 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum GetEndpointUrl {
-    AdminSeats = "/admin/seats",
+    AdminPlan = "/admin/plan",
+    PlanPrices = "/plan/prices",
     // Save for later: the member's own list. ?state=open|done
     Later = "/later",
-    // Retention as a setting rather than a deploy: the person who owns the
-    // policy is usually compliance or legal, and they cannot edit a compose file.
+    // Retention as a setting, not a deploy: its owner (compliance, legal) can't edit compose.
     AdminRetention = "/admin/retention",
     AdminPush = "/admin/push",
     SelfProfile = "/user/profile",

@@ -140,7 +140,7 @@ for (const theme of ["light", "dark"] as const) {
         expect(csv).toMatch(/^Week starting,/)
         expect(csv).toContain("\nCycle time (started to done),2,15,30,60,90\n")
         expect(csv).toContain("\nIn progress,2,10,20,40,60\n")
-        expect(csv).toContain("\nperson,Ana Diaz,2,30,60,70,140,2,100\n")
+        expect(csv).toContain("\nPerson,Ana Diaz,2,30,60,70,140,2,100,,,\n")
         expect(csv).toContain("\nWrite the terms,")
       })
     })

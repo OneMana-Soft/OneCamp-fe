@@ -29,6 +29,8 @@ vi.mock("@/hooks/useFetch", async (importOriginal) => ({
   useFetchOnlyOnce: () => ({ data: { data: SAM } }),
 }))
 vi.mock("@/components/navigationBar/mobile/phoneSelfAvatar", () => ({ PhoneSelfAvatar: () => <span data-avatar="" /> }))
+// The More sheet's Recent boards (miro-46): nothing opened yet.
+vi.mock("@/lib/nav/placeRows", async (orig) => ({ ...(await orig<object>()), useRecentPlaces: () => [] }))
 vi.mock("@/hooks/useLogout", () => ({ useLogout: () => ({ logout: () => {} }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }))
 vi.mock("@/components/activeTheme/activeTheme", () => ({ useThemeConfig: () => ({ activeTheme: "onecamp", setActiveTheme: () => {} }) }))

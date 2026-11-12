@@ -8,7 +8,8 @@ import { keepWorkCursor, readWorkCursor } from "@/lib/offline/workCursor"
 import { revalidateWhileReading } from "@/lib/swrMutate"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
-import type { FieldValue } from "@/lib/tasks/fields"
+import { readsBuiltins, type FieldValue, type TaskField } from "@/lib/tasks/fields"
+import { projectFieldsKey } from "@/hooks/useProjectFields"
 import type { TaskInfoInterface } from "@/types/task"
 import type { TaskPatch, TaskPatchers } from "@/lib/tasks/workChanges"
 import type { RunningFeed } from "@/lib/tasks/workFeed"
@@ -34,6 +35,19 @@ export function useWorkChanges() {
   const { optimisticUpdateTasks, optimisticUpdateTask, optimisticSetTaskField, optimisticDeleteTask, revalidateTaskKeys } = useTaskUpdate({ live: true })
   const { mutate, cache } = useSWRConfig()
 
+  // V-762: a task's built-ins changed (its dates, status, priority, estimate,
+  // points) are told with no formula's new value, so in a project with a
+  // formula field the task is read again as its reader; elsewhere, nothing.
+  const formulasRead = useCallback((project: string) =>
+    readsBuiltins((cache.get(projectFieldsKey(project))?.data as { data?: { fields?: TaskField[] } } | undefined)?.data?.fields), [cache])
+  const rereadPanel = useCallback((task: string) => void mutate(`${GetEndpointUrl.GetTaskInfo}/${task}`), [mutate])
+  /** Tasks whose built-ins changed together (a burst of moved dates): each one's panel, and its project's lists once. */
+  const rereadFormulas = useCallback((tasks: Iterable<string>, project: string) => {
+    if (!formulasRead(project)) return
+    for (const task of tasks) rereadPanel(task)
+    revalidateTaskKeys(project)
+  }, [formulasRead, rereadPanel, revalidateTaskKeys])
+
   // An open task panel shows the same fields as its lists.
   const patchPanel = useCallback((patch: TaskPatch) => {
     void mutate(
@@ -43,6 +57,7 @@ export function useWorkChanges() {
     )
   }, [mutate, cache])
 
+  // A lot's built-in changes read their project and tasks again once, after its patches (lib/tasks/workChanges).
   const patchers: TaskPatchers = useMemo(() => ({
     updateTasks: (patches, project) => {
       optimisticUpdateTasks(patches as AnswerTasks, project)
@@ -55,7 +70,9 @@ export function useWorkChanges() {
     setTaskField: (task, project, field, value) => optimisticSetTaskField(task, project, field, value as FieldValue | null),
     deleteTask: (task, project) => optimisticDeleteTask(task, project),
     rereadProject: (project) => revalidateTaskKeys(project),
-  }), [optimisticUpdateTasks, optimisticUpdateTask, optimisticSetTaskField, optimisticDeleteTask, revalidateTaskKeys, patchPanel])
+    rereadTask: rereadPanel,
+    readsBuiltins: formulasRead,
+  }), [optimisticUpdateTasks, optimisticUpdateTask, optimisticSetTaskField, optimisticDeleteTask, revalidateTaskKeys, patchPanel, rereadPanel, formulasRead])
 
   // The feed lives as long as the app; it reaches the newest patchers.
   const latest = useRef(patchers)
@@ -96,5 +113,5 @@ export function useWorkChanges() {
     void getFeed().then(({ feed }) => feed.catchUp(), () => undefined)
   }, [getFeed])
 
-  return { onTaskChanged, catchUp }
+  return { onTaskChanged, catchUp, rereadFormulas }
 }

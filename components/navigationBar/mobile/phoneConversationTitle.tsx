@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { PRESENCE_WORDS, presenceOf } from "@/lib/presence"
 import { useDispatch, useSelector } from "react-redux"
 
@@ -9,9 +8,10 @@ import { useUserInfoState } from "@/hooks/useUserInfoState"
 import { useChannelAgents } from "@/components/ai/ChannelAgents"
 import { openChannelDetails } from "@/components/channel/details/openChannelDetails"
 import { GroupedAvatar } from "@/components/groupedAvatar/groupedAvatar"
-import { Headphones, ShieldCheck } from "@/lib/icons"
+import { ShieldCheck } from "@/lib/icons"
 import { AGENT_ROLE, isAgentPeer, mayCallPeer } from "@/lib/botCopy"
-import { cn } from "@/lib/utils/helpers/cn"
+import { FEATURE_CALLS, useFeature } from "@/hooks/useClientConfig"
+import { lazyPart } from "@/lib/lazy/lazyPart"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { LocallyCreatedGrpInfoInterface } from "@/store/slice/groupChatSlice"
@@ -134,39 +134,23 @@ export function PhoneConversationTitle({ kind, id }: { kind: ConversationKind; i
     return <GroupTitle id={id} />
 }
 
-/**
- * The huddle on the phone's conversation bar (C06 phone variant): a moss
- * circle in a 44px target. Live, the circle is solid moss with the live dot's
- * ring; otherwise the moss tint with the headphones.
- */
+// The huddle's link is its own chunk (only a conversation's bar draws it); its
+// 44px slot is held while the code comes, and left empty if it can't come.
+const huddle = lazyPart(() => import("./phoneHuddleLink").then((m) => m.PhoneHuddleLink), {
+    placeholder: () => <span aria-hidden="true" className="size-11" />,
+})
+
+/** Whether the phone's conversation bar offers a huddle, and where it goes. */
 export function PhoneHuddleButton({ kind, id }: { kind: "channel" | "dm"; id: string }) {
     const live = useSelector((s: RootState) =>
         kind === "channel" ? !!s.channel.channelCallStatus[id]?.active : !!s.chat.chatCallStatus?.[id]?.active,
     )
-    // No huddle in a conversation that isn't there (QA F-08), nor with an agent.
+    // No huddle in a conversation that isn't there (QA F-08), with an agent, or with no call server.
     const { missing } = useConversationMissing(kind, id)
     const peer = useFetchOnlyOnce<UserProfileInterface>(kind === "dm" ? `${GetEndpointUrl.SelfProfile}/${id}` : "").data?.data
-    if (missing || (kind === "dm" && !mayCallPeer(peer))) return null
-    const href = `${kind === "channel" ? app_channel_call : app_chat_call}/${id}`
-    return (
-        <Link
-            href={href}
-            aria-label={live ? "Join the huddle in progress" : "Start a huddle"}
-            data-phone-huddle={live ? "live" : ""}
-            data-press="icon"
-            className="grid size-11 place-items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring"
-        >
-            <span
-                className={cn(
-                    "relative grid size-8 place-items-center rounded-full [&_svg]:size-4",
-                    live ? "bg-camp-moss text-white" : "bg-camp-moss-tint text-camp-moss-ink",
-                )}
-            >
-                {live ? <span aria-hidden="true" className="absolute inset-0 rounded-full bg-camp-moss motion-safe:animate-live-halo" /> : null}
-                <Headphones aria-hidden="true" className="relative" />
-            </span>
-        </Link>
-    )
+    const calls = useFeature(FEATURE_CALLS)
+    if (!calls || missing || (kind === "dm" && !mayCallPeer(peer))) return null
+    return <huddle.Part href={`${kind === "channel" ? app_channel_call : app_chat_call}/${id}`} live={live} />
 }
 
 /** What the phone's bar offers for a conversation, only while it is there (QA F-08). */

@@ -49,3 +49,31 @@ export function tellOf(was: EventShape, now: EventShape): TellAction | null {
   if (added > 0) return "invite"
   return null
 }
+
+/** What a toast adds when the organiser said Don't send: guests are told in OneCamp alone. */
+export const NOT_EMAILED = "Guests weren't emailed."
+
+/** A listed event, as the calendar's lists send it: its guests (members and guests by email) and who made it. */
+export interface ListedEvent {
+  event_title?: string
+  event_start_time?: string
+  event_end_time?: string
+  event_created_by?: { user_uuid?: string }
+  event_guests?: { user_uuid?: string; email?: string }[]
+}
+
+/** A listed event's guests, its organiser left out: who would hear of a change to it. */
+export function guestsOf(e: ListedEvent): GuestSet {
+  const organiser = e.event_created_by?.user_uuid
+  const guests = e.event_guests ?? []
+  return {
+    members: guests.flatMap((g) => (g.user_uuid && g.user_uuid !== organiser ? [g.user_uuid] : [])),
+    emails: guests.flatMap((g) => (!g.user_uuid && g.email ? [g.email] : [])),
+  }
+}
+
+/** What moving a listed event to new times would tell its guests: what the form's save would, its times alone changed (CAL-11). */
+export function tellOfMove(e: ListedEvent, start: Date, end: Date): TellAction | null {
+  const shape = (s: Date, en: Date): EventShape => ({ title: e.event_title ?? "", notes: "", start: s, end: en, rule: "", guests: guestsOf(e) })
+  return tellOf(shape(new Date(e.event_start_time ?? ""), new Date(e.event_end_time ?? "")), shape(start, end))
+}

@@ -277,7 +277,9 @@ describe("CALL-BUG-17 and 9: an instant meeting's own page", () => {
     expect(conference.place).toBe("in your room")
     cleanup()
     render(<>{conference.extraStatus as ReactNode}</>)
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Invite a guest" })))
+    // Invite loads with the call (MeetingInvite), as a conversation call's does.
+    const invite = await screen.findByRole("button", { name: "Invite a guest" }, { timeout: 10_000 })
+    await act(async () => fireEvent.click(invite))
     expect(screen.getByLabelText("Your room's address").textContent).toBe(`${window.location.origin}/r/maya-chen`)
     expect(screen.getByText("Anyone with your room's address can ask to come in.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Room settings" }).getAttribute("href")).toBe("/app/meet/room")

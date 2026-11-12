@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { DrawerClose } from "@/components/ui/drawer"
+import { pinsSheetFoot } from "@/components/ui/sheetPins"
 
 /*
  * An options menu's parts (design v3, mobile C7), for a sheet in menu mode
@@ -29,7 +30,11 @@ export const SheetGroup = ({ className, label, ...props }: React.HTMLAttributes<
   const ref = React.useRef<HTMLDivElement>(null)
   React.useLayoutEffect(() => {
     const group = ref.current
-    if (group) group.toggleAttribute("data-holds-danger", group.querySelector(DANGER_ROW) !== null)
+    if (!group) return
+    const danger = group.querySelector(DANGER_ROW) !== null
+    group.toggleAttribute("data-holds-danger", danger)
+    // Kept at a menu's foot, it is that edge: the body's fade leaves it whole (components/ui/sheetPins).
+    return danger && group.closest('[data-detent="menu"]') ? pinsSheetFoot(group) : undefined
   })
   return <div role="group" aria-label={label} data-sheet-group="" className={cn("sheet-group", className)} {...props} ref={ref} />
 }

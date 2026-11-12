@@ -291,6 +291,21 @@ describe("the stage's slides bar", () => {
     dialog.remove()
   })
 
+  it("leaves PageUp and PageDown to a region that scrolls beside the stage, such as the call's chat", async () => {
+    const { container } = bar()
+    const chat = container.appendChild(document.createElement("aside"))
+    chat.style.overflowY = "auto"
+    const message = chat.appendChild(document.createElement("button"))
+    await press("PageDown", message)
+    await press("PageUp", chat)
+    expect(act).not.toHaveBeenCalled()
+    // A scroller that holds the stage is the call's own: a clicker's key from the call's bar in it still moves.
+    container.style.overflowY = "auto"
+    const mute = container.appendChild(document.createElement("button"))
+    await press("PageDown", mute)
+    expect(act).toHaveBeenCalledWith("board_slide", { slide: "f3" })
+  })
+
   it("moves on the arrow keys only on the board, and only while nothing on it is selected", async () => {
     const { s } = bar()
     const elsewhere = document.body.appendChild(document.createElement("button"))
@@ -366,5 +381,11 @@ describe("the stage's slides bar", () => {
       </div>,
     )
     expect(document.querySelector("[aria-live='polite']")?.textContent).toBe("Slide 3 of 3")
+  })
+
+  it("says the whole board to a screen reader when the room goes back to it", () => {
+    const { roomOn } = bar({ moves: false })
+    roomOn("")
+    expect(document.querySelector("[aria-live='polite']")?.textContent).toBe("Whole board")
   })
 })

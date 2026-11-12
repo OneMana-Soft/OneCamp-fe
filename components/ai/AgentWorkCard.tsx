@@ -3,6 +3,7 @@
 import { withAI } from "@/components/common/withFeature"
 import { Spark } from "@/components/ui/graphics/motifs"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/http/ownErrors"
 import { AiGet } from "@/services/endpoints/ai"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -47,9 +48,11 @@ export function liveJobs(items: ActivityItem[]): ActivityItem[] {
  * Activity > Agents and the agent's record, so Home no longer lists history.
  */
 function AgentWorkCardInner({ className }: { className?: string }) {
+    // A background read: the card is absent when it fails (a member without
+    // agent.manage is answered 403), so a failure raises no toast (V-577).
     const { data: activity } = useFetch<{ data: ActivityItem[] }>(`${AiGet.GetAgentActivity}?limit=5`, undefined, {
         refreshInterval: 20_000,
-    })
+    }, OWN_ERRORS)
     const jobs = liveJobs(activity?.data ?? [])
     if (jobs.length === 0) return null
     return (

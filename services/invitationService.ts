@@ -6,7 +6,7 @@
 // error toast and hand the words back.
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { AdminPost } from "@/services/endpoints/admin"
 
@@ -26,17 +26,23 @@ export interface InvitationAnswer {
 
 export type InviteOutcome =
   | { ok: true; answer: InvitationAnswer }
-  | { ok: false; msg: string }
+  /** A seat_limit refusal carries the plan's limit. */
+  | { ok: false; msg: string; code?: string; limit?: number }
 
 /** The server's reason for a failure, or a plain one when there is none to read. */
 const reason = (err: unknown) => apiErrorMessage(err, "Couldn't send the invitation. Try again in a moment.")
+
+const limitOf = (err: unknown) => {
+  const limit = (err as { response?: { data?: { limit?: unknown } } } | null)?.response?.data?.limit
+  return typeof limit === "number" && limit > 0 ? limit : undefined
+}
 
 async function post(endpoint: string, email: string): Promise<InviteOutcome> {
   try {
     const res = await axiosInstance.post(endpoint, { email }, OWN_ERRORS)
     return { ok: true, answer: (res.data ?? {}) as InvitationAnswer }
   } catch (err) {
-    return { ok: false, msg: reason(err) }
+    return { ok: false, msg: reason(err), code: apiErrorCode(err) || undefined, limit: limitOf(err) }
   }
 }
 

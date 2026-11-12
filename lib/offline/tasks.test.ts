@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { KEPT_PARTLY, TASK_WRITES, keptPart, overlay, projectOfPage, projectsIn, taskInfoUrl, tasksIn, withKeptProject } from "@/lib/offline/tasks"
 import { statusValueOf } from "@/lib/taskStatus"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 
 const status = TASK_WRITES[PostEndpointUrl.UpdateTaskStatus]
 const assignee = TASK_WRITES[PostEndpointUrl.UpdateTaskAssignee]
@@ -24,6 +25,17 @@ describe("the task fields a change sets", () => {
     expect(statusValueOf(custom.data.project_tasks[0])).toBe("c2")
     const builtIn = overlay(listed, [{ id: "t1", field: "task_status", value: "done" }]) as typeof listed
     expect(statusValueOf(builtIn.data.project_tasks[0])).toBe("done")
+  })
+})
+
+// V-698W: money is for project admins only, and the server refuses anyone
+// else's write of it (403). A custom field's save is sent at once or not at
+// all: the outbox never keeps one to replay later, so no write the server
+// refuses waits on a device, and no kept value is laid over what it sent.
+describe("a custom field's value (V-698W)", () => {
+  it("is no change the outbox keeps", () => {
+    expect(TASK_WRITES[ProjectsPost.SetTaskField]).toBeUndefined()
+    expect(Object.values(TASK_WRITES).map((w) => w.field)).not.toContain("task_fields")
   })
 })
 

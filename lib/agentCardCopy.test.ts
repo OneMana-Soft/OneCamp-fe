@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { AUTONOMY, autonomyOf } from "@/lib/agentAutonomy"
 import { abilitiesPhrase, autonomyPhrase, reachPhrase, sponsorName, weekPhrase } from "@/lib/agentCardCopy"
 import { toolLabel } from "@/services/agentService"
 
@@ -11,6 +12,20 @@ describe("agent card copy", () => {
   it("reads an unknown autonomy as asking first, never as acting alone", () => {
     expect(autonomyPhrase("auto")).toBe("Acts on its own")
     expect(autonomyPhrase("something-new")).toBe("Asks before it changes anything")
+  })
+
+  // ADMIN-16: the editor's options, the agents list's chips and the card's
+  // phrase say one thing, from one table, safest first.
+  it("the dialog, the card and the phrase read one table", () => {
+    expect(AUTONOMY.map((a) => a.value)).toEqual(["approval", "plan", "auto"])
+    expect(AUTONOMY.map((a) => a.title)).toEqual(["Ask first", "Plan, then ask", "Act on its own"])
+    expect(AUTONOMY.filter((a) => a.recommended).map((a) => a.value)).toEqual(["approval"])
+    // The list marks only what differs from the safe default (DESIGN-BUILD-143 F1).
+    expect(AUTONOMY.map((a) => a.chip)).toEqual([undefined, "Plans first", "Acts on its own"])
+    for (const a of AUTONOMY) expect(autonomyPhrase(a.value)).toBe(a.phrase)
+    expect(autonomyOf(undefined)).toBe("approval")
+    expect(autonomyOf("")).toBe("approval")
+    expect(autonomyOf("plan")).toBe("plan")
   })
 
   it("says where it is confined, or that it is not", () => {

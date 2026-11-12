@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { SLIDE_ID } from "./slideId"
-import { deckOf, slidePlace, stepSlide, type SceneFrame } from "./slides"
+import { deckOf, slideInPlaceOf, slidePlace, stepSlide, type SceneFrame } from "./slides"
 
 const frame = (id: string, x: number, y: number, name: string | null = null, more: Partial<SceneFrame> = {}): SceneFrame => ({ id, type: "frame", x, y, width: 400, height: 300, name, ...more })
 
@@ -54,5 +54,20 @@ describe("a board's frames as the slides of a call's stage", () => {
     expect(slidePlace(deck, "f-plan")).toEqual({ at: 3, of: 3, name: "" })
     expect(slidePlace(deck, "")).toBeNull()
     expect(slidePlace(deck, "f-deleted")).toBeNull()
+  })
+
+  it("moves a deck whose slide was deleted to the one in its place: the next, the one before at the end, none when none are left", () => {
+    const before = deckOf(scene, null)
+    const without = (...gone: string[]) => before.filter((s) => !gone.includes(s.id))
+    expect(slideInPlaceOf(before, before, "f-q4")).toBe("f-q4")
+    expect(slideInPlaceOf(before, without("f-q4"), "f-q4")).toBe("f-plan")
+    expect(slideInPlaceOf(before, without("f-plan"), "f-plan")).toBe("f-q4")
+    // Two gone at once: the next one left, else the nearest before it.
+    expect(slideInPlaceOf(before, without("f-intro", "f-q4"), "f-intro")).toBe("f-plan")
+    expect(slideInPlaceOf(before, without("f-q4", "f-plan"), "f-q4")).toBe("f-intro")
+    expect(slideInPlaceOf(before, [], "f-intro")).toBe("")
+    // A slide the deck never held: its first, or none.
+    expect(slideInPlaceOf(before, before, "f-deleted")).toBe("f-intro")
+    expect(slideInPlaceOf([], [], "f-deleted")).toBe("")
   })
 })

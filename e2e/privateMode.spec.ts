@@ -15,13 +15,26 @@ const BOARD = "b0a4d000-0000-4000-8000-0000000000d5"
 const NAME = boardDocName(BOARD)
 const LEVELS = { sam: "edit", ann: "edit" }
 const SECRET = "Move the offsite to Goa"
+const LONG = "and then the whole team takes the night train down the coast, with a stop for lunch by the sea on the way"
 
 const DEVICES = {
   computer: { viewport: { width: 1280, height: 860 } },
   phone: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 },
 } satisfies Record<string, BrowserContextOptions>
 
-type Shared = { id: string; type: string; text?: string; isDeleted?: boolean; locked?: boolean; containerId?: string | null; customData?: Record<string, unknown> }
+type Shared = {
+  id: string
+  type: string
+  text?: string
+  isDeleted?: boolean
+  locked?: boolean
+  containerId?: string | null
+  customData?: Record<string, unknown>
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+}
 
 function shareBoard() {
   const notes = [...note("venue", 40, 120, "Book the venue"), ...note("recap", 240, 120, "Send the recap")]
@@ -85,6 +98,8 @@ async function addNote(page: Page, words: string) {
 }
 
 test("on a computer, a note made in private mode reaches no other screen or the server until the round ends, a reload keeps it, and the end shows it to everyone", async ({ browser }) => {
+  // Three browsers and a reload: at the shared machine's load (~55-80) it ran out of the default 30 s at its last steps.
+  test.setTimeout(90_000)
   const on = shareBoard()
   const s = server(on.collab)
   const sam = await open(browser, "computer", on)
@@ -131,6 +146,56 @@ test("on a computer, a note made in private mode reaches no other screen or the 
   await expect(samElsewhere.page.locator("[data-private-veils] [role=note]")).toHaveCount(0)
   await expect.poll(kept).toBe("")
   await samElsewhere.context.close()
+  await sam.context.close()
+  await ann.context.close()
+})
+
+// V-528 (2): a public note rewritten in private changes on its author's screen only (its words fill the note, at a size
+// fitted to them): the server and every teammate keep its public face, so the length of private words never leaves the tab.
+test("on a computer, a public note rewritten at length in private keeps its public size and place on the server and on a teammate's screen", async ({ browser }) => {
+  const on = shareBoard()
+  const s = server(on.collab)
+  test.setTimeout(90_000)
+  const sam = await open(browser, "computer", on)
+  const ann = await open(browser, "computer", on, USERS.ann)
+  const place = (id: string) => {
+    const e = s.elements().find((x) => x.id === id)
+    return e && { x: e.x, y: e.y, width: e.width, height: e.height }
+  }
+  const publicFace = { card: place("venue"), words: place("venue-label") }
+  expect(publicFace.card?.height).toBe(180)
+
+  await sam.page.getByRole("button", { name: "Private mode", exact: true }).click()
+  await expect.poll(() => s.round()?.byName).toBe(displayNameOf(USERS.sam))
+  // Sam opens the venue note's words (the camera is zoom 1, no scroll: the note's middle is at 130, 210).
+  const canvas = (await sam.page.locator(".excalidraw").first().boundingBox())!
+  await sam.page.mouse.dblclick(canvas.x + 130, canvas.y + 210)
+  const editor = sam.page.locator("textarea.excalidraw-wysiwyg")
+  await expect(editor).toBeVisible({ timeout: 5_000 })
+  await sam.page.keyboard.press("ControlOrMeta+End")
+  await sam.page.keyboard.type(` ${LONG}`, { delay: 5 })
+  await sam.page.keyboard.press("Escape")
+
+  // On Sam's screen the note's words now fill it: taller than their public face (his tab keeps them so).
+  const realWords = () =>
+    sam.page.evaluate((key) => {
+      const kept = JSON.parse(localStorage.getItem(key) ?? "{}") as { real?: Record<string, { text?: string; originalText?: string; height?: number }> }
+      const w = kept.real?.["venue-label"]
+      return (w?.originalText ?? w?.text ?? "").replace(/\s+/g, " ").includes("night train") ? (w?.height ?? 0) : 0
+    }, `board-private:${BOARD}:${USERS.sam.user_uuid}`)
+  await expect.poll(realWords, { timeout: 10_000 }).toBeGreaterThan((publicFace.words?.height ?? 0) + 10)
+  // The server holds the note as his, without the words, at its public place and size.
+  await expect.poll(() => s.elements().find((e) => e.id === "venue-label")?.customData?.privateBy, { timeout: 10_000 }).toBe(USERS.sam.user_uuid)
+  await sam.page.waitForTimeout(1_000)
+  expect(s.has(LONG)).toBe(false)
+  expect(place("venue")).toEqual(publicFace.card)
+  expect(place("venue-label")).toEqual(publicFace.words)
+  // Ann's veil covers the card as it was: square, the card's 180 at zoom 1 with its edge.
+  const veil = ann.page.locator("[data-private-veils] [role=note]")
+  await expect(veil).toHaveAttribute("aria-label", `Private · ${displayNameOf(USERS.sam)}`)
+  const box = (await veil.boundingBox())!
+  expect(Math.abs(box.height - box.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(box.width - 180)).toBeLessThanOrEqual(4)
   await sam.context.close()
   await ann.context.close()
 })

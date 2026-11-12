@@ -19,6 +19,9 @@
  *     editor presenting takes them along, fitted to their screen, a hold keeps
  *     them there, and a bring moves them once with a way back, through the
  *     member board's own hooks (board/usePresenterFollow, board/useBringReceiver).
+ *     An editor presenting a board's frames as slides (miro-28) takes them to
+ *     each slide fitted to their screen, and "Slide 2 of 3" opens the outline
+ *     to see where they are (board/boardSlides), moving no one.
  *   - a share link's guest reacts and raises a hand (miro-24 W3-B2) with the
  *     board's own React button and signals (board/boardSignalsLater), as
  *     someone who may not edit: they see everyone's reactions rise, and an
@@ -57,6 +60,7 @@ import { CanvasPending } from "@/components/guest/canvasPending"
 import { useBoardTheme } from "@/components/board/useBoardTheme"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { usePresenterFollow } from "@/components/board/usePresenterFollow"
+import { SlidesFailed } from "@/components/board/slidesDock"
 import { useBringReceiver } from "@/components/board/useBringReceiver"
 import { useBoardSignalsLater } from "@/components/board/boardSignalsLater"
 import { FollowFrame } from "@/components/docEditor/presence/FollowFrame"
@@ -72,6 +76,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 const GuestEmbedView = lazyPiece(() => import("@/components/board/boardEmbeds"))
 // A share link's guest's React button (components/guest/guestReact), a chunk of its own.
 const GuestReact = lazyPiece(() => import("@/components/guest/guestReact"))
+// Where an editor presenting a board's frames as slides is, and the outline to see it in (miro-28), a chunk of its own.
+const GuestSlides = lazyPiece(() => import("@/components/board/boardSlides"), { failed: SlidesFailed })
 
 // Excalidraw as every board draws it (boardExcalidraw).
 const Excalidraw = dynamic(async () => (await import("@/components/board/boardExcalidraw")).default, {
@@ -150,7 +156,7 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
   // slides (its stage's opensAt), so a presenter on the board never pulls the stage away.
   const linkGuest = !inCall
   const live = linkGuest ? provider?.awareness : null
-  const { presenter, held, stopFollowing } = usePresenterFollow(linkGuest ? api : null, live)
+  const { presenter, held, stopFollowing, slideFailed, retrySlide } = usePresenterFollow(linkGuest ? api : null, live)
   useBringReceiver(live, linkGuest ? api : null, synced)
   // A share link's guest's reactions and hand (miro-24 W3-B2): the board's own signals, as someone who may not edit.
   const { react, hand, layer: rising } = useBoardSignalsLater(live, false, synced)
@@ -188,6 +194,12 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
   React.useEffect(() => (followingSomeone && !held ? onEscape("page", stopFollowing) : undefined), [followingSomeone, held, stopFollowing])
   const who = presenter?.name || "them"
   const followSaid = presenter ? (held ? `Following ${who}, held on their view` : `Following ${who}. Press Esc to stop.`) : ""
+  // Following a presenter on a slide: "Slide 2 of 3", and the outline, which closes when they leave the slides.
+  const followedSlide = presenter?.slide ?? ""
+  const [outline, setOutline] = React.useState(false)
+  React.useEffect(() => {
+    if (!followedSlide) setOutline(false)
+  }, [followedSlide])
   const seenFilesRef = React.useRef<Set<string>>(new Set())
   // How many elements the guest sees, on the canvas's wrapper, as the member's canvas says it (data-board-elements).
   const wrapRef = React.useRef<HTMLDivElement>(null)
@@ -324,8 +336,18 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
         onPointerUpdate={drawing ? (onPointerUpdate as never) : undefined}
         UIOptions={{ canvasActions: { export: false, saveToActiveFile: false, loadScene: false, toggleTheme: false }, tools: { image: false } }}
       />
-      {inCall && <BoardCursors api={api} awareness={provider.awareness} dark={theme === "dark"} />}
+      {/* A share link's guest sees everyone's laser, and no one's cursor or name. */}
+      <BoardCursors api={api} awareness={provider.awareness} dark={theme === "dark"} cursors={inCall} />
       <FollowFrame leader={presenter ? { id: presenter.userId, name: presenter.name } : null} said={followSaid} onStop={stopFollowing} held={held} />
+      {api &&
+        followedSlide &&
+        (slideFailed ? (
+          <SlidesFailed retry={retrySlide} />
+        ) : (
+          <React.Suspense fallback={null}>
+            <GuestSlides api={api} doc={provider.document} slide={followedSlide} outline={outline} onOutline={setOutline} polls={token ? { token } : undefined} />
+          </React.Suspense>
+        ))}
       {control && (
         <React.Suspense fallback={null}>
           <GuestReact hereKey={hereKey} host={wrap} />

@@ -1,7 +1,7 @@
 "use client"
 
 import type * as React from "react"
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react"
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react"
 import { useSelector } from "react-redux"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { DndContext, DragOverlay, useDroppable, type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core"
@@ -78,6 +78,8 @@ import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { milestonesPath, type MilestonesAnswer } from "@/lib/work/milestones"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
 import { ZoomSwitch } from "./ZoomSwitch"
+import { InsightsMenuItem } from "@/components/task/insightsLink"
+import { insightsHref } from "@/lib/board/boardQuery"
 import { useProjectHue } from "@/lib/projectHue"
 import type { CampHue } from "@/lib/campHue"
 import { edgeScroller } from "@/lib/ui/edgeScroll"
@@ -707,81 +709,36 @@ function Timeline({
     return () => window.removeEventListener("keydown", onKey)
   }, [goToday, setZoom, zoom, onCreateTask])
 
+  // The tool row is its own memo with stable handlers: a scroll step (the
+  // virtualiser's update), a hover or a drag draws the bars, never the tools.
+  const onToday = useStableCallback(goToday)
+  const onSide = useStableCallback(() => setSideOpen(!sideShown))
   const toolRow = (
-    // The band (components/task/workFrame) grows when its controls wrap: at a
-    // fixed 44 px the phone's second row of controls slid under the grid.
-    <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {leading}
-        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" onClick={goToday} disabled={!drawn} aria-keyshortcuts="T">
-          Today
-          <kbd className="kbd">T</kbd>
-        </Button>
-        <ZoomSwitch value={zoom} onChange={setZoom} />
-        {truncated && (
-          <span className="text-xs text-ink-3">
-            The newest {data.tasks.length.toLocaleString()} of {data.total.toLocaleString()} tasks
-          </span>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground aria-pressed:text-foreground"
-          aria-pressed={sideShown}
-          disabled={unscheduled.length === 0}
-          title={unscheduled.length === 0 ? "Every open task has a date" : undefined}
-          onClick={() => setSideOpen(!sideShown)}
-        >
-          <CalendarOff className="size-3.5" />
-          Unscheduled
-          <span className="chip h-[18px] px-1.5 tabular-nums">{unscheduled.length}</span>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" aria-label="Display">
-              <SlidersHorizontal className="size-3.5" />
-              <span className="hidden sm:inline">Display</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Group by</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={grouping} onValueChange={(v) => isGrouping(v) && setGrouping(v)}>
-              {GROUPINGS.map((g) => (
-                <DropdownMenuRadioItem key={g.value} value={g.value}>
-                  {g.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem checked={showDone} onCheckedChange={(v) => setShowDone(Boolean(v))}>
-              Show done tasks
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={showDeps} onCheckedChange={(v) => setShowDeps(Boolean(v))}>
-              Show dependencies
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={showWeekends} onCheckedChange={(v) => setShowWeekends(Boolean(v))}>
-              Show weekends
-            </DropdownMenuCheckboxItem>
-            {canEdit && (
-              <DropdownMenuCheckboxItem checked={shiftAlong} onCheckedChange={(v) => setShiftAlong(Boolean(v))}>
-                Move waiting tasks along
-              </DropdownMenuCheckboxItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {/* The one filled button, where the List and the Board keep it. */}
-        {onCreateTask && (
-          <Button size="sm" className="h-7 gap-1.5 px-2.5" aria-label="New task" aria-keyshortcuts="C" onClick={onCreateTask}>
-            <Plus className="size-3.5" />
-            <span className="hidden sm:inline">New task</span>
-            {/* The List's and the Board's key, said the same way (PTC-6). */}
-            <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
-          </Button>
-        )}
-      </div>
-    </div>
+    <TimelineTools
+      leading={leading}
+      drawn={drawn}
+      onToday={onToday}
+      zoom={zoom}
+      onZoom={setZoom}
+      newest={truncated ? data.tasks.length : undefined}
+      total={truncated ? data.total : 0}
+      sideShown={sideShown}
+      unscheduled={unscheduled.length}
+      onSide={onSide}
+      insightsFor={given ? undefined : projectId}
+      grouping={grouping}
+      onGrouping={setGrouping}
+      showDone={showDone}
+      onShowDone={setShowDone}
+      showDeps={showDeps}
+      onShowDeps={setShowDeps}
+      showWeekends={showWeekends}
+      onShowWeekends={setShowWeekends}
+      canEdit={canEdit}
+      shiftAlong={shiftAlong}
+      onShiftAlong={setShiftAlong}
+      onCreateTask={onCreateTask}
+    />
   )
 
   // No box (design v3): the grid sits on the sheet under the band's hairline.
@@ -1063,6 +1020,147 @@ function Timeline({
  * context, the grid registered with none, and a task carried by mouse or
  * finger was over nothing and went back to Unscheduled.
  */
+/**
+ * The timeline's tool row: Today, the zoom, Unscheduled, Display and New
+ * task. Memoised, with only values and stable handlers for props, so it draws
+ * again only when one of them changes (H3-f): a scroll step drew it each time.
+ */
+const TimelineTools = memo(function TimelineTools({
+  leading,
+  drawn,
+  onToday,
+  zoom,
+  onZoom,
+  newest,
+  total,
+  sideShown,
+  unscheduled,
+  onSide,
+  insightsFor,
+  grouping,
+  onGrouping,
+  showDone,
+  onShowDone,
+  showDeps,
+  onShowDeps,
+  showWeekends,
+  onShowWeekends,
+  canEdit,
+  shiftAlong,
+  onShiftAlong,
+  onCreateTask,
+}: {
+  leading?: React.ReactNode
+  drawn: boolean
+  onToday: () => void
+  zoom: Zoom
+  onZoom: (z: Zoom) => void
+  /** How many of the project's `total` tasks are drawn, when the read brings fewer than it has. */
+  newest?: number
+  total: number
+  sideShown: boolean
+  unscheduled: number
+  onSide: () => void
+  /** The project whose Insights the menu links to; none for a client's view. */
+  insightsFor?: string
+  grouping: Grouping
+  onGrouping: (g: Grouping) => void
+  showDone: boolean
+  onShowDone: (v: boolean) => void
+  showDeps: boolean
+  onShowDeps: (v: boolean) => void
+  showWeekends: boolean
+  onShowWeekends: (v: boolean) => void
+  canEdit: boolean
+  shiftAlong: boolean
+  onShiftAlong: (v: boolean) => void
+  onCreateTask?: () => void
+}) {
+  return (
+    // The band (components/task/workFrame) grows when its controls wrap: at a
+    // fixed 44 px the phone's second row of controls slid under the grid.
+    <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {leading}
+        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" onClick={onToday} disabled={!drawn} aria-keyshortcuts="T">
+          Today
+          <kbd className="kbd">T</kbd>
+        </Button>
+        <ZoomSwitch value={zoom} onChange={onZoom} />
+        {newest !== undefined && (
+          <span className="text-xs text-ink-3">
+            The newest {newest.toLocaleString()} of {total.toLocaleString()} tasks
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground aria-pressed:text-foreground"
+          aria-pressed={sideShown}
+          disabled={unscheduled === 0}
+          title={unscheduled === 0 ? "Every open task has a date" : undefined}
+          onClick={onSide}
+        >
+          <CalendarOff className="size-3.5" />
+          Unscheduled
+          <span className="chip h-[18px] px-1.5 tabular-nums">{unscheduled}</span>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground" aria-label="Display">
+              <SlidersHorizontal className="size-3.5" />
+              <span className="hidden sm:inline">Display</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            {/* Insights (L32): the project's report, for its members (a client's view has none); the timeline keeps no filters of its own. */}
+            {insightsFor !== undefined && (
+              <>
+                <InsightsMenuItem href={insightsHref(insightsFor, [], "", "")} />
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuLabel>Group by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={grouping} onValueChange={(v) => isGrouping(v) && onGrouping(v)}>
+              {GROUPINGS.map((g) => (
+                <DropdownMenuRadioItem key={g.value} value={g.value}>
+                  {g.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem checked={showDone} onCheckedChange={(v) => onShowDone(Boolean(v))}>
+              Show done tasks
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={showDeps} onCheckedChange={(v) => onShowDeps(Boolean(v))}>
+              Show dependencies
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={showWeekends} onCheckedChange={(v) => onShowWeekends(Boolean(v))}>
+              Show weekends
+            </DropdownMenuCheckboxItem>
+            {canEdit && (
+              <DropdownMenuCheckboxItem checked={shiftAlong} onCheckedChange={(v) => onShiftAlong(Boolean(v))}>
+                Move waiting tasks along
+              </DropdownMenuCheckboxItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {/* The one filled button, where the List and the Board keep it. */}
+        {onCreateTask && (
+          <Button size="sm" className="h-7 gap-1.5 px-2.5" aria-label="New task" aria-keyshortcuts="C" onClick={onCreateTask}>
+            <Plus className="size-3.5" />
+            <span className="hidden sm:inline">New task</span>
+            {/* The List's and the Board's key, said the same way (PTC-6). */}
+            <span className="kbd hidden sm:inline-flex" aria-hidden="true">C</span>
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+})
+
 function GridDrop({ disabled, bodyRef, ...props }: { disabled: boolean; bodyRef: React.RefObject<HTMLDivElement | null> } & React.ComponentProps<"div">) {
   const { setNodeRef } = useDroppable({ id: GRID, disabled })
   return (

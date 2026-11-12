@@ -25,6 +25,7 @@ import { isComposingKey } from "@/lib/keys/ime"
 import { lazyView } from "@/lib/lazy/lazyView"
 import { whenIdle } from "@/lib/whenIdle"
 import { feedback } from "@/lib/ui/feedback"
+import { listenTouches } from "@/lib/ui/touches"
 import type { Box } from "@/lib/tables/cellRange"
 import { ledger } from "@/lib/tables/useCellCommit"
 import type { GridWrites, RangeWrites } from "@/components/table/rangeActions"
@@ -170,19 +171,13 @@ export function useGridRange(o: Pick<RangeShell, "tableRef" | "scrollRef" | "foc
     }, off)
   })
 
-  // The grid's touchmove isn't passive: a finger holding a range drags it rather than scrolling the page.
+  // A finger holding a range drags it, not the page.
   React.useEffect(() => {
     const el = o.scrollRef.current
     if (!el) return
-    const move = (e: TouchEvent) => handlers()?.onTouchMove(e)
-    const end = (e: TouchEvent) => handlers()?.onTouchEnd(e)
-    el.addEventListener("touchmove", move, { passive: false })
-    el.addEventListener("touchend", end)
-    el.addEventListener("touchcancel", end)
+    const off = listenTouches(el, { move: (e) => handlers()?.onTouchMove(e), end: (e) => handlers()?.onTouchEnd(e) })
     return () => {
-      el.removeEventListener("touchmove", move)
-      el.removeEventListener("touchend", end)
-      el.removeEventListener("touchcancel", end)
+      off()
       made.current?.dispose()
     }
   }, [o.scrollRef, handlers])

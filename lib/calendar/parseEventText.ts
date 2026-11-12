@@ -1,16 +1,20 @@
 import { addDays, startOfDay } from "date-fns"
+import { hourOn, monthDate, monthIndex, MONTH_WORD, plainWords, readTime, TOMORROW_WORD, TONIGHT_HOUR, weekdayDate, weekdayIndex, WEEKDAY_WORD, type TimeWords } from "@/lib/time/dayWords"
 
 /**
  * Reads what a person types into the calendar's quick-create card ("Lunch
  * with Maya at 1pm tomorrow for 45m") into an event: a title, a day, a start
  * time, a length, the people named after "with", and whether it is focus
  * time. Each part it understood is returned as a span of the text, so the
- * card can underline it. Pure: `now` is passed in.
+ * card can underline it. Pure: `now` is passed in. A day or a time means what
+ * it means in Remind me's words: both read them through lib/time/dayWords.
  *
  * What it reads:
- *   time      "at 1pm", "1:30 pm", "13:30", "at 9", "noon"
- *   day       "today", "tonight", "tomorrow", "mon".."sunday" (the next one),
- *             "next friday", "15 Oct", "Oct 15", "on the 15th"
+ *   time      "at 1pm", "1:30 pm", "13:30", "at 9", "noon" ("at 3" and "7:30"
+ *             the afternoon's, "07:30" as written)
+ *   day       "today", "tonight" (20:00), "tomorrow", "mon".."sunday" (the
+ *             coming one), "this friday", "next friday" (next week's), "15
+ *             Oct", "Oct 15", "on the 15th"; "Feb 30" is no day
  *   length    "for 45m", "for 1.5 hours", "for an hour", "for half an hour"
  *   people    "with Maya", "with Maya and Jonas" (capitalised names)
  *   focus     the word "focus"
@@ -29,30 +33,8 @@ export interface ParsedEvent {
   spans: Array<{ start: number; end: number; kind: "time" | "date" | "duration" | "people" | "focus" }>
 }
 
-const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-
-const WD = "(sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?)"
-const MON = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
-
-function weekdayIndex(word: string): number {
-  const w = word.toLowerCase().slice(0, 3)
-  return WEEKDAYS.findIndex((d) => d.startsWith(w))
-}
-
-function monthIndex(word: string): number {
-  return MONTHS.indexOf(word.toLowerCase().slice(0, 3))
-}
-
-/** The next date with that day of the month and month, this year or next. */
-function nextDate(now: Date, month: number, day: number): Date {
-  const today = startOfDay(now)
-  let d = new Date(now.getFullYear(), month, day)
-  if (d < today) d = new Date(now.getFullYear() + 1, month, day)
-  return d
-}
-
-export function parseEventText(text: string, now: Date = new Date()): ParsedEvent {
+/** With `clock` (a time box), a time typed alone is a clock's ("7:30" is 07:30); said with a day, it is read as words are. */
+export function parseEventText(text: string, now: Date = new Date(), { clock = false }: { clock?: boolean } = {}): ParsedEvent {
   const spans: ParsedEvent["spans"] = []
   const taken: Array<[number, number]> = []
   const free = (s: number, e: number) => !taken.some(([a, b]) => s < b && a < e)
@@ -62,6 +44,10 @@ export function parseEventText(text: string, now: Date = new Date()): ParsedEven
   }
   const out: ParsedEvent = { title: "", people: [], focus: false, spans }
   const today = startOfDay(now)
+  // Set in the callbacks below (a cast, so the checker keeps both kinds).
+  let time = null as TimeWords | null
+  let timeWords = ""
+  let tonight = false
 
   const each = (re: RegExp, fn: (m: RegExpExecArray) => boolean | void) => {
     re.lastIndex = 0
@@ -83,27 +69,11 @@ export function parseEventText(text: string, now: Date = new Date()): ParsedEven
     return true
   })
 
-  // Time: "at 1pm", "1:30pm", "at 13:30", "at 9", "noon".
-  each(/\b(?:at\s+)?(noon|midday|midnight)\b|\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)(?![a-z])|\bat\s+(\d{1,2})(?::(\d{2}))?\b|\b(\d{1,2}):(\d{2})\b/gi, (m) => {
-    let h: number
-    let min = 0
-    if (m[1]) {
-      h = /midnight/i.test(m[1]) ? 0 : 12
-    } else if (m[2]) {
-      h = Number(m[2]) % 12
-      min = Number(m[3] || 0)
-      if (/^p/i.test(m[4])) h += 12
-    } else if (m[5]) {
-      h = Number(m[5])
-      min = Number(m[6] || 0)
-      // "at 3" means the afternoon; working hours are 8 to 7.
-      if (h >= 1 && h <= 7) h += 12
-    } else {
-      h = Number(m[7])
-      min = Number(m[8])
-    }
-    if (h > 23 || min > 59) return
-    out.startMinutes = h * 60 + min
+  // Time: "at 1pm", "1:30pm", "at 13:30", "at 9", "noon", found here and read as Remind me reads it.
+  each(/\b(?:at\s+)?(?:noon|midday|midnight)\b|\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)(?![a-z])|\bat\s+\d{1,2}(?::\d{2})?\b|\b\d{1,2}:\d{2}\b/gi, (m) => {
+    timeWords = plainWords(m[0])
+    time = readTime(timeWords)
+    if (!time) return
     take(m.index, m.index + m[0].length, "time")
     return true
   })
@@ -111,24 +81,21 @@ export function parseEventText(text: string, now: Date = new Date()): ParsedEven
   // Day.
   each(
     new RegExp(
-      `\\b(today|tonight|tomorrow|tmrw)\\b|\\b(?:on\\s+)?(next\\s+)?${WD}\\b|\\b(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+${MON}\\b|\\b(?:on\\s+)?${MON}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b|\\bon\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)\\b`,
+      `\\b(today|tonight|${TOMORROW_WORD})\\b|\\b(?:on\\s+)?(?:(this|next)\\s+)?${WEEKDAY_WORD}\\b|\\b(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_WORD}\\b|\\b(?:on\\s+)?${MONTH_WORD}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b|\\bon\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)\\b`,
       "gi",
     ),
     (m) => {
       if (m[1]) {
         const w = m[1].toLowerCase()
-        out.date = w === "tomorrow" || w === "tmrw" ? addDays(today, 1) : today
-        if (w === "tonight" && out.startMinutes === undefined) out.startMinutes = 19 * 60
+        tonight = w === "tonight"
+        out.date = w === "today" || tonight ? today : addDays(today, 1)
       } else if (m[3]) {
-        const target = weekdayIndex(m[3])
-        let diff = (target - today.getDay() + 7) % 7
-        // "Friday" on a Friday, and "next Friday", are a week out.
-        if (diff === 0) diff = 7
-        out.date = addDays(today, diff)
-      } else if (m[4] && m[5]) {
-        out.date = nextDate(now, monthIndex(m[5]), Number(m[4]))
-      } else if (m[6] && m[7]) {
-        out.date = nextDate(now, monthIndex(m[6]), Number(m[7]))
+        out.date = weekdayDate(now, weekdayIndex(m[3]), m[2]?.toLowerCase())
+      } else if ((m[4] && m[5]) || (m[6] && m[7])) {
+        // A day its month doesn't have ("Feb 30") stays in the title.
+        const d = m[4] ? monthDate(now, monthIndex(m[5]), Number(m[4])) : monthDate(now, monthIndex(m[6]), Number(m[7]))
+        if (!d) return
+        out.date = d
       } else if (m[8]) {
         const day = Number(m[8])
         let d = new Date(today.getFullYear(), today.getMonth(), day)
@@ -139,6 +106,11 @@ export function parseEventText(text: string, now: Date = new Date()): ParsedEven
       return true
     },
   )
+
+  // "tonight" alone is 20:00, and an hour said tonight the evening's.
+  if (time && clock && !out.date) time = readTime(timeWords, true)
+  if (time) out.startMinutes = hourOn(time, tonight) * 60 + time.minute
+  else if (tonight) out.startMinutes = TONIGHT_HOUR * 60
 
   // People: "with Maya", "with Maya and Jonas". They stay in the title.
   each(/\bwith\s+((?:[A-Z][\w'-]+)(?:\s*(?:,|and|&)\s*[A-Z][\w'-]+)*)/g, (m) => {

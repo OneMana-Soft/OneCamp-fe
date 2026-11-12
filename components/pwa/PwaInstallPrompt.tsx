@@ -1,13 +1,29 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { CornerCard } from "@/components/ui/CornerStack";
-import { X, Share } from "@/lib/icons";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import { pwaPromptKind, type PwaPromptKind } from "@/lib/utils/pwaPrompt";
 
 // Suggests adding OneCamp to the home screen, when that can actually be done.
 // Which case applies is pwaPromptKind's decision; this component only reads
 // the browser and remembers visits and dismissals.
+
+// The card's words and buttons are a chunk of its own, fetched the first time
+// there is something to suggest (FLUIDITY-13). Drawn through lazyPiece, they
+// put lazyPiece on the root layout's first load, where the 404 views and the
+// /app pieces find it: each group carried a copy of its own. The corner and
+// the logo stay here, so the root keeps next/image and the corner stack, which
+// every page that draws a picture or a corner card finds there; with the logo
+// in the chunk, 26 page chunks each carried next/image (app/firstLoad.test.ts).
+const PwaInstallCardBody = lazyPiece(() => import("./pwaInstallCard"), {
+  // Code that can't come (offline) leaves no card with only a logo: the card
+  // goes for this page, and asks again on the next visit.
+  failed: function CardUnavailable({ onUnavailable }) {
+    useEffect(() => onUnavailable(), [onUnavailable]);
+    return null;
+  },
+});
 
 const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 const VISITS_KEY = "onecamp:pwa:visits";
@@ -96,6 +112,8 @@ export function PwaInstallPrompt() {
     setKind(null);
   };
 
+  const unavailable = useCallback(() => setKind(null), []);
+
   const install = async () => {
     if (!deferred) return;
     deferred.prompt();
@@ -107,42 +125,19 @@ export function PwaInstallPrompt() {
   if (!kind) return null;
 
   return (
-    // In the left-hand corner stack (components/ui/CornerStack), above the
-    // phone's tab bar; it sat on the devtools layer, over every dialog.
-    <CornerCard side="left" order={2} className="w-full md:w-[400px]">
-      <div className="relative flex items-center gap-3 rounded-xl bg-pop p-3 pr-10 text-ink shadow-e3">
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg">
-          <Image src="/logo.svg" alt="" fill className="object-cover" />
-        </div>
-        {kind === "install" ? (
-          <>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">Add OneCamp to your home screen</p>
-              <p className="text-xs text-muted-foreground">Opens like an app, with notifications.</p>
-            </div>
-            <button
-              onClick={install}
-              className="shrink-0 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Install
-            </button>
-          </>
-        ) : (
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground">Add OneCamp to your home screen</p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Tap <Share className="mx-0.5 inline h-3 w-3 text-foreground" /> Share, then <strong>Add to Home Screen</strong>.
-            </p>
+    // One boundary around the whole card: nothing of it shows until its words
+    // and buttons have come, then all of it at once.
+    <Suspense fallback={null}>
+      {/* In the left-hand corner stack (components/ui/CornerStack), above the
+          phone's tab bar; it sat on the devtools layer, over every dialog. */}
+      <CornerCard side="left" order={2} className="w-full md:w-[400px]">
+        <div className="relative flex items-center gap-3 rounded-xl bg-pop p-3 pr-10 text-ink shadow-e3">
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg">
+            <Image src="/logo.svg" alt="" fill className="object-cover" />
           </div>
-        )}
-        <button
-          onClick={dismiss}
-          className="absolute right-2 top-2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Not now"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </CornerCard>
+          <PwaInstallCardBody kind={kind} onInstall={install} onDismiss={dismiss} onUnavailable={unavailable} />
+        </div>
+      </CornerCard>
+    </Suspense>
   );
 }

@@ -30,6 +30,14 @@ describe("signInRefusal", () => {
     expect(signInRefusal("oauth_failed").title).toBe("Couldn't sign you in")
   })
 
+  // ADMIN-02: the server tells every admin when the limit refuses someone, so
+  // the joiner can be told so, and needn't go and ask.
+  it("tells someone the free plan kept out that their admin has been told", () => {
+    expect(signInRefusal("seat_limit").message).toBe(
+      "This workspace is on OneCamp's free plan, and it's full. Your admin has been told; try again once they've freed a place or removed the limit.",
+    )
+  })
+
   it("says nothing is wrong when nothing is", () => {
     for (const code of ["signin_cancelled", "signin_expired", "oidc_invalid_state"]) {
       expect(signInRefusal(code).tone, code).toBe("neutral")

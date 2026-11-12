@@ -6,5 +6,6 @@
  * reads an event carries none of it (app/firstLoad.test.ts).
  */
 export { EventForm } from "@/components/calendar/form/eventForm"
+export { EventExtra } from "@/components/calendar/eventExtra"
 export { eventValues, formProblem, listedValues, ownReminders, whenOf } from "@/lib/calendar/eventForm"
 export { saveEventChange, saveLegacyChange } from "@/components/calendar/form/saveEvent"

@@ -7,7 +7,8 @@ import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useBotKindMap } from "@/hooks/useBotKinds"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { displayNameOf } from "@/lib/personName"
-import { isAIBot } from "@/lib/botCopy"
+import { isAIBot, mayCallPeer } from "@/lib/botCopy"
+import { FEATURE_CALLS, useFeature } from "@/hooks/useClientConfig"
 import { updateChannelInputText } from "@/store/slice/channelSlice"
 import { createOrUpdateChatBody } from "@/store/slice/chatSlice"
 import { createOrUpdateGroupChatBody } from "@/store/slice/groupChatSlice"
@@ -79,14 +80,16 @@ export const ChannelEmpty = memo(function ChannelEmpty({ channelId, start = fals
 
 /**
  * An empty DM (C58): the other person's face, who they are, and two ways to
- * begin. As the start of a DM with messages (`start`), the face and the
- * title only.
+ * begin: a hello, and a huddle only where one can run (a call server, and a
+ * person to call: the header's Huddle has the same gate). As the start of a
+ * DM with messages (`start`), the face and the title only.
  */
 export const DmEmpty = memo(function DmEmpty({ chatId, start = false }: { chatId: string; start?: boolean }) {
     const dispatch = useDispatch()
     const router = useRouter()
     const other = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`).data?.data
     const kinds = useBotKindMap()
+    const calls = useFeature(FEATURE_CALLS)
     const name = other ? displayNameOf(other) : ""
     const agent = !!other?.is_bot && isAIBot(kinds?.[chatId])
     if (agent) {
@@ -101,6 +104,10 @@ export const DmEmpty = memo(function DmEmpty({ chatId, start = false }: { chatId
         )
     }
     const first = name.split(" ")[0]
+    const chips: StarterChip[] = [
+        { label: first ? `Say hello to ${first}` : "Say hello", icon: <Hand />, onClick: () => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: "<p>Hi 👋</p>" })) },
+    ]
+    if (calls && mayCallPeer(other)) chips.push({ label: "Start a huddle", icon: <Headphones />, onClick: () => router.push(`${app_chat_call}/${chatId}`) })
     return (
         <ConversationEmpty
             kind="dm"
@@ -108,10 +115,7 @@ export const DmEmpty = memo(function DmEmpty({ chatId, start = false }: { chatId
             faces={other ? [faceOf(other)] : []}
             title={name ? `This is the start of your conversation with ${name}` : "No messages yet"}
             description="Messages you send here are between the two of you."
-            chips={start ? [] : [
-                { label: first ? `Say hello to ${first}` : "Say hello", icon: <Hand />, onClick: () => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: "<p>Hi 👋</p>" })) },
-                { label: "Start a huddle", icon: <Headphones />, onClick: () => router.push(`${app_chat_call}/${chatId}`) },
-            ]}
+            chips={start ? [] : chips}
         />
     )
 })

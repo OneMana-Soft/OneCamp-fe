@@ -14,13 +14,17 @@ import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { Shield } from "@/lib/icons"
+import { MEMORY_KIND_ICON } from "@/lib/ui/memoryKindIcon"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { NeedsItem } from "@/components/home/needsMe"
 
-/** The row's 24px lead: the agent, a task's status, or who it's from. */
+const CommitmentMark = MEMORY_KIND_ICON.commitment
+
+/** The row's 24px lead: the agent, a commitment's mark (the memory page's kind map, not a status), a task's status, or who it's from. */
 export function NeedsLead({ item }: { item: NeedsItem }) {
   if (item.kind === "agent") return <span className="block size-6"><AgentAvatar /></span>
+  if (item.commitment) return <CommitmentMark data-commitment="" aria-hidden className="size-4 shrink-0 text-camp-dusk-ink" />
   if (item.kind === "due") return <StatusGlyph status={item.status ?? "todo"} />
   // An agent or a bot is its square, never a person's disc (design v3 §3.9),
   // as on the greeting's orbit: OneCamp AI's unread DM drew an "OA" disc.

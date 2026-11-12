@@ -59,12 +59,11 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DateProperty } from "@/components/task/taskDateField"
+import { MEMORY_KIND_ICON } from "@/lib/ui/memoryKindIcon"
 import {
   Sparkles,
   Check,
   CheckCircle2,
-  HelpCircle,
-  Zap,
   Clock,
   MoreHorizontal,
   Trash2,
@@ -88,6 +87,7 @@ import { Tile } from "@/components/ui/graphics/Tile"
 import { ErrorState } from "@/components/ui/error-state"
 import { relativeTime as agoShort } from "@/lib/utils/relativeTime"
 import { shortDate } from "@/lib/utils/date/shortDate"
+import { localDay } from "@/lib/utils/timeZone"
 
 // Backlink is a resolved "where this came from" target for a memory item.
 interface Backlink {
@@ -144,10 +144,11 @@ const KIND_META: Record<
   // Each kind in its camp hue, the same as Home's "What needs me now"
   // (commitments dusk, questions berry): a kind is an identity, not a status,
   // so not the warning amber, and not raw Tailwind violet, blue and slate.
-  decision: { label: "Decision", Icon: Zap, dot: "bg-camp-sky", tint: "text-camp-sky-ink" },
-  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-camp-dusk", tint: "text-camp-dusk-ink" },
-  question: { label: "Open question", Icon: HelpCircle, dot: "bg-camp-berry", tint: "text-camp-berry-ink" },
-  glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-camp-lake", tint: "text-camp-lake-ink" },
+  // The mark from the one kind map (lib/ui/memoryKindIcon), as Home and the briefing draw it.
+  decision: { label: "Decision", Icon: MEMORY_KIND_ICON.decision, dot: "bg-camp-sky", tint: "text-camp-sky-ink" },
+  commitment: { label: "Commitment", Icon: MEMORY_KIND_ICON.commitment, dot: "bg-camp-dusk", tint: "text-camp-dusk-ink" },
+  question: { label: "Open question", Icon: MEMORY_KIND_ICON.question, dot: "bg-camp-berry", tint: "text-camp-berry-ink" },
+  glossary: { label: "Glossary", Icon: MEMORY_KIND_ICON.glossary, dot: "bg-camp-lake", tint: "text-camp-lake-ink" },
 }
 
 // The app's one "how long ago" ("7h ago", then "9 Oct"): this page wrote "7 hrs ago" and US-ordered dates.
@@ -487,15 +488,18 @@ function WorkspaceMemoryPanel({
   const setDue = async (id: string, due: string) => {
     const prev = items.find((i) => i.id === id)
     const prevDue = prev?.due_at
+    const prevStale = prev?.stale
     setBusyId(id)
     // Optimistic: store as an ISO-ish value the dueState() parser accepts.
-    setItems((cur) => cur.map((i) => (i.id === id ? { ...i, due_at: due || undefined } : i)))
+    // A day from today on, or none, is never stale (the server's
+    // commitmentIsStale); a past one keeps the server's word until the next read.
+    setItems((cur) => cur.map((i) => (i.id === id ? { ...i, due_at: due || undefined, stale: !!due && due < localDay() && i.stale } : i)))
     try {
       await updateMemoryDue(id, due)
       toast({ title: due ? "Due date set" : "Due date cleared" })
     } catch (e: unknown) {
       // Roll back on failure.
-      setItems((cur) => cur.map((i) => (i.id === id ? { ...i, due_at: prevDue } : i)))
+      setItems((cur) => cur.map((i) => (i.id === id ? { ...i, due_at: prevDue, stale: prevStale } : i)))
       saysWriteFailure(e)
       toast({ title: "Couldn't update due date", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
@@ -753,12 +757,19 @@ function MemoryRow({
   // so moving the cursor off the row into the (portaled) calendar or dropdown
   // doesn't fade the controls out from under the user.
   const [actionsPinned, setActionsPinned] = useState(false)
+  // The due date's picker, held here so "Still relevant?"'s New date opens
+  // the row's own one (a popover, a sheet on a phone).
+  const [dueOpen, setDueOpen] = useState(false)
+  const openDue = (open: boolean) => {
+    setDueOpen(open)
+    setActionsPinned(open)
+  }
 
   return (
     <li
       id={`memory-item-${item.id}`}
       className={cn(
-        "group relative rounded-lg border border-transparent hover:border-border hover:bg-accent/30 transition-colors px-3 py-2.5 flex items-start gap-3",
+        "group relative rounded-lg border border-transparent hover:border-border hover:bg-accent/30 transition-colors px-3 py-2.5 flex flex-wrap items-start gap-3",
         busy && "opacity-50 pointer-events-none",
         highlight && "border-primary/60 bg-primary/5 ring-2 ring-primary/30 animate-msg-fade-in",
       )}
@@ -843,7 +854,8 @@ function MemoryRow({
             value={dueDateObj}
             onSelect={handlePickDue}
             onClear={() => onSetDue("")}
-            onOpenChange={setActionsPinned}
+            open={dueOpen}
+            onOpenChange={openDue}
             className={cn(due?.overdue && "border-destructive/40 text-danger-ink")}
           />
         )}
@@ -952,6 +964,29 @@ function MemoryRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* The server's `stale`: Done is Resolve, New date opens the row's due
+          date (a day ahead is no longer stale, by the server's word), Drop is
+          Delete (soft), each with the page's Undo. The row's whole width,
+          under its actions, set in line with its words: three answers kept
+          to one line at 390, where the words' column held two. */}
+      {item.stale && !isClosed ? (
+        <div className="flex basis-full flex-wrap items-center gap-x-2 gap-y-3 pl-5 text-xs">
+          <span className="font-medium text-foreground">Still relevant?</span>
+          {/* The answers wrap together, under the question, never apart. */}
+          <span className="flex items-center gap-2 pointer-coarse:gap-5">
+            <Button size="xs" variant="secondary" disabled={busy} onClick={onResolve}>
+              Done
+            </Button>
+            <Button size="xs" variant="ghost" disabled={busy} onClick={() => openDue(true)}>
+              New date
+            </Button>
+            <Button size="xs" variant="ghost" disabled={busy} onClick={onDelete}>
+              Drop
+            </Button>
+          </span>
+        </div>
+      ) : null}
     </li>
   )
 }

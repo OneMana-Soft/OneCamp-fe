@@ -1,9 +1,8 @@
 "use client"
 
-// useClientConfig exposes workspace client config (currently the upload limit)
-// fetched once and cached by SWR. The composer/upload paths use it to validate
-// a file's size BEFORE uploading, so the user gets an instant, precise message
-// instead of waiting for a failed request.
+// The workspace's client config, fetched once and cached by SWR: the upload
+// limit (a file is checked before it is sent), transcription, features,
+// email and where it runs.
 
 import useSWR from "swr"
 import axiosInstance from "@/lib/axiosInstance"
@@ -41,6 +40,8 @@ export interface ClientConfig {
     // send, so the failure is silent from the outside and the first person to find
     // out is an admin who locked themselves out.
     email_enabled: boolean
+    // As /auth/providers says; absent from older servers.
+    hosting?: "self" | "cloud" | "demo"
 }
 
 // These must match the FeatureName* constants in the backend's helpers package.

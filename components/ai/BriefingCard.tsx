@@ -23,9 +23,7 @@ import { getOtherUserId } from "@/lib/utils/getOtherUserId"
 import { resolveMemoryBacklink } from "@/lib/utils/memoryBacklink"
 import {
   Sparkles,
-  CheckCircle2,
   HelpCircle,
-  Zap,
   Clock,
   FileText,
   Hash,
@@ -35,6 +33,7 @@ import {
   Github,
   Mail,
 } from "@/lib/icons"
+import { MEMORY_KIND_ICON } from "@/lib/ui/memoryKindIcon"
 import { withAI } from "@/components/common/withFeature"
 import { Button } from "@/components/ui/button"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
@@ -69,12 +68,6 @@ const HIGHLIGHT_ICON: Record<string, React.ComponentType<{ className?: string }>
   doc: FileText,
   task: CircleCheck,
   memory: Sparkles,
-}
-
-const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-  decision: Zap,
-  commitment: CheckCircle2,
-  question: HelpCircle,
 }
 
 // Per-source icon for the cross-connector "Your day" agenda; monochrome, the icon names the source.
@@ -266,7 +259,7 @@ function BriefingCard() {
             </p>
             <ul className="space-y-1">
               {openItems.map((it) => {
-                const Icon = KIND_ICON[it.kind] || HelpCircle
+                const Icon = MEMORY_KIND_ICON[it.kind] || HelpCircle
                 const overdue = it.kind === "commitment" && isOverdue(it.due_at)
                 return (
                   <li key={it.id}>

@@ -26,6 +26,8 @@ const RULES = [
 ]
 const CONFIDENTIAL = { id: "1abe1000-0000-4000-8000-000000000001", name: "Confidential", colour: "red", rank: 2, rules: ["no_export", "no_guest_links"] }
 const INTERNAL = { id: "1abe1000-0000-4000-8000-000000000002", name: "Internal", colour: "amber", rank: 1, rules: ["no_guest_links"] }
+// A name longer than a phone's board row has room for (V-933): its chip is cut short, and says it whole elsewhere.
+const LONG = { id: "1abe1000-0000-4000-8000-000000000003", name: "Board members only, strictly confidential", colour: "berry", rank: 3, rules: ["no_export", "no_guest_links"] }
 type Label = typeof CONFIDENTIAL
 const LOWERS = "Only the board's owner or a workspace admin can lower or remove its label “Confidential”."
 const DOC_REFUSED = "This doc is labelled Confidential: it can't be exported. Its owner or a workspace admin can change the label."
@@ -39,33 +41,33 @@ const DEVICES = {
  * One item's label as the server keeps it: GET answers it, PUT puts one on or takes it off. Someone who isn't the
  * item's owner is refused a lowering (business/Label Lowers: a lower level, or fewer rules), in the server's words.
  */
-function itemLabel(kind: "board" | "doc", start: Label | null, { owner }: { owner: boolean }) {
+function itemLabel(kind: "board" | "doc", start: Label | null, { owner, labels = [INTERNAL, CONFIDENTIAL] }: { owner: boolean; labels?: Label[] }) {
   let on = start
   const puts: { label_id: string | null }[] = []
   const answer = (_path: string, _url: URL, req: Request) => {
     if (req.method() !== "PUT") return { msg: "ok", data: on }
     const body = req.postDataJSON() as { label_id: string | null }
     puts.push(body)
-    const next = [CONFIDENTIAL, INTERNAL].find((l) => l.id === body.label_id) ?? null
+    const next = labels.find((l) => l.id === body.label_id) ?? null
     const lowers = !!on && (!next || next.rank < on.rank || on.rules.some((r) => !next.rules.includes(r)))
     if (lowers && !owner) return status(403, { code: "label_owner_lowers", msg: LOWERS })
     on = next
     return { msg: "ok", data: on }
   }
   const fixtures = [
-    [/\/labels$/, { msg: "ok", data: { labels: [INTERNAL, CONFIDENTIAL], rules: RULES } }],
+    [/\/labels$/, { msg: "ok", data: { labels, rules: RULES } }],
     [new RegExp(`/labels/items/${kind}/[^/]+$`), answer],
     [/\/guest\/links$/, { msg: "ok", data: [] }],
   ] as const
   return { fixtures, puts }
 }
 
-async function openBoard(browser: Browser, device: keyof typeof DEVICES, user: typeof USERS.sam, label: ReturnType<typeof itemLabel>) {
+async function openBoard(browser: Browser, device: keyof typeof DEVICES, user: typeof USERS.sam, label: ReturnType<typeof itemLabel>, use: BrowserContextOptions = {}) {
   const n1 = note("n1", 0, 0, "Q3 numbers")
   const levels = { sam: "edit", ann: "edit", vic: "view" }
   const board = { uuid: BOARD, title: "Board pack", levels, update: boardDoc([...n1]) }
   const collab = collabFor([{ id: boardDocName(BOARD), update: board.update, levels }])
-  const context = await browser.newContext({ ...DEVICES[device] })
+  const context = await browser.newContext({ ...DEVICES[device], ...use })
   await context.addInitScript(() => {
     try {
       localStorage.setItem("oc_keys_tip_seen", "1")
@@ -105,6 +107,7 @@ test.describe("a board's sensitivity label (miro-44 L)", () => {
     expect(label.puts).toEqual([{ label_id: CONFIDENTIAL.id }])
     const chip = cluster.getByRole("button", { name: "Label: Confidential. Change the label" })
     await expect(chip).toBeVisible()
+    await page.screenshot({ path: test.info().outputPath("board-cluster-1280-light.png") })
 
     // Share: the external link says the label and can't be turned on.
     await page.getByRole("button", { name: "Share", exact: true }).click()
@@ -166,6 +169,83 @@ test.describe("a board's sensitivity label (miro-44 L)", () => {
     await expect(page.getByRole("menuitem", { name: "Label…" })).toBeVisible()
     await context.close()
   })
+
+  // V-933: on the narrowest phones the row stays inside the screen on both sides. The cluster keeps every button at
+  // the size it is drawn, and the chip is what gives way: a long name is cut short, said whole in its title and in
+  // the picker; with no label the cluster stands alone, the same size. At 390, 375 and 360 by touch, light and dark.
+  for (const [width, colorScheme] of [[390, "light"], [390, "dark"], [375, "light"], [360, "light"], [360, "dark"]] as const) {
+    test(`on a ${width} px phone, ${colorScheme}: the board's cluster stays on the screen, and the label's chip gives way to it`, async ({ browser }) => {
+      test.setTimeout(120_000)
+      const label = itemLabel("board", CONFIDENTIAL, { owner: true, labels: [LONG, INTERNAL, CONFIDENTIAL] })
+      const { context, page } = await openBoard(browser, "phone", USERS.sam, label, { viewport: { width, height: 844 }, colorScheme })
+      await expect(page.locator("html")).toHaveCSS("color-scheme", colorScheme)
+      const actions = page.locator("[data-board-phone-actions]")
+      const cluster = actions.getByRole("toolbar", { name: "Board tools" })
+      await expect(cluster.getByRole("button", { name: "Board options" })).toBeVisible()
+      const shot = (name: string) => page.screenshot({ path: test.info().outputPath(`board-cluster-${name}${width}-${colorScheme}.png`) })
+      // The row inside the screen; each of the cluster's buttons its 36 px; every button met by a finger at its
+      // centre (on the screen, and nothing over it). The cluster's width, which never gives way.
+      const onScreen = async () => {
+        const box = (await actions.boundingBox())!
+        expect(box.x, "the row's left edge").toBeGreaterThanOrEqual(0)
+        expect(box.x + box.width, "the row's right edge").toBeLessThanOrEqual(width)
+        for (const b of await cluster.getByRole("button").all()) {
+          const { width: w, height: h } = (await b.boundingBox())!
+          expect([Math.round(w), Math.round(h)]).toEqual([36, 36])
+        }
+        const missed = await actions.evaluate(
+          (row, w) =>
+            [...row.querySelectorAll("button")]
+              .filter((b) => {
+                const r = b.getBoundingClientRect()
+                return r.left < 0 || r.right > w || document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest("button") !== b
+              })
+              .map((b) => b.getAttribute("aria-label")),
+          width,
+        )
+        expect(missed, "buttons off the screen or covered").toEqual([])
+        return Math.round((await cluster.boundingBox())!.width)
+      }
+
+      const chip = actions.locator("[data-item-label]")
+      // Under 390 px a name cut to a letter reads as a broken word: the chip draws its shield and dot alone, its name
+      // still in its accessible name, its title and the picker (DESIGN-BUILD-144 F1). At 390 it is cut short.
+      const compact = width < 390
+      const named = (name: string) => (compact ? expect(chip.getByText(name, { exact: true })).toBeHidden() : expect(chip.getByText(name, { exact: true })).toBeVisible())
+      await named(CONFIDENTIAL.name)
+      await expect(chip).toHaveAccessibleName("Label: Confidential. Change the label")
+      expect(await takesAFinger(chip)).toBe(true)
+      const size = await onScreen()
+      await shot("")
+
+      // A long name: the chip cuts it short and says it whole in its title, and the picker says it whole.
+      await chip.tap()
+      const sheet = page.getByRole("dialog", { name: "Label this board" })
+      await sheet.getByRole("radio", { name: new RegExp(LONG.name) }).tap()
+      await sheet.getByRole("button", { name: "Save" }).tap()
+      await expect(sheet).toHaveCount(0)
+      await expect(chip).toHaveAccessibleName(`Label: ${LONG.name}. Change the label`)
+      await expect(chip).toHaveAttribute("title", new RegExp(`^Labelled ${LONG.name}: `))
+      await named(LONG.name)
+      if (!compact) expect(await chip.locator(".truncate").evaluate((n) => n.scrollWidth > n.clientWidth), "the chip's name is cut short").toBe(true)
+      expect(await takesAFinger(chip)).toBe(true)
+      expect(await onScreen()).toBe(size)
+      await shot("long-label-")
+      await chip.tap()
+      await expect(sheet.getByRole("radio", { name: new RegExp(LONG.name) })).toHaveAttribute("aria-checked", "true")
+      await expect(sheet.getByText(LONG.name, { exact: true })).toBeVisible()
+
+      // No label: the cluster alone, the same size, on the screen.
+      await sheet.getByRole("radio", { name: /No label/ }).tap()
+      await sheet.getByRole("button", { name: "Save" }).tap()
+      await expect(sheet).toHaveCount(0)
+      await expect(chip).toHaveCount(0)
+      expect(await onScreen()).toBe(size)
+      await shot("no-label-")
+      expect(label.puts).toEqual([{ label_id: LONG.id }, { label_id: null }])
+      await context.close()
+    })
+  }
 
   test("someone who can only view sees the label, as a mark, and is offered no way to change it", async ({ browser }) => {
     test.setTimeout(120_000)

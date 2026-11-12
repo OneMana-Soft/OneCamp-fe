@@ -14,6 +14,7 @@ import { partOf, roleLabel, type CallRole } from "@/lib/calls/control"
 import type { CallHold } from "@/lib/calls/holds"
 import { feedbackOf, handOf, type CallFeedback } from "@/lib/calls/handsCore"
 import { guestName } from "./callLevels"
+import { foldCompanions, personOf } from "@/lib/calls/companion"
 
 export interface CallPerson {
   identity: string
@@ -36,10 +37,14 @@ export interface CallPerson {
 
 /**
  * The people in a call: raised hands first, in the order they went up (the
- * queue every screen shares), then you, then the rest by name; no agent. Pure.
+ * queue every screen shares), then you, then the rest by name; no agent. A
+ * companion (meet-04) is on its person's row, sharing or with a hand up as
+ * them, and never a row of its own; you are you on every device of yours. Pure.
  */
 export function peopleOf(participants: readonly Participant[]): CallPerson[] {
-  return participants
+  const local = participants.find((p) => p.isLocal)
+  const me = local ? personOf(local.identity) : undefined
+  const rows = participants
     .filter((p) => senderOf(p) === "participant")
     .map((p) => {
       const { name, guest } = guestName(p.identity, p.name || p.identity)
@@ -48,7 +53,7 @@ export function peopleOf(participants: readonly Participant[]): CallPerson[] {
         identity: p.identity,
         name,
         guest,
-        you: p.isLocal,
+        you: p.isLocal || personOf(p.identity) === me,
         micOn: p.isMicrophoneEnabled,
         cameraOn: p.isCameraEnabled,
         sharing: !!p.isScreenShareEnabled,
@@ -59,6 +64,7 @@ export function peopleOf(participants: readonly Participant[]): CallPerson[] {
         participant: p,
       }
     })
+  return foldCompanions(rows, (row, c) => ({ ...row, sharing: row.sharing || c.sharing, hand: row.hand ?? c.hand }))
     .sort((a, b) => {
       if (a.hand !== null || b.hand !== null) {
         if (a.hand === null) return 1

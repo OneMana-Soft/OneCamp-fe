@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import type { AttachmentMediaReq } from "@/types/attachment"
+import type { LinkedBoard, LinkedDoc } from "@/services/entityLinkService"
 
 const file = (name: string, type: AttachmentMediaReq["attachment_type"] = "document", size = 1024, at = "2026-10-09T10:00:00Z"): AttachmentMediaReq => ({
   attachment_uuid: `u-${name}`,
@@ -23,7 +24,19 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(() => Promise.resolve()) }) }))
 vi.mock("@/hooks/useUploadFile", () => ({ useUploadFile: () => ({ makeRequestToUploadToProject: upload }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
-vi.mock("@/services/entityLinkService", () => ({ useEntityLinks: () => ({ docs: [], boards: [], forbidden: false, isLoading: false, hasLink: () => false, addLink: vi.fn(), removeLink: vi.fn(), mutating: false }) }))
+// The docs and boards linked to the project: none unless a test links some.
+let linked: { docs: LinkedDoc[]; boards: LinkedBoard[] } = { docs: [], boards: [] }
+let linksLoading = false
+const { linkReads } = vi.hoisted(() => ({ linkReads: vi.fn() }))
+vi.mock("@/services/entityLinkService", () => ({
+  useEntityLinks: (type: string, id: string) => {
+    linkReads(type, id)
+    return { ...linked, forbidden: false, isLoading: linksLoading, hasLink: () => false, addLink: vi.fn(), removeLink: vi.fn(), mutating: false }
+  },
+}))
+vi.mock("@/lib/navigation/appRouter", () => ({ useAppRouter: () => ({ push: vi.fn() }) }))
+// The phone's Tasks tab, which the Attachments tab never draws.
+vi.mock("@/components/project/projectTaskList", () => ({ ProjectTaskList: () => null }))
 vi.mock("react-redux", () => ({
   useDispatch: () => vi.fn(),
   useSelector: (pick: (s: unknown) => unknown) =>
@@ -32,6 +45,7 @@ vi.mock("react-redux", () => ({
 
 import { ProjectAttachments } from "./ProjectAttachments"
 import { ProjectAttachmentList } from "./projectAttachmentList"
+import { ProjectListTabContent } from "./projectListTabContent"
 import { fileSize } from "@/lib/utils/format/formatFileSizeForAttachment"
 import { sentOf } from "./fileCard"
 import { shownFiles } from "./projectFiles"
@@ -40,6 +54,9 @@ afterEach(() => {
   cleanup()
   fetched = {}
   uploads = []
+  linked = { docs: [], boards: [] }
+  linksLoading = false
+  linkReads.mockReset()
   confirm.mockReset()
   upload.mockReset()
   localStorage.clear()
@@ -213,3 +230,55 @@ describe("the desktop Files tab (work.md W26)", () => {
     expect(document.querySelector("[data-drop-overlay]")).toBeNull()
   })
 })
+
+// The project's home links to its boards (whiteboard miro-46, to_win 1): the
+// Attachments tab lists the docs and boards linked to the project, from the
+// one read of its links, and opens its boards in Boards, filtered to it. A
+// phone's tab had the rows but no way to Boards (6 Nov).
+const PROJECT = "5f11e5a0-0000-4000-8000-0000000000f1"
+for (const [where, Tab] of [
+  ["on a computer", () => <ProjectAttachments projectId={PROJECT} projectName="Q4 launch" />],
+  ["on a phone", () => <ProjectListTabContent selectedTab="attachment" projectId={PROJECT} />],
+] as const) {
+  describe(`a project's linked docs and boards ${where}`, () => {
+    it("lists them and opens the project's boards in Boards, filtered to it", () => {
+      loaded([file("brief.pdf")])
+      linked = { docs: [{ doc_uuid: "d1", doc_title: "Launch plan" }], boards: [{ board_uuid: "b1", board_title: "Launch map", board_read_access: 1 }] }
+      render(<Tab />)
+      expect(screen.getByRole("heading", { name: /^Linked docs and boards/ })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Launch plan" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Launch map" })).toBeTruthy()
+      expect(screen.getByRole("link", { name: "See all in Boards" }).getAttribute("href")).toBe(`/app/board?project=${PROJECT}`)
+      // One read of the project's links, the rows and the link both drawn from it.
+      expect(new Set(linkReads.mock.calls.map((c) => c.join(" ")))).toEqual(new Set([`project ${PROJECT}`]))
+    })
+
+    it("offers no way to Boards when only docs are linked", () => {
+      loaded([file("brief.pdf")])
+      linked = { docs: [{ doc_uuid: "d1", doc_title: "Launch plan" }], boards: [] }
+      render(<Tab />)
+      expect(screen.getByRole("button", { name: "Launch plan" })).toBeTruthy()
+      expect(screen.queryByRole("link", { name: "See all in Boards" })).toBeNull()
+    })
+
+    // A phone drew its "no files" tray (40% of the screen) above a project's
+    // links when it had links but no files (V-732 LOW): the tray is for a tab
+    // with nothing in it at all, as on a computer.
+    it("with only docs and boards linked, shows them and no tray saying it has no files", () => {
+      loaded([])
+      linked = { docs: [{ doc_uuid: "d1", doc_title: "Launch plan" }], boards: [] }
+      render(<Tab />)
+      expect(screen.getByRole("button", { name: "Launch plan" })).toBeTruthy()
+      expect(document.querySelector("[data-files-empty]")).toBeNull()
+      // Someone who may add files can still upload the first.
+      expect(screen.getByRole("button", { name: "Upload" })).toBeTruthy()
+    })
+
+    it("waits for its links before saying it has no files", () => {
+      loaded([])
+      linksLoading = true
+      render(<Tab />)
+      expect(document.querySelector("[data-files-empty]")).toBeNull()
+    })
+  })
+}

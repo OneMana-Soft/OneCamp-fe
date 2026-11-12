@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { forgetShared, peekShared, sharedRequest } from "./sharedRequest"
 
 afterEach(() => {
-    for (const k of ["a", "b", "fail"]) forgetShared(k)
+    for (const k of ["a", "b", "fail", "f1", "f2"]) forgetShared(k)
 })
 
 describe("sharedRequest", () => {
@@ -34,6 +34,35 @@ describe("sharedRequest", () => {
         await expect(sharedRequest("fail", fn)).rejects.toThrow("blip")
         expect(peekShared("fail")).toBeUndefined()
         await expect(sharedRequest("fail", fn)).resolves.toBe("ok")
+    })
+
+    // V-577: a read asked for because something may have changed (the live
+    // connection is back) can't take the answer of a request sent before it.
+    it("a fresh ask never joins a request already in flight, and an older answer that comes last never stands", async () => {
+        const answers: Array<(v: string) => void> = []
+        const fn = vi.fn(() => new Promise<string>((r) => answers.push(r)))
+        const before = sharedRequest("f1", fn)
+        const after = sharedRequest("f1", fn, { fresh: true })
+        const joined = sharedRequest("f1", fn)
+        expect(fn).toHaveBeenCalledTimes(2)
+        answers[1]("new")
+        answers[0]("old")
+        await expect(after).resolves.toBe("new")
+        await expect(joined).resolves.toBe("new")
+        await expect(before).resolves.toBe("new")
+        expect(peekShared("f1")).toBe("new")
+    })
+
+    it("gives the older request its own answer when it comes first", async () => {
+        const answers: Array<(v: string) => void> = []
+        const fn = vi.fn(() => new Promise<string>((r) => answers.push(r)))
+        const before = sharedRequest("f2", fn)
+        const after = sharedRequest("f2", fn, { fresh: true })
+        answers[0]("old")
+        await expect(before).resolves.toBe("old")
+        answers[1]("new")
+        await expect(after).resolves.toBe("new")
+        expect(peekShared("f2")).toBe("new")
     })
 
     it("forgets on request", async () => {

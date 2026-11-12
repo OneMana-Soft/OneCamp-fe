@@ -20,6 +20,7 @@ import type { UserProfileInterface } from "@/types/user"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { openUI, closeUI } from "@/store/slice/uiSlice"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
+import { COPIED } from "@/lib/chat/messageActionLabels"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { useUserInfoState } from "@/hooks/useUserInfoState";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
@@ -101,7 +102,7 @@ const ChannelMessageMobileComponent = ({
     const copyPostText = useCallback(() => {
         const t = removeHtmlTags(postText)
 
-        copyToClipboard.copy(t, "copied post text")
+        copyToClipboard.copy(t, COPIED.text)
     }, [postText, copyToClipboard])
 
     const handleReply = useCallback(() => {

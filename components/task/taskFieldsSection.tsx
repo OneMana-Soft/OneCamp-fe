@@ -4,7 +4,9 @@
 // project's admins set values, as every task edit, and add or change fields
 // from here; others read them. A value saves the moment it's chosen (a
 // typed one when its box loses focus) and shows everywhere the task is
-// listed straight away, put back if the server refuses it.
+// listed straight away, put back if the server refuses it. A field the
+// server hides from the reader (V-698: a money field, to anyone not an admin
+// of its project) says so in place of a value, with no box and no save.
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
@@ -12,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxField, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FieldValueView, OptionPill } from "@/components/task/fieldValue"
+import { fieldText } from "@/lib/tasks/formulaShown"
 import { TaskAssigneePicker } from "@/components/task/taskAssigneePicker"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectFields } from "@/hooks/useProjectFields"
@@ -20,7 +23,8 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { ExternalLink, Plus } from "@/lib/icons"
 import { appMutate } from "@/lib/swrMutate"
 import { colorDot } from "@/lib/taskStatus"
-import { OUTSIDE_PROJECT, draftOf, formatFieldValue, withField, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
+import { OUTSIDE_PROJECT, draftOf, withField, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
+import { HiddenFieldValue, fieldHidden } from "@/components/task/hiddenField"
 import { lazyChunk } from "@/lib/loadChunk"
 import { inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
 import { InlineEdit } from "@/components/task/inlineEdit"
@@ -47,7 +51,7 @@ const same = (a: FieldValue | null | undefined, b: FieldValue | null | undefined
  * earlier one's answer, or its failure, arriving late changes nothing. */
 function useSaveField(taskUUID: string, projectUUID: string, values: FieldValues | undefined, refreshFields: () => void): Save {
   const { toast } = useToast()
-  const { optimisticSetTaskField } = useTaskUpdate()
+  const { optimisticSetTaskField, rereadTask } = useTaskUpdate()
   // What each field holds as shown, to put back if a save fails.
   const latest = React.useRef<FieldValues>(values ?? {})
   React.useEffect(() => {
@@ -72,6 +76,8 @@ function useSaveField(taskUUID: string, projectUUID: string, values: FieldValues
 
   return React.useCallback(
     async (field, value) => {
+      // The server refuses it (403): no box offers it, and nothing is sent or shown.
+      if (fieldHidden(field)) return
       const before = latest.current[field.id] ?? null
       if (same(before, value)) return
       const mine = (seq.current.get(field.id) ?? 0) + 1
@@ -80,7 +86,10 @@ function useSaveField(taskUUID: string, projectUUID: string, values: FieldValues
       show(field.id, value)
       try {
         const res = await axiosInstance.post(ProjectsPost.SetTaskField, { task_uuid: taskUUID, field_id: field.id, value }, OWN_ERRORS)
-        if (newest()) show(field.id, (res.data as { data: { value: FieldValue | null } }).data.value ?? null)
+        const saved = (res.data as { data: { value: FieldValue | null; refetch?: boolean } }).data
+        if (newest()) show(field.id, saved.value ?? null)
+        // A formula reads the field (J-F): the task is read again for its new value, never worked out here.
+        if (saved.refetch === true) rereadTask(taskUUID, projectUUID)
       } catch (err) {
         if (!newest()) return
         show(field.id, before)
@@ -89,7 +98,7 @@ function useSaveField(taskUUID: string, projectUUID: string, values: FieldValues
         toast({ variant: "destructive", title: `${field.name} wasn't saved`, description: apiErrorMessage(err, "Try again in a moment.") })
       }
     },
-    [taskUUID, show, toast, refreshFields],
+    [taskUUID, projectUUID, show, toast, refreshFields, rereadTask],
   )
 }
 
@@ -106,17 +115,18 @@ export function TaskFieldsSection({
   canEdit: boolean
   members: UserProfileDataInterface[]
 }) {
-  const { fields, isLoading, refresh } = useProjectFields(projectUUID)
+  // The fields dialog is for whom the server lets manage fields (can_edit), not all who may change the task.
+  const { fields, isLoading, refresh, canEdit: canManage } = useProjectFields(projectUUID)
   const [managing, setManaging] = React.useState(false)
   const save = useSaveField(taskUUID, projectUUID, values, refresh)
-  const dialog = canEdit && managing && (
+  const dialog = canManage && managing && (
     <React.Suspense fallback={null}>
       <ProjectFieldsDialog projectId={projectUUID} open={managing} onOpenChange={setManaging} />
     </React.Suspense>
   )
 
   if (fields.length === 0) {
-    if (!canEdit || isLoading) return null
+    if (!canManage || isLoading) return null
     return (
       <div className={propertyRow()} data-field-empty="">
         <span className={propertyLabel}>Fields</span>
@@ -134,7 +144,7 @@ export function TaskFieldsSection({
       {fields.map((f) => (
         <TaskFieldRow key={f.id} field={f} value={values?.[f.id]} canEdit={canEdit} members={members} onSave={(v) => save(f, v)} />
       ))}
-      {canEdit && (
+      {canManage && (
         <div className={propertyRow()} data-field-empty="">
           <span aria-hidden />
           <Button type="button" variant="link" size="sm" className="h-7 justify-self-start px-0 text-xs text-muted-foreground" onClick={() => setManaging(true)}>
@@ -161,6 +171,14 @@ function TaskFieldRow({
   onSave: (value: FieldValue | null) => Promise<void>
 }) {
   const id = React.useId()
+  if (fieldHidden(field)) {
+    return (
+      <div className={propertyRow()} data-field-hidden-row="">
+        <span className={propertyLabel}>{field.name}</span>
+        <HiddenFieldValue className="h-8 text-sm" />
+      </div>
+    )
+  }
   if (field.type === "person") {
     // Someone the project doesn't list (they left it, or never joined) is
     // still named as such, not shown as nobody.
@@ -183,14 +201,15 @@ function TaskFieldRow({
     )
   }
   return (
-    <div className={propertyRow()} data-field-empty={formatFieldValue(field, value) ? undefined : ""}>
+    <div className={propertyRow()} data-field-empty={fieldText(field, value) ? undefined : ""}>
       <label htmlFor={id} className={propertyLabel}>
         {field.name}
       </label>
       <div className="min-w-0">
-        {!canEdit ? (
+        {!canEdit || field.type === "formula" ? (
+          // No one sets a formula's value: the server works it out (J-F).
           // A value that reads as nothing (an option since taken away) is None.
-          formatFieldValue(field, value) ? <FieldValueView field={field} value={value} /> : <span className="text-sm text-muted-foreground">None</span>
+          fieldText(field, value) ? <FieldValueView field={field} value={value} /> : <span className="text-sm text-muted-foreground">None</span>
         ) : field.type === "select" ? (
           <SelectEditor id={id} field={field} value={value} onSave={onSave} />
         ) : field.type === "multi_select" ? (

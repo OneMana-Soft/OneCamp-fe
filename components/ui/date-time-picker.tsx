@@ -9,8 +9,10 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { parseEventText, parsedRange } from "@/lib/calendar/parseEventText"
 import { clockTime } from "@/lib/utils/date/clock"
+import { zoneName } from "@/lib/utils/zones"
 import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
+import { atWall, onDeviceClock, wallOf } from "@/lib/utils/date/wallTime"
 
 interface DateTimePickerProps {
   value?: Date
@@ -20,6 +22,10 @@ interface DateTimePickerProps {
   id?: string
   /** For an end time: the start, so the time list shows durations ("10:15 · 45 min"). */
   since?: Date
+  /** The zone whose clock it reads and picks on: an event's own (V-642). The device's own when absent. */
+  zone?: string
+  /** Names `zone` after the time, over the times and to a screen reader: a time on another clock than the reader's (V-642). */
+  named?: boolean
   "aria-label"?: string
   "aria-describedby"?: string
   "aria-invalid"?: boolean
@@ -162,34 +168,42 @@ export function TimeList({
  * input reading "Thu 15 Oct · 9:30 AM"; the popover holds the shared day-cell
  * month and, under a hairline, the quarter-hour time list. Typing a moment in
  * the box at the top ("tomorrow 3pm") is read as you type, with a preview.
+ * Each is on `zone`'s clock (V-642): an event planned in New York reads and
+ * is picked at 7:30 AM there, wherever its reader is.
  */
-export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }: DateTimePickerProps) {
+export function DateTimePicker({ value, onChange, disabled, id, since, zone, named, ...aria }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [text, setText] = React.useState("")
-  const minutes = value ? value.getHours() * 60 + value.getMinutes() : null
+  // Its day and time on the zone's clock (now's, with none picked), and as a Date on the device's for the month and the words.
+  const wall = wallOf(value ?? new Date(), zone)
+  const shown = onDeviceClock(wall)
+  const minutes = value ? wall.minutes : null
+  const said = value ? `${format(shown, "EEE d MMM")} · ${clockTime(value, { timeZone: zone })}` : ""
+  // Its zone as its clock reads on that day ("EDT", "Eastern Daylight Time"); its name says its value, which an aria-label hides.
+  const short = named && zone ? zoneName(zone, "short", true, value) : ""
+  const long = named && zone ? zoneName(zone, "long", true, value) : ""
+  const name = value && aria["aria-label"] ? `${aria["aria-label"]}, ${said.replace(" · ", ", ")}${long && ` ${long}`}` : aria["aria-label"]
 
   const typed = React.useMemo(() => {
     if (!text.trim()) return null
-    const p = parseEventText(text)
+    const p = parseEventText(text, undefined, { clock: true })
     if (!p.date && p.startMinutes === undefined) return null
-    return parsedRange(p, value ?? new Date(), 0).start
-  }, [text, value])
+    // Read on the zone's clock, as the box shows it, and picked there.
+    return parsedRange(p, onDeviceClock(wallOf(value ?? new Date(), zone)), 0).start
+  }, [text, value, zone])
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (!selectedDate) return
-    const next = value ? new Date(value) : new Date()
-    next.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
-    onChange?.(next)
+    onChange?.(atWall({ ...wall, year: selectedDate.getFullYear(), month: selectedDate.getMonth(), day: selectedDate.getDate() }, zone))
   }
 
   const handleTime = (m: number) => {
-    const next = value ? new Date(value) : new Date()
-    next.setHours(Math.floor(m / 60), m % 60, 0, 0)
-    onChange?.(next)
+    onChange?.(atWall({ ...wall, minutes: m }, zone))
     setIsOpen(false)
   }
 
-  const sinceMinutes = since && value && since.toDateString() === value.toDateString() ? since.getHours() * 60 + since.getMinutes() : undefined
+  const from = since && value ? wallOf(since, zone) : null
+  const sinceMinutes = from && from.year === wall.year && from.month === wall.month && from.day === wall.day ? from.minutes : undefined
 
   return (
     <Popover
@@ -204,6 +218,7 @@ export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }
           type="button"
           id={id}
           {...aria}
+          aria-label={name}
           disabled={disabled}
           data-date-time-trigger=""
           className={cn(
@@ -214,7 +229,10 @@ export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }
           )}
         >
           <CalendarIcon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
-          <span className="truncate">{value ? `${format(value, "EEE d MMM")} · ${clockTime(value)}` : "Pick a date and time"}</span>
+          <span className="truncate">
+            {said || "Pick a date and time"}
+            {short && said ? <span className="text-ink-3"> {short}</span> : null}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="content-float w-[296px] rounded-xl bg-pop p-0 shadow-e3" align="start">
@@ -225,7 +243,7 @@ export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }
             onKeyDown={(e) => {
               if (e.key === "Enter" && typed) {
                 e.preventDefault()
-                onChange?.(typed)
+                onChange?.(atWall(wallOf(typed), zone))
                 setIsOpen(false)
                 setText("")
               }
@@ -240,8 +258,13 @@ export function DateTimePicker({ value, onChange, disabled, id, since, ...aria }
             </p>
           ) : null}
         </div>
-        <Calendar mode="single" selected={value} onSelect={handleDateSelect} weekStartsOn={1} initialFocus className="p-3 pb-2" />
+        <Calendar mode="single" selected={value ? shown : undefined} onSelect={handleDateSelect} weekStartsOn={1} initialFocus className="p-3 pb-2" />
         <div className="border-t border-line">
+          {long ? (
+            <p className="px-3 pt-2 text-meta text-ink-3" data-picker-clock="">
+              Times in {long}
+            </p>
+          ) : null}
           <TimeList value={minutes} onPick={handleTime} since={sinceMinutes} />
         </div>
       </PopoverContent>

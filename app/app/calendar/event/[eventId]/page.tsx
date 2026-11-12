@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 import { useMedia } from "@/context/MediaQueryContext";
 import { opensEditing } from "@/lib/calendar/editParam";
+import { useCalendarLive } from "@/lib/calendar/liveEvent";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { app_calendar_path } from "@/types/paths";
 import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
@@ -22,6 +23,11 @@ import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
  *
  * `handledRef` guards against StrictMode double-invocation re-firing
  * the redirect.
+ *
+ * It reads the event again when the calendar's live message says it changed
+ * (V-544), as the calendar does: a change made elsewhere shows on the page
+ * without a reload. Over the calendar, on a computer, the calendar's own
+ * listener does it for the panel.
  */
 export default function MobileEventPage() {
     const params = useParams();
@@ -31,6 +37,7 @@ export default function MobileEventPage() {
     const eventId = params.eventId as string;
     const editing = opensEditing(useSearchParams());
     const handledRef = useRef(false);
+    useCalendarLive();
 
     useEffect(() => {
         if (isDesktop && !handledRef.current && eventId) {

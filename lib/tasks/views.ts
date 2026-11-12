@@ -19,6 +19,9 @@ export interface SavedTaskView {
 
 export const taskViewScope = (projectId?: string) => (projectId ? `project:${projectId}` : "mine")
 
+/** The project a list's scope is, or none for My Tasks. */
+export const scopeProject = (scope: string) => (scope.startsWith("project:") ? scope.slice("project:".length) : undefined)
+
 /** A view stripped to what it means, so key order and empties don't matter. */
 function canonical(s: TaskViewState): string {
   const filters = [...(s.filters ?? [])]

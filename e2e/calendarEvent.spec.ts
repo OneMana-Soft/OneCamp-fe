@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { reviewShot, SAM, SHOT_THEMES, stubBackend, withStatus } from "./stubbedApp"
+import { CALENDAR_READS, reviewShot, SAM, SHOT_THEMES, stubBackend, withStatus } from "./stubbedApp"
 
 // CAL-BUG-7: on a phone, and from a link, an event outside today's month read
 // "This event isn't available": the event page looked for it in the list of
@@ -9,20 +9,26 @@ import { reviewShot, SAM, SHOT_THEMES, stubBackend, withStatus } from "./stubbed
 const EVENT = "6f0c1b2a-3d4e-4f50-8a6b-7c8d9e0f1a2b"
 const LEE = { user_uuid: "5e1f0000-0000-4000-8000-0000000000c4", user_name: "Lee Park", user_full_name: "Lee Park", user_email_id: "lee@example.com" }
 
-/** The event's reads; organised by Sam, the reader, unless `organiser` is someone else who invited Sam. */
-function answers(event: unknown = undefined, organiser: typeof SAM | typeof LEE = SAM) {
+/** The event two months out, as its read answers; organised by Sam, the reader, unless `organiser` is someone else who invited Sam. */
+function planning(organiser: typeof SAM | typeof LEE = SAM, title = "Quarterly planning") {
   const start = new Date()
   start.setMonth(start.getMonth() + 2, 14)
   start.setHours(10, 0, 0, 0)
   const end = new Date(start.getTime() + 60 * 60 * 1000)
   return {
+    msg: "Got event",
+    data: { event_uuid: EVENT, event_title: title, event_start_time: start.toISOString(), event_end_time: end.toISOString(), event_created_by: organiser, event_participants: organiser === SAM ? [] : [SAM] },
+  }
+}
+
+/** The event's reads, and the calendar's beside it; `event` answers its own read when given. */
+function answers(event: unknown = undefined, organiser: typeof SAM | typeof LEE = SAM) {
+  return {
+    // The calendar behind a computer's panel loads, as a visitor sees it.
+    ...CALENDAR_READS,
     // Today's month holds nothing: where the old page looked.
     "/event/getEvents": { msg: "ok", data: [] },
-    [`/event/getEvent/${EVENT}`]:
-      event ?? {
-        msg: "Got event",
-        data: { event_uuid: EVENT, event_title: "Quarterly planning", event_start_time: start.toISOString(), event_end_time: end.toISOString(), event_created_by: organiser, event_participants: organiser === SAM ? [] : [SAM] },
-      },
+    [`/event/getEvent/${EVENT}`]: event ?? planning(organiser),
   }
 }
 
@@ -78,4 +84,45 @@ for (const theme of SHOT_THEMES) {
       })
     }
   })
+}
+
+// V-544: the event's own page (a phone's, and any link's) reads the event
+// again when the calendar's live message says it changed, as the calendar
+// does: a rename made elsewhere shows there without a reload. On a computer a
+// link opens the event beside the calendar, which reads it again too.
+const LIVE_VIEWS = [
+  { name: "1280", use: { viewport: { width: 1280, height: 900 } } },
+  { name: "390", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+] as const
+
+for (const theme of SHOT_THEMES) {
+  for (const view of LIVE_VIEWS) {
+    test.describe(`an event's own page at ${view.name}, ${theme}, live`, () => {
+      test.use({ ...view.use, colorScheme: theme })
+
+      test("shows a rename made elsewhere without a reload", async ({ page }, testInfo) => {
+        let title = "Quarterly planning"
+        let reads = 0
+        await stubBackend(page, testInfo, answers(() => {
+          reads++
+          return planning(SAM, title)
+        }))
+        await page.goto(`/app/calendar/event/${EVENT}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+        if (view.name === "1280") await page.waitForURL(/\/app\/calendar$/, { timeout: 30_000 })
+        await expect(page.getByRole("heading", { name: "Quarterly planning", exact: true })).toBeVisible({ timeout: 30_000 })
+        await reviewShot(page, "e-event-live-before", theme)
+        // The same document after the message: no reload.
+        await page.evaluate(() => void ((window as unknown as { stayed?: boolean }).stayed = true))
+        const before = reads
+        title = "Quarterly review"
+        const { event_start_time: from, event_end_time: to } = planning().data
+        await page.evaluate(({ id, from, to }) => window.dispatchEvent(new CustomEvent("onecamp:calendar-live", { detail: { event_id: id, from, to } })), { id: EVENT, from, to })
+        await expect(page.getByRole("heading", { name: "Quarterly review", exact: true })).toBeVisible({ timeout: 20_000 })
+        await expect(page.getByRole("heading", { name: "Quarterly planning", exact: true })).toHaveCount(0)
+        expect(reads, "the event read again").toBeGreaterThan(before)
+        expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed), "no reload").toBe(true)
+        await reviewShot(page, "e-event-live-after", theme)
+      })
+    })
+  }
 }

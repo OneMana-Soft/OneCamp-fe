@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest"
 
 const { startWorkFeed } = await import("@/lib/tasks/workFeed")
 
-const patchers = () => ({ updateTasks: vi.fn(), moveTask: vi.fn(), setTaskField: vi.fn(), deleteTask: vi.fn(), rereadProject: vi.fn() })
+const patchers = () => ({ updateTasks: vi.fn(), moveTask: vi.fn(), setTaskField: vi.fn(), deleteTask: vi.fn(), rereadProject: vi.fn(), rereadTask: vi.fn(), readsBuiltins: vi.fn(() => false) })
 
 describe("the work feed as the app starts it", () => {
   it("reads on from the place kept in the store the app hands it, and keeps the new place there", async () => {
@@ -36,6 +36,8 @@ describe("the work feed as the app starts it", () => {
     const imports = (file: string) =>
       [...readFileSync(join(process.cwd(), file), "utf8").matchAll(/^import\s[^"']*["']([^"']+)["']/gm)].map((m) => m[1])
     expect(imports("lib/tasks/workFeed.ts")).toEqual(["@/lib/tasks/workChanges"])
-    expect(imports("lib/tasks/workChanges.ts")).toEqual([])
+    // A field message's one rule (V-698), which the live handler applies too: pure, and it imports nothing.
+    expect(imports("lib/tasks/workChanges.ts")).toEqual(["@/lib/tasks/fieldMessage"])
+    expect(imports("lib/tasks/fieldMessage.ts")).toEqual([])
   })
 })

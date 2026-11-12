@@ -161,8 +161,9 @@ describe("the phone's top bar frame", () => {
     const third = here("mobileTopNavigationBarThird.tsx")
     expect(third).toContain(`<PhoneHuddleButton kind="channel"`)
     expect(third).toContain(`<PhoneHuddleButton kind="dm"`)
-    const title = here("phoneConversationTitle.tsx")
-    expect(title).toMatch(/className="grid size-11 place-items-center/)
-    expect(title).toMatch(/bg-camp-moss-tint text-camp-moss-ink/)
+    // The link is drawn from its own chunk (UX-CHAT-H2): the bar sits in the app layout.
+    const link = here("phoneHuddleLink.tsx")
+    expect(link).toMatch(/className="grid size-11 place-items-center/)
+    expect(link).toMatch(/bg-camp-moss-tint text-camp-moss-ink/)
   })
 })

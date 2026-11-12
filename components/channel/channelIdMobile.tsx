@@ -60,9 +60,9 @@ export const ChannelIdMobile = ({channelId, handleSend: send, focusComposer}: {c
         if(!isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')) {
             // Had no background, so messages scrolled visibly through the text, and
             // no `flex`, so the centring classes were inert. Its sibling (the
-            // moderators-only notice below) already gets both right.
+            // admins-only notice below) already gets both right.
             return (
-                // The moderators-only notice's form: one quiet line where the
+                // The admins-only notice's form: one quiet line where the
                 // composer would be, in the desktop's words. It was a 64px
                 // block ending in an emoji.
                 <ComposerNotice icon={<FileArchive />} className='border-t fixed bottom-0 px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-background'>
@@ -77,7 +77,7 @@ export const ChannelIdMobile = ({channelId, handleSend: send, focusComposer}: {c
         ) {
             return (
                 <ComposerNotice icon={<Megaphone />} className='border-t fixed bottom-0 px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-background'>
-                    Only moderators can post here.
+                    Only channel admins can post here.
                 </ComposerNotice>
             )
         }

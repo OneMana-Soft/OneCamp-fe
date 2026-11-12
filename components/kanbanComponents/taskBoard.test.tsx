@@ -1,7 +1,10 @@
+import { KeysOver, expectJBurstDrawsNoRow } from "@/lib/testing/keysBurst"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
-vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => undefined }))
+// The keys (hooks/useListKeyboard, the J burst's) read the app's split view and its task panel.
+const app = vi.hoisted(() => ({ getState: () => ({ split: { active: -1 }, rightPanel: { rightPanelState: { isOpen: false, data: {} } } }), subscribe: () => () => {} }))
+vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => undefined, useStore: () => app }))
 vi.mock("@/components/task/taskAssigneeCell", () => ({ TaskAssigneeCell: () => null }))
 vi.mock("@/components/task/PRStatusBadge", () => ({ GitHubBadgeGroup: () => null }))
 const celebrate = vi.fn()
@@ -10,6 +13,7 @@ vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrate(el
 const { TaskBoard, CARDS_PER_PAGE, columnPaging } = await import("@/components/kanbanComponents/TaskBoard")
 import type { StatusOption } from "@/lib/taskStatus"
 import { cellKey } from "@/lib/board/lanes"
+import { createSelectionStore } from "@/lib/listSelection"
 import type { TaskInfoInterface } from "@/types/task"
 
 const todo: StatusOption = { value: "todo", label: "To do", category: "todo", custom: false, color: "" }
@@ -463,5 +467,19 @@ describe("the v3 board (work.md W20, W22)", () => {
     act(() => void fireEvent.click(screen.getByRole("menuitem", { name: /Done/ })))
     expect(onMove).toHaveBeenCalledTimes(1)
     expect(onMove.mock.calls[0][1]).toMatchObject({ column: "done", index: 0 })
+  })
+})
+
+describe("the J key path on the board", () => {
+  it("a burst of J draws no card and lights one, the store's", () => {
+    const store = createSelectionStore()
+    const { container } = render(
+      <KeysOver store={store}>
+        <TaskBoard columns={{ todo: many(12), done: many(3, "done") }} visible={[todo, done]} canDrag={() => true} onMove={() => {}} boardKey="test" />
+      </KeysOver>,
+    )
+    act(() => container.querySelector<HTMLElement>("[data-task-id]")!.focus())
+    // memo(function BoardCard) bound to BoardCard draws as "BoardCard2" in the test bundle (lib/testing/reactRenders).
+    expectJBurstDrawsNoRow({ container, store: () => store, rows: ["BoardCard2"] })
   })
 })

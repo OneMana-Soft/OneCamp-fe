@@ -76,3 +76,55 @@ describe("CALL-BUG-14: only the server answers, and only for the asker", () => {
     expect(result.current.items[0].answer).toBe("Friday.")
   })
 })
+
+describe("an ask that fails (UX-CALLS-H2)", () => {
+  const answered = () =>
+    new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode('data: {"content":"Jonas."}\n\ndata: {"done":true}\n\n'))
+        c.close()
+      },
+    })
+
+  it("says why in plain words, offline or a server fault, and Try again replaces the failed ask with a new one", async () => {
+    authedStreamFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    authedStreamFetch.mockResolvedValueOnce({ ok: false, status: 500, statusText: "Internal Server Error", json: async () => ({ msg: "Failed to call model: dial tcp 10.0.0.4:11434" }) })
+    authedStreamFetch.mockResolvedValueOnce({ ok: true, body: answered() })
+    const { result } = renderHook(() => useInCallAgent("ch-1", () => ""))
+    await act(async () => {
+      await result.current.ask("Who writes the notes?")
+    })
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0].error).toBe("Couldn't reach the assistant. Check your connection and try again.")
+
+    await act(async () => {
+      await result.current.retry(result.current.items[0].id)
+    })
+    // The server's own text for a fault stays out of the panel.
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0].error).toBe("The assistant couldn't answer just now. Try again in a moment.")
+
+    await act(async () => {
+      await result.current.retry(result.current.items[0].id)
+    })
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0]).toMatchObject({ question: "Who writes the notes?", answer: "Jonas.", mine: true, streaming: false })
+    expect(result.current.items[0].error).toBeUndefined()
+    expect(authedStreamFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it("keeps a refusal's own words, and retries only the asker's own failed ask", async () => {
+    authedStreamFetch.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden", json: async () => ({ msg: "You're not in this call." }) })
+    const { result } = renderHook(() => useInCallAgent("ch-1", () => ""))
+    await act(async () => {
+      await result.current.ask("Who writes the notes?")
+    })
+    expect(result.current.items[0].error).toBe("You're not in this call.")
+    // Someone else's question: nothing to retry.
+    await send({ v: 1, t: "q", id: "q-maya", question: "And the date?", askedByName: "Maya Chen" }, { identity: "maya", name: "Maya Chen" })
+    await act(async () => {
+      await result.current.retry("q-maya")
+    })
+    expect(authedStreamFetch).toHaveBeenCalledTimes(1)
+  })
+})

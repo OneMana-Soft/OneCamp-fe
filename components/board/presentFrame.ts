@@ -6,10 +6,12 @@
  * fitToContent only zooms out, so a frame smaller than the canvas stays at
  * 100%, and its fitToViewport floors the zoom to tenths, which can leave a
  * slide a tenth short: the zoom is worked out here and pinned.
- * Loaded with the stage's slides, so no route's first load carries it.
+ * Loaded with the stage's slides and a board's (components/board/boardSlides;
+ * a follower's usePresenterFollow asks for it once a slide comes), so no
+ * route's first load carries it.
  */
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { CONTAINER, PHONE_FOOTER, TOOL_ROW, ZOOM_CLUSTER } from "./excalidrawPart"
+import { CONTAINER, PHONE_FOOTER, TOOL_ROW, ZOOM_CLUSTER, watchParts } from "./excalidrawPart"
 
 /** How much of the free room a slide covers on the axis that binds: a little of the stage shows round it. */
 export const SLIDE_COVER = 0.92
@@ -30,17 +32,22 @@ export interface CanvasInsets {
  * the canvas, which needn't start at the top of `host`. A part that isn't
  * drawn takes nothing, and one outside the canvas (a phone's row of pills
  * above it) reaches no further than its edge, so it takes nothing either.
- * Nothing is taken at the sides, where a slide keeps its own margin.
+ * At the sides only what `beside` matches is taken (a panel open over the
+ * canvas, as a board's side panels on a computer), off the side it sits
+ * nearer; elsewhere a slide keeps its own margin there.
  */
-export function canvasInsets(host: Element | null | undefined, over?: string): CanvasInsets {
+export function canvasInsets(host: Element | null | undefined, over?: string, beside?: string): CanvasInsets {
   const insets = { top: 0, right: 0, bottom: 0, left: 0 }
   const canvas = host?.querySelector(CONTAINER)?.getBoundingClientRect()
   if (!host || !canvas || canvas.height === 0) return insets
-  for (const part of host.querySelectorAll([TOOL_ROW, PHONE_FOOTER, ZOOM_CLUSTER, over].filter(Boolean).join(", "))) {
-    const r = part.getBoundingClientRect()
-    if (r.width === 0 || r.height === 0) continue
+  const drawn = (selector: string) => Array.from(host.querySelectorAll(selector), (part) => part.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0)
+  for (const r of drawn([TOOL_ROW, PHONE_FOOTER, ZOOM_CLUSTER, over].filter(Boolean).join(", "))) {
     if (r.top + r.height / 2 < canvas.top + canvas.height / 2) insets.top = Math.max(insets.top, r.bottom - canvas.top)
     else insets.bottom = Math.max(insets.bottom, canvas.bottom - r.top)
+  }
+  for (const r of beside ? drawn(beside) : []) {
+    if (r.left + r.width / 2 > canvas.left + canvas.width / 2) insets.right = Math.max(insets.right, canvas.right - r.left)
+    else insets.left = Math.max(insets.left, r.right - canvas.left)
   }
   return insets
 }
@@ -66,6 +73,24 @@ export function presentFrame(api: FrameCamera, id: string, insets: CanvasInsets,
   return true
 }
 
+/** A board's screen, a member's or a share link's guest's: a slide's room on it is measured in it. */
+export const BOARD_SCREEN = "[data-board-page], [data-guest-board]"
+/**
+ * What a board draws over its canvas at its top and its foot, besides Excalidraw's parts: a computer's top row of
+ * clusters (a viewer has no tool row there), the facilitation bar, and the slides' bar or a follower's chip.
+ */
+export const BOARD_BARS = "[data-board-top], [data-facilitation], [data-board-slides]"
+/** A board's side panel open over its canvas on a computer (the outline, Frames, Find): a slide moves beside it. */
+export const BOARD_SIDES = "[data-board-side]"
+
+/**
+ * Holds a frame shown as a slide on a board's own screen (miro-28: presenting a board's frames outside a call), the
+ * presenter's and each follower's, clear of the board's bars and of a side panel open over it (holdFrame).
+ */
+export function holdOnBoard(api: FrameCamera): FrameHold {
+  return holdFrame(api, document.querySelector(CONTAINER)?.closest(BOARD_SCREEN), BOARD_BARS, BOARD_SIDES)
+}
+
 /** What a person does on the canvas to move its camera their way: a pointer or a finger, the wheel, a key. */
 const TAKES_THE_CAMERA = ["pointerdown", "wheel", "keydown"] as const
 /** How many frames a change of room waits for Excalidraw to take the canvas's new size. */
@@ -85,17 +110,19 @@ export interface FrameHold {
  * Holds a frame shown as a slide in the room the canvas inside `host` leaves
  * free, while that room changes, as Meet and Zoom keep a presented slide
  * fitted to the stage: a row above the board wraps, a phone turns, a panel
- * opens beside it, or what's drawn over the canvas (`over` and Excalidraw's
- * parts, as canvasInsets) grows. Each change shows the frame again, at once,
- * in the room then free. A person who moves the camera on the canvas (a
- * pointer or a finger, the wheel, a key) keeps it until a frame is shown
- * again. Excalidraw takes a canvas's new size in an update of its own and
- * fits a frame in the size it has, so a change waits for that, a few frames
- * at most. Without a host it shows frames and holds nothing.
+ * opens beside it, or what's drawn over the canvas (`over`, `beside` and
+ * Excalidraw's parts, as canvasInsets) comes, goes or grows (a follower's
+ * "Slide 2 of 3" comes with its code, after the slide). Each change shows
+ * the frame again, at once, in the room then free. A person who moves the
+ * camera on the canvas (a pointer or a finger, the wheel, a key) keeps it
+ * until a frame is shown again. Excalidraw takes a canvas's new size in an
+ * update of its own and fits a frame in the size it has, so a change waits
+ * for that, a few frames at most. Without a host it shows frames and holds
+ * nothing.
  */
-export function holdFrame(api: FrameCamera, host: Element | null | undefined, over?: string): FrameHold {
+export function holdFrame(api: FrameCamera, host: Element | null | undefined, over?: string, beside?: string): FrameHold {
   const canvas = host?.querySelector(CONTAINER) ?? null
-  const parts = [CONTAINER, TOOL_ROW, PHONE_FOOTER, ZOOM_CLUSTER, over].filter(Boolean).join(", ")
+  const parts = [CONTAINER, TOOL_ROW, PHONE_FOOTER, ZOOM_CLUSTER, over, beside].filter(Boolean).join(", ")
   // The frame held while the camera is still where it was put, the room it was shown in last, and the frame asked for.
   let held: string | null = null
   let room = ""
@@ -105,13 +132,26 @@ export function holdFrame(api: FrameCamera, host: Element | null | undefined, ov
     return [width, height, insets.top, insets.right, insets.bottom, insets.left].join(" ")
   }
   const put = (id: string, animate: boolean) => {
-    const insets = canvasInsets(host, over)
+    const insets = canvasInsets(host, over, beside)
     if (!presentFrame(api, id, insets, animate)) return false
     room = roomOf(insets)
     return true
   }
   const watch = canvas && typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => soon()) : null
-  if (canvas) watch?.observe(canvas)
+  // The canvas and each part over it, watched for their size from when they're drawn; a part that comes or goes
+  // changes the room by itself.
+  const watched = new WeakSet<Element>()
+  const unwatch =
+    watch && host
+      ? watchParts(host, parts, (found) => {
+          for (const part of found) {
+            if (watched.has(part)) continue
+            watched.add(part)
+            watch.observe(part)
+          }
+          soon()
+        })
+      : null
   function look(tries: number) {
     pending = 0
     const box = held ? canvas?.getBoundingClientRect() : null
@@ -121,9 +161,7 @@ export function holdFrame(api: FrameCamera, host: Element | null | undefined, ov
       if (tries > 0) pending = requestAnimationFrame(() => look(tries - 1))
       return
     }
-    // A part drawn since (a phone's footer, the caller's bar) is watched from now on.
-    if (watch && host) for (const part of host.querySelectorAll(parts)) watch.observe(part)
-    if (roomOf(canvasInsets(host, over)) !== room) put(held, false)
+    if (roomOf(canvasInsets(host, over, beside)) !== room) put(held, false)
   }
   function soon() {
     if (held && canvas && !pending) pending = requestAnimationFrame(() => look(SIZE_TAKEN_WITHIN))
@@ -146,6 +184,7 @@ export function holdFrame(api: FrameCamera, host: Element | null | undefined, ov
     stop() {
       held = null
       cancelAnimationFrame(pending)
+      unwatch?.()
       watch?.disconnect()
       for (const type of TAKES_THE_CAMERA) canvas?.removeEventListener(type, moved, { capture: true })
     },

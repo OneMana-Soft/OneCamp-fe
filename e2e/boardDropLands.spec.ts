@@ -104,14 +104,15 @@ async function openBoard(page: Page, testInfo: TestInfo, opts: { lanes?: "priori
     return route.fulfill({ status: 200, headers, json: { msg: "ok", data: {} } })
   })
   await page.addInitScript(
-    ({ lanes, key, theme, show }) => {
+    ({ lanes, key, columns, theme, show }) => {
       localStorage.setItem("oc_keys_tip_seen", "1")
       if (theme) localStorage.setItem("ui-theme", theme)
       if (lanes) localStorage.setItem(key, JSON.stringify(lanes))
-      // Columns the board hides at first, shown as its Show does (hooks/useBoardColumns: a cookie).
-      if (show.length) document.cookie = `onecamp-sidebar-sections=${encodeURIComponent(JSON.stringify(Object.fromEntries(show.map((s) => [`board-column:${s}`, true]))))}; path=/`
+      // The board's columns (hooks/useBoardColumns, kept per board): To do, In progress and Done, as these drops were
+      // laid out before Backlog and In review showed by default (UX-PROJECTS-H1), and those the test shows.
+      localStorage.setItem(columns, JSON.stringify({ backlog: false, inReview: false, ...Object.fromEntries(show.map((s) => [s, true])) }))
     },
-    { lanes: opts.lanes, key: `oc_board_lanes:${P}`, theme: opts.theme, show: opts.show ?? [] },
+    { lanes: opts.lanes, key: `oc_board_lanes:${P}`, columns: `oc_board_columns:${P}`, theme: opts.theme, show: opts.show ?? [] },
   )
   await page.goto(`/app/project/${P}?tab=kanban`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   await expect(page.locator('[data-task-sequence] [data-column$="todo"] [data-task-id]').first()).toBeVisible({ timeout: 60_000 })

@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { LocalTrack, LocalVideoTrack } from "livekit-client"
-import { NO_EFFECTS, readEffects, writeEffects, type Background, type CallEffects, type NoiseLevel } from "@/lib/calls/processors/effects"
+import { NO_EFFECTS, cameraOn, readEffects, settersFor, writeEffects, type CallEffects } from "@/lib/calls/processors/effects"
 import type { CallEffectsControl } from "./useCallEffects"
 
 export function useGreenRoomEffects(preview: LocalTrack | undefined): CallEffectsControl & { problem: string | null } {
@@ -14,38 +14,36 @@ export function useGreenRoomEffects(preview: LocalTrack | undefined): CallEffect
   const [busy, setBusy] = useState<CallEffectsControl["busy"]>(null)
   const [problem, setProblem] = useState<string | null>(null)
 
-  // The preview shows the background chosen, as the call will.
+  // The preview shows the camera's look chosen, as the call will send it.
+  const { background, touchUp, lowLight } = effects
   useEffect(() => {
     if (!preview) return
-    const b = effects.background
-    if (b.kind === "none" && !preview.getProcessor()) return
+    const look = { background, touchUp, lowLight }
+    if (!cameraOn(look) && !preview.getProcessor()) return
     let live = true
-    setBusy("background")
+    setBusy("camera")
     void import("@/lib/calls/processors/background")
-      .then((m) => m.applyBackground(preview as LocalVideoTrack, b))
+      .then((m) => m.applyCamera(preview as LocalVideoTrack, look))
       .then(() => live && setProblem(null))
-      .catch((e: unknown) => live && setProblem(`${(e as Error).message || "Your background effect couldn't start."} People would see your room as it is.`))
+      .catch((e: unknown) => live && setProblem(`${(e as Error).message || "Your camera effect couldn't start."} People would see your room as it is.`))
       .finally(() => live && setBusy(null))
     return () => {
       live = false
     }
-  }, [preview, effects.background])
+  }, [preview, background, touchUp, lowLight])
 
-  const setBackground = useCallback((b: Background) => {
-    setEffects((cur) => {
-      const next = { ...cur, background: b }
-      writeEffects(next)
-      return next
-    })
-  }, [])
-  // The microphone's level is put on in the call: the green room's meter reads the microphone itself.
-  const setNoise = useCallback((n: NoiseLevel) => {
-    setEffects((cur) => {
-      const next = { ...cur, noise: n }
-      writeEffects(next)
-      return next
-    })
-  }, [])
+  // Every choice is kept for the call. The microphone's level is put on in
+  // the call: the green room's meter reads the microphone itself.
+  const change = useCallback(
+    (part: Partial<CallEffects>) =>
+      setEffects((cur) => {
+        const next = { ...cur, ...part }
+        writeEffects(next)
+        return next
+      }),
+    [],
+  )
+  const set = useMemo(() => settersFor(change), [change])
 
-  return useMemo(() => ({ effects, setBackground, setNoise, busy, problem }), [effects, setBackground, setNoise, busy, problem])
+  return useMemo(() => ({ effects, ...set, busy, problem }), [effects, set, busy, problem])
 }

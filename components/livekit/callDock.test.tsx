@@ -496,7 +496,7 @@ describe("backgrounds and sound from the dock", () => {
     const onToggle = vi.fn()
     render(<VideoControls onDisconnect={() => {}} effects={{ open: false, onToggle }} />)
     fireEvent.keyDown(screen.getByRole("button", { name: "Choose a camera" }), { key: "Enter" })
-    fireEvent.click(screen.getByRole("menuitem", { name: "Background effects…" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Background and touch-up…" }))
     expect(onToggle).toHaveBeenCalledTimes(1)
     fireEvent.keyDown(screen.getByRole("button", { name: "Choose a microphone" }), { key: "Enter" })
     fireEvent.click(screen.getByRole("menuitem", { name: "Noise reduction…" }))
@@ -514,7 +514,7 @@ describe("backgrounds and sound from the dock", () => {
   it("isn't in the menus where the call offers no effects", () => {
     render(<VideoControls onDisconnect={() => {}} />)
     fireEvent.keyDown(screen.getByRole("button", { name: "Choose a camera" }), { key: "Enter" })
-    expect(screen.queryByRole("menuitem", { name: "Background effects…" })).toBeNull()
+    expect(screen.queryByRole("menuitem", { name: "Background and touch-up…" })).toBeNull()
   })
 })
 

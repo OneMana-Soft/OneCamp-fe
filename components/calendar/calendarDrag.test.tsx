@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render } from "@testing-library/react"
 import { addDays, startOfWeek } from "date-fns"
-import { WeekView, HOUR_HEIGHT } from "./weekView"
+import { WeekView, HOUR_HEIGHT, type CarryTask } from "./weekView"
 import { MonthView } from "./monthView"
 import { itemsByDay, layoutWeek, monthGridRange, placeItems } from "./calendarLayout"
 import { installPointerEvent } from "@/lib/testing/pointerEvent"
@@ -304,6 +304,9 @@ describe("a press on an event", () => {
     expect(onEventClick).toHaveBeenCalledWith("e1", block())
   })
 
+  // The click a browser sends after a tap or a press counts it (detail 1); a key's click is 0 (lib/ui/releaseClick).
+  const released = { detail: 1 }
+
   // V-38: the click a finger's release is followed by would land on the sheet
   // the tap just opened and close it; a mouse's click goes to the grid.
   it("swallows the click that follows a finger's tap on a block, never a mouse's", () => {
@@ -314,13 +317,13 @@ describe("a press on an event", () => {
       fireEvent.pointerDown(block(), { button: 0, pointerType: "touch", ...at9 })
       wait(120)
       fireEvent.pointerUp(grid(), { pointerType: "touch", ...at9 })
-      fireEvent.click(document.body)
+      fireEvent.click(document.body, released)
       expect(heard, "the tap's own click").not.toHaveBeenCalled()
-      fireEvent.click(document.body)
+      fireEvent.click(document.body, released)
       expect(heard, "the next click").toHaveBeenCalledTimes(1)
       fireEvent.pointerDown(block(), { button: 0, ...at9 })
       fireEvent.pointerUp(grid(), at9)
-      fireEvent.click(document.body)
+      fireEvent.click(document.body, released)
       expect(heard, "a mouse's click").toHaveBeenCalledTimes(2)
     } finally {
       window.removeEventListener("click", heard)
@@ -341,14 +344,14 @@ describe("a press on an event", () => {
       fireEvent.pointerDown(col, { button: 0, pointerType: "touch", ...at20 })
       fireEvent.pointerUp(grid(), { pointerType: "touch", ...at20 })
       expect(onDraft, "the tap drafts an event").toHaveBeenCalledTimes(1)
-      fireEvent.click(document.body)
+      fireEvent.click(document.body, released)
       expect(heard, "the tap's own click").not.toHaveBeenCalled()
-      fireEvent.click(document.body)
+      fireEvent.click(document.body, released)
       expect(heard, "the next click").toHaveBeenCalledTimes(1)
       fireEvent.pointerDown(col, { button: 0, ...at20 })
       fireEvent.pointerUp(grid(), at20)
       expect(onDraft, "a click drafts an event").toHaveBeenCalledTimes(2)
-      fireEvent.click(document.body)
+      fireEvent.click(document.body, released)
       expect(heard, "a mouse's click").toHaveBeenCalledTimes(2)
     } finally {
       window.removeEventListener("click", heard)
@@ -637,6 +640,21 @@ describe("a task carried from the all-day lane", () => {
     fireEvent.pointerUp(grid(), { pointerId: 1, clientX: 300, clientY: 10 })
     expect(onTaskClick).toHaveBeenCalledWith("t1")
     expect(onTaskBlock).not.toHaveBeenCalled()
+  })
+
+  // The calendar's Tasks list carries its rows through this same drag: a block of the task's own length.
+  it("blocks a task carried from the Tasks list for its own length, about the pointer", async () => {
+    const { createRef } = await import("react")
+    const carry = createRef<CarryTask | null>() as { current: CarryTask | null }
+    const onTaskBlock = vi.fn()
+    render(<WeekView weekStart={monday} events={[]} tasks={[]} showEvents showTasks onEventClick={vi.fn()} onTaskClick={vi.fn()} onTaskBlock={onTaskBlock} carry={carry} />)
+    // Pressed on its row beside the grid, carried to Wednesday at 10:00: 45 minutes, 9:45 to 10:30.
+    act(() => carry.current!({ uuid: "t9", title: "Plan the launch", minutes: 45 }, { pointerId: 1, pointerType: "mouse", clientX: 900, clientY: 10 }))
+    fireEvent.pointerMove(grid(), { pointerId: 1, clientX: 320, clientY: y(10) })
+    expect(document.querySelector('[data-day-col="2"] [data-calendar-ghost]')?.textContent).toContain("Plan the launch")
+    fireEvent.pointerUp(grid(), { pointerId: 1, clientX: 320, clientY: y(10) })
+    expect(onTaskBlock).toHaveBeenCalledTimes(1)
+    expect(onTaskBlock).toHaveBeenCalledWith("t9", new Date(addDays(monday, 2).setHours(9, 45, 0, 0)), new Date(addDays(monday, 2).setHours(10, 30, 0, 0)))
   })
 
   it("only opens, where the hours take no tasks", () => {

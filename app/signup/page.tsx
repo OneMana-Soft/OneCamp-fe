@@ -21,7 +21,7 @@ import { nameProblem } from "@/lib/validation/names"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, IdentityChip, PasswordField, StrengthMeter, authControl, authControlXl, initialsOf } from "@/components/auth/AuthShell"
-import { InviteHero } from "@/components/auth/CampArt"
+import { InviteHero } from "@/components/auth/CampHeroes"
 import { EnterpriseSSOButtons, OAuthButtons } from "@/components/auth/ProviderButtons"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
 

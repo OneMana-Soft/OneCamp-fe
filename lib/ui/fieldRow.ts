@@ -26,9 +26,12 @@ export { inlineAffordance, inlineValue } from "@/lib/ui/inlineValue"
 export const inlineInput =
   "-ml-2 h-8 rounded-md border-transparent bg-transparent px-2 text-sm shadow-none placeholder:text-muted-foreground hover:border-transparent hover:bg-highlight focus-visible:border-ring focus-visible:bg-background md:h-8"
 
+// Both inline looks: no box until hovered or open, and the field's focus halo.
+const inline = "-ml-2 h-8 w-fit min-w-0 max-w-full gap-1.5 border-transparent bg-transparent px-2 font-normal not-focus-visible:shadow-none hover:border-transparent hover:bg-highlight data-[state=open]:border-transparent data-[state=open]:bg-highlight "
+
 /** A Select used as a value (a cycle, a field's option): its trigger, without the box. */
 export const inlineSelect =
-  "-ml-2 h-8 w-fit min-w-0 max-w-full gap-1.5 border-transparent bg-transparent px-2 font-normal shadow-none hover:border-transparent hover:bg-highlight data-[state=open]:border-transparent data-[state=open]:bg-highlight [&>svg]:opacity-0 [&>svg]:transition-opacity hover:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100 data-[state=open]:[&>svg]:opacity-100"
+  inline + "[&>svg]:opacity-0 [&>svg]:transition-opacity hover:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100 data-[state=open]:[&>svg]:opacity-100"
 
 /**
  * A Select used as a value that says it opens (the Event Form's Show as and
@@ -37,7 +40,7 @@ export const inlineSelect =
  * finger. Where values read as text until hovered (a task's), inlineSelect.
  */
 export const inlineChoice =
-  "-ml-2 h-8 w-fit min-w-0 max-w-full gap-1.5 border-transparent bg-transparent px-2 font-normal shadow-none hover:border-transparent hover:bg-highlight data-[state=open]:border-transparent data-[state=open]:bg-highlight [&>svg]:size-3.5 [&>svg]:text-ink-3 pointer-coarse:h-11"
+  inline + "[&>svg]:size-3.5 [&>svg]:text-ink-3 pointer-coarse:h-11"
 
 /** A section under the fields (Attachments, Linked, Dependencies, Subtasks): its name. */
 export const sectionTitle = "text-sm font-medium text-foreground"

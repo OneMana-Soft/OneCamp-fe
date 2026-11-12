@@ -26,8 +26,10 @@ import {
     SendSplit,
     countComposerSend,
     useComposerDictation,
+    useSendLater,
     type ComposerAgent,
 } from "@/components/textInput/composerTools"
+import type { ChipSchedule } from "@/components/textInput/useUndoSchedule"
 
 /** Past this many characters a message can't be sent (C38). */
 export const MESSAGE_LIMIT = 40_000
@@ -73,8 +75,8 @@ export interface ChatComposerShellProps {
     buttonLabel: string
     onSend: () => void
     onSchedule?: (at: Date) => Promise<unknown> | unknown
-    /** Takes back the message just scheduled (the chip's Undo). */
-    onUndoSchedule?: (at: Date) => void
+    /** The chip's message in the queue: its Undo, and whether it is still there. */
+    chipSchedule?: ChipSchedule
     onUpload?: () => void
     onFiles?: (files: File[]) => void
     agents?: ComposerAgent[]
@@ -97,7 +99,7 @@ export interface ChatComposerShellProps {
  * answer. The card's height follows the text without animating.
  */
 export const ChatComposerShell = React.forwardRef<HTMLDivElement, ChatComposerShellProps>(function ChatComposerShell(
-    { editor, compact = false, className, editorContentClassName, nothingToSend, buttonLabel, onSend, onSchedule, onUndoSchedule, onUpload, onFiles, agents, onDraftWithAI, aiSlot, children, linkMenu },
+    { editor, compact = false, className, editorContentClassName, nothingToSend, buttonLabel, onSend, onSchedule, chipSchedule, onUpload, onFiles, agents, onDraftWithAI, aiSlot, children, linkMenu },
     ref,
 ) {
     const { toast } = useToast()
@@ -115,7 +117,7 @@ export const ChatComposerShell = React.forwardRef<HTMLDivElement, ChatComposerSh
     }, [])
     const [clipOpen, setClipOpen] = React.useState(false)
     const [dragging, setDragging] = React.useState(false)
-    const [scheduled, setScheduled] = React.useState<Date | null>(null)
+    const { scheduled, schedule, done: chipDone } = useSendLater(onSchedule)
     const dictation = useComposerDictation(editor, (m) => toast({ title: m, variant: "destructive" }))
 
     const kinds = useBotKindMap()
@@ -124,21 +126,16 @@ export const ChatComposerShell = React.forwardRef<HTMLDivElement, ChatComposerSh
     // the limit, never on every keystroke (the fluidity budget).
     const overLimit = useEditorState({ editor, selector: ({ editor: e }) => (e ? e.getText().length > MESSAGE_LIMIT : false) }) ?? false
     const openClip = React.useCallback(() => setClipOpen(true), [])
+    // Send later's chevron hides with the words once a time went: the box takes the focus (V-774).
+    const focusBox = React.useCallback(() => {
+        editor.commands.focus()
+    }, [editor])
 
     const send = React.useCallback(() => {
         if (overLimit) return
         if (!nothingToSend) countComposerSend()
         onSend()
     }, [onSend, nothingToSend, overLimit])
-
-    const schedule = React.useCallback(
-        async (at: Date) => {
-            if (!onSchedule) return
-            const ok = await onSchedule(at)
-            if (ok !== false) setScheduled(at)
-        },
-        [onSchedule],
-    )
 
     // ⌘J opens Draft with AI; Escape and Enter steer a dictation.
     const onKeyDownCapture = (e: React.KeyboardEvent) => {
@@ -199,16 +196,16 @@ export const ChatComposerShell = React.forwardRef<HTMLDivElement, ChatComposerSh
                             )}
                         </>
                     )}
-                    <SendSplit nothingToSend={nothingToSend} disabled={overLimit} label={buttonLabel} onSend={send} onSchedule={onSchedule ? schedule : undefined} />
+                    <SendSplit nothingToSend={nothingToSend} disabled={overLimit} label={buttonLabel} onSend={send} onSchedule={schedule} focusAfter={focusBox} />
                 </div>
-    ), [compact, showStrip, dictation, editor, onUpload, onFiles, openClip, agents, onDraftWithAI, formatOpen, toggleFormat, overLimit, asking, nothingToSend, buttonLabel, send, onSchedule, schedule])
+    ), [compact, showStrip, dictation, editor, onUpload, onFiles, openClip, agents, onDraftWithAI, formatOpen, toggleFormat, overLimit, asking, nothingToSend, buttonLabel, send, schedule, focusBox])
 
     // Which conversation or thread this box writes to (its ComposerHost): what
     // reaches a composer reaches the one on the surface it was typed in.
     const target = useComposerTarget()
     return (
         <div className={cn("w-full", className)}>
-            {scheduled && <ScheduledChip at={scheduled} onUndo={onUndoSchedule ? () => onUndoSchedule(scheduled) : undefined} onDone={() => setScheduled(null)} />}
+            {scheduled && <ScheduledChip at={scheduled} schedule={chipSchedule} onDone={chipDone} />}
             <div
                 ref={ref}
                 data-composer=""

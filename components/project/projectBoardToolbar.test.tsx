@@ -76,9 +76,10 @@ describe("a project's board", () => {
 
   it("names the statuses it hides, and Show brings them back", () => {
     render(<ProjectTaskKanban projectId={P} />)
-    expect(screen.getByText("3 statuses hidden")).toBeTruthy()
-    expect(screen.getByTestId("board").textContent).toBe("todo,inProgress,done")
-    fireEvent.click(screen.getByRole("button", { name: "Show Backlog (1), In review, Cancelled (3)" }))
+    // Every open status shows by default, so only Cancelled is hidden (PROJECTS-36).
+    expect(screen.getByText("Cancelled hidden")).toBeTruthy()
+    expect(screen.getByTestId("board").textContent).toBe("backlog,todo,inProgress,inReview,done")
+    fireEvent.click(screen.getByRole("button", { name: "Show Cancelled (3)" }))
     expect(screen.getByTestId("board").textContent).toBe("backlog,todo,inProgress,inReview,done,canceled")
     expect(screen.queryByText(/statuses hidden/)).toBeNull()
   })

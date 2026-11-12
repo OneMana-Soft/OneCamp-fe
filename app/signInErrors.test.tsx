@@ -67,7 +67,7 @@ describe("a refused Google or GitHub sign-in", () => {
 
   it("says the workspace is full", async () => {
     const shown = await arriveWith("error=seat_limit&message=x")
-    expect(shown).toContain("free plan and has no room for another person")
+    expect(shown).toContain("free plan, and it's full. Your admin has been told")
   })
 
   it("says to try again when it didn't finish", async () => {

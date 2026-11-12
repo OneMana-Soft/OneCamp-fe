@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { TIMED_CHOICES, allDayChoices, reminderChoices, reminderWords, remindersLine } from "./reminders"
+import { TIMED_CHOICES, allDayChoices, customMinutes, customOf, defaultRemindersFor, keepEmail, reminderChoices, reminderWords, remindersLine } from "./reminders"
 import { clockTime } from "@/lib/utils/date/clock"
 
 // Calendar A5: an event's reminders in words, as the card's Reminders row
@@ -40,5 +40,36 @@ describe("reminders in words", () => {
     expect(allDayChoices().map((c) => c.minutes)).toEqual([null, -540, 900, 2340, 9540])
     expect(reminderChoices([45], false).map((c) => c.label).slice(-1)).toEqual(["45 minutes before"])
     expect(reminderChoices([10], false)).toHaveLength(TIMED_CHOICES.length)
+  })
+})
+
+// Head A (gcal-5): custom reminders up to four weeks, by email, and a
+// calendar's defaults as the server works them out.
+describe("custom, by email and per calendar", () => {
+  it("writes a custom reminder in its largest whole unit, up to four weeks", () => {
+    expect(customOf(90)).toEqual({ count: 90, unit: "minutes" })
+    expect(customOf(120)).toEqual({ count: 2, unit: "hours" })
+    expect(customOf(3 * 24 * 60)).toEqual({ count: 3, unit: "days" })
+    expect(customOf(14 * 24 * 60)).toEqual({ count: 2, unit: "weeks" })
+    expect(customOf(0)).toEqual({ count: 0, unit: "minutes" })
+    expect(customMinutes(4, "weeks")).toBe(4 * 7 * 24 * 60)
+    expect(customMinutes(5, "weeks")).toBeNull()
+    expect(customMinutes(1.5, "hours")).toBeNull()
+    expect(customMinutes(-1, "minutes")).toBeNull()
+    expect(reminderWords(14 * 24 * 60, false)).toBe("2 weeks before")
+  })
+
+  it("keeps by email only what is still a reminder, once each, sorted", () => {
+    expect(keepEmail([60, 10, 60, 5], [10, 60])).toEqual([10, 60])
+    expect(keepEmail(undefined, [10])).toEqual([])
+  })
+
+  it("takes the calendar's default, else the reader's own, else D-CAL-4's", () => {
+    const all = { mine: { timed: { minutes: [30], email: [30, 99] } }, cal1: { all_day: { minutes: [-540] } } }
+    expect(defaultRemindersFor(all, "", false)).toEqual({ minutes: [30], email: [30] })
+    expect(defaultRemindersFor(all, "cal2", false)).toEqual({ minutes: [30], email: [30] })
+    expect(defaultRemindersFor(all, "cal1", true)).toEqual({ minutes: [-540], email: [] })
+    expect(defaultRemindersFor(all, "cal2", true)).toEqual({ minutes: [900], email: [] })
+    expect(defaultRemindersFor(null, "", false)).toEqual({ minutes: [10], email: [] })
   })
 })

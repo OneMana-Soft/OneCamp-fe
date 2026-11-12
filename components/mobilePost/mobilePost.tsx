@@ -25,7 +25,6 @@ import {
     createChannelCommentReaction, removeChannelComment, removeChannelCommentReaction, updateChannelCommentReaction
 } from "@/store/slice/channelCommentSlice";
 import type {RootState} from "@/store/store";
-import {openUI} from "@/store/slice/uiSlice";
 import {
     createPostReactionPostId,
     removePostReactionByPostId, updateChannelMessageReplyDecrement, updatePostReactionPostId
@@ -39,6 +38,8 @@ import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+import { FollowThreadButton } from "@/components/conversation/FollowThread";
+import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
 
 // Module-level, so a selector that finds nothing returns the same value every
 // time: a fresh [] per call re-drew the thread on every store change.
@@ -92,22 +93,8 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
         if (!postUUID) return
 
 
-        setTimeout(() => {
-            dispatch(
-                openUI({
-                    key: 'confirmAlert',
-                    data: {
-                        title: "Delete this message?",
-                        description: "It's removed from the channel for everyone. This can't be undone.",
-                        confirmText: "Delete message",
-                        destructive: true,
-                        onConfirm: () => {
-                            setTimeout(() => {executeDeletePost(postUUID)},100)
-                        },
-                    }
-                }),
-            )
-        }, 500)
+        // The sheet has asked already (MessageActionSheet): one question, not two.
+        executeDeletePost(postUUID)
     }
 
     // A correction to the thread's message or a reply saves as in the list:
@@ -207,18 +194,8 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
         if(!commentUUID) return
 
-        setTimeout(() => {
-            dispatch(openUI({
-                key: 'confirmAlert',
-                data: {
-                    title: "Delete this reply?",
-                    description: "It's removed from the thread for everyone. This can't be undone.",
-                    confirmText: "Delete reply",
-                    destructive: true,
-                    onConfirm: ()=>{executeDeletePostComment(commentIndex, commentUUID)}
-                }
-            }));
-        }, 500);
+        // The sheet has asked already (MessageActionSheet): one question, not two.
+        executeDeletePostComment(commentIndex, commentUUID)
 
 
     }
@@ -267,6 +244,8 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                     isAdmin={postInfo.data.data.post_channel?.ch_is_admin}
                 />
                 <ReplyDivider replyCount={mainMessageData.commentCount}/>
+                {/* The panel's bell, in the top bar (V-699). */}
+                <PhoneBarActions><FollowThreadButton root={postUUID} replies={mainMessageData.commentCount}/></PhoneBarActions>
 
                 {/* TL;DR for long threads — parity with the desktop right panel.
                     Reuses doc-AI summarize over the attributed root + replies. */}

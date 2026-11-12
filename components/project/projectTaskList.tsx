@@ -33,7 +33,7 @@ import type { ProjectInfoRawInterface } from "@/types/project"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { CreateTaskInterface, TaskInfoInterface } from "@/types/task"
 import { accessOf, canEditTask } from "@/lib/work/access"
-import { useMyId } from "@/hooks/useMyId"
+import { useMyId, useWorkspaceAdmin } from "@/hooks/useMyId"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { PHONE_ROW_PX, TaskListTask } from "@/components/task/taskListTask"
 import { usePost } from "@/hooks/usePost"
@@ -48,8 +48,9 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SpotSearch, SpotTasks } from "@/components/ui/graphics/spots"
-import { useProjectHue } from "@/lib/projectHue"
+import { SpotSearch } from "@/components/ui/graphics/spots"
+import { NoProjectTasks } from "@/components/project/noProjectTasks"
+import { inReaderZone } from "@/lib/tasks/readerZone"
 
 
 const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: [] }
@@ -59,7 +60,6 @@ const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: 
 const NO_TASKS: TaskInfoInterface[] = []
 
 export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuery: string; projectId: string; search?: ReactNode }) => {
-    const projectHue = useProjectHue(projectId)
     const searchParams = useSearchParams()
 
     const [urlParams, setUrlParams] = useState<string>("")
@@ -87,6 +87,9 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
 
     const projectInfo = useFetch<ProjectInfoRawInterface>(
         projectId && urlParams ? GetEndpointUrl.GetProjectTaskList + "/" + projectId + "?" + urlParams : "",
+        undefined,
+        undefined,
+        inReaderZone(),
     )
 
     // The page in the address, without a navigation: router.replace fetched
@@ -270,6 +273,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
     // Which tasks the reader changes, and whether they add them, are the
     // server's answer (Work Access).
     const me = useMyId()
+    const admin = useWorkspaceAdmin()
     const project = projectInfo.data?.data
     const access = accessOf(project)
     const changesTasks = access.edit_tasks !== "none"
@@ -382,20 +386,14 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
             )}
             <Separator className="shrink-0" />
 
-            {/* A project with no tasks said nothing at all on a phone. */}
+            {/* A project with no tasks said nothing at all on a phone: it says what the board and the list say. */}
             {projectInfo.isError && taskListState.length === 0 ? (
                 <ErrorState subject="this project's tasks" onRetry={() => void projectInfo.mutate()} />
             ) : !projectInfo.isLoading && projectInfo.data && taskListState.length === 0 && (projectInfo.data.data.project_tasks?.length ?? 0) === 0 ? (
                 searchQuery ? (
                     <EmptyState illustration={<SpotSearch />} title={`No tasks match “${searchQuery}”.`} />
                 ) : (
-                    <EmptyState
-                        illustration={<SpotTasks hue={projectHue} />}
-                        title="No tasks yet"
-                        description="Make the first one, and it shows here."
-                        // The empty page's way forward, as on a computer: it had none.
-                        action={access.create_tasks ? <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button> : undefined}
-                    />
+                    <NoProjectTasks projectId={projectId} canCreate={access.create_tasks} admin={admin} />
                 )
             ) : (
             <ReorderHost>

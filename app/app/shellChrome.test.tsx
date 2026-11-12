@@ -116,7 +116,8 @@ describe("tooltips in the shell", () => {
   })
 
   it("are 24px ink labels that slide 2px, with no scale", () => {
-    const tip = read("components/ui/tooltip.tsx")
+    // The open tooltip is drawn by the lazy bridge since H2 (5 Nov): its classes live there, beside Radix.
+    const tip = read("components/ui/tooltipBridge.tsx")
     expect(tip).toMatch(/min-h-6/)
     expect(tip).toMatch(/bg-\[var\(--tooltip-bg\)\]/)
     expect(tip).toMatch(/slide-in-from-top-0\.5/)

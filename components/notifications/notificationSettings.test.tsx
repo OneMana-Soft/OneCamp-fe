@@ -33,6 +33,9 @@ const prefs = {
   email_task_status: true,
   email_comments: true,
   email_calls: true,
+  email_calendar_invites: true,
+  email_calendar_changes: true,
+  email_calendar_answers: true,
   email_channel_invites: true,
   email_only_when_offline: true,
   email_digest_frequency: "off",
@@ -170,6 +173,85 @@ describe("one control for an event, on every width (QA F-33)", () => {
     render(<NotificationPreferencesCard />)
     await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Calls" })))
     expect(post.mock.calls[0][1]).toEqual({ email_calls: false })
+  })
+})
+
+// The calendar's emails, by kind (gcal-5, head E), as Google lets each person
+// choose: a group of three switches under the other events, each saved on its
+// own key the way Calls is. A reminder by email is the reader's own ask, so it
+// has none. The keys are the server's (/notifications/preferences, the
+// reader's own row only).
+describe("the calendar's emails, by kind", () => {
+  const CALENDAR = [
+    ["Invitations and bookings", "email_calendar_invites"],
+    ["Changes and cancellations", "email_calendar_changes"],
+    ["Replies to my events", "email_calendar_answers"],
+  ] as const
+  const calendar = () => screen.getByRole("group", { name: "Calendar" })
+
+  it("is a group named Calendar, of its three switches only", () => {
+    render(<NotificationPreferencesCard />)
+    expect(within(calendar()).getAllByRole("switch").map((s) => s.getAttribute("id"))).toEqual(CALENDAR.map(([, key]) => key))
+  })
+
+  it.each(CALENDAR)("saves %s on its own key, at once, like any other event", async (name, key) => {
+    // Held in flight, so the change shows before the answer comes back.
+    post.mockReturnValue(new Promise(() => {}))
+    render(<NotificationPreferencesCard />)
+    const own = within(calendar()).getByRole("switch", { name })
+    expect(own).toHaveAttribute("aria-checked", "true")
+    await act(async () => void fireEvent.click(own))
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post.mock.calls[0][1]).toEqual({ [key]: false })
+    expect(own).toHaveAttribute("aria-checked", "false")
+  })
+
+  it("shows each as the server has it, and one an older server leaves out as on", () => {
+    const older: Record<string, unknown> = { ...prefs, email_calendar_changes: false }
+    delete older.email_calendar_answers
+    state.fetch = { ...answered(), data: { data: older, status: "success" } }
+    render(<NotificationPreferencesCard />)
+    const group = within(calendar())
+    expect(group.getByRole("switch", { name: "Invitations and bookings" })).toHaveAttribute("aria-checked", "true")
+    expect(group.getByRole("switch", { name: "Changes and cancellations" })).toHaveAttribute("aria-checked", "false")
+    expect(group.getByRole("switch", { name: "Replies to my events" })).toHaveAttribute("aria-checked", "true")
+  })
+
+  it("dims and disables with every other event while email is off", () => {
+    state.fetch = answered({ email_enabled: false })
+    render(<NotificationPreferencesCard />)
+    expect(document.querySelector("[data-email-events] .opacity-50")!.contains(calendar())).toBe(true)
+    for (const [name] of CALENDAR) expect(within(calendar()).getByRole("switch", { name })).toBeDisabled()
+  })
+})
+
+// DESIGN-BUILD-121 F1 (6 Nov): "Only when I'm away" holds back every email,
+// yet it sat under the Calendar group and read as its fourth switch, and it
+// stayed bright while email was off. It follows "Email me about activity" now,
+// dimmed and disabled with the rows below that switch, on its own key still.
+describe("only when I'm away", () => {
+  const away = () => screen.getByRole("switch", { name: "Only when I'm away" })
+
+  it("follows Email me about activity, before the kinds of email", () => {
+    render(<NotificationPreferencesCard />)
+    const order = screen.getAllByRole("switch").map((s) => s.id)
+    expect(order.indexOf("email_only_when_offline")).toBe(order.indexOf("email_enabled") + 1)
+  })
+
+  it("reads disabled with the rows below while email is off", () => {
+    state.fetch = answered({ email_enabled: false })
+    render(<NotificationPreferencesCard />)
+    expect(away()).toBeDisabled()
+    expect(document.querySelector("[data-email-events] .opacity-50")!.contains(away())).toBe(true)
+  })
+
+  it("saves on its own key, at once", async () => {
+    post.mockReturnValue(new Promise(() => {}))
+    render(<NotificationPreferencesCard />)
+    await act(async () => void fireEvent.click(away()))
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post.mock.calls[0][1]).toEqual({ email_only_when_offline: false })
+    expect(away()).toHaveAttribute("aria-checked", "false")
   })
 })
 

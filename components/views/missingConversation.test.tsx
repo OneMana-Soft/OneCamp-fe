@@ -15,6 +15,8 @@ const retried = vi.fn()
 const answerFor = (url: string) => ({ mutate: retried, ...(answers.get(url) ?? { data: undefined }) })
 
 // How many were unread is known at once: hooks/useUnreadOnOpen has its own test.
+// A call server runs here: the bar's huddle is gated on FEATURE_CALLS (UX-CHAT-H2).
+vi.mock("@/hooks/useClientConfig", async (real) => ({ ...(await real<object>()), useFeature: () => true }))
 vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => 0 }))
 vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: () => new Promise(() => {}) } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
@@ -145,7 +147,7 @@ describe("the phone's bar over a missing conversation", () => {
     expect(screen.queryByRole("link")).toBeNull()
   })
 
-  it("keeps them for a channel that is there", () => {
+  it("keeps them for a channel that is there", async () => {
     answers.set("/ch/channelBasicInfo/c1", { data: { channel_info: { ch_uuid: "c1", ch_name: "engineering", ch_member_count: 4 } } })
     draw(
       <>
@@ -157,7 +159,7 @@ describe("the phone's bar over a missing conversation", () => {
       </>,
     )
     expect(screen.getByRole("button", { name: "engineering, details" })).toBeTruthy()
-    expect(screen.getByRole("link", { name: "Start a huddle" })).toBeTruthy()
+    expect(await screen.findByRole("link", { name: "Start a huddle" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Channel options" })).toBeTruthy()
   })
 })

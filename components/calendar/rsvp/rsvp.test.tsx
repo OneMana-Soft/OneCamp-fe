@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 const toasts = vi.hoisted(() => [] as { title?: string; action?: unknown }[])
@@ -28,6 +28,7 @@ import { sameGuests, tellOf, type EventShape } from "@/lib/calendar/tellGuests"
 import { TellGuestsPrompt } from "@/components/calendar/tellGuestsDialog"
 import { ScopePrompt } from "@/components/calendar/scopePromptDialog"
 import { pinTestClock } from "@/lib/testing/testClock"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 
 // Today is TEST_TODAY wherever the code under test reads the time.
 pinTestClock()
@@ -460,6 +461,9 @@ describe("Tell guests? (D-CAL-5)", () => {
 
   it("sends, doesn't send, or goes back", () => {
     const done = vi.fn()
+    // With a mouse, Send is chosen and focused (a tap leaves it on the question: components/ui/openFocus.test).
+    const undo = putOnScreen(SCREENS["a computer"])
+    onTestFinished(undo)
     render(<TellGuestsPrompt action="change" onDone={done} />)
     expect(screen.getByRole("heading", { name: "Send an update to your guests?" })).toBeTruthy()
     expect(document.activeElement?.textContent).toBe("Send")

@@ -1,6 +1,6 @@
 "use client"
 
-import CallCard, { type CallCardProps } from "@/components/message/callCard"
+import { CallCard, type CallCardProps } from "@/components/message/callCard"
 import { useLiveCall } from "@/lib/calls/useLiveCall"
 import { huddleCallOf } from "@/lib/calls/huddleCall"
 import type { CallKind } from "@/lib/calls/callRef"

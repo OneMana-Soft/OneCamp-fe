@@ -16,11 +16,12 @@ vi.mock("@/services/agentService", async (orig) => ({
   createAgent: vi.fn(),
   updateAgent: vi.fn(),
   runAgent: vi.fn(),
+  draftAgent: vi.fn(),
   listAgentSkills: vi.fn().mockResolvedValue([]),
 }))
 
 import { AgentEditDialog } from "@/components/admin/AgentEditDialog"
-import { createAgent } from "@/services/agentService"
+import { createAgent, draftAgent, updateAgent } from "@/services/agentService"
 
 afterEach(() => {
   cleanup()
@@ -138,12 +139,86 @@ describe("the agent editor", () => {
     render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
     toStep(2)
     const group = screen.getByRole("radiogroup", { name: "Autonomy for write actions" })
-    const approval = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]')).find((r) => /Require approval/.test(r.textContent ?? ""))!
-    fireEvent.click(approval)
-    expect(approval.getAttribute("aria-checked")).toBe("true")
+    // The options' words are AUTONOMY's (ADMIN-16), so this picks "Plan, then ask" (it was "Require approval").
+    const plan = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]')).find((r) => /Plan, then ask/.test(r.textContent ?? ""))!
+    fireEvent.click(plan)
+    expect(plan.getAttribute("aria-checked")).toBe("true")
     // Each card keeps its check's slot (MenuCheck), on or off.
     for (const r of Array.from(group.querySelectorAll('[role="radio"]'))) expect(r.querySelectorAll("[data-menu-check]")).toHaveLength(1)
-    expect(approval.querySelector("[data-menu-check]")!.getAttribute("data-menu-check")).toBe("on")
+    expect(plan.querySelector("[data-menu-check]")!.getAttribute("data-menu-check")).toBe("on")
+  })
+
+  // ADMIN-16: a new agent asked nothing and acted on its own; now it asks
+  // first until someone chooses otherwise, and the choice says so.
+  it("a new agent starts on Ask first, marked Recommended, the safest option first", () => {
+    render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
+    toStep(2)
+    const group = screen.getByRole("radiogroup", { name: "Autonomy for write actions" })
+    const radios = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]'))
+    expect(radios.map((r) => r.querySelector("[data-autonomy-title]")?.textContent)).toEqual(["Ask first", "Plan, then ask", "Act on its own"])
+    expect(radios[0].getAttribute("aria-checked")).toBe("true")
+    expect(radios[0].textContent).toContain("Recommended")
+    expect(radios[0].textContent).toContain("Each change waits for your yes in Inbox, then runs as you.")
+    expect(radios.filter((r) => /Recommended/.test(r.textContent ?? ""))).toHaveLength(1)
+    // The box is a sunken note, not the legacy bordered tint.
+    const box = group.parentElement as HTMLElement
+    expect(box.className).toContain("bg-sunken")
+    expect(box.className).not.toMatch(/\bborder\b|bg-muted/)
+  })
+
+  it("no option mentions 90/10", () => {
+    render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
+    toStep(2)
+    expect(screen.getByRole("radiogroup", { name: "Autonomy for write actions" }).textContent).not.toContain("90/10")
+  })
+
+  it("an agent with no autonomy reads as Ask first", () => {
+    const agent = {
+      id: "agent-9", name: "Old helper", instructions: "Help.", enabled_tools: "[]", trigger_type: "manual", trigger_config: "{}",
+      scope: "{}", max_steps: 8, is_active: true, dm_able: false, autonomy: "", run_count: 0,
+    }
+    render(<AgentEditDialog agent={agent as never} open onClose={() => {}} onSaved={() => {}} />)
+    const group = screen.getByRole("radiogroup", { name: "Autonomy for write actions" })
+    const checked = group.querySelector('[role="radio"][aria-checked="true"]')
+    expect(checked?.querySelector("[data-autonomy-title]")?.textContent).toBe("Ask first")
+  })
+
+  // CODE-REVIEWER-264 T1: only a new agent starts on Ask first; an existing
+  // one opens on its own mode and a save sends that mode back unchanged.
+  it("an existing agent opens on its own mode and saves it unchanged", async () => {
+    vi.mocked(updateAgent).mockResolvedValue({} as never)
+    for (const [mode, title] of [["auto", "Act on its own"], ["plan", "Plan, then ask"]] as const) {
+      const agent = {
+        id: "agent-7", name: "Lookout", instructions: "Watch the launch.", enabled_tools: "[]", trigger_type: "manual", trigger_config: "{}",
+        scope: "{}", max_steps: 8, is_active: true, dm_able: false, autonomy: mode, run_count: 2,
+      }
+      const saved = vi.fn()
+      render(<AgentEditDialog agent={agent as never} open onClose={() => {}} onSaved={saved} />)
+      const group = screen.getByRole("radiogroup", { name: "Autonomy for write actions" })
+      expect(group.querySelector('[role="radio"][aria-checked="true"] [data-autonomy-title]')?.textContent, mode).toBe(title)
+      fireEvent.click(screen.getByRole("button", { name: /Save changes/ }))
+      await waitFor(() => expect(saved).toHaveBeenCalled())
+      expect(vi.mocked(updateAgent).mock.calls.at(-1)?.[1], mode).toMatchObject({ autonomy: mode })
+      cleanup()
+    }
+  })
+
+  // CODE-REVIEWER-264 T2: a drafted agent takes the draft's mode, and anything
+  // else reads as Ask first, never as acting on its own.
+  it("a drafted agent starts on the draft's mode, and on Ask first for anything else", async () => {
+    for (const [mode, title] of [["approval", "Ask first"], ["plan", "Plan, then ask"], ["", "Ask first"]] as const) {
+      vi.mocked(draftAgent).mockResolvedValue({
+        name: "Release Captain", description: "", instructions: "File the launch tasks.", enabled_tools: [], trigger_type: "manual", autonomy: mode,
+      } as never)
+      render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
+      fireEvent.change(screen.getByLabelText(/Describe your agent/), { target: { value: "File the launch tasks each morning." } })
+      fireEvent.click(screen.getByRole("button", { name: /Draft with AI/ }))
+      await waitFor(() => expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Release Captain"))
+      for (let i = 0; i < 2; i++) fireEvent.click(screen.getByRole("button", { name: /^Next/ }))
+      const group = screen.getByRole("radiogroup", { name: "Autonomy for write actions" })
+      expect(group.querySelector('[role="radio"][aria-checked="true"] [data-autonomy-title]')?.textContent, JSON.stringify(mode)).toBe(title)
+      cleanup()
+    }
   })
 
   it("chooses the trigger from a radio group", () => {

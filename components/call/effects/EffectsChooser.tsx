@@ -49,6 +49,8 @@ export default function EffectsChooser({ control, problem, columns }: { control:
         effects={control.effects}
         onBackground={control.setBackground}
         onNoise={control.setNoise}
+        onTouchUp={control.setTouchUp}
+        onLowLight={control.setLowLight}
         busy={control.busy}
         columns={columns}
         note={control.lightened ? LIGHTER_NOTE : null}

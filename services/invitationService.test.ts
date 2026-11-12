@@ -42,7 +42,15 @@ describe("inviting through the service", () => {
 describe("an invitation that is refused", () => {
   it("says the server's own reason, the capability's refusal included", async () => {
     post.mockRejectedValueOnce({ response: { status: 403, data: { code: "capability_required", capability: "invitation.create", msg: "Only admins, or people an admin allows, can invite people. Ask an admin." } } })
-    expect(await invite("ana@example.com", false)).toEqual({ ok: false, msg: "Only admins, or people an admin allows, can invite people. Ask an admin." })
+    // With the server's condition, which a caller may act on.
+    expect(await invite("ana@example.com", false)).toEqual({ ok: false, msg: "Only admins, or people an admin allows, can invite people. Ask an admin.", code: "capability_required" })
+  })
+
+  // ADMIN-02: a member who meets the free plan's limit is told its figure
+  // ("Ask an admin to remove the 25-person limit"), which only the refusal carries.
+  it("hands back a seat refusal's code and the plan's limit", async () => {
+    post.mockRejectedValueOnce({ response: { status: 403, data: { code: "seat_limit", limit: 25, msg: "This workspace is on OneCamp's free plan, which has room for 25 people, and it is full." } } })
+    expect(await invite("ana@example.com", false)).toMatchObject({ ok: false, code: "seat_limit", limit: 25 })
   })
 
   it("says it is a permission when the server gives no reason, never the connection", async () => {

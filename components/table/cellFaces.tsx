@@ -81,6 +81,8 @@ export interface CellProps {
   primary?: boolean
   readOnly?: boolean
   ctx: CellContext
+  /** It holds an edit the server asked to have again (useCellCommit's unsaved, V-583): the same text entered again is its Retry (V-640). */
+  unsaved?: boolean
   onCommit: (value: unknown) => Promise<boolean>
   onLink: (change: { add?: string[]; remove?: string[] }) => void
 }
@@ -458,6 +460,8 @@ export interface TextLive {
   /** The box holds typing of its own, which Escape puts back. */
   own: boolean
   onArea: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  /** Text put in the box, even the text it holds already (an input event, which a change isn't). */
+  onTyped: () => void
   onAreaFocus: (e: React.FocusEvent<HTMLTextAreaElement>) => void
   onAreaBlur: (e: React.FocusEvent<HTMLTextAreaElement>) => void
   onAreaKey: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
@@ -525,6 +529,7 @@ export function textMarkup({
           readOnly={!live}
           value={local}
           onChange={live?.onArea}
+          onInput={live?.onTyped}
           onFocus={live?.onAreaFocus}
           onBlur={live?.onAreaBlur}
           data-escape-own={live?.own ? "" : undefined}
@@ -543,6 +548,7 @@ export function textMarkup({
           readOnly={!live}
           value={local}
           onChange={live?.onInput}
+          onInput={live?.onTyped}
           onBlur={live?.onInputBlur}
           data-escape-own={live?.own ? "" : undefined}
           onKeyDown={live?.onInputKey}

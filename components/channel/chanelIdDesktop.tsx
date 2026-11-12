@@ -145,7 +145,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, focusComposer}: {
             )
         }
 
-        // Announcement channel: only moderators can post. Everyone else sees a
+        // Announcement channel: only channel admins can post. Everyone else sees a
         // read-only notice instead of a composer that would 403 on send.
         if (
             channelInfo.data?.channel_info.ch_post_policy === "admins_only" &&
@@ -153,7 +153,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, focusComposer}: {
         ) {
             return (
                 <ComposerNotice icon={<Megaphone />}>
-                    Only moderators can post in this announcement channel.
+                    Only channel admins can post here.
                 </ComposerNotice>
             )
         }

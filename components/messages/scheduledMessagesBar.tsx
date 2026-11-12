@@ -17,6 +17,9 @@ import { SchedulePicker } from "./scheduleSendButton"
 export function ScheduledMessagesBar({ target }: { target: string }) {
   const { items, cancel, sendNow, reschedule } = useScheduledMessages(target)
   const [open, setOpen] = React.useState(false)
+  // The list leaves with its last message and is shut when the bar comes back:
+  // only the bar's own tap opens it (V-774).
+  if (items.length === 0 && open) setOpen(false)
   if (items.length === 0) return null
   const failed = items.filter((i) => i.status === "failed").length
   const next = items.find((i) => i.status === "pending")

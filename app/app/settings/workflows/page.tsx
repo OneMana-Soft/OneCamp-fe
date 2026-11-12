@@ -10,7 +10,7 @@ import { Plus } from "@/lib/icons"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_WORKFLOW_MANAGE } from "@/services/capabilityService"
 import { settingsSection } from "@/lib/settingsSections"
-import { PermissionLockedNotice } from "@/components/admin/PlanLockedNotice"
+import { PermissionLockedNotice } from "@/components/admin/PermissionLockedNotice"
 import { SectionHeader } from "../SectionHeader"
 
 const HREF = "/app/settings/workflows"

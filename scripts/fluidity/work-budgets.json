@@ -4,7 +4,8 @@
     "measured is the median of 5 runs on beta 482460c3d, 20 Oct 2026: the computer's on P-cores at load 7 to 14; a rerun at load 25 to 37 agreed on every render count and DOM size and took 1.5 to 3 times as long. Where it is over target, max is that measure plus room for a shared machine (30% for a time, 5% for renders); where it is under, max is the target.",
     "Renders hold from run to run and machine to machine: they are enforced. Times are printed against their max until they hold on a quiet P-core slot (heavy.sh --pcore).",
     "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there.",
-    "desktop4 (21 Oct 2026, FLUIDITY-LEAD-2): a computer at 4x, for what the phone doesn't have or does differently (the board's drag, the list's keys, the timeline), never held to the phone's cpu4. Computer at 4x (surfaces.mjs --device desktop --cpu 4): median of 6 quiet P-core runs on beta 354028322, 21 Oct 2026, load 0.4-6 (FLUIDITY-LEAD-2). Where it is under target, max is the target; over it, the measure plus 30% for a time and 5% for renders."
+    "desktop4 (21 Oct 2026, FLUIDITY-LEAD-2): a computer at 4x, for what the phone doesn't have or does differently (the board's drag, the list's keys, the timeline), never held to the phone's cpu4. Computer at 4x (surfaces.mjs --device desktop --cpu 4): median of 6 quiet P-core runs on beta 354028322, 21 Oct 2026, load 0.4-6 (FLUIDITY-LEAD-2). Where it is under target, max is the target; over it, the measure plus 30% for a time and 5% for renders.",
+    "fluid-23 (FLUIDITY-11-B1 and FLUIDITY-14-B3, H0b, 5 Nov 2026): Linear's keyboard row, from the scorecard's to_win word for word; the app's own keys (lib/listKeys: C, S, P, A, X, Shift J). A phone's project list has no create button, so its create is the board's; its rows have no pickers and its selection no status (V-585), so items 3 and 4 have no phone path and the phone has the create alone. Cmd-K open with results is fluid-13's (shell-budgets.json)."
   ],
   "budgets": {
     "projectColdMs": {
@@ -445,6 +446,273 @@
         "measured": 103
       },
       "enforce": false
+    },
+    "taskComposeMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 1. C to the composer, ready to type: ≤ 100 / 200 ms. C on a computer (a phone taps the board's New task: its list has none) until the composer's title has focus. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 578 at 1x on a computer (5 runs, load 12.42-23.68), 1630 at 4x on a phone (5 runs, load 9.64-17.22). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 760,
+        "target": 100,
+        "measured": 578
+      },
+      "cpu4": {
+        "max": 2120,
+        "target": 200,
+        "measured": 1630
+      },
+      "enforce": false
+    },
+    "taskComposeRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for C (the composer's open). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 918 at 1x on a computer (5 runs, load 12.42-23.68), 1104 at 4x on a phone (5 runs, load 9.64-17.22). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 964,
+        "target": 10,
+        "measured": 918
+      },
+      "cpu4": {
+        "max": 1160,
+        "target": 10,
+        "measured": 1104
+      },
+      "enforce": true
+    },
+    "taskCreateMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 2. Enter to the new row in the list, before the server answers: ≤ 100 / 200 ms. A title in the composer, then Enter (a phone taps Create task), until the new row (a phone: card) shows, the app's own copy before the server's answer. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 47 at 1x on a computer (5 runs, load 12.42-23.68), 269 at 4x on a phone (5 runs, load 9.64-17.22). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 47
+      },
+      "cpu4": {
+        "max": 350,
+        "target": 200,
+        "measured": 269
+      },
+      "enforce": false
+    },
+    "taskCreateSettledMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 2. settled with the server ≤ 1,000 / 2,000 ms. From the same Enter until the new row carries the server's id (createTask answered, the list read again). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 762 at 1x on a computer (5 runs, load 12.42-23.68), 1924 at 4x on a phone (5 runs, load 9.64-17.22). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 762
+      },
+      "cpu4": {
+        "max": 2000,
+        "target": 2000,
+        "measured": 1924
+      },
+      "enforce": false
+    },
+    "taskCreateRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for the create's Enter. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 1021 at 1x on a computer (5 runs, load 12.42-23.68), 961 at 4x on a phone (5 runs, load 9.64-17.22). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 1073,
+        "target": 10,
+        "measured": 1021
+      },
+      "cpu4": {
+        "max": 1010,
+        "target": 10,
+        "measured": 961
+      },
+      "enforce": true
+    },
+    "taskPriorityPickerMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. S, P or A to its picker open: ≤ 100 / 200 ms. P on the row the keys are on (the list's fourth) until the priority picker's input has focus and its choices are drawn. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 295 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 390,
+        "target": 100,
+        "measured": 295
+      },
+      "enforce": false
+    },
+    "taskPriorityPickerRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for P (its picker's open). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 10662 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 11196,
+        "target": 10,
+        "measured": 10662
+      },
+      "enforce": true
+    },
+    "taskPriorityChooseMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. the choice painted on the row ≤ 100 / 200 ms. A priority typed in the picker, then Enter, until the row draws it. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 53 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 53
+      },
+      "enforce": false
+    },
+    "taskPriorityChooseRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for the priority's Enter. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 1066 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 1120,
+        "target": 10,
+        "measured": 1066
+      },
+      "enforce": true
+    },
+    "taskAssigneePickerMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. S, P or A to its picker open: ≤ 100 / 200 ms. A on the same row until the assignee picker's input has focus and its people are drawn. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 87 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 87
+      },
+      "enforce": false
+    },
+    "taskAssigneePickerRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for A (its picker's open). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 477 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 501,
+        "target": 10,
+        "measured": 477
+      },
+      "enforce": true
+    },
+    "taskAssigneeChooseMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. the choice painted on the row ≤ 100 / 200 ms. A person typed in the picker, then Enter, until the row draws them. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 37 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 37
+      },
+      "enforce": false
+    },
+    "taskAssigneeChooseRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for the assignee's Enter. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 1006 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 1057,
+        "target": 10,
+        "measured": 1006
+      },
+      "enforce": true
+    },
+    "taskStatusPickerMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. S, P or A to its picker open: ≤ 100 / 200 ms. S on the same row until the status picker's input has focus and its statuses are drawn. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 75 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 75
+      },
+      "enforce": false
+    },
+    "taskStatusPickerRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for S (its picker's open). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 228 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 240,
+        "target": 10,
+        "measured": 228
+      },
+      "enforce": true
+    },
+    "taskStatusChooseMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. the choice painted on the row ≤ 100 / 200 ms. A status typed in the picker, then Enter, until the row has left its old status's group (moved to the new one's). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 44 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 44
+      },
+      "enforce": false
+    },
+    "taskStatusChooseRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for the status's Enter. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 1318 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 1384,
+        "target": 10,
+        "measured": 1318
+      },
+      "enforce": true
+    },
+    "rendersPerSelectKey": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders per key press selecting a run of 50: X, then Shift J 49 times. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 448.3 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 471,
+        "target": 10,
+        "measured": 448.3
+      },
+      "enforce": true
+    },
+    "taskBulkPickerMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 3. S, P or A to its picker open: ≤ 100 / 200 ms. S on the 50 selected until the status picker's input has focus and its statuses are drawn. Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 111 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 150,
+        "target": 100,
+        "measured": 111
+      },
+      "enforce": false
+    },
+    "taskBulkPickerRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for S on the 50 (its picker's open). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 268 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 282,
+        "target": 10,
+        "measured": 268
+      },
+      "enforce": true
+    },
+    "taskBulkChooseMs": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 4. X on 50 tasks, then S: all 50 rows repainted ≤ 200 / 400 ms. In progress typed in the picker, then Enter, until none of the 50 still stands in its old group (each moved to In progress's). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 131 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 200,
+        "target": 200,
+        "measured": 131
+      },
+      "enforce": false
+    },
+    "taskBulkChooseRenders": {
+      "scenario": "work",
+      "owner": "FLUIDITY",
+      "source": "fluid-23 to_win (Computer 1× / phone 4×, by touch on the phone): 6. At most 10 renders a key press. Renders for the bulk status's Enter (50 rows repainted). Beta 01fe03517 on fixtures, 5 Nov 2026, P-cores: 2179 at 1x on a computer (5 runs, load 12.42-23.68). Median of the runs; times are reported (enforce false), renders held to the measure plus 5% where over the target.",
+      "cpu1": {
+        "max": 2288,
+        "target": 10,
+        "measured": 2179
+      },
+      "enforce": true
     }
   }
 }

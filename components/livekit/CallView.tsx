@@ -7,15 +7,14 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { useCallback } from "react"
-import { PreJoin } from "@/components/livekit/PreJoin"
 import { LazyVideoConference as VideoConference } from "@/components/livekit/LazyCall"
 import dynamic from "next/dynamic"
 
 // Invite's panel, loaded once someone who may let people in is in the call.
 const ConversationInvite = dynamic(() => import("@/components/livekit/ConversationInvite").then((m) => m.ConversationInvite), { ssr: false })
-import { CallEndScreen } from "@/components/livekit/CallEndScreen"
+// Accept on a ring's join, loaded only while one waits at this call's door.
+const AcceptJoin = dynamic(() => import("@/components/calls/AcceptJoin"), { ssr: false })
 import { placeInSentence } from "@/components/livekit/CallStage"
-import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
 import { peopleInCall, peopleOfSession } from "@/components/livekit/callState"
 import { useCallSession } from "@/components/livekit/useCallSession"
 import { useCallChat } from "@/components/livekit/callChat"
@@ -24,6 +23,8 @@ import { useClientConfig } from "@/hooks/useClientConfig"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { callRefOf } from "@/services/callService"
+import { CompanionMode, MemberCallEnd, MemberPreJoin, memberCompanion, useMemberCallLifecycle } from "@/components/livekit/LazyCompanion"
+import { useAccepted } from "@/lib/calls/acceptJoin"
 import type { CallTokenResponseInterface, RawUserDMInterface, UserProfileInterface } from "@/types/user"
 import type { ChannelInfoInterfaceResp } from "@/types/channel"
 
@@ -74,7 +75,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const { place, isAdmin, live } = usePlace(kind, id, self.data?.data.user_uuid)
   const transcriptionConfig = useTranscriptionConfig()
-  const life = useCallLifecycle(
+  const life = useMemberCallLifecycle(
     useCallback(
       async ({ audio, video, language }) => {
         const resp = await axiosInstance.post<{ data?: CallTokenResponseInterface }>(
@@ -91,6 +92,8 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   const callRef = callRefOf(kind, id, self.data?.data.user_uuid)
   const read = useCallSession(callRef, phase)
   const sessionId = read?.session?.id
+  // Another device of yours in this call (meet-04): a companion, present only, or Switch here.
+  const companion = memberCompanion(life, read?.session, self.data?.data.user_uuid)
   // Invite (HU13), for someone in the call who may let people in.
   const invite = callRef && read?.you?.can.includes("admit") ? <ConversationInvite callRef={callRef} /> : undefined
   // The conversation the call belongs to, beside it: the dock's Chat.
@@ -103,30 +106,37 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
     [call, id],
   )
 
+  const door = `/app/meet/${kind === "channel" ? "ch" : kind === "chat" ? "chat" : "grp"}/${id}`
+  const accepting = useAccepted(door)
+
   const backLabel = kind === "channel" && place ? `Back to ${placeInSentence(place)}` : "Back"
   if (life.phase === "left" || life.phase === "removed" || life.phase === "failed") {
-    return <CallEndScreen call={life} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
+    return <MemberCallEnd call={life} onBack={onLeave} backLabel={backLabel} embedded={embedded} companion={companion?.onJoin} />
   }
   if (life.phase === "prejoin" || life.phase === "joining") {
     const active = read ? read.live : live
     return (
-      <PreJoin
-        onJoin={life.join}
-        username={displayNameOf(self.data?.data) || ""}
-        hueId={self.data?.data.user_uuid}
-        place={place}
-        live={!!active}
-        inCall={peopleInCall(peopleOfSession(read)) ?? (kind === "channel" && active === false ? [] : undefined)}
-        recording={!!read?.recording?.on}
-        recordingBy={read?.recording?.on ? read.recording.by || null : null}
-        transcription={read?.transcription}
-        refusal={read?.you?.refusal?.msg}
-        joining={life.phase === "joining"}
-        joinError={life.joinError}
-        openUrl={typeof window === "undefined" ? undefined : new URL(`/app/meet/${kind === "channel" ? "ch" : kind === "chat" ? "chat" : "grp"}/${id}`, window.location.origin).href}
-        onCancel={onLeave}
-        embedded={embedded}
-      />
+      <>
+        {accepting && <AcceptJoin door={door} life={life} />}
+        <MemberPreJoin
+          onJoin={life.join}
+          companion={companion}
+          username={displayNameOf(self.data?.data) || ""}
+          hueId={self.data?.data.user_uuid}
+          place={place}
+          live={!!active}
+          inCall={peopleInCall(peopleOfSession(read)) ?? (kind === "channel" && active === false ? [] : undefined)}
+          recording={!!read?.recording?.on}
+          recordingBy={read?.recording?.on ? read.recording.by || null : null}
+          transcription={read?.transcription}
+          refusal={read?.you?.refusal?.msg}
+          joining={life.phase === "joining"}
+          joinError={life.joinError}
+          openUrl={typeof window === "undefined" ? undefined : new URL(door, window.location.origin).href}
+          onCancel={onLeave}
+          embedded={embedded}
+        />
+      </>
     )
   }
   return (
@@ -144,6 +154,8 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
       audio={life.choice.audio}
       video={life.choice.video}
       tracks={life.choice.tracks}
+      screen={life.screen}
+      companionMode={CompanionMode}
       sessionId={sessionId}
       lobby={read?.waiting}
       transcriptionConfig={transcriptionConfig}

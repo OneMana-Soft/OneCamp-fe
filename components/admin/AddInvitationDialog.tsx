@@ -2,13 +2,14 @@
 
 import React, { useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { AdminGet } from "@/services/endpoints/admin"
 import { Link2, MailPlus } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { InvitationListResponseInterface } from "@/types/user"
 import { useClientConfig } from "@/hooks/useClientConfig"
+import { usePlan } from "@/hooks/usePlan"
 import { describeInvitation } from "@/components/invite/InvitationOutcome"
+import { invitePromise } from "@/lib/invite/inviteCopy"
 import { InviteForm } from "@/components/invite/InviteForm"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
@@ -22,8 +23,9 @@ interface AddInvitationDialogProps {
 /**
  * The admin's invite dialog (design v3, E6): the shared chip form, plus what
  * only an admin can know. Addresses whose invitation is still live are
- * neutral "Already invited" chips; on a free plan, a line under the field
- * says when the addresses would not fit the seats left. It stays open once
+ * neutral "Already invited" chips; on a free plan, the limit note under the
+ * field says when the addresses would not fit the seats left, with the way
+ * past the limit. It stays open once
  * sent: whether or not the emails went, the links are the admin's to hand
  * over, and closing on "sent" is how the old version hid that nothing had
  * been sent at all.
@@ -31,9 +33,7 @@ interface AddInvitationDialogProps {
 export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({ open, onOpenChange, onSuccess }) => {
   const { email_enabled } = useClientConfig()
   const { data: list, mutate } = useFetch<InvitationListResponseInterface>(AdminGet.GetAdminInvitationList)
-  const seats = useFetch<{ data: { used: number; limit: number } }>(open ? GetEndpointUrl.AdminSeats : "")
-  const seat = seats.data?.data
-  const seatsLeft = seat && seat.limit > 0 ? Math.max(0, seat.limit - seat.used) : undefined
+  const plan = usePlan({ enabled: open })
   const known = useMemo(
     () => new Set((list?.data ?? []).filter((i) => i.status !== "joined" && i.status !== "expired").map((i) => i.email.toLowerCase())),
     [list],
@@ -52,13 +52,12 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({ open, 
           key={round}
           asAdmin
           name="invite-email"
-          sendVerb={email_enabled ? "Send" : "Create"}
+          emailOn={email_enabled}
           known={known}
-          seatsLeft={seatsLeft}
-          seatLimit={seat?.limit || undefined}
+          seats={plan.limit > 0 ? { used: plan.used, limit: plan.limit, links: plan.links } : undefined}
           onCreated={() => {
             void mutate()
-            void seats.mutate()
+            void plan.mutate()
             onSuccess()
           }}
           onClose={() => close(false)}
@@ -74,10 +73,7 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({ open, 
               <DialogDescription>
                 {single
                   ? `An invitation for ${single.email}.`
-                  : summary ||
-                    (email_enabled
-                      ? "They get an email with a link to join, good for seven days."
-                      : "This server cannot send email yet. You will get a link to share with them yourself.")}
+                  : summary || invitePromise(email_enabled)}
               </DialogDescription>
             </DialogHeader>
           )}

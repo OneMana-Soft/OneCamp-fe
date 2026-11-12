@@ -22,34 +22,38 @@ export function joinLinkOf(event: Pick<CalendarEventInterface, "event_descriptio
 export interface EventCallLinks {
   join: string
   share: string
-  /** Its own call (calendar B11): joined here in the app, in the same tab. */
+  /** Its own call (calendar B11) or its own room (gcal-15): joined here in the app, in the same tab. */
   own: boolean
 }
 
 /**
- * An event's call: its own (calendar B11), which a member joins in the app as
- * themselves and anyone else at its address, at origin; else the link in its
- * notes, both ways. Null for none. Pure.
+ * An event's call, the one rule: its guest call (calendar B11), which a member
+ * joins in the app as themselves and anyone else at its address, at origin;
+ * else the link in its notes, both ways; else its own room (gcal-15), given
+ * only to a reader who may join it. Null for none. Pure.
  */
-export function eventCallOf(event: Pick<CalendarEventInterface, "event_description" | "event_call">, origin: string): EventCallLinks | null {
+export function eventCallOf(event: Pick<CalendarEventInterface, "event_description" | "event_call" | "event_room">, origin: string): EventCallLinks | null {
   const own = event.event_call
   if (own?.slug) return { join: roomDoorPath(own.slug), share: origin + own.address, own: true }
   const link = joinLinkOf(event)
-  return link ? { join: link, share: link, own: false } : null
+  if (link) return { join: link, share: link, own: false }
+  const room = event.event_room?.join
+  return room ? { join: room, share: origin + room, own: true } : null
 }
 
 /**
  * What an event offers about its own call (calendar B11) to someone who may
- * change it: take its call off, or add one; nothing on Google's copy, and no
- * new call once it has ended or while its notes carry a call link. Pure.
+ * change it: take its call off, or add a guest link while guest_links (gcal-15);
+ * nothing on Google's copy, and no new call once it has ended or while its
+ * notes carry a call link. Pure.
  */
 export function eventCallChoice(
-  event: Pick<CalendarEventInterface, "event_description" | "event_call">,
+  event: Pick<CalendarEventInterface, "event_description" | "event_call" | "event_room">,
   { mayChange, google, ended }: { mayChange: boolean; google: boolean; ended: boolean },
 ): "add" | "remove" | null {
   if (!mayChange || google) return null
   if (event.event_call) return "remove"
-  return ended || joinLinkOf(event) ? null : "add"
+  return ended || joinLinkOf(event) || !event.event_room?.guest_links ? null : "add"
 }
 
 /**
@@ -59,7 +63,7 @@ export function eventCallChoice(
  * outside: members never wait in its lobby, so there is nothing to choose. Pure.
  */
 export function inviteesSkipLobby(
-  event: Pick<CalendarEventInterface, "event_description" | "event_call">,
+  event: Pick<CalendarEventInterface, "event_description" | "event_call" | "event_room">,
   { outsideGuests, ...may }: { mayChange: boolean; google: boolean; ended: boolean; outsideGuests: boolean },
 ): boolean | null {
   if (!outsideGuests || may.ended || eventCallChoice(event, may) !== "remove") return null

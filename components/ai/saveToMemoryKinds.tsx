@@ -14,7 +14,7 @@ import { useState, type ComponentType } from "react"
 import axios from "axios"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, HelpCircle, Zap } from "@/lib/icons"
+import { MEMORY_KIND_ICON } from "@/lib/ui/memoryKindIcon"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { captureMemory, type MemoryKind } from "@/services/memoryService"
 import { saysWriteFailure } from "@/lib/http/writeSaid"
@@ -22,9 +22,9 @@ import { saysWriteFailure } from "@/lib/http/writeSaid"
 type CaptureKind = Exclude<MemoryKind, "glossary">
 
 const KINDS: { kind: CaptureKind; label: string; hint: string; Icon: ComponentType<{ className?: string }> }[] = [
-  { kind: "decision", label: "Decision", hint: "A choice the team made", Icon: Zap },
-  { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: CheckCircle2 },
-  { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: HelpCircle },
+  { kind: "decision", label: "Decision", hint: "A choice the team made", Icon: MEMORY_KIND_ICON.decision },
+  { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: MEMORY_KIND_ICON.commitment },
+  { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: MEMORY_KIND_ICON.question },
 ]
 
 const errMessage = (e: unknown): string => {
