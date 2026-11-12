@@ -14,6 +14,8 @@ const s = vi.hoisted(() => ({
   mutate: vi.fn(async () => undefined),
   post: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ data: { msg: "Saved." } })),
   toast: vi.fn(),
+  // The app's ONE connectivity state (lib/connectivity isAppOffline), as OfflineNotice says it.
+  offline: false,
 }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string, _shape?: unknown, _fetch?: unknown, request?: unknown) => {
@@ -24,6 +26,7 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: [] }) }))
 vi.mock("@/hooks/use-toast", () => ({ toast: s.toast }))
+vi.mock("@/lib/connectivity", () => ({ isAppOffline: () => s.offline, subscribeConnectivity: () => () => {} }))
 vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: s.post } }))
 
 const { TaskLinks } = await import("@/components/task/TaskLinks")
@@ -56,6 +59,7 @@ afterEach(() => {
   s.reads = {}
   s.asked = []
   s.config = {}
+  s.offline = false
   vi.clearAllMocks()
 })
 
@@ -140,6 +144,57 @@ describe("a task's links (J-H web)", () => {
     expect(retry.hasAttribute("data-part-failed")).toBe(true)
     fireEvent.click(retry)
     expect(s.mutate).toHaveBeenCalled()
+  })
+
+  // Main, 12 Nov (the public gate's offlineTasks reds): offline, a read with no answer kept stays quiet, in the words the
+  // rest of the panel waits in (the Points row's: ui/part-retry PartLater); Try again is for a read that failed online.
+  const FAILURE = /Couldn't|Try again|Not found|still waiting to be sent/
+  it("F6 online, a read that fails says so with Try again, never the offline words", () => {
+    s.reads["/task/a/links"] = { isError: Object.assign(new Error("Request failed with status code 500"), { isAxiosError: true, response: { status: 500 } }) }
+    panel(true)
+    expect(screen.getByRole("button", { name: /Couldn't load the linked tasks\. Try again/ })).toBeTruthy()
+    expect(document.querySelector("[data-part-later]")).toBeNull()
+    expect(screen.queryByText(/back online/)).toBeNull()
+  })
+
+  it("F6 offline with no answer kept, the read waits quietly: the panel's offline words, no failure, no Try again, no spinner", () => {
+    s.offline = true
+    // useFetch's own wait: a read the network left unanswered, nothing on screen for it, while the app is offline.
+    s.reads["/task/a/links"] = { isLoading: true }
+    const { container } = panel(true)
+    const later = container.querySelector("[data-task-links] [data-part-later]")
+    expect(later?.textContent).toBe("Linked tasks show when you're back online")
+    expect(container.textContent).not.toMatch(FAILURE)
+    expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull()
+    expect(screen.queryByLabelText("Loading")).toBeNull()
+    // Nothing to add a link to until it's read.
+    expect(screen.queryByRole("button", { name: "Link a task" })).toBeNull()
+  })
+
+  it("F6 offline, a read that failed before the network went says no failure either", () => {
+    s.offline = true
+    s.reads["/task/a/links"] = { isError: Object.assign(new Error("Request failed with status code 500"), { isAxiosError: true, response: { status: 500 } }) }
+    const { container } = panel(true)
+    expect(container.querySelector("[data-part-later]")?.textContent).toBe("Linked tasks show when you're back online")
+    expect(container.textContent).not.toMatch(FAILURE)
+  })
+
+  it("F6 a task made on this device, which the server hasn't got: its read is the device's \"still waiting\", said as the offline words", () => {
+    const made = "offline-7c1e2d3f-0a4b-4c5d-8e6f-7a8b9c0d1e2f"
+    const words = "What you made offline is still waiting to be sent. Try this again once it's sent."
+    s.reads[`/task/${made}/links`] = { isError: Object.assign(new Error(words), { isAxiosError: true, response: { status: 404, data: { msg: words } } }) }
+    const { container } = render(<TaskLinks taskUUID={made} projectUUID="p" canEdit onOpen={vi.fn()} />)
+    expect(container.querySelector("[data-part-later]")?.textContent).toBe("Linked tasks show when you're back online")
+    expect(container.textContent).not.toMatch(FAILURE)
+    expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull()
+  })
+
+  it("F6 offline, the links the device has still show, with no offline words", () => {
+    s.offline = true
+    s.reads["/task/a/links"] = { data: LINKS }
+    const { container } = panel(false)
+    expect(screen.getByRole("button", { name: "Book the venue" })).toBeTruthy()
+    expect(container.querySelector("[data-part-later]")).toBeNull()
   })
 
   it("F10 the picker's read of the project's tasks says a failure itself: the compact error with Try again, and no toast", async () => {

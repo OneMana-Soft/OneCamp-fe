@@ -14,18 +14,22 @@ import { rowRemove, statusLead } from "@/components/task/TaskDependencies"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { Button } from "@/components/ui/button"
 import { ChipChoice } from "@/components/ui/chipChoice"
-import { PartRetry } from "@/components/ui/part-retry"
+import { PartLater, PartRetry } from "@/components/ui/part-retry"
 import { toast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { isAppOffline, subscribeConnectivity } from "@/lib/connectivity"
 import { Loader2, Plus, X } from "@/lib/icons"
+import { madeOffline } from "@/lib/offline/offlineId"
 import { isClosedStatus, statusOptionOf } from "@/lib/taskStatus"
 import { inlineAdd } from "@/lib/ui/fieldRow"
 import { panelSection } from "@/lib/ui/propertyRow"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { changeTaskLink, LINK_WAYS, taskLinksPath, type TaskLink } from "@/lib/work/hierarchy"
+
+const notOffline = () => false
 
 export function TaskLinks({
   taskUUID,
@@ -42,6 +46,12 @@ export function TaskLinks({
   const { options } = useProjectStatuses(projectUUID)
   const [busy, setBusy] = React.useState(false)
   const links = read.data?.links
+  // With no links on screen, the section waits for the network, in the panel's offline words (the Points row's), when
+  // the app is offline (lib/connectivity, the state OfflineNotice says), or for a task made on this device that the
+  // server hasn't got yet, whose read the device answers "still waiting" (lib/offline/http). Never a failure there:
+  // the read asks again once the app is back (hooks/useFetch). Try again is for a read that failed online.
+  const offline = React.useSyncExternalStore(subscribeConnectivity, isAppOffline, notOffline)
+  const later = !links && (offline || madeOffline(taskUUID))
 
   const change = async (link: Pick<TaskLink, "kind" | "direction"> & { other: string }, remove: boolean) => {
     setBusy(true)
@@ -68,10 +78,12 @@ export function TaskLinks({
     <section className="mb-4" data-task-links="">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className={panelSection}>Linked tasks</h3>
-        {(busy || (read.isLoading && !links)) && <Loader2 aria-label="Loading" className="size-3.5 animate-spin text-muted-foreground" />}
+        {(busy || (read.isLoading && !links && !later)) && <Loader2 aria-label="Loading" className="size-3.5 animate-spin text-muted-foreground" />}
       </div>
       <div className="grid gap-3">
-        {read.isError && !links ? (
+        {later ? (
+          <PartLater>{"Linked tasks show when you're back online"}</PartLater>
+        ) : read.isError && !links ? (
           <PartRetry what="the linked tasks" retry={() => void read.mutate()} />
         ) : (
           <>

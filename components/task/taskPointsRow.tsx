@@ -6,9 +6,8 @@
 // A task made with no network gets the scale the device holds for its project
 // (lib/offline/tasks); when it holds none, the row says when points can be set.
 
-import { PartRetry } from "@/components/ui/part-retry"
+import { PartLater, PartRetry } from "@/components/ui/part-retry"
 import { Skeleton } from "@/components/ui/skeleton"
-import { WifiOff } from "@/lib/icons"
 import { loadFailure } from "@/lib/http/loadFailure"
 import { madeOffline } from "@/lib/offline/offlineId"
 import { lazyPart } from "@/lib/lazy/lazyPart"
@@ -58,10 +57,7 @@ export function TaskPointsRow({ taskUUID, projectUUID, points, canEdit }: Omit<P
       {scale ? (
         <value.Part taskUUID={taskUUID} projectUUID={projectUUID} points={points} scale={scale} canEdit={canEdit} />
       ) : madeOffline(taskUUID) ? (
-        <span className="inline-flex min-h-8 min-w-0 items-center gap-1.5 py-1 text-meta leading-snug text-ink-3" data-points-later="">
-          <WifiOff className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0">{"Set points when you're back online"}</span>
-        </span>
+        <PartLater data-points-later="">{"Set points when you're back online"}</PartLater>
       ) : (
         <PartRetry what="the points" retry={() => void estimates.mutate()} />
       )}
