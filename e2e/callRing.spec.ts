@@ -233,20 +233,37 @@ for (const view of views) {
       const YOU: FakePerson = { identity: SAM.user_uuid, name: SAM.user_full_name, attributes: { "oc.role": "host", "oc.can": "" } }
       const TOKEN = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: SAM.user_uuid, name: SAM.user_full_name, video: {} })).toString("base64url")}.c2lnbmF0dXJl`
       const rings: string[] = []
+      // The call names you in it once your tab has joined, not before: a call that names you in it before you join
+      // is you on another device, and its door offers Switch here (UX-CALLS-H6 meet-04, LazyCompanion inElsewhere).
+      let joined = async () => false
+      const current = async () => ({
+        msg: "ok",
+        data: {
+          live: true,
+          session: { id: SID, people: (await joined()) ? [{ identity: SAM.user_uuid, user_uuid: SAM.user_uuid, name: SAM.user_full_name, role: "host", in_call: true }] : [] },
+          you: { role: "host", can: [] },
+        },
+      })
       await stubBackend(tab, testInfo, {
         ...shell,
         [`/user/profile/${JONAS.user_uuid}`]: { msg: "ok", data: JONAS },
         "/dm/getCallToken": { msg: "ok", data: { token: TOKEN } },
-        "/calls/current": { msg: "ok", data: { live: true, session: { id: SID, people: [{ identity: SAM.user_uuid, user_uuid: SAM.user_uuid, name: SAM.user_full_name, role: "host", in_call: true }] }, you: { role: "host", can: [] } } },
+        "/calls/current": current,
         [`/calls/${SID}/ring`]: (url: URL) => {
           rings.push(url.pathname)
           return withStatus(429, { msg: "Still ringing", code: "still_ringing" })
         },
       })
       const server = await fakeCallServer(tab, { you: YOU, others: [] })
+      // Asked while the page loads, the media connection is not up: a read then is from before the join.
+      joined = () => server.connected().catch(() => false)
       await tab.goto(`/app/meet/chat/${JONAS.user_uuid}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
       await tab.getByRole("button", { name: "Join now" }).click({ timeout: 60_000 })
       await expect.poll(server.connected, { timeout: 30_000 }).toBe(true)
+      // The server's word on your join (LiveKit's Joined webhook, business/CallState Publish: MESSAGE_CALL_STATE to the
+      // DM's two people, as the app's MQTT handler passes it on): the call's read is read again and names you in it.
+      // CallRings' "You're in a call" comes from that read, never from the media connection (sessionYouAreIn).
+      await tab.evaluate((id) => window.dispatchEvent(new CustomEvent("onecamp:call-state", { detail: { resource_kind: "dm", resource_id: id } })), [JONAS.user_uuid, SAM.user_uuid].sort().join(" "))
 
       // Your call rings Jonas: alone on the stage, his face and Ringing Jonas….
       const stage = tab.locator(`[data-caller-ring="${SID}"]`)
