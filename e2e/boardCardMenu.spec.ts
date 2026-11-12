@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { openSideMenu } from "./menuReach"
-import { openBoard } from "./projectBoard"
+import { P, openBoard } from "./projectBoard"
 
 // The board card's menu on a laptop (1280 x 860), as the owner found it on 18
 // Oct 2026: "the move to option in task card looks broken since nothing shows
@@ -25,6 +25,14 @@ const FIRST = "00000000-0000-4000-8000-100000000000"
 
 test.describe("the board card's menu on a laptop", () => {
   test.use({ viewport: { width: 1280, height: 860 } })
+  // The board's columns (hooks/useBoardColumns, kept per board): To do, In progress and Done, as these menus were laid
+  // out before Backlog and In review showed by default (UX-PROJECTS-H1).
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(({ key, columns }) => localStorage.getItem(key) ?? localStorage.setItem(key, JSON.stringify(columns)), {
+      key: `oc_board_columns:${P}`,
+      columns: { backlog: false, inReview: false },
+    })
+  })
 
   for (const theme of ["light", "dark"] as const) {
     test(`Move to… opens beside the menu under the pointer, and a column moves the card (${theme})`, async ({ page }, testInfo) => {

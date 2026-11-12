@@ -84,6 +84,12 @@ async function openBoard(page: Page, testInfo: TestInfo) {
     }
   }
   await stubBackend(page, testInfo, answers)
+  // The board's columns (hooks/useBoardColumns, kept per board): To do, In progress and Done, as these swipes, holds and
+  // touches were laid out before Backlog and In review showed by default (UX-PROJECTS-H1).
+  await page.addInitScript(({ key, columns }) => localStorage.getItem(key) ?? localStorage.setItem(key, JSON.stringify(columns)), {
+    key: `oc_board_columns:${P}`,
+    columns: { backlog: false, inReview: false },
+  })
   const moves: { task_status: string; task_uuid: string }[] = []
   page.on("request", (r) => {
     if (r.method() === "POST" && r.url().includes("/task/moveTask")) moves.push(JSON.parse(r.postData() ?? "{}"))
