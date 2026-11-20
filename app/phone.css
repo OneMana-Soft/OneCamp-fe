@@ -233,11 +233,18 @@ html[data-task-sheet] [data-task-body="panel"] {
    their sizes. A doc's Find (docEditor/FindBar, data-doc-find) keeps its own
    sizes: on a phone its first row holds four of the buttons beside the field,
    and at 44px each the field keeps 88px to type in, short of six letters at
-   16px (docs/findBar.spec measures 96 and 36px buttons). */
+   16px (docs/findBar.spec measures 96 and 36px buttons). So a second rule,
+   keyed on the same marks inside that bar and more specific, hands its
+   buttons back the sizes their classes draw (28px, 36 on a phone):
+   revert-layer drops this sheet's size and keeps the classes'. */
 @media (pointer: coarse) {
-  :is([data-find-icon], [data-segment-icon]):not([data-doc-find] *) {
+  :is([data-find-icon], [data-segment-icon]) {
     width: var(--m-hit);
     height: var(--m-hit);
+  }
+  [data-doc-find] :is([data-find-icon], [data-segment-icon]) {
+    width: revert-layer;
+    height: revert-layer;
   }
   [data-find-field] {
     height: var(--m-hit);
