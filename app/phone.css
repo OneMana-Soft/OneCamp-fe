@@ -230,9 +230,12 @@ html[data-task-sheet] [data-task-body="panel"] {
    take a neighbour's tap; so under a finger each is drawn 44px, and so is
    Find's field beside them, which a reach can't extend. A mouse keeps them as
    they are. Keyed on the primitives' own marks; unlayered, so it wins over
-   their sizes. */
+   their sizes. A doc's Find (docEditor/FindBar, data-doc-find) keeps its own
+   sizes: on a phone its first row holds four of the buttons beside the field,
+   and at 44px each the field keeps 88px to type in, short of six letters at
+   16px (docs/findBar.spec measures 96 and 36px buttons). */
 @media (pointer: coarse) {
-  :is([data-find-icon], [data-segment-icon]) {
+  :is([data-find-icon], [data-segment-icon]):not([data-doc-find] *) {
     width: var(--m-hit);
     height: var(--m-hit);
   }
@@ -332,7 +335,7 @@ html[data-task-sheet] [data-task-body="panel"] {
 /* C2. A page's own tools in the top bar (PhoneBarActions): 40px targets,
    20px glyphs in ink-2, r12, the control press. The size sits outside the
    layers: a page's tool keeps its desktop classes (size-7, a 16px glyph), and
-   any utility outranks a layer, so the AI page's tools were 28px with 16px
+   any utility outranks a layer, so a page's tools were 28px with 16px
    glyphs (QA SH-04). */
 [data-phone-bar-actions] > button {
   width: 40px;

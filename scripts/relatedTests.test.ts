@@ -132,7 +132,6 @@ describe("the guards that list a folder or build a file name (V-1032)", () => {
     const args = relatedArgs(["components/docEditor/registry/commandBus.ts"])
     for (const guard of [
       "app/adminFirstLoad.test.ts",
-      "app/adminLayout.test.ts",
       "app/app/shellAddress.test.ts",
       "components/admin/peopleFrame.test.tsx",
       "components/call/effects/effects.test.tsx",

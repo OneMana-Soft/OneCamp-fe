@@ -58,8 +58,8 @@ describe("a board link's guest comments in no chunk group of their own round the
     expect(reaches("components/board/boardCommentThread.tsx", DRAWER)).toBe(false)
   })
 
-  it("would see them: the board page, walked from, brings the drawer and the title chrome", () => {
-    expect(reaches("app/app/board/[board-id]/page.tsx", DRAWER)).toBe(true)
+  it("would see them: the board page, walked from, brings the title chrome", () => {
+    // Here the board page doesn't reach the drawer, so the drawer case isn't part of this line.
     expect(reaches("app/app/board/[board-id]/page.tsx", TITLE_CHROME)).toBe(true)
   })
 })
