@@ -19,6 +19,7 @@ import { notesText, notesToSave } from "@/lib/calendar/notes"
 import { movedEnd } from "@/lib/calendar/spanMove"
 import { sameName } from "@/lib/utils/sameZone"
 import { filesOf, type EventFile } from "@/lib/calendar/eventFiles"
+import { roomIds, sameRooms, type Room } from "@/lib/calendar/rooms"
 import { atWall, wallOf } from "@/lib/utils/date/wallTime"
 import { dayKey } from "@/lib/calendar/availability"
 
@@ -71,6 +72,8 @@ export interface EventFormValues {
   hue: string
   /** The docs, boards and tasks it links (calendar head B), by reference. */
   files: EventFile[]
+  /** The rooms it books (gcal-6), as the server named them. */
+  rooms: Room[]
   showAs: ShowAs
   visibility: Visibility
   guestsCanModify: boolean
@@ -126,6 +129,7 @@ export function newEventValues(zone: string, now: Date, at?: { start: Date; end?
     notesKept: "",
     hue: "",
     files: [],
+    rooms: [],
     showAs: "busy",
     visibility: "default",
     guestsCanModify: false,
@@ -183,6 +187,7 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
     notesKept: e.notes ?? "",
     hue: e.hue ?? "",
     files: filesOf(e),
+    rooms: e.rooms ?? [],
     showAs: e.transparency === "transparent" ? "free" : "busy",
     visibility: e.visibility === "public" || e.visibility === "private" ? e.visibility : "default",
     guestsCanModify: !!e.guests_can_modify,
@@ -231,7 +236,23 @@ export function listedValues(e: CalendarEventInterface, zone: string): EventForm
 
 /** What stops a save, at its field, in the form's words. */
 /** What stops a save, at its field; "calendar" is the server's refusal of the one picked (V-594), which names it. */
-export type FormProblem = { field: "title" | "end" | "task" | "calendar"; message: string; calendar?: string }
+export type FormProblem = { field: "title" | "end" | "task" | "calendar" | "rooms"; message: string; calendar?: string; /** A room refusal: the rooms and slot it was for (roomsKey), and whether a room was taken, for the way forward. */ rooms?: string; taken?: boolean }
+
+/**
+ * The span a room is booked for: the event's times, or its whole days on its
+ * own zone's clock (the end the midnight after the last), as the server books them.
+ */
+export function roomSpan(v: EventFormValues): { start: Date; end: Date } {
+  if (!v.allDay) return { start: v.start, end: v.end }
+  const midnight = (d: Date) => atWall({ year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), minutes: 0 }, v.zone)
+  return { start: midnight(parseISO(v.startDate)), end: midnight(addDays(parseISO(v.lastDate), 1)) }
+}
+
+/** The rooms a refusal was for and their slot, as one key: it holds while they stay chosen for it; another time clears it. */
+export function roomsKey(v: EventFormValues): string {
+  const { start, end } = roomSpan(v)
+  return `${roomIds(v.rooms).sort().join(",")}@${start.getTime()}-${end.getTime()}`
+}
 
 /** Why the values can't be saved; null when they can. */
 export function formProblem(v: EventFormValues): FormProblem | null {
@@ -255,7 +276,7 @@ export function formProblem(v: EventFormValues): FormProblem | null {
  */
 export function problemNow(v: EventFormValues, said: FormProblem | null | undefined): FormProblem | null {
   if (!said) return null
-  return formProblem(v) ?? (said.field === "calendar" && said.calendar === v.calendarId ? said : null)
+  return formProblem(v) ?? ((said.field === "calendar" && said.calendar === v.calendarId) || (said.field === "rooms" && said.rooms === roomsKey(v)) ? said : null)
 }
 
 /** The times as the API takes them: dates for all day (the end the day after the last), or instants in their zones. */
@@ -316,6 +337,7 @@ export function eventInput(v: EventFormValues): ApiEventInput & { files?: EventF
     ...(v.rule && repeats(v) ? { recurrence: { rule: v.rule } } : {}),
     ...(v.hue ? { hue: v.hue } : {}),
     ...(meets(v) && v.files.length ? { files: v.files } : {}),
+    ...(meets(v) && v.rooms.length ? { rooms: roomIds(v.rooms) } : {}),
     // A working location is never busy.
     transparency: v.showAs === "free" || v.kind === "working_location" ? "transparent" : "opaque",
     visibility: v.visibility,
@@ -363,6 +385,7 @@ export function eventPatch(v: EventFormValues, was: EventFormValues, sequence: n
   }
   if (v.rule !== was.rule) p.recurrence = { rule: repeats(v) ? v.rule : "" }
   if (!sameGuests(v.guests, was.guests)) p.attendees = meets(v) ? guestInputs(v.guests) : []
+  if (!sameRooms(v.rooms, was.rooms)) p.rooms = meets(v) ? roomIds(v.rooms) : []
   if (v.hue !== was.hue) p.hue = v.hue
   if (v.showAs !== was.showAs) p.transparency = v.showAs === "free" ? "transparent" : "opaque"
   if (v.visibility !== was.visibility) p.visibility = v.visibility

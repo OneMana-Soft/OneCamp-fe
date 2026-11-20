@@ -233,7 +233,11 @@ for (const phone of [false, true]) {
       await expect.poll(() => close.evaluate((el) => getComputedStyle(el).opacity)).toBe("1")
       const b = (await close.boundingBox())!
       const hits = (x: number, y: number) => page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest(".toast-close"), [x, y])
-      for (const [x, y] of [[b.x - 19, b.y - 19], [b.x + 23, b.y - 19], [b.x - 19, b.y + 23], [b.x + 23, b.y + 23]]) expect(await hits(x, y)).toBe(true)
+      // V-917: the reach goes 24 px above the × and stops at the card's top edge (14 px above the ×'s foot), 44 px tall
+      // with the × itself, so nothing of it lies over the card's own row, Retry's top right included.
+      const reach = [[b.x - 19, b.y - 23], [b.x + b.width + 3, b.y - 23], [b.x - 19, b.y + b.height - 15], [b.x + b.width / 2, b.y + b.height - 2]]
+      for (const [x, y] of reach) expect(await hits(x, y), `the ×'s reach at ${x - b.x},${y - b.y}`).toBe(true)
+      expect(await hits(b.x - 19, b.y + b.height), "the ×'s reach below the card's top edge").toBe(false)
       const r = (await offer.getByRole("button", { name: "Retry", exact: true }).boundingBox())!
       expect(await hits(r.x + r.width / 2, r.y + r.height / 2)).toBe(false)
       await page.touchscreen.tap(b.x - 18, b.y - 18)

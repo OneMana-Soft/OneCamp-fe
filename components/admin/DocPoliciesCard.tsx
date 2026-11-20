@@ -234,8 +234,8 @@ function HandOverDialog({ person, onClose }: { person: DepartedPerson; onClose()
       toast({
         title: `Handed on to ${to[0].name}`,
         description: moved.failed
-          ? `${workSummary(moved.docs, moved.links)} moved. ${moved.failed === 1 ? "1 doc" : `${moved.failed} docs`} couldn't, so try again later.`
-          : `${workSummary(moved.docs, moved.links)} moved.`,
+          ? `${workSummary(moved.docs, moved.boards ?? 0, moved.links)} moved. ${moved.failed} couldn't, so try again later.`
+          : `${workSummary(moved.docs, moved.boards ?? 0, moved.links)} moved.`,
       })
       await appMutate(DEPARTED_KEY)
       onClose()
@@ -249,7 +249,7 @@ function HandOverDialog({ person, onClose }: { person: DepartedPerson; onClose()
   return (
     <ResponsiveDialog
       title={`Hand on ${person.name}'s work`}
-      description={`${workSummary(person.docs, person.links)}. Each doc's people see who it went to, and links and pages keep working.`}
+      description={`${workSummary(person.docs, person.boards ?? 0, person.links)}. Each doc's and board's people see who it went to, and links and pages keep working.`}
       onClose={onClose}
       footer={
         <>
@@ -287,7 +287,7 @@ function DepartedRow({ person, onHandOver }: { person: DepartedPerson; onHandOve
       <div className="min-w-0 flex-1">
         <p className="truncate text-ui font-medium text-ink">{person.name}</p>
         <p className="text-meta text-ink-3">
-          Left {left} · {workSummary(person.docs, person.links)}
+          Left {left} · {workSummary(person.docs, person.boards ?? 0, person.links)}
         </p>
       </div>
       {/* On a phone the actions take their own line under the name, so the name isn't squeezed. */}
@@ -347,7 +347,7 @@ function DepartedSection() {
     body = (
       <SettingsCard>
         <p className="px-4 py-3 text-ui text-ink-2" data-departed-empty="">
-          No one who left has docs or links under their name.
+          No one who left has docs, boards or links under their name.
         </p>
       </SettingsCard>
     )

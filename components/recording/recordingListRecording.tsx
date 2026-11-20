@@ -126,6 +126,7 @@ export const RecordingListRecording = ({
     return (
         <HubRow
             data-recording-row=""
+            data-recording-id={rec.recording_egress_id}
             density="two-line"
             leadSize={40}
             lead={<RecordingThumb hueKey={recordingHueKey(rec, currentUserId)} seconds={rec.recording_duration} nothing={nothing?.state} />}

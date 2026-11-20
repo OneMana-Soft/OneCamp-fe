@@ -11,13 +11,16 @@ import { CARD_KINDS, boardEmbedOf, cardLinksIn, layCards, linkPopupOverCard, onl
 import { clientToScene, viewCentre } from "@/lib/board/viewport"
 import { isBoardElement } from "@/lib/board/elementTypes"
 import { codeBlockOf, isCodeBlock } from "@/lib/board/codeBlocks"
-import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import type { CardPointer, EmbedView } from "./boardEmbeds"
 import { adminHostsNow } from "@/components/minimal-tiptap/extensions/links-media/hosts"
 import { ensureAdminHosts } from "@/components/minimal-tiptap/extensions/links-media/adminHosts"
 import { useForeignSheets } from "@/components/ui/foreignSheets"
 import { EXCALIDRAW_SHEETS } from "./excalidrawSheets"
 import { useToolRowEdgeFade } from "./toolRow"
+import { CodeBlockView } from "./boardLoaders"
+import type * as Y from "yjs"
+import { useLayeredScene } from "@/lib/board/layers"
+import type { Guarded } from "@/lib/board/binding"
 
 /**
  * One card or frame, drawn again only when its link, the place or its pointer
@@ -36,7 +39,7 @@ const EmbedSlot = React.memo(function EmbedSlot({ link, view: View, place, point
 
 // A code block, drawn from its element (its link only says "code block"): loaded on demand, so the highlighter
 // stays off the board's first load, and drawn again only when its content or its pointer state changes (miro-17).
-const CodeBlockView = lazyPiece(() => import("./boardCodeBlock").then((m) => ({ default: m.BoardCodeBlock })))
+// Its loader lives with the canvas (boardLoaders, V-1083).
 const CodeSlot = React.memo(function CodeSlot({ id, data, pointer, edit }: { id: string; data: unknown; pointer: CardPointer; edit?: (id: string) => void }) {
   const block = React.useMemo(() => codeBlockOf({ type: "embeddable", customData: data as Record<string, unknown> }), [data])
   if (!block) return null
@@ -78,9 +81,18 @@ export default function BoardExcalidraw({
   sheetMode = false,
   embedView,
   onEditCode,
+  doc,
   ...props
-}: ExcalidrawProps & {
+}: Omit<ExcalidrawProps, "excalidrawAPI"> & {
+  /** The API this board draws through: the layers' (DrawnApi), whose guard every store takes (guardOf). */
+  excalidrawAPI?: (api: DrawnApi) => void
   guest?: boolean
+  /**
+   * The board's shared document: its layers (miro-03, lib/board/layers) say what this canvas draws. A hidden layer's
+   * elements are left out of the scene here, the one place every board draws through (the board, a call's stage, the
+   * guest's view), so Find, export and the board's AI never see them either.
+   */
+  doc?: Y.Doc
   /**
    * Overlays are sheets here (the page's useSheetMode, which alone decides: a
    * phone): Excalidraw's own menus, pickers, dialogs and library dock on the
@@ -119,13 +131,16 @@ export default function BoardExcalidraw({
   // A phone's tool row scrolls sideways and fades as every strip does, on every board.
   useToolRowEdgeFade(wrapRef)
   const editable = !guest && !props.viewModeEnabled
+  // Layers follow whoever may draw, a share link's guest too (CR-413 N3): new work never stays on a hidden layer.
+  const { wrap: inLayers, changed: layersChanged } = useLayeredScene(doc, !props.viewModeEnabled)
 
   const handleApi = React.useCallback(
-    (api: ExcalidrawImperativeAPI) => {
+    (drawn: ExcalidrawImperativeAPI) => {
+      const api = inLayers(drawn)
       apiRef.current = api
       excalidrawAPI?.(api)
     },
-    [excalidrawAPI],
+    [excalidrawAPI, inLayers],
   )
   const handlePointer = React.useCallback<NonNullable<ExcalidrawProps["onPointerUpdate"]>>(
     (p) => {
@@ -196,9 +211,10 @@ export default function BoardExcalidraw({
     (elements, appState, files) => {
       wrapRef.current?.toggleAttribute("data-card-link-popup", linkPopupOverCard(elements, appState))
       wrapRef.current?.toggleAttribute("data-cards-selected", onlyCardsSelected(elements, appState))
+      layersChanged(elements)
       onChange?.(elements, appState, files)
     },
-    [onChange],
+    [onChange, layersChanged],
   )
 
   return (
@@ -223,11 +239,14 @@ export default function BoardExcalidraw({
  * first load carries none of it. A guest's viewer draws the default, with no
  * account to tell the log with.
  */
+/** Excalidraw's API as a board hands it out: wrapped by the layers, carrying their store guard (CR-413 N1). */
+export type DrawnApi = ExcalidrawImperativeAPI & Guarded
+
 export function MemberExcalidraw({ boardId, ...props }: React.ComponentProps<typeof BoardExcalidraw> & { boardId: string }) {
-  const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
+  const [api, setApi] = React.useState<DrawnApi | null>(null)
   const { excalidrawAPI } = props
   const handleApi = React.useCallback(
-    (instance: ExcalidrawImperativeAPI) => {
+    (instance: DrawnApi) => {
       setApi(instance)
       excalidrawAPI?.(instance)
     },

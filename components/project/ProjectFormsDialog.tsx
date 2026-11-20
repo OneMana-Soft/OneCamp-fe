@@ -41,6 +41,9 @@ import { blankForm, formHue, formUrl, moveField, newFieldId, type FormField, typ
 import { MAX_QUESTIONS, MAX_SECTIONS, columnsAsQuestions, formProblem, questionFor, rowNeeds, tidyForm, withoutItem, type FormColumn } from "@/lib/forms/build"
 import type { TaskField } from "@/lib/tasks/fields"
 import { LookSection, lookShown, type Picked } from "@/components/project/forms/LookSection"
+import { useFetch } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { ProjectInfoRawInterface } from "@/types/project"
 
 /** Forms are Projects': their tiles sit on its hue (lib/areas' projects, once that lands). */
 const PROJECTS_HUE: CampHue = "moss"
@@ -78,6 +81,9 @@ function FormsDialog({ home, onClose }: { home: Home; onClose: () => void }) {
   const url = own ? tableFormsKey(own.id) : projectFormsKey(home.id)
   const { forms, loaded, isLoading, isError, refresh: mutate } = useFormsAt(url, OWN_ERRORS)
   const fields = useProjectFields(own ? undefined : projectId)
+  // The project's triage (linear-21 H3 e), from the info its page already read: a form's tasks wait there first.
+  const info = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectInfo}/${projectId}` : "")
+  const triageOn = !!info.data?.data.project_triage?.on
   const [view, setView] = React.useState<View>({ kind: "list" })
   // The tables: named in the list, and picked from in the editor; a table's own forms name only it.
   const tableForms = forms.some((f) => f.target_table)
@@ -152,7 +158,7 @@ function FormsDialog({ home, onClose }: { home: Home; onClose: () => void }) {
   let title = "Forms"
   let description = own
     ? `Share a form with anyone: each answer adds a row to ${own.name}, its questions filling the columns you choose.`
-    : "Share a form with anyone: each answer becomes a task here, or a row in a table, filled in as you choose."
+    : `Share a form with anyone: each answer becomes a task here, or a row in a table, filled in as you choose.${triageOn ? " While triage is on, its answers arrive in Triage first." : ""}`
   let body: React.ReactNode
   let footer: React.ReactNode = <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
 

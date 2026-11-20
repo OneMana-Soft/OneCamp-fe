@@ -16,7 +16,7 @@ export interface BoardPoll extends Poll {
 
 export const boardPollsUrl = (board: string) => `/board/polls/${encodeURIComponent(board)}`
 
-export const guestBoardPollsPath = (token: string) => `/guest/board-polls/${encodeURIComponent(token)}`
+export const guestBoardPollsPath = (token: string, k = "") => `/guest/board-polls/${encodeURIComponent(token)}${k ? `?k=${encodeURIComponent(k)}` : ""}`
 
 /** The polls in an answer (anything else is none). */
 export function readPolls(data: unknown): BoardPoll[] {

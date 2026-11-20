@@ -343,7 +343,7 @@ button.doc-code-lang:focus-visible svg {
   margin-top: 0;
   margin-bottom: 0;
 }
-.minimal-tiptap-editor .ProseMirror :is(td, th) > * + * {
+.minimal-tiptap-editor .ProseMirror :is(td, th) > :where(:not(:first-child)) {
   margin-top: 4px;
 }
 /* A cell's colour, by name (N15): the doc colour grid's tints. */

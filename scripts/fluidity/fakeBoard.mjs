@@ -203,17 +203,25 @@ export function liveElements(doc) {
 
 /**
  * GET /board/getBoardInfo/<uuid>'s answer for `user`: board.levels maps a
- * user's token to "edit" or "view" (anything else can't open it).
+ * user's token to "full" (a co-owner), "edit", "comment" or "view" (anything
+ * else can't open it), and what the board offers them of its roles as the
+ * server says it (miro-32): sharing (editors only while board.editorsShare
+ * isn't false), its settings (owner and co-owners) and the comment box.
  */
 export function boardInfo(board, user, owner) {
   const level = board.levels?.[user.token] ?? "none"
   const now = new Date().toISOString()
+  const edits = level === "edit" || level === "full"
+  const manages = user.user_uuid === owner.user_uuid || level === "full"
   return {
     board_uuid: board.uuid,
     board_title: board.title,
-    board_edit_access: level === "edit" ? 1 : 0,
+    board_edit_access: edits ? 1 : 0,
     board_read_access: level === "none" ? 0 : 1,
-    board_comment_access: 0,
+    board_comment_access: level === "comment" ? 1 : 0,
+    board_can_comment: edits || level === "comment",
+    board_can_manage: manages,
+    board_can_share: manages || (edits && board.editorsShare !== false),
     board_private: false,
     board_created_by: { user_uuid: owner.user_uuid, user_name: owner.user_name, user_full_name: owner.user_full_name },
     board_editing_users: [],

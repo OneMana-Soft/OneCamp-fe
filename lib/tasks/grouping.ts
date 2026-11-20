@@ -14,6 +14,8 @@
  *   assignee  by person, then Unassigned.
  *   type      by the task's type (linear-03): a built-in one (Bug) is one
  *             group across projects; plain work is Task's; built-ins first.
+ *   sla       Breached, At risk, On track, Met, No SLA (linear-24); by
+ *             status when no row carries an SLA (a guest, SLAs off).
  *   none      one group.
  */
 import { isClosedStatus, statusOptionOf, statusOptions, type StatusOption } from "@/lib/taskStatus"
@@ -21,8 +23,9 @@ import type { TaskInfoInterface, TaskWorkType } from "@/types/task"
 import { displayNameOf } from "@/lib/personName"
 import { dueDateOf } from "@/components/task/DueLabel"
 import { PLAIN_TASK, compareTypes, typeKey, typeOf } from "@/lib/work/workTypes"
+import { NO_SLA, SLA_CHOICES } from "@/lib/work/slaFilter"
 
-export type Grouping = "status" | "when" | "priority" | "project" | "assignee" | "type" | "none"
+export type Grouping = "status" | "when" | "priority" | "project" | "assignee" | "type" | "sla" | "none"
 
 export const GROUPINGS: { value: Grouping; label: string }[] = [
   { value: "status", label: "Status" },
@@ -30,6 +33,7 @@ export const GROUPINGS: { value: Grouping; label: string }[] = [
   { value: "priority", label: "Priority" },
   { value: "assignee", label: "Assignee" },
   { value: "type", label: "Type" },
+  { value: "sla", label: "SLA" },
   { value: "project", label: "Project" },
   { value: "none", label: "None" },
 ]
@@ -95,6 +99,17 @@ const KEYED: Record<"project" | "assignee" | "type", { id: (t: TaskInfoInterface
   type: { id: (t) => typeKey(t.task_work_type), label: (t) => typeOf(t.task_work_type).name, none: PLAIN_TASK.name },
 }
 
+/** Groups in a fixed order, keyed by `keyOf`: a key none of them has goes last, and groups with nothing step aside. */
+function fixedGroups(tasks: TaskInfoInterface[], prefix: string, fixed: Pick<TaskGroup, "key" | "label" | "danger" | "closed">[], keyOf: (t: TaskInfoInterface) => string): TaskGroup[] {
+  const groups = fixed.map((g) => ({ ...g, key: `${prefix}:${g.key}`, tasks: [] as TaskInfoInterface[] }))
+  for (const t of tasks) {
+    if (t.task_status === "canceled") continue
+    const i = fixed.findIndex((g) => g.key === keyOf(t))
+    groups[i < 0 ? groups.length - 1 : i].tasks.push(t)
+  }
+  return groups.filter((g) => g.tasks.length > 0)
+}
+
 /**
  * The groups for tasks. `pinned` holds tasks in the group they were in for a
  * moment (a finished row waits in its group for the undo window before it
@@ -107,7 +122,7 @@ export function groupTasks(
   { now = new Date(), pinned }: { now?: Date; pinned?: Map<string, string> } = {},
 ): TaskGroup[] {
   const pin = (t: TaskInfoInterface) => pinned?.get(t.task_uuid)
-  if (by === "status") {
+  if (by === "status" || (by === "sla" && !tasks.some((t) => t.task_sla))) {
     const groups: TaskGroup[] = []
     for (const category of STATUS_ORDER) {
       for (const o of options.filter((x) => x.category === category)) {
@@ -137,15 +152,8 @@ export function groupTasks(
     // all-clear); the rest when they hold something.
     return order.map((w) => groups.get(w)!).filter((g) => g.tasks.length > 0 || g.when === "today")
   }
-  if (by === "priority") {
-    const groups = PRIORITY_GROUPS.map((p) => ({ key: `priority:${p.key}`, label: p.label, tasks: [] as TaskInfoInterface[] }))
-    for (const t of tasks) {
-      if (t.task_status === "canceled") continue
-      const i = PRIORITY_GROUPS.findIndex((p) => p.key === (t.task_priority || ""))
-      groups[i < 0 ? groups.length - 1 : i].tasks.push(t)
-    }
-    return groups.filter((g) => g.tasks.length > 0)
-  }
+  if (by === "priority") return fixedGroups(tasks, "priority", PRIORITY_GROUPS, (t) => t.task_priority || "")
+  if (by === "sla") return fixedGroups(tasks, "sla", SLA_CHOICES.map((c) => ({ ...c, danger: c.tone === "danger" })), (t) => t.task_sla?.state ?? NO_SLA)
   if (by === "project" || by === "assignee" || by === "type") {
     const keyed = KEYED[by]
     const groups = new Map<string, TaskGroup>()

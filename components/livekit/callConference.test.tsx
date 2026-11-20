@@ -136,11 +136,13 @@ vi.mock("./greenRoomLiveKit", () => ({
 }))
 
 import { VideoConference } from "./VideoConference"
+import { LazyAskedNotice } from "./LazyAskedNotice"
 
 // V-138 rule 2: the call's whole lazy chain (what the tests' screens load, from LAZY_CODE_TRACE=1: the pieces next/dynamic
 // brings, and the peer connection and quality watch every mount asks for) is warmed once before the tests, so a test that
 // meets a knock, a panel or the stage after its first mount spends none of its 5 s waiting for code.
 warmBeforeTests(
+  () => import("./AskedNotice"),
   () => import("@/lib/calls/onePeerConnection"),
   () => import("./callQuality"),
   () => import("./KnockBar"),
@@ -171,7 +173,7 @@ afterEach(() => {
 })
 
 const call = (props: Partial<Parameters<typeof VideoConference>[0]> = {}) => (
-  <VideoConference token="t" serverUrl="ws://lk" isAdmin={false} lobby={undefined} transcriptionConfig={{ mode: "frontend" }} {...props} />
+  <VideoConference token="t" serverUrl="ws://lk" isAdmin={false} lobby={undefined} transcriptionConfig={{ mode: "frontend" }} asked={props.guest ? LazyAskedNotice : undefined} {...props} />
 )
 const recognition = () => FakeRecognition.made[0]
 
@@ -443,12 +445,15 @@ describe("CALLS-07: a recording asks first and tells everyone (UX-CALLS-H1)", ()
 
   it("everyone else is shown who started recording, with Got it and Leave call, once per recording", async () => {
     const onDisconnect = vi.fn()
-    await act(async () => render(call({ onDisconnect })))
+    await act(async () => render(call({ onDisconnect, place: "in #launch" })))
     expect(notice()).toBeNull()
     room.metadata = recording("Maya Chen", "EG_1")
     await act(async () => room.emit("roomMetadataChanged", room.metadata))
     expect(notice()?.textContent).toContain("Maya Chen started recording")
-    expect(notice()?.textContent).toContain("Everything said and shown from now is recorded. Leave if you don't want to be in it.")
+    // Where it stays, in the words the starter's confirm used (D-CL-7).
+    expect(notice()?.textContent).toContain(
+      "Everything said and shown from now is recorded. The recording goes to #launch's recordings, where its members can watch it. Leave if you don't want to be in it.",
+    )
     await act(async () => fireEvent.click(within(notice() as HTMLElement).getByRole("button", { name: "Got it" })))
     expect(notice()).toBeNull()
     // The same recording again (the room's metadata changes for something else): read already.
@@ -1142,5 +1147,246 @@ describe("a companion's call", () => {
     await waitFor(() => expect(onDisconnect).toHaveBeenCalled(), { timeout: 3000 })
     expect(onDisconnect).toHaveBeenCalledTimes(1)
     expect(onDisconnect.mock.lastCall?.[0], "no reason: a plain leave").toBeUndefined()
+  })
+})
+
+// zoom-09 C1 (owner O1, D-CL-7): each person's OK or Leave on a recording or captions notice is kept by the server as
+// an audit row of who agreed to what was on, read from the room as they answer. A member is told and goes on; a guest
+// answers first: nothing of theirs is sent until they press OK, and Esc does nothing.
+describe("zoom-09: a notice's OK or Leave is kept, and a guest answers before anything of theirs is sent", () => {
+  const fetched = vi.fn((..._a: unknown[]) => Promise.resolve(new Response("{}", { status: 200 })))
+  beforeEach(() => vi.stubGlobal("fetch", fetched))
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    fetched.mockReset()
+    fetched.mockImplementation(() => Promise.resolve(new Response("{}", { status: 200 })))
+  })
+  const recorded = () =>
+    fetched.mock.calls
+      .filter(([u]) => /consent$/.test(String(u)))
+      .map(([u, i]) => ({ url: String(u), body: JSON.parse(String((i as RequestInit).body)), keepalive: (i as RequestInit).keepalive, auth: new Headers((i as RequestInit).headers).get("Authorization") }))
+  const both = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_1", transcription: on })
+  const notice = (n: string) => document.querySelector(`[data-${n}-notice]`) as HTMLElement | null
+
+  it("a member's Got it and Esc are OKs of what the room shows as they answer, by their session", async () => {
+    room.metadata = both
+    await act(async () => render(call({ sessionId: "s1" })))
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    await act(async () => fireEvent.click(within(notice("recording")!).getByRole("button", { name: "Got it" })))
+    await act(async () => fireEvent.keyDown(notice("captions")!, { key: "Escape" }))
+    const ok = { url: expect.stringMatching(/\/calls\/s1\/consent$/), body: { choice: "accepted", recording: "EG_1", transcript: 1 }, keepalive: false, auth: null }
+    expect(recorded()).toEqual([ok, ok])
+    expect(notice("recording")).toBeNull()
+    expect(notice("captions")).toBeNull()
+  })
+
+  it("Leave call on either notice is kept as left, then leaves; a record that fails says nothing", async () => {
+    fetched.mockImplementation(() => Promise.reject(new TypeError("Failed to fetch")))
+    const onDisconnect = vi.fn()
+    room.metadata = both
+    await act(async () => render(call({ sessionId: "s1", onDisconnect })))
+    await act(async () => fireEvent.click(within(notice("captions")!).getByRole("button", { name: "Leave call" })))
+    expect(recorded()).toMatchObject([{ body: { choice: "left", recording: "EG_1", transcript: 1 }, keepalive: true }])
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(1))
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it("a guest who joins a recorded call sends nothing until they press OK on each notice, kept by their call token; Esc does nothing", async () => {
+    room.metadata = both
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: true })))
+    const asked = await screen.findByRole("alertdialog")
+    expect(asked.hasAttribute("data-recording-notice")).toBe(true)
+    // A guest has no place: the recording stays with this conversation (D-CL-7).
+    expect(asked.textContent).toContain("The recording stays with this conversation, for the people in it.")
+    expect(within(asked).getByRole("button", { name: "OK" })).toBeTruthy()
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+    expect(lp.setCameraEnabled).not.toHaveBeenCalled()
+    await act(async () => fireEvent.keyDown(asked, { key: "Escape" }))
+    expect(screen.getByRole("alertdialog")).toBe(asked)
+    await act(async () => fireEvent.click(within(asked).getByRole("button", { name: "OK" })))
+    // One notice at a time: then the captions'.
+    await waitFor(() => expect(screen.getByRole("alertdialog").hasAttribute("data-captions-notice")).toBe(true))
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+    await act(async () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true))
+    expect(lp.setCameraEnabled).toHaveBeenCalledWith(true)
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    const okByToken = { url: expect.stringMatching(/\/guest\/calls\/consent$/), body: { choice: "accepted", recording: "EG_1", transcript: 1 }, keepalive: false, auth: "Bearer gtok" }
+    expect(recorded()).toEqual([okByToken, okByToken])
+  })
+
+  it("a guest's OK that isn't kept says so quietly and holds them; the next OK that is lets them in", async () => {
+    fetched.mockImplementation(() => Promise.resolve(new Response("{}", { status: 500 })))
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_1" })
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: false })))
+    const asked = await screen.findByRole("alertdialog")
+    await act(async () => fireEvent.click(within(asked).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(asked.querySelector("[data-notice-retry]")?.textContent).toMatch(/try again/i))
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+    fetched.mockImplementation(() => Promise.resolve(new Response("{}", { status: 200 })))
+    await act(async () => fireEvent.click(within(asked).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true))
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("a guest's retry line is the notice's they answered: the next notice to ask, or the next recording's, starts clean (CR-279 N1)", async () => {
+    fetched.mockImplementation(() => Promise.resolve(new Response("{}", { status: 500 })))
+    room.metadata = both
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: false })))
+    const asked = await screen.findByRole("alertdialog")
+    await act(async () => fireEvent.click(within(asked).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(asked.querySelector("[data-notice-retry]")).not.toBeNull())
+    // The recording stops before the guest's OK is kept: the captions notice asks next, with no word of that failure.
+    room.metadata = metadata({ transcription: on })
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await waitFor(() => expect(screen.getByRole("alertdialog").hasAttribute("data-captions-notice")).toBe(true))
+    expect(document.querySelector("[data-notice-retry]")).toBeNull()
+    await act(async () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(document.querySelector("[data-notice-retry]")).not.toBeNull())
+    // A new recording asks afresh.
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_2", transcription: on })
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await waitFor(() => expect(screen.getByRole("alertdialog").hasAttribute("data-recording-notice")).toBe(true))
+    expect(document.querySelector("[data-notice-retry]")).toBeNull()
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+  })
+
+  // A server that takes the answer and never answers back, until the 8 s wait is up (AbortSignal.timeout, stubbed so the
+  // test says when). Returns the moment the wait ends.
+  const hanging = () => {
+    const stops: AbortController[] = []
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const stop = new AbortController()
+      stops.push(stop)
+      return stop.signal
+    })
+    onTestFinished(() => timeout.mockRestore())
+    fetched.mockImplementation((u: unknown, i?: unknown) =>
+      /consent$/.test(String(u))
+        ? new Promise<Response>((_, reject) => (i as RequestInit).signal?.addEventListener("abort", () => reject(new DOMException("The operation timed out.", "TimeoutError"))))
+        : Promise.resolve(new Response("{}", { status: 200 })),
+    )
+    return () => act(async () => stops.forEach((stop) => stop.abort()))
+  }
+
+  it("a guest's OK the server never answers stops being waited for and says to try again, as a failure does; they're still held", async () => {
+    const timeUp = hanging()
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_1" })
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: false })))
+    const asked = await screen.findByRole("alertdialog")
+    await act(async () => fireEvent.click(within(asked).getByRole("button", { name: "OK" })))
+    expect(asked.querySelector("[data-notice-retry]")).toBeNull()
+    await timeUp()
+    await waitFor(() => expect(asked.querySelector("[data-notice-retry]")?.textContent).toMatch(/try again/i))
+    expect(screen.getByRole("alertdialog")).toBe(asked)
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+  })
+
+  // A server that keeps each answer until the test gives it, kept or not, by the order they were sent. Giving one waits
+  // until the call has taken it.
+  const holding = () => {
+    const answers: ((r: Response) => void)[] = []
+    fetched.mockImplementation((u: unknown) =>
+      /consent$/.test(String(u)) ? new Promise<Response>((answer) => void answers.push(answer)) : Promise.resolve(new Response("{}", { status: 200 })),
+    )
+    return (n: number, kept: boolean) =>
+      act(async () => {
+        answers[n](new Response("{}", { status: kept ? 200 : 500 }))
+        await new Promise((taken) => setTimeout(taken))
+      })
+  }
+
+  it("a guest's OK on captions, with no recording, is busy while it's out, a second press sends nothing, and it closes once kept (CR-281 F1)", async () => {
+    const answer = holding()
+    room.metadata = metadata({ transcription: on })
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: false })))
+    const asked = await screen.findByRole("alertdialog")
+    expect(asked.hasAttribute("data-captions-notice")).toBe(true)
+    const ok = within(asked).getByRole("button", { name: "OK" })
+    await act(async () => fireEvent.click(ok))
+    expect(ok.getAttribute("aria-busy")).toBe("true")
+    await act(async () => fireEvent.click(ok))
+    expect(recorded()).toHaveLength(1)
+    await answer(0, true)
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it.each([
+    { kept: true, as: "kept" },
+    { kept: false, as: "not kept" },
+  ])("a guest's OK on the recording that lands $as after captions asked leaves the captions OK busy, with no retry line (CR-281 F1)", async ({ kept }) => {
+    const answer = holding()
+    room.metadata = both
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: false })))
+    const asked = await screen.findByRole("alertdialog")
+    await act(async () => fireEvent.click(within(asked).getByRole("button", { name: "OK" })))
+    // The recording stops while that OK is out: captions asks next, and the guest's OK on it is out too.
+    room.metadata = metadata({ transcription: on })
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    await waitFor(() => expect(screen.getByRole("alertdialog").hasAttribute("data-captions-notice")).toBe(true))
+    const ok = within(screen.getByRole("alertdialog")).getByRole("button", { name: "OK" })
+    expect(ok.getAttribute("aria-busy")).toBeNull()
+    await act(async () => fireEvent.click(ok))
+    expect(ok.getAttribute("aria-busy")).toBe("true")
+    // The recording's answer lands: it answers the recording, so the captions OK is still out.
+    await answer(0, kept)
+    expect(ok.getAttribute("aria-busy")).toBe("true")
+    expect(document.querySelector("[data-notice-retry]")).toBeNull()
+    await act(async () => fireEvent.click(ok))
+    expect(recorded()).toHaveLength(2)
+    await answer(1, true)
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it("a member's Got it closes at once while the server hangs, and its wait ending says nothing", async () => {
+    const timeUp = hanging()
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_1" })
+    await act(async () => render(call({ sessionId: "s1" })))
+    await act(async () => fireEvent.click(within(notice("recording")!).getByRole("button", { name: "Got it" })))
+    expect(notice("recording")).toBeNull()
+    await timeUp()
+    expect(toast).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-notice-retry]")).toBeNull()
+  })
+
+  it("a recording that starts while a guest is in the call turns their microphone and camera off until OK, then back as they were", async () => {
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: true })))
+    expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true)
+    vi.mocked(lp.setMicrophoneEnabled).mockClear()
+    vi.mocked(lp.setCameraEnabled).mockClear()
+    const was = { mic: lp.isMicrophoneEnabled, camera: (lp as { isCameraEnabled?: boolean }).isCameraEnabled }
+    Object.assign(lp, { isMicrophoneEnabled: true, isCameraEnabled: true })
+    onTestFinished(() => void Object.assign(lp, { isMicrophoneEnabled: was.mic, isCameraEnabled: was.camera }))
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_2" })
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(false)
+    expect(lp.setCameraEnabled).toHaveBeenCalledWith(false)
+    await act(async () => fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(lp.setMicrophoneEnabled).toHaveBeenLastCalledWith(true))
+    expect(lp.setCameraEnabled).toHaveBeenLastCalledWith(true)
+  })
+
+  it("a recording that starts while a guest's camera is still coming on turns it off as it lands, then back after OK", async () => {
+    let cameraLands = () => {}
+    vi.mocked(lp.setCameraEnabled).mockImplementationOnce(() => new Promise<void>((resolve) => void (cameraLands = resolve)))
+    const was = { mic: lp.isMicrophoneEnabled, camera: (lp as { isCameraEnabled?: boolean }).isCameraEnabled }
+    Object.assign(lp, { isMicrophoneEnabled: true, isCameraEnabled: false })
+    onTestFinished(() => void Object.assign(lp, { isMicrophoneEnabled: was.mic, isCameraEnabled: was.camera }))
+    await act(async () => render(call({ guest: true, token: "gtok", transcriptionConfig: undefined, audio: true, video: true })))
+    expect(lp.setCameraEnabled).toHaveBeenCalledWith(true)
+    vi.mocked(lp.setMicrophoneEnabled).mockClear()
+    vi.mocked(lp.setCameraEnabled).mockClear()
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", egressID: "EG_2" })
+    await act(async () => room.emit("roomMetadataChanged", room.metadata))
+    expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(false)
+    // The camera was asked for before the notice and lands after it: it never stays on while they're asked.
+    Object.assign(lp, { isCameraEnabled: true })
+    await act(async () => cameraLands())
+    expect(lp.setCameraEnabled).toHaveBeenLastCalledWith(false)
+    await act(async () => fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "OK" })))
+    await waitFor(() => expect(lp.setMicrophoneEnabled).toHaveBeenLastCalledWith(true))
+    expect(lp.setCameraEnabled).toHaveBeenLastCalledWith(true)
   })
 })

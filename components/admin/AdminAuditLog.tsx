@@ -152,15 +152,27 @@ export function CategoryChip({ category, className }: { category: string; classN
     )
 }
 
-/** Who acted, at 22px: a person's circle, an agent's square, the system's bot square. */
+/** A guest's call-privacy row (zoom-09) has no account: "guest · <name>" from the row, else "". Pure. */
+export function guestActor(entry: Pick<AuditEntry, "action" | "metadata">): string {
+    if (!entry.action.startsWith("call.privacy.") || !entry.metadata) return ""
+    try {
+        const m = JSON.parse(entry.metadata) as { guest?: unknown; name?: unknown }
+        return m.guest === true ? `guest · ${typeof m.name === "string" && m.name ? m.name : "unnamed"}` : ""
+    } catch {
+        return ""
+    }
+}
+
+/** Who acted, at 22px: a person's circle (a guest's too), an agent's square, the system's bot square. */
 function ActorMark({ entry }: { entry: AuditEntry }) {
+    const guest = entry.actor_email ? "" : guestActor(entry)
     if (entry.actor_kind === "agent")
         return (
             <span className="audit-actor inline-flex" title="An agent">
                 <AgentAvatar />
             </span>
         )
-    if (entry.actor_kind === "system" || !entry.actor_email)
+    if (entry.actor_kind === "system" || (!entry.actor_email && !guest))
         return (
             <span className="audit-actor inline-flex" title="The system">
                 <BotAvatar>
@@ -168,9 +180,9 @@ function ActorMark({ entry }: { entry: AuditEntry }) {
                 </BotAvatar>
             </span>
         )
-    const name = entry.actor_email.split("@")[0]
+    const name = guest ? guest.slice(8) : entry.actor_email!.split("@")[0]
     return (
-        <Avatar className="audit-actor size-[22px]" title={entry.actor_email}>
+        <Avatar className="audit-actor size-[22px]" title={guest || entry.actor_email}>
             <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(name))}>{getNameInitials(name).charAt(0)}</AvatarFallback>
         </Avatar>
     )
@@ -256,7 +268,7 @@ function AuditRow({
                             {entry.actor_kind === "agent" && <span>agent · </span>}
                             {initiator && (unattendedKinds.has(initiator) ? <span className="text-camp-sun-ink">{`${initiator}, nobody watching · `}</span> : <span>{`${initiator} · `}</span>)}
                             {entry.actor_kind === "system" && <span>system · </span>}
-                            {entry.actor_email || "Unknown"}
+                            {entry.actor_email || guestActor(entry) || "Unknown"}
                         </span>
                     </span>
                     {reason && (
@@ -288,7 +300,7 @@ function AuditRow({
                             <dt className="text-ink-3">When</dt>
                             <dd>{valid ? shortDateTime(d) : entry.created_at}</dd>
                             <dt className="text-ink-3">Who</dt>
-                            <dd className="break-words">{entry.actor_email || "Unknown"}</dd>
+                            <dd className="break-words">{entry.actor_email || guestActor(entry) || "Unknown"}</dd>
                             {entry.ip_address && (
                                 <>
                                     <dt className="text-ink-3">IP</dt>

@@ -51,7 +51,8 @@ describe("a notification item", () => {
     const unread = render(<ActivityCard activity={mention} unread onToggleRead={() => {}} />).container.innerHTML
     cleanup()
     const read = render(<ActivityCard activity={mention} unread={false} onToggleRead={() => {}} />).container.innerHTML
-    const strip = (h: string) => h.replace(/ data-read=""/g, "").replace(/ data-unread=""/g, "").replace(/Mark (un)?read/g, "").replace(/<svg[\s\S]*?<\/svg>/g, "")
+    // Actions' menu trigger carries an id React makes per render (radix-…).
+    const strip = (h: string) => h.replace(/ id="radix-[^"]*"/g, "").replace(/ data-read=""/g, "").replace(/ data-unread=""/g, "").replace(/Mark (un)?read/g, "").replace(/<svg[\s\S]*?<\/svg>/g, "")
     expect(strip(unread)).toBe(strip(read))
     expect(unread).toContain("hub-unread-dot")
   })

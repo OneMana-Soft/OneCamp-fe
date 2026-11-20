@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { pinTestClock } from "@/lib/testing/testClock"
 
@@ -6,6 +6,13 @@ import { pinTestClock } from "@/lib/testing/testClock"
 // it used to show as an icon must still be reachable, by name.
 
 const dispatched: Array<{ type: string; payload?: { key?: string; data?: { title?: string; description?: string; confirmText?: string; destructive?: boolean; onConfirm?: () => unknown } } }> = []
+// The project's SLA settings read (linear-24 W2): each call's `when` is kept, and the read comes back (a member's)
+// only with slaRead; otherwise it is refused (a guest's 403), so most tests see no SLA entry.
+const slaAsked: boolean[] = []
+let slaRead = false
+vi.mock("@/hooks/useSlaView", () => ({
+  useSlaView: (_project: string, when: boolean) => (slaAsked.push(when), { shows: false, read: when && slaRead, refused: when && !slaRead }),
+}))
 vi.mock("react-redux", () => ({ useDispatch: () => (a: (typeof dispatched)[number]) => void dispatched.push(a), useSelector: () => undefined }))
 // The cache keys read again after a change, as the app's mutate is asked.
 const reread: unknown[] = []
@@ -180,5 +187,30 @@ describe("the project header's actions", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Saved for later" }))
     expect(laterRemove).toHaveBeenCalledWith("l9")
     laterSaved = undefined
+  })
+})
+
+describe("the SLAs entry in the project's actions (linear-24 W2, CR-346 F1)", () => {
+  beforeEach(() => {
+    slaAsked.length = 0
+    slaRead = false
+  })
+
+  it("the project's first load asks nothing about SLAs: opening its actions asks, and a member is offered the entry", () => {
+    slaRead = true
+    render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
+    expect(slaAsked.length).toBeGreaterThan(0)
+    expect(slaAsked.some(Boolean)).toBe(false)
+    openMenu()
+    expect(slaAsked.at(-1)).toBe(true)
+    expect(screen.getByRole("menuitem", { name: "SLAs" })).toBeTruthy()
+  })
+
+  it("a guest, whose read is refused, is offered no SLAs entry with its actions open (V-1011)", () => {
+    render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    expect(slaAsked.at(-1)).toBe(true)
+    expect(screen.getByRole("menuitem", { name: "Rules that run work" })).toBeTruthy()
+    expect(screen.queryByRole("menuitem", { name: "SLAs" })).toBeNull()
   })
 })

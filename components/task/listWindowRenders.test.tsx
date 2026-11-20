@@ -71,10 +71,17 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  reveals.length = 0
 })
 
-/** The page's scroller as a computer lays it out: 800 px tall, scrolled where the test puts it. jsdom lays nothing out. */
+/**
+ * The page's scroller as a computer lays it out: 800 px tall at the screen's top, scrolled where the test or the keys'
+ * reveal puts it. jsdom lays nothing out. Backlog's rows sit below its 36 px head, 40 px each (the keys walk them
+ * here). The reveal's scrollIntoView scrolls as a browser's "nearest" would, and each call is kept: on which row,
+ * whether the row was drawn, and whether it asked for "nearest" both ways.
+ */
 const SCREEN = 800
+const reveals: Array<{ id: string; drawn: boolean; nearest: boolean }> = []
 function layOutScroller() {
   const tops = new WeakMap<Element, number>()
   const isScroller = (el: Element) => el.hasAttribute("data-list-scroller")
@@ -82,12 +89,43 @@ function layOutScroller() {
   height.mockImplementation(function (this: HTMLElement) {
     return isScroller(this) ? SCREEN : 0
   })
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockImplementation(function (this: Element) {
+    return isScroller(this) ? SCREEN : 0
+  })
+  vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
+    return isScroller(this) ? 1_000_000 : 0
+  })
   vi.spyOn(Element.prototype, "scrollTop", "get").mockImplementation(function (this: Element) {
     return tops.get(this) ?? 0
   })
   vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation(function (this: Element, v: number) {
     tops.set(this, v)
   })
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const box = (top: number, h: number) => ({ top, bottom: top + h, left: 0, right: 1000, width: 1000, height: h, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    if (isScroller(this)) return box(0, SCREEN)
+    const id = this.getAttribute("data-task-id")
+    if (!id) return box(0, 0)
+    const scroller = this.closest("[data-list-scroller]")
+    const place = this.closest("[data-group='backlog']") ? Number(this.getAttribute("aria-posinset")) - 1 : 1_000
+    return box(36 + place * 40 - (scroller ? (tops.get(scroller) ?? 0) : 0), 40)
+  })
+  vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element, arg?: boolean | ScrollIntoViewOptions) {
+    const nearest = typeof arg === "object" && arg.block === "nearest" && arg.inline === "nearest"
+    reveals.push({ id: this.getAttribute("data-task-id") ?? "", drawn: this.isConnected, nearest })
+    const scroller = this.closest("[data-list-scroller]")
+    if (!scroller) return
+    const r = this.getBoundingClientRect()
+    const by = r.top < 0 ? r.top : r.bottom > SCREEN ? r.bottom - SCREEN : 0
+    if (by) scroller.scrollTop = (tops.get(scroller) ?? 0) + by
+  })
+}
+/** The frame after a key: what a browser runs before it paints (the keys' reveal scrolls there). */
+const frame = () => act(() => new Promise<void>((done) => requestAnimationFrame(() => done())))
+/** Where the highlighted row sits in the screen now: wholly in view, or not. */
+const inView = (c: HTMLElement, id: string | null) => {
+  const r = id ? c.querySelector(`[data-task-id="${id}"]`)?.getBoundingClientRect() : undefined
+  return !!r && r.top >= 0 && r.bottom <= SCREEN
 }
 
 let n = 0
@@ -151,21 +189,23 @@ const again = (before: Set<string>) => drawn.titles.filter((title) => before.has
 const cameIn = (c: HTMLElement, before: Set<string>) => [...drawnTitles(c)].some((title) => !before.has(title))
 
 /**
- * J ten times from the last row on the screen (Backlog's 36 px head and nineteen 40 px rows: t18). The browser scrolls
- * each next row into view (scrollIntoView, which jsdom only stubs), one row's height, so the window steps as the keys go.
+ * J ten times from the last row on the screen (Backlog's 36 px head and nineteen 40 px rows: t18). The keys' reveal
+ * scrolls each next row into view in its frame (lib/ui/listNav revealRow), a row's height, and the scroller says so,
+ * so the window steps as the keys go.
  */
-function pressJ(c: HTMLElement, selection: SelectionStore, scroller: HTMLElement) {
+async function pressJ(c: HTMLElement, selection: SelectionStore, scroller: HTMLElement) {
   act(() => selection.highlight("t18"))
   const before = countFrom(c)
   for (let i = 1; i <= 10; i++) {
     fireEvent.keyDown(document.body, { key: "j" })
-    act(() => {
-      scroller.scrollTop = i * 40
-      fireEvent.scroll(scroller)
-    })
+    await frame()
+    act(() => void fireEvent.scroll(scroller))
+    expect(inView(c, selection.get().highlighted), `J ${i}: its row wholly in view`).toBe(true)
   }
   expect(selection.get().highlighted).toBe("t28")
   expect(document.activeElement?.getAttribute("data-task-id")).toBe("t28")
+  // t19 to t28 each past the screen's bottom edge: scrolled to show the row's bottom at it.
+  expect(scroller.scrollTop).toBe(36 + 29 * 40 - SCREEN)
   expect(cameIn(c, before), "the window moved").toBe(true)
   return before
 }
@@ -181,14 +221,14 @@ describe("a windowed list's renders", () => {
   it("steps the window with J and draws no group header again", async () => {
     const { container, selection, scroller } = renderList(firstPage())
     await windowed(container)
-    pressJ(container, selection, scroller)
+    await pressJ(container, selection, scroller)
     expect(drawn.counts, "group headers drawn again").toBe(0)
   })
 
   it("draws a row's frame for the keys' highlight and focus, and its cells only as it comes into the window", async () => {
     const { container, selection, scroller } = renderList(firstPage())
     await windowed(container)
-    const before = pressJ(container, selection, scroller)
+    const before = await pressJ(container, selection, scroller)
     // The rows that came into the window drew their cells, once each.
     expect(drawn.titles.length).toBeGreaterThan(0)
     expect(new Set(drawn.titles).size).toBe(drawn.titles.length)
@@ -230,30 +270,29 @@ describe("a windowed list's renders", () => {
 // press the keys scrolled a row, and each step drew the list (rendersPerListKey
 // 47.1, budget 10). It now holds the rows drawn while the screen's rows stay
 // three rows inside them, and moves once they don't, as a transition.
-/** Presses `key` 20 times, scrolling a row (40 px) each way, and says what each press drew. */
-function walk(c: HTMLElement, selection: SelectionStore, scroller: HTMLElement, key: string, shiftKey = false) {
-  const hit: boolean[] = []
-  const into = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
-    hit.push(this.isConnected)
-  })
-  const step = key.toLowerCase() === "k" ? -40 : 40
+/**
+ * Presses `key` 20 times; the keys' reveal scrolls each press's row into view in its frame, as far as it must, and the
+ * scroller says so. Says what each press drew, whether its row ended wholly in view, and which rows the reveals brought in.
+ */
+async function walk(c: HTMLElement, selection: SelectionStore, scroller: HTMLElement, key: string, shiftKey = false) {
+  reveals.length = 0
   let rows = drawnTitles(c)
-  const presses: { moved: boolean; renders: number; drawn: boolean }[] = []
+  const presses: { moved: boolean; renders: number; drawn: boolean; shown: boolean }[] = []
   for (let i = 1; i <= 20; i++) {
     renders.reset()
     fireEvent.keyDown(document.activeElement ?? document.body, { key, shiftKey })
-    act(() => {
-      scroller.scrollTop += step
-      fireEvent.scroll(scroller)
-    })
+    await frame()
+    act(() => void fireEvent.scroll(scroller))
     const id = selection.get().highlighted
     const now = drawnTitles(c)
-    presses.push({ moved: now.size !== rows.size || [...now].some((t) => !rows.has(t)), renders: renders.count, drawn: !!id && !!c.querySelector(`[data-task-id="${id}"]`) })
+    const shown = inView(c, id)
+    presses.push({ moved: now.size !== rows.size || [...now].some((t) => !rows.has(t)), renders: renders.count, drawn: !!id && !!c.querySelector(`[data-task-id="${id}"]`), shown })
     rows = now
   }
-  into.mockRestore()
-  return { presses, moves: presses.filter((p) => p.moved).length, hit, top: renders.top() }
+  return { presses, moves: presses.filter((p) => p.moved).length, hit: reveals.map((r) => r.drawn), read: reveals.map((r) => r.id), nearest: reveals.map((r) => r.nearest), top: renders.top() }
 }
+/** The ids from tA to tB, one step at a time. */
+const ids = (a: number, b: number) => Array.from({ length: Math.abs(b - a) + 1 }, (_, i) => `t${a + (b >= a ? i : -i)}`)
 
 describe("the window held as the keys go", () => {
   const firstPage = () => {
@@ -266,11 +305,13 @@ describe("the window held as the keys go", () => {
     await windowed(container)
     act(() => selection.highlight("t18"))
     act(() => container.querySelector<HTMLElement>('[data-task-id="t18"]')!.focus())
-    const down = walk(container, selection, scroller, "j")
+    const down = await walk(container, selection, scroller, "j")
     expect(selection.get().highlighted).toBe("t38")
     expect(down.presses.map((p) => p.drawn), "the highlighted row drawn after each press").not.toContain(false)
-    expect(down.hit, "scrollIntoView only on a drawn row").not.toContain(false)
-    expect(down.hit.length, "each press scrolled its row into view").toBe(20)
+    expect(down.hit, "the reveal brought in only a drawn row").not.toContain(false)
+    expect(down.read, "each press's frame brought in its own row, once").toEqual(ids(19, 38))
+    expect(down.nearest, "nearest both ways").not.toContain(false)
+    expect(down.presses.map((p) => p.shown), "each press's row wholly in view after its frame").not.toContain(false)
     expect(down.moves, "window moves in 20 J").toBeLessThanOrEqual(1)
     expect(down.presses.filter((p) => !p.moved).map((p) => p.renders), `renders of the presses that held the window (${down.top})`).toEqual(Array(20 - down.moves).fill(0))
   })
@@ -280,11 +321,14 @@ describe("the window held as the keys go", () => {
     await windowed(container)
     act(() => selection.highlight("t18"))
     act(() => container.querySelector<HTMLElement>('[data-task-id="t18"]')!.focus())
-    walk(container, selection, scroller, "j")
-    const up = walk(container, selection, scroller, "k")
+    await walk(container, selection, scroller, "j")
+    const up = await walk(container, selection, scroller, "k")
     expect(selection.get().highlighted).toBe("t18")
     expect(up.presses.map((p) => p.drawn), "the highlighted row drawn after each press").not.toContain(false)
-    expect(up.hit, "scrollIntoView only on a drawn row").not.toContain(false)
+    expect(up.hit, "the reveal brought in only a drawn row").not.toContain(false)
+    expect(up.read, "each press's frame brought in its own row, once").toEqual(ids(37, 18))
+    expect(up.nearest, "nearest both ways").not.toContain(false)
+    expect(up.presses.map((p) => p.shown), "each press's row wholly in view after its frame").not.toContain(false)
     expect(up.moves, "window moves in 20 K").toBeLessThanOrEqual(1)
     expect(up.presses.filter((p) => !p.moved).map((p) => p.renders), `renders of the presses that held the window (${up.top})`).toEqual(Array(20 - up.moves).fill(0))
   })
@@ -294,10 +338,13 @@ describe("the window held as the keys go", () => {
     await windowed(container)
     act(() => selection.highlight("t18"))
     act(() => container.querySelector<HTMLElement>('[data-task-id="t18"]')!.focus())
-    const ext = walk(container, selection, scroller, "J", true)
+    const ext = await walk(container, selection, scroller, "J", true)
     expect(selection.get().highlighted).toBe("t38")
     expect(ext.presses.map((p) => p.drawn), "the highlighted row drawn after each press").not.toContain(false)
-    expect(ext.hit, "scrollIntoView only on a drawn row").not.toContain(false)
+    expect(ext.hit, "the reveal brought in only a drawn row").not.toContain(false)
+    expect(ext.read, "each press's frame brought in its own row, once").toEqual(ids(19, 38))
+    expect(ext.nearest, "nearest both ways").not.toContain(false)
+    expect(ext.presses.map((p) => p.shown), "each press's row wholly in view after its frame").not.toContain(false)
     expect(ext.moves, "window moves in 20 Shift+J").toBeLessThanOrEqual(1)
   })
 })

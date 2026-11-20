@@ -11,7 +11,7 @@ import { SEGMENTER_MODEL, VISION_FILESET } from "./assets"
 import { backdropUrl } from "./backdrops"
 import { CameraTransformer, type CameraOptions } from "./cameraTransformer"
 import { BLUR_RADIUS, cameraOn, type Background, type CameraLook } from "./effects"
-import { readPicture } from "./picture"
+import { readPicture, type PictureSlot } from "./picture"
 import { once } from "@/lib/lazy/once"
 
 type Lib = typeof import("@livekit/track-processors")
@@ -33,12 +33,13 @@ export async function backgroundUnavailable(): Promise<string | null> {
 }
 
 /** What the library's background is told for a choice: a blur's radius, or a picture to put behind. */
-async function backgroundOf(choice: Background, picture: () => string | null): Promise<CameraOptions["background"]> {
+async function backgroundOf(choice: Background, picture: (slot: PictureSlot) => string | null): Promise<CameraOptions["background"]> {
   if (choice.kind === "none") return null
   if (choice.kind === "blur") return { blurRadius: BLUR_RADIUS[choice.strength], imagePath: undefined }
   if (choice.kind === "backdrop") return { imagePath: await backdropUrl(choice.id), blurRadius: undefined }
-  const url = picture()
-  if (!url) throw new Error("Your picture is no longer on this device. Choose it again.")
+  const scene = choice.kind === "scene"
+  const url = picture(scene ? "scene" : "own")
+  if (!url) throw new Error(scene ? "Your scene is no longer on this device. Make it again." : "Your picture is no longer on this device. Choose it again.")
   return { imagePath: url, blurRadius: undefined }
 }
 
@@ -56,7 +57,7 @@ const ours = (p: TrackProcessor<Track.Kind> | undefined): p is Ours & TrackProce
 export async function applyCamera(
   track: LocalVideoTrack,
   look: CameraLook,
-  opts: { picture?: () => string | null; onFrame?: (ms: number) => void; onLost?: () => void } = {},
+  opts: { picture?: (slot: PictureSlot) => string | null; onFrame?: (ms: number) => void; onLost?: () => void } = {},
 ): Promise<void> {
   const current = track.getProcessor()
   if (!cameraOn(look)) {

@@ -95,3 +95,22 @@ describe("a rule on a form (package 9 R4)", () => {
     expect(suggestedName(onForm, withForms)).toBe("‘Launch requests’ is sent: make it high priority")
   })
 })
+
+describe("a rule on arriving work (linear-21 H4)", () => {
+  it("an arrival rule reads as a sentence: the door, the decision, and whoever is on duty", () => {
+    const fromForm = draft({
+      trigger_type: "task_arrived",
+      conditions: { match: "all", items: [{ field: "source", op: "is", value: "form" }, { field: "source", op: "is_not", value: "api" }] },
+      actions: [{ type: "triage", decision: "accept", status: "done" }, { type: "assign", assign: "on_duty" }],
+    })
+    expect(triggerText(fromForm)).toBe("work arrives in triage")
+    expect(sentenceText(ruleSentence(fromForm, names))).toBe(
+      "When work arrives in triage if it came in by form and it didn't come in by API then accept it into Done and give it to whoever is on triage duty",
+    )
+    expect(conditionText({ field: "source", op: "is", value: "github" })).toBe("it came in by GitHub")
+    expect(sentenceText(ruleSentence(draft({ trigger_type: "task_arrived", actions: [{ type: "triage", decision: "accept", status: "" }, { type: "notify", notify: "on_duty", text: "New" }] }), names)))
+      .toBe("When work arrives in triage then accept it as it is and tell whoever is on triage duty")
+    expect(suggestedName(draft({ trigger_type: "task_arrived", actions: [{ type: "triage", decision: "decline", text: "Not ours" }] }), names))
+      .toBe("Work arrives in triage: decline it, saying why")
+  })
+})

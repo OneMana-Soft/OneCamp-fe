@@ -3,12 +3,12 @@ import { reviewShot, SAM, SHOT_THEMES, stubBackend, tidy } from "./stubbedApp"
 
 // Calendar emails you choose (gcal-5, head E), in a real browser with no
 // backend: Settings, Notifications has a Calendar group under the other
-// emails, three switches each saved at once on its own key, at 1280 and on a
+// emails, four switches each saved at once on its own key, at 1280 and on a
 // phone. Each person changes only their own (/notifications/preferences).
 
 const PREFS = {
   email_supported: true, email_enabled: true, email_mentions: true, email_dms: true, email_task_assigned: true, email_task_status: true,
-  email_comments: true, email_calls: true, email_calendar_invites: true, email_calendar_changes: true, email_calendar_answers: true,
+  email_comments: true, email_calls: true, email_calendar_invites: true, email_calendar_changes: true, email_calendar_answers: true, email_calendar_recaps: true,
   email_channel_invites: true, email_only_when_offline: true, email_digest_frequency: "off", quiet_hours_enabled: false,
   quiet_hours_start: null, quiet_hours_end: null, quiet_hours_tz: null, read_receipts: true, read_receipts_allowed: true,
 }
@@ -23,7 +23,7 @@ for (const theme of SHOT_THEMES) {
     test.describe(`calendar emails at ${view.name}, ${theme}`, () => {
       test.use({ ...view.use, colorScheme: theme })
 
-      test("are a Calendar group of three switches, each saved at once on its own", async ({ page }, testInfo) => {
+      test("are a Calendar group of four switches, each saved at once on its own", async ({ page }, testInfo) => {
         test.setTimeout(180_000)
         const sent: unknown[] = []
         await stubBackend(page, testInfo, {
@@ -39,9 +39,9 @@ for (const theme of SHOT_THEMES) {
         const group = page.getByRole("group", { name: "Calendar" })
         await expect(group).toBeVisible({ timeout: 60_000 })
         await tidy(page)
-        const names = ["Invitations and bookings", "Changes and cancellations", "Replies to my events"]
+        const names = ["Invitations and bookings", "Changes and cancellations", "Replies to my events", "Meeting recaps"]
         for (const name of names) await expect(group.getByRole("switch", { name })).toBeChecked()
-        await expect(group.getByRole("switch")).toHaveCount(3)
+        await expect(group.getByRole("switch")).toHaveCount(4)
 
         const changes = group.getByRole("switch", { name: "Changes and cancellations" })
         await changes.scrollIntoViewIfNeeded()

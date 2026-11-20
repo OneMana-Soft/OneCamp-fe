@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { SAM, stubBackend, tidy } from "./stubbedApp"
+import { SAM, sendOnceReplies, stubBackend, tidy } from "./stubbedApp"
 
 // A thread's faces on first load (chat P2; STEP5_PLAN #1, spec A), in a real
 // browser with no backend. The pages answer as the server now does: up to
@@ -153,6 +153,27 @@ for (const view of views) {
   }
 }
 
+/** The engineering channel with its rollback thread open to replies (6 so far). */
+const rollbackThread = (thread: string) => ({
+  ...QUIET,
+  [`/ch/channelBasicInfo/${ENG}`]: { msg: "ok", channel_info: channel(ENG, "engineering") },
+  [`/po/latestPosts/${ENG}`]: page(ENGINEERING),
+  [`/po/allComments/${thread}`]: {
+    msg: "ok",
+    data: {
+      ...ENGINEERING[1],
+      post_channel: { ch_uuid: ENG, ch_name: "engineering" },
+      post_comments: [
+        { ...face(21, ADA, 9, 41), comment_text: "<p>Flush first, agreed.</p>", comment_reactions: [], comment_attachments: [] },
+        { ...face(22, MAYA, 9, 52), comment_text: "<p>Migration is ready.</p>", comment_reactions: [], comment_attachments: [] },
+        { ...face(23, JONAS, 10, 2), comment_text: "<p>Then Friday it is.</p>", comment_reactions: [], comment_attachments: [] },
+      ],
+    },
+  },
+  [`/chat-threads/${thread}/follow`]: { msg: "ok", data: { root: thread, following: false, follow: "auto" } },
+  [`/chat-threads/${thread}/read`]: { msg: "ok", data: { root: thread, read: true } },
+})
+
 // A reply written now joins the faces once: Sam answers the rollback thread
 // from its panel, and the bar under the message says so at once, Sam first,
 // with no reload.
@@ -163,23 +184,7 @@ for (const scheme of ["light", "dark"] as const) {
     const tab = await context.newPage()
     const thread = id(2)
     await stubBackend(tab, testInfo, {
-      ...QUIET,
-      [`/ch/channelBasicInfo/${ENG}`]: { msg: "ok", channel_info: channel(ENG, "engineering") },
-      [`/po/latestPosts/${ENG}`]: page(ENGINEERING),
-      [`/po/allComments/${thread}`]: {
-        msg: "ok",
-        data: {
-          ...ENGINEERING[1],
-          post_channel: { ch_uuid: ENG, ch_name: "engineering" },
-          post_comments: [
-            { ...face(21, ADA, 9, 41), comment_text: "<p>Flush first, agreed.</p>", comment_reactions: [], comment_attachments: [] },
-            { ...face(22, MAYA, 9, 52), comment_text: "<p>Migration is ready.</p>", comment_reactions: [], comment_attachments: [] },
-            { ...face(23, JONAS, 10, 2), comment_text: "<p>Then Friday it is.</p>", comment_reactions: [], comment_attachments: [] },
-          ],
-        },
-      },
-      [`/chat-threads/${thread}/follow`]: { msg: "ok", data: { root: thread, following: false, follow: "auto" } },
-      [`/chat-threads/${thread}/read`]: { msg: "ok", data: { root: thread, read: true } },
+      ...rollbackThread(thread),
       "/po/createComment": { msg: "ok", data: { comment_id: id(24), comment_created_at: new Date().toISOString() } },
     })
     await open(tab, `/app/channel/${ENG}`)
@@ -204,3 +209,98 @@ for (const scheme of ["light", "dark"] as const) {
     await context.close()
   })
 }
+
+// A reply sent again is the same reply (V-1088): the first send fails, the
+// words stay in the box, Send again carries the same client_msg_id, and the
+// server's send-once guard answers the reply it holds: the thread shows it once
+// and counts it once. A different reply after it is a new send.
+for (const first of ["500", "lost"] as const) {
+  test(`at 1280: a channel reply sent again after ${first === "500" ? "a failed send" : "its answer was lost"} is the same reply`, async ({ browser }, testInfo) => {
+    test.setTimeout(180_000)
+    const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), viewport: { width: 1280, height: 860 } })
+    const tab = await context.newPage()
+    const thread = id(2)
+    const server = sendOnceReplies(first, (n) => id(24 + n))
+    await stubBackend(tab, testInfo, { ...rollbackThread(thread), "/po/createComment": server.answer })
+    await open(tab, `/app/channel/${ENG}`)
+    await expect(tab.getByText("6 replies")).toBeVisible({ timeout: 60_000 })
+    await tab.getByText("6 replies").click()
+    const panel = tab.locator("[data-right-panel]")
+    await expect(panel.getByText("Then Friday it is.")).toBeVisible({ timeout: 30_000 })
+    const box = panel.locator('[contenteditable="true"]').last()
+    await box.click()
+    await tab.keyboard.type("On it, flushing the cache now.")
+    await tab.keyboard.press("Enter")
+    await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(1)
+    // Not sent: the words are still there to send again.
+    await expect(box).toContainText("On it, flushing the cache now.")
+    await box.click()
+    await tab.keyboard.press("Enter")
+    await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(2)
+    expect(server.sent[0].client_msg_id, "the first send carries an id").toMatch(/^local-/)
+    expect(server.sent[1].client_msg_id, "Send again carries the same id").toBe(server.sent[0].client_msg_id)
+    expect(server.written.size, "the server holds one reply").toBe(1)
+    await expect(box).not.toContainText("On it, flushing", { timeout: 20_000 })
+    await expect(panel.getByText("On it, flushing the cache now.")).toHaveCount(1)
+    await expect(tab.getByText("7 replies").first()).toBeVisible({ timeout: 20_000 })
+    await expect(tab.getByText("8 replies")).toHaveCount(0)
+    // A different reply is a new send with an id of its own.
+    await box.click()
+    await tab.keyboard.type("Cache flushed.")
+    await tab.keyboard.press("Enter")
+    await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(3)
+    expect(server.sent[2].client_msg_id).toMatch(/^local-/)
+    expect(server.sent[2].client_msg_id).not.toBe(server.sent[0].client_msg_id)
+    await expect(tab.getByText("8 replies").first()).toBeVisible({ timeout: 20_000 })
+    await context.close()
+  })
+}
+
+test("at 390 with touch: a DM thread reply sent again after the network dropped is the same reply", async ({ browser }, testInfo) => {
+  test.setTimeout(180_000)
+  const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const tab = await context.newPage()
+  const server = sendOnceReplies("lost", (n) => id(60 + n))
+  await stubBackend(tab, testInfo, {
+    ...QUIET,
+    [`/user/profile/${MAYA.user_uuid}`]: { msg: "ok", data: MAYA },
+    [`/dm/latestChat/${MAYA.user_uuid}`]: {
+      msg: "ok",
+      data: { has_more: false, chats: [
+        chat(6, SAM, "Pushed the fix for the login loop.", 30),
+        chat(5, MAYA, "Can you look at the login loop on staging?", 10, [face(51, SAM, 9, 14), face(52, MAYA, 9, 22)]),
+      ] },
+    },
+    // The phone opens the thread on its own page, which reads the thread whole.
+    [`/dm/chatWithAllComments/${id(5)}`]: {
+      msg: "ok",
+      data: chat(5, MAYA, "Can you look at the login loop on staging?", 10, [
+        { ...face(51, SAM, 9, 14), comment_text: "<p>Checking the cookie.</p>", comment_reactions: [], comment_attachments: [] },
+        { ...face(52, MAYA, 9, 22), comment_text: "<p>Thanks.</p>", comment_reactions: [], comment_attachments: [] },
+      ]),
+    },
+    "/dm/createComment": server.answer,
+    "/dm/": { msg: "ok", data: [] },
+    "/user/dm-ai-suggestions": { msg: "ok", data: [] },
+  })
+  await open(tab, `/app/chat/${MAYA.user_uuid}`)
+  await expect(tab.getByText("Can you look at the login loop on staging?")).toBeVisible({ timeout: 60_000 })
+  await tab.getByText("2 replies").first().tap()
+  await expect(tab.getByText("Checking the cookie.")).toBeVisible({ timeout: 30_000 })
+  const box = tab.locator('[contenteditable="true"]').last()
+  await expect(box).toBeVisible({ timeout: 30_000 })
+  await box.tap()
+  await tab.keyboard.type("Looking now.")
+  const send = tab.getByRole("button", { name: "Send", exact: true }).last()
+  await send.tap()
+  await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(1)
+  await expect(box).toContainText("Looking now.")
+  await send.tap()
+  await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(2)
+  expect(server.sent[0].client_msg_id, "the first send carries an id").toMatch(/^local-/)
+  expect(server.sent[1].client_msg_id, "Send again carries the same id").toBe(server.sent[0].client_msg_id)
+  expect(server.written.size, "the server holds one reply").toBe(1)
+  await expect(box).not.toContainText("Looking now.", { timeout: 20_000 })
+  await expect(tab.getByText("Looking now.")).toHaveCount(1)
+  await context.close()
+})

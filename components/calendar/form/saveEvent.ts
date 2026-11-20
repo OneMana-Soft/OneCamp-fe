@@ -21,6 +21,7 @@ import { eventInput, eventPatch, patchChanges, remindersChanged, savedNotes, whe
 import { addFileRequest, removeFileRequest, withoutFile, type EventFile } from "@/lib/calendar/eventFiles"
 import { readOnlyRefusal } from "@/lib/calendar/calendarList"
 import { saysWriteFailure } from "@/lib/http/writeSaid"
+import { roomRefusal } from "@/lib/calendar/rooms"
 
 /** What a save needs from its host: a way to send, and the two questions. */
 export interface SaveDeps {
@@ -36,6 +37,8 @@ export type SaveResult =
   | { saved: false; why: "cancelled" | "stale" | "gone" | "failed" }
   // A new event's calendar its provider lets OneCamp only read (V-594), in the server's words.
   | { saved: false; why: "read_only"; message: string }
+  // A room it books is taken, too many, or gone (gcal-6): said at the Rooms row in the server's words, a taken one with the way forward.
+  | { saved: false; why: "room"; message: string; taken?: boolean }
 
 const statusOf = (e: unknown) => (e as { response?: { status?: number } })?.response?.status
 
@@ -110,6 +113,12 @@ export async function createEvent(deps: SaveDeps, v: EventFormValues, full: bool
     if (made?.id && v.reminders !== null) await saveReminders(deps, made.id, v.reminders, v.reminderEmail)
     return { saved: true, moved: false, id: made?.id }
   } catch (e) {
+    const room = roomRefusal(e)
+    if (room) {
+      // The form's Rooms row says it, so the write-failure toast doesn't.
+      saysWriteFailure(e)
+      return { saved: false, why: "room", ...room }
+    }
     const refused = readOnlyRefusal(e)
     if (!refused) return { saved: false, why: "failed" }
     // The form's Calendar row says it (V-594), so no toast says it again; any other refusal keeps its toast.
@@ -132,7 +141,8 @@ export async function saveEventChange(
   const patch = { ...eventPatch(v, was, api.sequence, organiser) }
   if (patchChanges(patch)) {
     if (instance) {
-      const picked = await deps.askScope("change")
+      // A series books its rooms for every event (gcal-6), so a rooms change isn't offered "This event".
+      const picked = await deps.askScope(patch.rooms !== undefined ? "rooms" : "change")
       if (!picked) return { saved: false, why: "cancelled" }
       scope = picked
       patch.scope = picked
@@ -146,6 +156,8 @@ export async function saveEventChange(
     try {
       await deps.makeRequest(patchApiEventRequest(api.id, patch))
     } catch (e) {
+      const room = roomRefusal(e)
+      if (room) return { saved: false, why: "room", ...room }
       const status = statusOf(e)
       return { saved: false, why: status === 409 ? "stale" : status === 404 ? "gone" : "failed" }
     }

@@ -86,7 +86,7 @@ const GitHubCallbackPage = () => {
   }, [searchParams, router])
 
   return (
-    <main id="main-content" className="flex h-full items-center justify-center bg-background px-4">
+    <div className="flex h-full items-center justify-center bg-background px-4">
       {status === "loading" && (
         <div role="status">
           <EmptyState
@@ -135,7 +135,7 @@ const GitHubCallbackPage = () => {
           }
         />
       )}
-    </main>
+    </div>
   )
 }
 

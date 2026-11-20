@@ -31,6 +31,9 @@ export interface Runner {
   watch: () => () => void
 }
 
+/** The camera's processor's own check (CallEffectsControl.unavailable), imported where the call puts it on. */
+export const backgroundUnavailable = () => import("@/lib/calls/processors/background").then((m) => m.backgroundUnavailable())
+
 export function makeRunner(ctx: RunnerContext): Runner {
   const onTrack: { camera: CameraLook; noise: NoiseLevel } = { camera: lookOf(NO_EFFECTS), noise: "standard" }
   const frames: { avg: number | null } = { avg: null }

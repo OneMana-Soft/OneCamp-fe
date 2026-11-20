@@ -20,6 +20,9 @@ export type Parser = (text: string, field: TableField, locale?: string) => Parse
 /** How a field's cells compare in a filter or a sort: a formula or a rollup by what it gives. */
 export type FilterKind = "text" | "number" | "date" | "checkbox" | "list"
 
+/** What a link field links to (its config's relation_target; business/FieldTypes ItemKinds, "any" or a table's rows). */
+export type RelationTarget = "task" | "doc" | "board" | "user" | "project" | "channel" | "call" | "any" | "table"
+
 /** One kind of field. */
 export interface FieldKind {
   id: FieldType

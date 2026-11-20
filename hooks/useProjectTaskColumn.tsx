@@ -24,8 +24,8 @@ import { alignsRight, type TaskField } from "@/lib/tasks/fields"
 // A field's column is keyed by its filter id, which the server always sends.
 // A field without one is left out, and said once, rather than a column with
 // no id taking the whole list or board down (TanStack throws on one).
-/** The filters the server applies that no column shows: the cycle (business/Cycle), the type (business/WorkTaxonomy, linear-03), the release (jira-04). */
-export const SERVER_FILTERS = ["task_cycle", "task_work_type", "task_release"] as const
+/** The filters the server applies that no column shows: the cycle (business/Cycle), the type (business/WorkTaxonomy, linear-03), the release (jira-04), the SLA (linear-24). */
+export const SERVER_FILTERS = ["task_cycle", "task_work_type", "task_release", "task_sla"] as const
 /** Their carrier columns, never drawn. */
 export const SERVER_FILTERS_HIDDEN = Object.fromEntries(SERVER_FILTERS.map((id) => [id, false])) as Record<(typeof SERVER_FILTERS)[number], false>
 

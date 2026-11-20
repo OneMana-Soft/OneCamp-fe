@@ -32,3 +32,8 @@ export default function SubStepHead() {
     </div>
   )
 }
+// A HubRow's drawer of its tools (A4 H5), for the row that loads it lazily:
+// through this chunk's boundary no new chunk group reaches the menu, so the
+// build keeps the chunks it cut without that row (app/firstLoad.test.ts), as
+// components/ui/selectSheet does for the Select.
+export { HubRowDrawer } from "@/components/ui/hubRowDrawer"

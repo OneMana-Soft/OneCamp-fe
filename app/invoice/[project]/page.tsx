@@ -15,7 +15,7 @@ import { format } from "date-fns"
 // a sheet with a way back to the project, and the invoice is paper (light in
 // any theme, .invoice-paper) on the e2 step, with no outline.
 
-import { use, useEffect, useId, useMemo, useState } from "react"
+import { use, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import axiosInstance from "@/lib/axiosInstance"
 import { Badge } from "@/components/ui/badge"
@@ -31,15 +31,21 @@ import Link from "next/link"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { app_project_path } from "@/types/paths"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import { CURRENCIES, buildInvoice, defaultPeriod, money, round2, suggestNumber, type InvoiceTotals, type LineBy, type Period } from "@/lib/invoice/invoice"
+import { CURRENCIES, buildInvoice, localeCurrency, defaultPeriod, money, round2, suggestNumber, type InvoiceTotals, type LineBy, type Period } from "@/lib/invoice/invoice"
 import { STATUS_LABEL, linesOf, linesToSave, shownStatus, type InvoiceInput, type SavedInvoice } from "@/lib/invoice/saved"
 import { formatHours, presetRange, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ProjectsGet } from "@/services/endpoints/projects"
 import { localDay } from "@/lib/utils/timeZone"
 import { useSaysLoadFailure } from "@/lib/http/loadFailure"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import { typedNumber, typedNumberText } from "@/lib/format/number"
 import { formatLocale } from "@/lib/tables/numberFormat"
+import { lazyDialog } from "@/lib/lazy/lazyDialog"
+
+// Void's confirm loads as Void is pointed at or focused (no app layout here); if it can't come,
+// the press says so, the invoice stays, and the next press tries again (V-978).
+const ConfirmAlertDialog = lazyDialog(() => import("@/components/dialog/confirmAlertDialog").then((m) => m.ConfirmAlertDialog), "the void confirmation")
 
 interface Seller { name: string; address: string; taxId: string; payment: string }
 interface ClientSide { name: string; address: string; rate: string; currency: string; taxPercent: string; by: LineBy }
@@ -92,6 +98,14 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
   // Said in place of the invoice; the request's toast stays quiet.
   useSaysLoadFailure(!!error)
   const [busy, setBusy] = useState(false)
+  const [voiding, setVoiding] = useState<boolean | null>(null)
+  // DB-147: once Void is gone, focus goes to the first action left.
+  const home = useRef(false), actions = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (voiding || !home.current) return
+    home.current = false
+    if (saved?.status !== "sent") actions.current?.querySelector("button")?.focus()
+  }, [voiding, saved?.status])
 
   const [seller, setSeller] = useState<Seller>({ name: "", address: "", taxId: "", payment: "" })
   const [client, setClient] = useState<ClientSide>({ name: "", address: "", rate: "", currency: "INR", taxPercent: "0", by: "task" })
@@ -112,7 +126,8 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
 
   useEffect(() => {
     setSeller(load(SELLER_KEY, seller))
-    setClient(load(clientKey(project), client))
+    // None saved: the reader's currency (ADMIN-17).
+    setClient(load(clientKey(project), { ...client, currency: localeCurrency(navigator.language) }))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read once per project
   }, [project])
   // Only a new invoice teaches the browser its details: opening an old one
@@ -261,7 +276,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
   if (!invoice || (!saved && !report)) return <Centered><Loader2 className="size-6 animate-spin text-ink-3" aria-label="Loading the invoice" /></Centered>
 
   return (
-    <main data-invoice-page="" className="h-dvh overflow-y-auto bg-frame print:h-auto print:overflow-visible print:bg-white">
+    <main id="main-content" data-invoice-page="" className="h-dvh overflow-y-auto bg-frame print:h-auto print:overflow-visible print:bg-white">
       <div className="mx-auto grid max-w-6xl gap-6 p-4 sm:p-6 lg:grid-cols-[22rem_1fr] print:block print:max-w-none print:p-0">
         <aside className="grid content-start gap-5 self-start rounded-xl bg-sheet p-5 shadow-sheet print:hidden">
           <Link href={`${app_project_path}/${project}`} className="inline-flex w-fit items-center gap-1.5 rounded-sm text-ui-sm text-ink-2 hover:text-foreground">
@@ -281,7 +296,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             </p>
             {saved && saved.status !== "draft" && (
               <p className="text-xs text-muted-foreground">
-                {saved.status === "void" ? "Void: kept so its number is never used again." : "Sent invoices stay as they were sent. Void this one and make a new one to change it."}
+                {saved.status === "void" ? "Void: kept so its number is never used again." : saved.status === "paid" ? "Paid. To void it, mark it unpaid first." : "Sent invoices stay as they were sent. Void this one and make a new one to change it."}
               </p>
             )}
           </div>
@@ -347,7 +362,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             </Group>
           </fieldset>
 
-          <div className="grid gap-2" role="group" aria-label="Invoice actions">
+          <div ref={actions} className="grid gap-2" role="group" aria-label="Invoice actions">
             {!saved && (
               <div className="grid grid-cols-2 gap-2">
                 <Button onClick={() => void create("draft")} disabled={invoice.lines.length === 0 || rateWrong || taxWrong} busy={busy} className="gap-2">
@@ -386,21 +401,41 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
                   <Undo2 className="h-4 w-4" />
                   Back to draft
                 </Button>
-                <Button variant="ghost" onClick={() => void mark("void", "Voided")} disabled={busy} className="text-danger-ink hover:text-danger-ink">
+                <Button variant="ghost" onPointerEnter={ConfirmAlertDialog.warm} onFocus={ConfirmAlertDialog.warm} onClick={() => setVoiding(true)} disabled={busy} className="text-danger-ink hover:text-danger-ink">
                   Void
                 </Button>
               </div>
             )}
             {saved?.status === "paid" && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={() => void mark("sent", "Marked unpaid")} disabled={busy} className="gap-2">
-                  <Undo2 className="h-4 w-4" />
-                  Mark unpaid
-                </Button>
-                <Button variant="ghost" onClick={() => void mark("void", "Voided")} disabled={busy} className="text-danger-ink hover:text-danger-ink">
-                  Void
-                </Button>
-              </div>
+              <Button variant="outline" onClick={() => void mark("sent", "Marked unpaid")} disabled={busy} className="gap-2">
+                <Undo2 className="h-4 w-4" />
+                Mark unpaid
+              </Button>
+            )}
+            {voiding !== null && saved && (
+              <ConfirmAlertDialog
+                open={voiding}
+                onOpenChange={(o) => ((home.current = !o), setVoiding(o))}
+                title={`Void invoice ${saved.number}?`}
+                description="Its number is retired and it can't be paid. This can't be undone; make a new invoice to bill again."
+                confirmText="Void invoice"
+                cancelText="Keep it"
+                destructive
+                // A refusal is said in the dialog; the invoice is re-read behind it.
+                onConfirm={() =>
+                  axiosInstance.post(`${invoices}/${saved.id}/status`, { status: "void" }).then(
+                    (r) => {
+                      show(r.data.data as SavedInvoice)
+                      toast({ title: "Voided" })
+                    },
+                    (e) => {
+                      void axiosInstance.get(`${invoices}/${saved.id}`).then((r) => show(r.data.data as SavedInvoice), () => {})
+                      saysWriteFailure(e)
+                      throw e
+                    },
+                  )
+                }
+              />
             )}
             <Button variant={saved ? "outline" : "secondary"} onClick={() => window.print()} disabled={invoice.lines.length === 0} className="gap-2">
               <Printer className="h-4 w-4" />
@@ -509,5 +544,5 @@ function Field({ label, problem, children }: { label: string; problem?: { id: st
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-dvh items-center justify-center bg-frame p-4 text-center">{children}</main>
+  return <main id="main-content" className="flex min-h-dvh items-center justify-center bg-frame p-4 text-center">{children}</main>
 }

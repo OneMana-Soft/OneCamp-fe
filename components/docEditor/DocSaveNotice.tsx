@@ -5,7 +5,7 @@ import * as React from "react"
 import { SAY_PROBLEM_AFTER_MS } from "@/components/docEditor/connectionTiming"
 import { CHANGES_KEPT, disconnected, saveDotCopy, type SavedThing, type SaveState } from "@/components/docEditor/SaveDot"
 import { useDocSaveDot, type DocSaveSource } from "@/components/docEditor/docSaveState"
-import { useStandInForPill } from "@/components/error/pillPlace"
+import { useClaimOffline, useStandInForPill } from "@/components/error/pillPlace"
 import { ToastAction } from "@/components/ui/toast"
 import { toast, useToastState, type ToastTone } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/useDebounce"
@@ -66,7 +66,10 @@ export function DocSaveNotice({ source, thing, onRetry, besidePill = false }: { 
   // ("Saved"), dismissed, swiped away or pushed out by newer toasts.
   const [shown, setShown] = React.useState<string | null>(null)
   const { toasts } = useToastState()
-  useStandInForPill(toasts.some((t) => t.id === shown && t.open !== false))
+  const showing = toasts.some((t) => t.id === shown && t.open !== false)
+  useStandInForPill(showing)
+  // Saying the work waits offline, it is the page's one voice (V-695).
+  useClaimOffline(showing && lasted && disconnected(state))
   React.useEffect(() => {
     if (!open.current && !lasted) return
     const notice = saveNoticeOf(state, savedAt, waiting, { thing, besidePill })

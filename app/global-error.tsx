@@ -44,7 +44,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
         `}</style>
       </head>
       <body>
-        <main>
+        <main id="main-content">
           {chunk ? (
             // The splash's ring, drawn once while the new build loads.
             <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">

@@ -11,10 +11,13 @@
 //
 // A failed or aborted recording used to open as a black frame with controls.
 // The server now says which state a recording is in, and the player says it:
-// one that captured nothing is "empty", not failed (V-32).
+// one that captured nothing is "empty", not failed (V-32). A link the server
+// refuses says why (loadError, lib/http/loadFailure): a recording this person
+// can't see, or one that is gone, is no glitch a Try again can fix (V-1075).
 
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { loadFailure, type LoadFailure } from "@/lib/http/loadFailure"
 
 export type RecordingStatus = "ready" | "failed" | "empty" | "recording" | "transcript_only"
 
@@ -58,15 +61,17 @@ export function linkSpent(media: Pick<RecordingMedia, "expiresAt"> | null, now =
 /** How many fresh links in a row before the player says it can't play. */
 const MAX_RETRIES = 2
 
-export function useRecordingPlayback(path: string, open: boolean) {
+export function useRecordingPlayback(path: string, open: boolean, startAt?: number) {
   const [media, setMedia] = useState<RecordingMedia | null>(null)
-  const [loadError, setLoadError] = useState(false)
+  const [loadError, setLoadError] = useState<LoadFailure | false>(false)
   const [playbackFailed, setPlaybackFailed] = useState(false)
   // Plays by itself when opened; after a fresh link, only if it was playing.
   const [autoPlay, setAutoPlay] = useState(true)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const seq = useRef(0)
   const retries = useRef(0)
+  // The last read's refusal, for a download that asked for a fresh link (V-1102).
+  const failed = useRef<LoadFailure | false>(false)
   const playing = useRef(false)
   const lastTime = useRef(0)
   // Where to carry on once the fresh link has loaded.
@@ -84,8 +89,15 @@ export function useRecordingPlayback(path: string, open: boolean) {
         setLoadError(false)
       }
       return next
-    } catch {
-      if (n === seq.current) setLoadError(true)
+    } catch (e) {
+      // A recording this person can't see (403) or one that is gone (404) can't come back on a fresh link: the
+      // picture goes, and the stage says why with no Try again (V-1075). Any other failure a retry can fix.
+      const failure = loadFailure(e)
+      failed.current = failure
+      if (n === seq.current) {
+        setLoadError(failure)
+        if (failure !== "failed") setMedia(null)
+      }
       return null
     }
   }, [path])
@@ -97,10 +109,11 @@ export function useRecordingPlayback(path: string, open: boolean) {
     setPlaybackFailed(false)
     setAutoPlay(true)
     retries.current = 0
-    resume.current = null
+    // A call's moment (zoom-13, seconds): the media seeks there once it can, and plays.
+    resume.current = startAt !== undefined && startAt > 0 ? { time: startAt, play: true } : null
     lastTime.current = 0
     void load()
-  }, [open, load])
+  }, [open, load, startAt])
 
   /** A fresh link, then the same moment again; the same link is simply reloaded. */
   const refresh = useCallback(
@@ -130,10 +143,12 @@ export function useRecordingPlayback(path: string, open: boolean) {
     [media, refresh],
   )
 
-  /** The link to download from, fresh when this one is spent. */
-  const freshUrl = useCallback(async (): Promise<string | undefined> => {
-    if (!linkSpent(media)) return media?.url
-    return (await load())?.url
+  /** The link to download from, fresh when this one is spent; with none, why, as the stage reads it (V-1102). */
+  const freshUrl = useCallback(async (): Promise<{ url?: string; failure: LoadFailure | false }> => {
+    if (!linkSpent(media)) return { url: media?.url, failure: false }
+    failed.current = false
+    const next = await load()
+    return next?.url ? { url: next.url, failure: false } : { failure: failed.current || "failed" }
   }, [media, load])
 
   const videoProps = {

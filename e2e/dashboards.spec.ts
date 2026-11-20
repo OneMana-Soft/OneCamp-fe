@@ -45,6 +45,31 @@ async function open(page: Page, testInfo: TestInfo, theme: "light" | "dark", kee
   return added
 }
 
+/**
+ * V-1062: a breakdown by SLA, added from the dialog. The server answers it as the Insights report slices work (its
+ * states named as business/SLA names them, the work with none keyed ""), or with no slices at all, written as null,
+ * where no project the reader reads keeps SLA state.
+ */
+const NEW = "a0000000-0000-4000-8000-000000000009"
+const flat = { n: 0, p25: 0, p50: 0, p85: 0, p95: 0 }
+const slaSlice = (key: string, name: string, open: number, done: number) => ({ by: "sla", key, name, open, done, overdue: 0, cycle: flat, lead: flat, age: flat })
+const SLA_SLICES = [slaSlice("breached", "Breached", 3, 0), slaSlice("at_risk", "At risk", 2, 0), slaSlice("on_track", "On track", 4, 0), slaSlice("met", "Met", 0, 6), slaSlice("", "", 1, 2)]
+async function withSla(page: Page, testInfo: TestInfo, theme: string, slices: unknown[] | null) {
+  const added: Record<string, unknown>[] = []
+  await visit(page, testInfo, theme, {
+    [`/project/dashboards/${D}/data`]: () => ({ msg: "ok", data: { widgets: [...data, ...added.map(() => ({ id: NEW, kind: "breakdown", data: { by: "sla", measure: "count", slices } }))] } }),
+    [`/project/dashboards/${D}/widgets`]: (_: URL, request: { postDataJSON(): unknown }) => {
+      const body = request.postDataJSON() as Record<string, unknown>
+      added.push(body)
+      return { msg: "ok", data: { ...body, id: NEW } }
+    },
+    [`/project/dashboards/${D}`]: () => ({ msg: "ok", data: { dashboard, widgets: [...widgets, ...added.map((b) => ({ ...b, id: NEW }))], can_keep: true } }),
+    "/project/dashboards": listOf([dashboard]),
+  })
+  await expect(page.locator(`[data-widget-id="${widgets[0].id}"]`)).toContainText("7", { timeout: 60_000 })
+  return added
+}
+
 const box = async (page: Page, i: number) => (await page.locator(`[data-widget-id="${widgets[i].id}"]`).boundingBox())!
 
 const listOf = (mine: unknown[]) => ({ msg: "ok", data: { mine, workspace: [], can_keep_workspace: false } })
@@ -243,6 +268,50 @@ for (const theme of SHOT_THEMES) {
         await reviewShot(page, "state-focus-menu", theme)
         await page.keyboard.press("Escape")
         await expect(more).toBeFocused()
+      })
+    })
+  }
+
+  // V-1062: a breakdown by SLA, at both widths, its keys named as the Insights report names them.
+  for (const phone of [false, true]) {
+    test.describe(`a breakdown by SLA at ${phone ? "390 with touch" : "1280"} (${theme})`, () => {
+      test.use(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme } : { viewport: { width: 1280, height: 860 }, colorScheme: theme })
+      const press = (l: ReturnType<Page["locator"]>) => (phone ? l.tap() : l.click())
+      const addBySla = async (page: Page) => {
+        await press(page.getByRole("button", { name: "Add widget" }).first())
+        const dialog = page.getByRole("dialog", { name: "Add a widget" })
+        await press(dialog.getByRole("combobox", { name: "Shows" }))
+        await press(page.getByRole("option", { name: /^Breakdown/ }))
+        await press(dialog.getByRole("combobox", { name: "Split" }))
+        await press(page.getByRole("option", { name: "By SLA" }))
+        await expect(dialog.getByRole("button", { name: "Add widget" })).toBeInViewport()
+        if (phone) expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+        await press(dialog.getByRole("button", { name: "Add widget" }))
+        await expect(dialog).toHaveCount(0)
+      }
+
+      test("is added from the dialog, and names where work stands: Breached, At risk, On track, Met, No SLA", async ({ page }, testInfo) => {
+        const added = await withSla(page, testInfo, theme, SLA_SLICES)
+        await addBySla(page)
+        await expect.poll(() => added.length).toBe(1)
+        expect(added[0]).toMatchObject({ kind: "breakdown", query: { by: "sla" } })
+        const widget = page.locator(`[data-widget-id="${NEW}"]`)
+        await expect(widget).toContainText("By SLA", { timeout: 30_000 })
+        await expect(widget.getByRole("columnheader").first()).toHaveText("SLA")
+        for (const name of ["Breached", "At risk", "On track", "Met", "No SLA"]) await expect(widget.getByRole("row", { name: new RegExp(`^${name}`) })).toBeVisible()
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(phone ? 390 : 1280)
+        await widget.scrollIntoViewIfNeeded()
+        await reviewShot(page, "dashboard-sla-breakdown", theme)
+      })
+
+      test("where no project it reads keeps SLA state (slices written as null), it says so", async ({ page }, testInfo) => {
+        await withSla(page, testInfo, theme, null)
+        await addBySla(page)
+        const widget = page.locator(`[data-widget-id="${NEW}"]`)
+        await expect(widget).toContainText("No SLA state to count", { timeout: 30_000 })
+        await expect(widget.getByRole("table")).toHaveCount(0)
+        await widget.scrollIntoViewIfNeeded()
+        await reviewShot(page, "dashboard-sla-empty", theme)
       })
     })
   }

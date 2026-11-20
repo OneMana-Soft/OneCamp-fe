@@ -20,6 +20,9 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { saidHere } from "@/lib/http/saidHere"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
 import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLinks } from "@/services/guestService"
+import { changeGuestLink, type GuestLinkChange } from "@/services/guestBoardLinks"
+import { LinkChange as BoardLinkChange, PasswordField as BoardPassword } from "@/components/guest/boardLinkControls"
+import { GhostMenu, NEVER, type Role } from "@/components/guest/guestLinkParts"
 import { PublishSection } from "@/components/guest/PublishSection"
 import { useItemLabel } from "@/components/labels/labelData"
 import { LabelHeldNote } from "@/components/labels/labelHeldNote"
@@ -30,8 +33,8 @@ import { GUEST_HUE } from "@/components/guest/guestUi"
 import { format, formatDistanceToNow } from "date-fns"
 import { Switch } from "@/components/ui/switch"
 import { AccessCard, LinkAccessTile } from "@/components/dialog/shareParts"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
+import { secretProblem } from "@/lib/publish/secret"
 
 interface GuestLinkSectionProps {
   resourceType: GuestResourceType
@@ -45,15 +48,12 @@ interface GuestLinkSectionProps {
   /**
    * The card's row for what a kind gives beside its link (a board's embed
    * code, components/guest/BoardEmbedRow): given "" before a link is made,
-   * then the new link, in place of the copy hint, while it shows.
+   * then the new link, in place of the copy hint, while it shows; password
+   * says whether that link has one (a board's, miro-33).
    */
-  extra?: (link: string) => React.ReactNode
+  extra?: (link: string, password: boolean) => React.ReactNode
 }
 
-// A UI-only sentinel. It never travels as a ttl, because 0 already means "use
-// the server default" on the wire, and a link that never expires is sent as its
-// own flag rather than as an unusual duration.
-const NEVER = -1
 
 const EXPIRY_OPTIONS = [
   { label: "7 days", hours: 24 * 7 },
@@ -93,6 +93,10 @@ const RESOURCE: Record<GuestResourceType, {
   start: GuestCapability
   viewLabel: string
   writeLabel?: string
+  /** A third role, drawing on it: a board's "Can edit" (miro-33). */
+  drawLabel?: string
+  /** Its links take a password, and each live one is changed in place (a board's, miro-33). */
+  password?: boolean
   title: string
   /** What the link gives, said above its options; none where the dialog around it says it already. */
   blurb: string
@@ -100,7 +104,10 @@ const RESOURCE: Record<GuestResourceType, {
   note?: string
 }> = {
   doc: { noun: "document", write: "comment", start: "view", viewLabel: "Can view", writeLabel: "Can comment", title: "Create an external link", blurb: "Anyone with the link can view this document, read only. No account needed." },
-  board: { noun: "board", write: null, start: "view", viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this board, read only. No account needed." },
+  board: {
+    noun: "board", write: "comment", start: "view", viewLabel: "Can view", writeLabel: "Can comment", drawLabel: "Can edit", password: true,
+    title: "Create an external link", blurb: "Anyone with the link can open this board, as a guest. No account needed.",
+  },
   table: { noun: "table", write: null, start: "view", viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this table, read only. No account needed." },
   channel: {
     noun: "channel", write: "post", start: "post", viewLabel: "Can read", writeLabel: "Can read and post", title: "Invite a guest",
@@ -114,6 +121,19 @@ const RESOURCE: Record<GuestResourceType, {
     note: "Approving tasks and asking for changes need “Can see and comment”.",
   },
 }
+
+/** The roles a kind's link may give, in order: view, then its write, then drawing (a board's). Pure. */
+function rolesOf(kind: (typeof RESOURCE)[GuestResourceType]): Role[] {
+  return [
+    { value: "view", label: kind.viewLabel },
+    ...(kind.write ? [{ value: kind.write, label: kind.writeLabel ?? kind.viewLabel }] : []),
+    ...(kind.drawLabel ? [{ value: "edit" as const, label: kind.drawLabel }] : []),
+  ]
+}
+
+// A board's link takes a password and is changed in place (miro-33): those
+// controls are a static import (a lazy group of their own re-cut the shared
+// modal stack's chunks across the app); only a board's card draws them.
 
 export function GuestLinkSection(props: GuestLinkSectionProps) {
   return props.card ? <GuestLinkCard {...props} /> : <GuestLinkPanel {...props} />
@@ -354,6 +374,17 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
   const [copied, setCopied] = React.useState(false)
   const links = useFetch<ResourceGuestLinks>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
   const [turningOff, setTurningOff] = React.useState<string | null>(null)
+  // A board's link's password (miro-33): null while none is asked for; the link it changes in place.
+  const [password, setPassword] = React.useState<string | null>(null)
+  const [problem, setProblem] = React.useState("")
+  // Whether the link just made has a password, for its row beside it (a board's embed code is none).
+  const [locked, setLocked] = React.useState(false)
+  const [changing, setChanging] = React.useState<string | null>(null)
+  // A refusal's words stand until the owner types again.
+  const typePassword = (v: string | null) => {
+    setPassword(v)
+    setProblem("")
+  }
   // A board's or a doc's sensitivity label may hold guest links back (miro-44 L): the server refuses one, in its own
   // words, and the card says so before anyone tries. Links made before the label went on still show, to turn off.
   const labelled = carriesLabels(resourceType) ? resourceType : null
@@ -365,7 +396,8 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
   const live = links.data?.data ?? []
   const held = !!heldBy && live.length === 0 && !link
   const on = !held && (open || !!link || live.length > 0)
-  const permissionOf = (c: GuestCapability) => (c === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel)
+  const roles = rolesOf(kind)
+  const permissionOf = (c: GuestCapability) => roles.find((r) => r.value === c)?.label ?? kind.viewLabel
   const first = live[0]
   const status = first
     ? ["On", permissionOf(first.capability), first.expires_at ? `expires ${format(new Date(first.expires_at), "d MMM")}` : "doesn't expire", ...(live.some((l) => l.slug) ? ["published as a web page"] : [])].join(" · ")
@@ -380,10 +412,18 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
   const options = expiryOptions(links.data?.max_days)
   const ttl = offered(ttlHours, options)
   const create = async () => {
+    const wrong = password ? secretProblem("password", password) : ""
+    setProblem(wrong)
+    if (wrong) return
     setCreating(true)
     try {
       const never = ttl === NEVER
-      const res = await createGuestLink(resourceType, resourceId, never ? undefined : ttl, kind.write ? capability : "view", never)
+      const given = kind.write ? capability : "view"
+      const res = password
+        ? await createGuestLink(resourceType, resourceId, never ? undefined : ttl, given, never, password)
+        : await createGuestLink(resourceType, resourceId, never ? undefined : ttl, given, never)
+      setLocked(!!password)
+      setPassword(null)
       setLink(guestResourceLink(resourceType, res.token))
       void links.mutate()
     } catch (e: unknown) {
@@ -409,6 +449,19 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
     }
     setTurningOff(null)
     await links.mutate()
+  }
+  // A board's live link, changed in place (miro-33): the server is the authority, so a refusal
+  // or a lost race (409) shows in its words, and a link that changed or went is read again.
+  const saveChange = async (id: string, change: GuestLinkChange) => {
+    try {
+      await changeGuestLink(id, change)
+    } catch (e: unknown) {
+      toast({ title: "Couldn't change the link", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
+      const status = (e as { response?: { status?: number } })?.response?.status
+      if (status !== 409 && status !== 404 && status !== 403) return
+    }
+    setChanging(null)
+    void links.mutate()
   }
 
   const onSwitch = (next: boolean) => {
@@ -453,7 +506,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
                   <GhostMenu
                     label={permissionOf(capability)}
                     name="Permission"
-                    options={[{ value: "view", label: kind.viewLabel }, { value: kind.write, label: kind.writeLabel ?? kind.viewLabel }]}
+                    options={roles}
                     onSelect={(v) => setCapability(v as GuestCapability)}
                   />
                 ) : null}
@@ -463,6 +516,12 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
                   options={options.map((o) => ({ value: String(o.hours), label: o.hours === NEVER ? o.label : `Expires in ${o.label}` }))}
                   onSelect={(v) => setTtlHours(Number(v))}
                 />
+                {/* The password before the action, on screen and in tab order: Create link comes last. */}
+                {kind.password ? (
+                  <React.Suspense fallback={null}>
+                    <BoardPassword value={password} onChange={typePassword} problem={problem} />
+                  </React.Suspense>
+                ) : null}
                 <Button variant="secondary" size="sm" className="ml-auto h-7 gap-1.5" onClick={() => void create()} disabled={creating}>
                   {creating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Link2 className="size-3.5" aria-hidden="true" />}
                   Create link
@@ -472,7 +531,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
                     {capLine(links.data?.max_days)}
                   </p>
                 ) : null}
-                {extra?.("")}
+                {extra?.("", !!password)}
               </div>
             ) : (
               <>
@@ -502,40 +561,57 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 </div>
-                {extra ? extra(link) : <p className="text-meta text-ink-3">Copy it now: it won&apos;t be shown again.</p>}
+                {extra ? extra(link, locked) : <p className="text-meta text-ink-3">Copy it now: it won&apos;t be shown again.</p>}
               </>
             )}
             {live.length > (link ? 1 : 0) ? (
               <div className="grid min-w-0">
                 <p className="text-meta font-medium text-ink-2">{link ? "Other links" : "Links that work now"}</p>
                 {(link ? live.slice(1) : live).map((l) => (
-                  <div key={l.id} className="flex h-9 min-w-0 items-center gap-2 text-ui-sm text-ink">
-                    <span className="min-w-0 flex-1 truncate">
-                      {permissionOf(l.capability)}
-                      <span className="text-ink-3">
-                        {" · "}
-                        {l.expires_at ? `ends ${formatDistanceToNow(new Date(l.expires_at), { addSuffix: true })}` : "doesn't expire"}
-                        {l.mine ? " · yours" : ""}
-                      </span>
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 shrink-0 px-2 text-danger-ink hover:text-danger-ink"
-                      disabled={turningOff === l.id}
-                      onClick={() =>
-                        confirm({
-                          title: `Turn off the “${permissionOf(l.capability)}” link?`,
-                          description: "Anyone using it loses access at once, and the link stops working for good. You can make a new one any time.",
-                          confirmText: "Turn off link",
-                          destructive: true,
-                          onConfirm: () => void turnOff([l.id]),
-                        })
-                      }
-                    >
-                      {turningOff === l.id ? "Turning off…" : "Turn off"}
-                    </Button>
+                  <React.Fragment key={l.id}>
+                  {/* Two lines, none cut short at any width: its role and what it takes, then what it is. */}
+                  <div data-link-row="" className="grid min-w-0 py-1 text-ui-sm text-ink">
+                    <div className="flex min-h-7 min-w-0 items-center gap-2" data-touch-group="">
+                      <span className="min-w-0 flex-1 break-words">{permissionOf(l.capability)}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="extend-touch-target h-7 shrink-0 px-2 text-danger-ink hover:text-danger-ink"
+                        disabled={turningOff === l.id}
+                        onClick={() =>
+                          confirm({
+                            title: `Turn off the “${permissionOf(l.capability)}” link?`,
+                            description: "Anyone using it loses access at once, and the link stops working for good. You can make a new one any time.",
+                            confirmText: "Turn off link",
+                            destructive: true,
+                            onConfirm: () => void turnOff([l.id]),
+                          })
+                        }
+                      >
+                        {turningOff === l.id ? "Turning off…" : "Turn off"}
+                      </Button>
+                      {kind.password ? (
+                        <Button variant="ghost" size="sm" className="extend-touch-target h-7 shrink-0 px-2" aria-expanded={changing === l.id} aria-label={`Change the “${permissionOf(l.capability)}” link`} onClick={() => setChanging(changing === l.id ? null : l.id)}>
+                          Change
+                        </Button>
+                      ) : null}
+                    </div>
+                    <p className="text-meta text-ink-3" data-link-facts="">
+                      {[
+                        kind.password ? (l.has_password ? "Password set" : "No password") : null,
+                        l.expires_at ? `ends ${formatDistanceToNow(new Date(l.expires_at), { addSuffix: true })}` : "doesn't expire",
+                        l.mine ? "yours" : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
                   </div>
+                  {changing === l.id ? (
+                    <React.Suspense fallback={null}>
+                      <BoardLinkChange link={l} roles={roles} options={options} onSave={(c) => saveChange(l.id, c)} onCancel={() => setChanging(null)} />
+                    </React.Suspense>
+                  ) : null}
+                  </React.Fragment>
                 ))}
               </div>
             ) : null}
@@ -545,26 +621,5 @@ function GuestLinkCard({ resourceType, resourceId, canShare, extra }: GuestLinkS
           </div>
       ) : null}
     </AccessCard>
-  )
-}
-
-/** A 28 px ghost menu: "Can view ▾". */
-function GhostMenu({ label, name, options, onSelect }: { label: string; name: string; options: { value: string; label: string }[]; onSelect: (v: string) => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-ui-sm font-medium text-ink-2" aria-label={`${name}: ${label}`}>
-          {label}
-          <ChevronDown className="size-3.5" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {options.map((o) => (
-          <DropdownMenuItem key={o.value} onSelect={() => onSelect(o.value)}>
-            {o.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }

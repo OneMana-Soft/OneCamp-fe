@@ -8,6 +8,7 @@ import { Pick } from "@/components/ui/pick"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { TimeField } from "@/components/ui/date-field"
 import { ToggleChip } from "@/components/ui/toggleChip"
+import { PeopleChips, type Person } from "@/components/work/rules/PeopleChips"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { WorkflowSentence } from "@/components/admin/workflowsParts"
@@ -17,22 +18,18 @@ import { browserTZ } from "@/lib/utils/timeZone"
 import { zoneLabel } from "@/lib/utils/zones"
 import { WEEK } from "@/lib/calendar/repeat"
 import { WEEKDAYS } from "@/lib/tasks/recurrence"
-import { FIELD_LABEL, FIELD_OPS, needsValue, newAction, newCondition, variablesFor, withTrigger } from "@/lib/rules/draft"
+import { ARRIVAL_DOORS, ARRIVES, FIELD_LABEL, FIELD_OPS, MAX_REASON, actionKinds, conditionFields, needsValue, newAction, newCondition, variablesFor, withTrigger } from "@/lib/rules/draft"
 import type { ProjectForm } from "@/lib/forms/forms"
 import { ordinal, repeatOf, ruleOf, type RepeatKind } from "@/lib/rules/schedule"
 import { ASSISTANT, forEachTask, ruleSentence, suggestedName, type RuleNames } from "@/lib/rules/sentence"
+import { sourceWord } from "@/lib/work/triage"
 import type { StatusOption } from "@/lib/taskStatus"
 import {
   MAX_ACTIONS, MAX_CONDITIONS, type ApprovalOutcome, type ConditionField, type RuleAction, type RuleActionType, type RuleCondition, type RuleDraft, type RuleTrigger,
   type RuleTriggerConfig, type WatchedField,
 } from "@/lib/rules/types"
 
-export interface Person {
-  id: string
-  name: string
-  /** An AI teammate in the project: a rule may give it work, which starts it. */
-  agent?: boolean
-}
+export type { Person }
 
 const TRIGGERS: { value: RuleTrigger; label: string }[] = [
   { value: "task_created", label: "A task is made" },
@@ -44,6 +41,7 @@ const TRIGGERS: { value: RuleTrigger; label: string }[] = [
   { value: "schedule", label: "On a schedule" },
   { value: "task_due_soon", label: "A task is due soon" },
   { value: "task_overdue", label: "A task becomes overdue" },
+  { value: ARRIVES, label: "Work arrives in triage" },
 ]
 
 const REPEATS: { value: RepeatKind; label: string }[] = [
@@ -65,15 +63,21 @@ const WATCHED: { value: WatchedField; label: string }[] = [
   { value: "name", label: "Name" },
 ]
 
-const ACTIONS: { value: RuleActionType; label: string }[] = [
-  { value: "assign", label: "Assign it" },
-  { value: "set_status", label: "Move it to a status" },
-  { value: "set_priority", label: "Set its priority" },
-  { value: "set_due", label: "Set its due date" },
-  { value: "add_comment", label: "Comment on it" },
-  { value: "add_subtask", label: "Add a subtask" },
-  { value: "notify", label: "Tell someone" },
-]
+// What each action is called; which a trigger offers, in order, is lib/rules/draft actionKinds.
+const ACTION_LABEL: Partial<Record<RuleActionType, string>> = {
+  triage: "Accept or decline it",
+  assign: "Assign it",
+  set_status: "Move it to a status",
+  set_priority: "Set its priority",
+  set_due: "Set its due date",
+  add_comment: "Comment on it",
+  add_subtask: "Add a subtask",
+  notify: "Tell someone",
+}
+const DECISIONS = [{ value: "accept", label: "Accept" }, { value: "decline", label: "Decline" }]
+const AS_IT_IS = "__as_is"
+// Whoever the project's triage rota has on duty (business/Workflow AssignOnDuty, NotifyOnDuty).
+const ON_DUTY = { value: "on_duty", label: "Whoever is on triage duty" }
 
 const ASK_AGENT: { value: RuleActionType; label: string } = { value: "ask_agent", label: "Ask an agent" }
 
@@ -173,9 +177,11 @@ function DueFields({ trigger, config, onChange }: { trigger: RuleTrigger; config
 }
 
 function ConditionRow({
-  c, onChange, onRemove, statuses, people,
+  c, onChange, onRemove, statuses, people, fields,
 }: {
   c: RuleCondition
+  /** The fields this rule's trigger can test (lib/rules/draft conditionFields). */
+  fields: ConditionField[]
   onChange: (c: RuleCondition) => void
   onRemove: () => void
   statuses: StatusOption[]
@@ -185,6 +191,8 @@ function ConditionRow({
   const value = (() => {
     if (!needsValue(c.op)) return null
     switch (c.field) {
+      case "source":
+        return <Pick label="Door" value={c.value || ARRIVAL_DOORS[0]} onChange={(v) => onChange({ ...c, value: v })} options={ARRIVAL_DOORS.map((d) => ({ value: d, label: sourceWord(d) }))} className="w-full md:w-32" />
       case "priority":
         return <Pick label="Priority" value={c.value ?? "high"} onChange={(v) => onChange({ ...c, value: v })} options={PRIORITIES} className="w-full md:w-32" />
       case "status":
@@ -209,7 +217,7 @@ function ConditionRow({
   return (
     <div data-rule-condition="" className="relative flex flex-wrap items-center gap-2 rounded-lg bg-sunken p-2 pr-14 md:pr-2">
       <Pick label="Field" value={c.field} onChange={(f) => onChange(newCondition(f as ConditionField))}
-        options={(Object.keys(FIELD_OPS) as ConditionField[]).map((f) => ({ value: f, label: FIELD_LABEL[f] }))} className="w-[calc(50%-0.25rem)] md:w-32" />
+        options={fields.map((f) => ({ value: f, label: FIELD_LABEL[f] }))} className="w-[calc(50%-0.25rem)] md:w-32" />
       <Pick label="Comparison" value={c.op} onChange={(op) => onChange({ ...c, op: op as RuleCondition["op"] })}
         options={ops.map((o) => ({ value: o.op, label: o.label }))} className="w-[calc(50%-0.25rem)] md:w-32" />
       {value}
@@ -222,7 +230,7 @@ function ConditionRow({
 const ASSISTANT_KEY = "__assistant"
 
 function ActionRow({
-  a, onChange, onRemove, statuses, people, kinds, fixed, agents = [],
+  a, onChange, onRemove, statuses, people, kinds, fixed, agents = [], arrival = false,
 }: {
   a: RuleAction
   onChange: (a: RuleAction) => void
@@ -235,10 +243,28 @@ function ActionRow({
   fixed?: boolean
   /** The workspace's AI teammates a rule may ask, besides OneCamp AI. */
   agents?: Person[]
+  /** A rule on arriving work: it may give work to, or tell, whoever is on triage duty. */
+  arrival?: boolean
 }) {
   const humans = people.filter((p) => !p.agent)
+  // Whoever is on duty is offered on arriving work, and kept wherever a rule already names it.
+  const onDuty = (v: string | undefined) => (arrival || v === ON_DUTY.value ? [ON_DUTY] : [])
   const fields = (() => {
     switch (a.type) {
+      case "triage":
+        return (
+          <>
+            <SegmentedControl aria-label="Accept or decline" value={a.decision === "decline" ? "decline" : "accept"} options={DECISIONS}
+              onValueChange={(v) => onChange(v === "decline" ? { type: "triage", decision: "decline", text: "" } : newAction("triage"))} />
+            {a.decision === "decline" ? (
+              <Textarea aria-label="Why it's declined" rows={2} maxLength={MAX_REASON} placeholder="The requester is told: like, we don't take printer requests here; ask IT."
+                value={a.text ?? ""} onChange={(e) => onChange({ ...a, text: e.target.value })} className="min-h-16 w-full text-sm" />
+            ) : (
+              <Pick label="Into status" value={a.status || AS_IT_IS} onChange={(v) => onChange({ ...a, status: v === AS_IT_IS ? "" : v })}
+                options={[{ value: AS_IT_IS, label: "As it is" }, ...statuses.map((s) => ({ value: s.value, label: s.label }))]} className="w-full md:w-44" />
+            )}
+          </>
+        )
       case "set_status":
         return <Pick label="Status" value={a.status ?? "inProgress"} onChange={(v) => onChange({ ...a, status: v })} options={statuses.map((s) => ({ value: s.value, label: s.label }))} className="w-full md:w-44" />
       case "set_priority":
@@ -254,23 +280,13 @@ function ActionRow({
                 { value: "creator", label: "Its creator" },
                 { value: "actor", label: "Whoever changed it" },
                 { value: "nobody", label: "Nobody" },
+                ...onDuty(a.assign),
               ]} className="w-full md:w-44" />
             {a.assign === "person" && (
               <Pick label="Person" value={a.user_ids?.[0] || (people[0]?.id ?? "")} onChange={(v) => onChange({ ...a, user_ids: [v] })} options={people.map((p) => ({ value: p.id, label: p.agent ? `${p.name} (AI teammate)` : p.name }))} className="w-full md:w-44" />
             )}
             {(a.assign === "round_robin" || a.assign === "least_loaded") && (
-              <div className="flex w-full flex-wrap gap-1.5" role="group" aria-label="Among">
-                <span className="mr-1 self-center text-meta text-ink-3">Among</span>
-                {people.map((p) => {
-                  const on = (a.user_ids ?? []).includes(p.id)
-                  return (
-                    <ToggleChip tone="neutral" offMark="plus" key={p.id} pressed={on} onPressedChange={(next) => onChange({ ...a, user_ids: next ? [...(a.user_ids ?? []), p.id] : (a.user_ids ?? []).filter((x) => x !== p.id) })}>
-                      {p.agent ? `${p.name} · AI` : p.name}
-                    </ToggleChip>
-                  )
-                })}
-                {!(a.user_ids ?? []).length && <span className="self-center text-meta text-ink-3">everyone in the project</span>}
-              </div>
+              <PeopleChips label="Among" lead="Among" people={people} picked={a.user_ids ?? []} onChange={(user_ids) => onChange({ ...a, user_ids })} none="everyone in the project" />
             )}
           </>
         )
@@ -300,19 +316,9 @@ function ActionRow({
                 { value: "creator", label: "Its creator" },
                 { value: "actor", label: "Whoever changed it" },
                 { value: "people", label: "People I pick" },
+                ...onDuty(a.notify),
               ]} className="w-full md:w-44" />
-            {a.notify === "people" && (
-              <div className="flex w-full flex-wrap gap-1.5" role="group" aria-label="People">
-                {humans.map((p) => {
-                  const on = (a.user_ids ?? []).includes(p.id)
-                  return (
-                    <ToggleChip tone="neutral" offMark="plus" key={p.id} pressed={on} onPressedChange={(next) => onChange({ ...a, user_ids: next ? [...(a.user_ids ?? []), p.id] : (a.user_ids ?? []).filter((x) => x !== p.id) })}>
-                      {p.name}
-                    </ToggleChip>
-                  )
-                })}
-              </div>
-            )}
+            {a.notify === "people" && <PeopleChips label="People" people={humans} picked={a.user_ids ?? []} onChange={(user_ids) => onChange({ ...a, user_ids })} />}
             <Input aria-label="Notice" maxLength={300} value={a.text ?? ""} onChange={(e) => onChange({ ...a, text: e.target.value })} className="h-11 w-full md:h-8" />
           </>
         )
@@ -367,7 +373,7 @@ function ActionRow({
 }
 
 function Actions({
-  list, onChange, statuses, people, addLabel, kinds, makesTask, agents,
+  list, onChange, statuses, people, addLabel, kinds, makesTask, agents, arrival,
 }: {
   list: RuleAction[]
   onChange: (list: RuleAction[]) => void
@@ -378,11 +384,12 @@ function Actions({
   /** A schedule's steps: the first makes the task the rest act on. */
   makesTask?: boolean
   agents?: Person[]
+  arrival?: boolean
 }) {
   return (
     <>
       {list.map((a, i) => (
-        <ActionRow key={i} a={a} statuses={statuses} people={people} kinds={kinds} fixed={makesTask && i === 0} agents={agents}
+        <ActionRow key={i} a={a} statuses={statuses} people={people} kinds={kinds} fixed={makesTask && i === 0} agents={agents} arrival={arrival}
           onChange={(next) => onChange(list.map((x, j) => (j === i ? next : x)))}
           onRemove={makesTask && i === 0 ? undefined : () => onChange(list.filter((_, j) => j !== i))} />
       ))}
@@ -429,7 +436,10 @@ export function RuleBuilder({
   const each = forEachTask(draft)
   const makesTask = schedule && !each
   const humans = people.filter((p) => !p.agent)
-  const kinds = agents ? [...ACTIONS, ASK_AGENT] : ACTIONS
+  const arrival = draft.trigger_type === ARRIVES
+  const offered = actionKinds(draft.trigger_type).map((value) => ({ value, label: ACTION_LABEL[value] ?? value }))
+  const kinds = agents ? [...offered, ASK_AGENT] : offered
+  const fields = conditionFields(draft.trigger_type)
   const setConfig = (trigger_config: RuleTriggerConfig) => set({ trigger_config })
   // A form's rule starts on the project's first form; its messages can say each of its answers.
   const pickTrigger = (t: RuleTrigger) => {
@@ -454,7 +464,7 @@ export function RuleBuilder({
           }} className="h-11 md:h-9" />
       </div>
 
-      <Step n="1" title="When" hint={schedule ? `On a schedule, in your time zone: ${zoneLabel(browserTZ())}` : draft.trigger_type === "form_submitted" ? "Each time it's sent, about the task it makes" : draft.trigger_type === "approval_decided" ? "When a task's request is answered for good" : "What starts the rule"}>
+      <Step n="1" title="When" hint={schedule ? `On a schedule, in your time zone: ${zoneLabel(browserTZ())}` : draft.trigger_type === "form_submitted" ? "Each time it's sent, about the task it makes" : draft.trigger_type === "approval_decided" ? "When a task's request is answered for good" : arrival ? "Work from a form, the API, an agent, GitHub or a chat, as it comes to wait in triage" : "What starts the rule"}>
         <div className="flex flex-wrap items-center gap-2">
           <Pick label="Trigger" value={draft.trigger_type} onChange={(v) => pickTrigger(v as RuleTrigger)} options={TRIGGERS} className="w-full md:w-60" />
           {draft.trigger_type === "form_submitted" && forms.length > 0 && (
@@ -508,7 +518,7 @@ export function RuleBuilder({
             options={[{ value: "all", label: "All of these" }, { value: "any", label: "Any of these" }]} />
         )}
         {conds.map((c, i) => (
-          <ConditionRow key={i} c={c} statuses={statuses} people={humans}
+          <ConditionRow key={i} c={c} statuses={statuses} people={humans} fields={fields}
             onChange={(next) => setConds(conds.map((x, j) => (j === i ? next : x)))}
             onRemove={() => setConds(conds.filter((_, j) => j !== i))} />
         ))}
@@ -521,7 +531,7 @@ export function RuleBuilder({
       )}
 
       <Step n={makesTask ? "2" : "3"} title="Then" hint={makesTask ? "It makes the task, then does the rest to it, as you" : each ? "What it does to each task, as you" : "What it does, in order, as you"}>
-        <Actions list={draft.actions} onChange={(actions) => set({ actions })} statuses={statuses} people={people} addLabel="Add an action" kinds={kinds} makesTask={makesTask} agents={agentChoices} />
+        <Actions list={draft.actions} onChange={(actions) => set({ actions })} statuses={statuses} people={people} addLabel="Add an action" kinds={kinds} makesTask={makesTask} arrival={arrival} agents={agentChoices} />
         <div data-rule-variables="" className="text-meta text-ink-3">
           Messages can say {variablesFor(draft.trigger_type).join(", ")}{answers.length ? ", and each answer:" : "."}
           {answers.length > 0 && (
@@ -540,7 +550,7 @@ export function RuleBuilder({
       {conds.length > 0 && !schedule && (
         draft.else_actions.length > 0 ? (
           <Step n="4" title="Otherwise" hint="When the conditions don't hold">
-            <Actions list={draft.else_actions} onChange={(else_actions) => set({ else_actions })} statuses={statuses} people={people} addLabel="Add an action" kinds={kinds} agents={agentChoices} />
+            <Actions list={draft.else_actions} onChange={(else_actions) => set({ else_actions })} statuses={statuses} people={people} addLabel="Add an action" kinds={kinds} arrival={arrival} agents={agentChoices} />
           </Step>
         ) : (
           <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-2 rounded-xl text-ink-2 md:h-9" onClick={() => set({ else_actions: [newAction("notify")] })}>

@@ -130,7 +130,7 @@ test("the confirmation says the invite was emailed, and keeps the cancel link", 
   const booked = page.locator("[data-booked]")
   await expect(booked).toContainText("We've emailed you the invite", { timeout: 30_000 })
   await expect(booked).not.toContainText("The invite is in your email")
-  await expect(page.locator("[data-cancel-link]")).toContainText("To cancel, use the link in your email, or this one")
+  await expect(page.locator("[data-cancel-link]")).toContainText("To change or cancel, use the link in your email, or this one")
   await expect(page.locator("[data-cancel-link] a")).toHaveAttribute("href", /\/booking\/secret-token$/)
   await expect(page.getByRole("link", { name: "Add to calendar (.ics)" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible()
@@ -192,3 +192,137 @@ test.describe("on a phone", () => {
     await expect(heading).toHaveText(first)
   })
 })
+
+// gcal-7: a guest moves their booking from its link (/booking/<token>), to one
+// of the page's own free times, on a phone with a finger and on a computer.
+// With SHOTS_DIR set, each state is saved as booking-move-<width>-<state>.png.
+const TOKEN = "secret-token"
+const MOVE_TOO_OFTEN = "This booking has been moved too often today. Try again tomorrow."
+
+/** The booking as its link shows it: tomorrow 11:00, local time, on the page `SLUG`. */
+function bookingView(today: Date, extra: Record<string, unknown> = {}) {
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 11, 0)
+  return {
+    booking_id: "b-123",
+    title: "Intro call",
+    owner_name: "Sam Rivera",
+    start: start.toISOString(),
+    end: new Date(start.getTime() + 30 * 60_000).toISOString(),
+    cancelled: false,
+    slug: SLUG,
+    page_live: true,
+    ...extra,
+  }
+}
+
+/** Stubs the booking, the page's times, and the move itself (answered by `answer`); returns the moves' bodies. */
+async function stubBooking(page: Page, testInfo: TestInfo, answer: (start: string) => { status: number; json: unknown }, view = bookingView(NOW)) {
+  const app = new URL(String(testInfo.project.use.baseURL || "http://localhost:3001"))
+  await page.clock.setFixedTime(NOW)
+  await stubBackend(page, testInfo, { [`/public/book/${SLUG}`]: { data: PAGE(NOW) }, [`/public/booking/${TOKEN}`]: { data: view } })
+  const moves: { start: string }[] = []
+  await page.route(
+    (url) => url.origin !== app.origin && url.pathname.endsWith(`/public/booking/${TOKEN}/reschedule`),
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const origin = route.request().headers()["origin"] || app.origin
+      const body = route.request().postDataJSON() as { start: string }
+      moves.push(body)
+      const { status, json } = answer(body.start)
+      await route.fulfill({ status, headers: { "access-control-allow-origin": origin, "access-control-allow-credentials": "true", "retry-after": "3600" }, json })
+    },
+  )
+  return moves
+}
+
+async function moveShot(page: Page, width: number, state: string) {
+  const dir = process.env.SHOTS_DIR
+  if (!dir) return
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: `${dir}/booking-move-${width}-${state}.png`, fullPage: true })
+}
+
+for (const [name, viewport, touch] of [
+  ["a phone", { width: 390, height: 844 }, true],
+  ["a computer", { width: 1280, height: 900 }, false],
+] as const) {
+  test.describe(`moving a booking on ${name}`, () => {
+    test.use({ viewport, isMobile: touch, hasTouch: touch })
+    const press = async (target: ReturnType<Page["locator"]>) => (touch ? target.tap() : target.click())
+
+    test("picks another of the page's times on the page, and shows the new one with its calendar file", async ({ page }, testInfo) => {
+      const moves = await stubBooking(page, testInfo, (start) => ({
+        status: 200,
+        json: { data: bookingView(NOW, { start, end: new Date(new Date(start).getTime() + 30 * 60_000).toISOString(), owner_told: true }) },
+      }))
+      await page.goto(`/booking/${TOKEN}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const ticket = page.locator("[data-ticket]")
+      await expect(ticket).toContainText("11:00", { timeout: 30_000 })
+      await moveShot(page, viewport.width, "1-booking")
+      await press(page.getByRole("button", { name: "Change time" }))
+      await expect(page.getByRole("region", { name: "Pick a day" })).toBeVisible({ timeout: 30_000 })
+      await expect(page.getByRole("dialog")).toHaveCount(0)
+      await press(page.locator("[data-available]").first())
+      await press(page.locator("[data-slot] button").nth(1))
+      await moveShot(page, viewport.width, "2-picker")
+      await press(page.locator("[data-slot-next]"))
+      await expect(page.locator("[data-moved-line]")).toHaveText("Sam has been told.", { timeout: 30_000 })
+      expect(moves).toEqual([{ start: PAGE(NOW).slots[1].start }])
+      await expect(ticket).toContainText("10:30")
+      await expect(ticket).not.toContainText("11:30")
+      await expect(page.getByRole("link", { name: "Add to calendar (.ics)" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Cancel booking" })).toBeVisible()
+      expect(new URL(page.url()).pathname).toBe(`/booking/${TOKEN}`)
+      expect(new URL(page.url()).search).toBe("")
+      const width = await page.evaluate(() => document.documentElement.scrollWidth)
+      expect(width).toBeLessThanOrEqual(viewport.width)
+      await moveShot(page, viewport.width, "3-moved")
+    })
+
+    test("keeps the time: Keep this time closes the times, brings back Change time and Cancel booking, and moves nothing", async ({ page }, testInfo) => {
+      const moves = await stubBooking(page, testInfo, () => ({ status: 200, json: {} }))
+      await page.goto(`/booking/${TOKEN}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const ticket = page.locator("[data-ticket]")
+      await expect(ticket).toContainText("11:00", { timeout: 30_000 })
+      await press(page.getByRole("button", { name: "Change time" }))
+      await expect(page.getByRole("region", { name: "Pick a day" })).toBeVisible({ timeout: 30_000 })
+      const keep = page.getByRole("button", { name: "Keep this time" })
+      await expect(keep).toBeVisible()
+      await moveShot(page, viewport.width, "6-keep")
+      // A thumb's target on a phone: the row's buttons are 44 px there, and stay even.
+      const tall = async (name: string) => (await page.getByRole("button", { name }).boundingBox())!.height
+      if (touch) expect(await tall("Keep this time")).toBeGreaterThanOrEqual(44)
+      await press(keep)
+      await expect(page.getByRole("region", { name: "Change time" })).toHaveCount(0)
+      await expect(page.getByRole("button", { name: "Change time" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Cancel booking" })).toBeVisible()
+      if (touch) for (const name of ["Change time", "Cancel booking"]) expect(await tall(name)).toBeGreaterThanOrEqual(44)
+      await expect(ticket).toContainText("11:00")
+      expect(moves).toEqual([])
+    })
+
+    test("says the server's words when moved too often, and still cancels", async ({ page }, testInfo) => {
+      await stubBooking(page, testInfo, () => ({ status: 429, json: { msg: MOVE_TOO_OFTEN } }))
+      await page.goto(`/booking/${TOKEN}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      await press(page.getByRole("button", { name: "Change time" }))
+      await press(page.locator("[data-available]").first())
+      await press(page.locator("[data-slot] button").first())
+      await press(page.locator("[data-slot-next]"))
+      // Inside the page's main: Next's route announcer is an alert of its own.
+      await expect(page.getByRole("main").getByRole("alert")).toHaveText(MOVE_TOO_OFTEN, { timeout: 30_000 })
+      await expect(page.locator("[data-ticket]")).toContainText("11:00")
+      await expect(page.getByRole("region", { name: "Pick a day" })).toHaveCount(0)
+      await moveShot(page, viewport.width, "4-too-often")
+      await press(page.getByRole("button", { name: "Cancel booking" }))
+      await expect(page.getByText("Cancel this meeting?")).toBeVisible()
+    })
+
+    test("offers no change on a cancelled booking", async ({ page }, testInfo) => {
+      await stubBooking(page, testInfo, () => ({ status: 200, json: {} }), bookingView(NOW, { cancelled: true }))
+      await page.goto(`/booking/${TOKEN}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      await expect(page.locator("[data-cancelled-line]")).toHaveText("This meeting is cancelled.", { timeout: 30_000 })
+      await expect(page.getByRole("button", { name: "Change time" })).toHaveCount(0)
+      await moveShot(page, viewport.width, "5-cancelled")
+    })
+  })
+}

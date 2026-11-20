@@ -166,7 +166,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         // every edge.
         <div data-app-viewport="" data-shell="v3" data-band={isTabletBand(band) ? band : undefined} className="app-frame flex h-dvh overflow-hidden">
             <Sidebar />
-            <main data-shell-main="" className="relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2">
+            <main id="main-content" className="relative z-[1] flex min-w-0 flex-1 flex-col py-2 pr-2">
                 {children}
             </main>
         </div>

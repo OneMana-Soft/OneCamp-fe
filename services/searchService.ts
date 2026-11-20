@@ -31,9 +31,32 @@ export interface SearchEventHit {
     updated_date?: number;
 }
 
+/**
+ * A line said in a call (zoom-13), as the one Search Query returns it: who said
+ * it, where in the call (ms from its start) and the call it belongs to. Its
+ * recording id is the egress id, or the call's key when nobody recorded it
+ * (has_media false). Only a member, now, of the channel or chat the call was in
+ * gets it, once the call has ended; times are in seconds.
+ */
+export interface SearchTranscriptHit {
+    transcript_id: string;
+    transcript_text?: string;
+    transcript_offset_ms?: number;
+    transcript_recording_id?: string;
+    transcript_has_media?: boolean;
+    transcript_conv_id?: string;
+    transcript_conv_kind?: "channel" | "dm" | "group";
+    transcript_by_user_id?: string;
+    transcript_by_user_full_name?: string;
+    transcript_call_started_at?: number;
+    created_date?: number;
+    deleted_date?: number;
+}
+
 export interface SearchResult {
-    type: "chat" | "post" | "comment" | "attachment" | "doc" | "board" | "task" | "user" | "project" | "channel" | "team" | "event";
+    type: "chat" | "post" | "comment" | "attachment" | "doc" | "board" | "task" | "user" | "project" | "channel" | "team" | "event" | "transcript";
     event?: SearchEventHit;
+    transcript?: SearchTranscriptHit;
     chat?: any;
     post?: any;
     comment?: any;

@@ -129,7 +129,7 @@ export function TaskRowCheck({ id, selected }: { id: string; selected: boolean }
       onCheckedChange={() => store?.toggle(id)}
       aria-label="Select task"
       // Quiet until the row is pointed at or anything is picked; never hidden, so always reachable.
-      className={cn("transition-opacity", !selected && "opacity-40 group-hover/row:opacity-100 focus-visible:opacity-100")}
+      className={cn("transition-opacity", !selected && "opacity-40 row-hover-in:opacity-100 focus-visible:opacity-100")}
     />
   )
 }

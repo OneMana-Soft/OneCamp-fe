@@ -357,7 +357,7 @@ function AssistantMessage({
 
     return (
         <div data-message="assistant" className="group/msg grid min-w-0 grid-cols-[24px_minmax(0,1fr)] gap-3">
-            <span className="pt-px">{showMark ? <AiMark /> : null}</span>
+            <span className="pt-px">{showMark ? <AiMark label="OneCamp AI" /> : null}</span>
             <div className="min-w-0">
                 {msg.steps && msg.steps.length > 0 ? (
                     <div className="mb-2.5">

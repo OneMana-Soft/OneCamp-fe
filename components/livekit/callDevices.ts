@@ -28,3 +28,7 @@ export function writeDevicePref(kind: keyof DevicePrefs, id: string): void {
     /* the default device, then */
   }
 }
+
+// The effects' lazy parts, imported in every call's first load, so each builds once.
+export const loadChooser = () => import("@/components/call/effects/EffectsChooser")
+export const loadMade = () => import("@/components/call/effects/madePart")

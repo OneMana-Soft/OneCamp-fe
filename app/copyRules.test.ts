@@ -1,10 +1,10 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 
-import ts from "typescript"
 import { describe, expect, it } from "vitest"
 
 import { SHORTCUT_GROUPS } from "@/components/docEditor/shortcuts"
+import { copyFiles, copyTexts, messageTexts } from "@/lib/testing/copyStrings"
 
 /**
  * The copy rules (docs PROGRAM I22, G-COPY), in everything a person reads:
@@ -15,7 +15,6 @@ import { SHORTCUT_GROUPS } from "@/components/docEditor/shortcuts"
  */
 
 const ROOT = process.cwd()
-const DIRS = ["app", "components", "hooks", "lib", "services", "store", "context"]
 const VERSION = /\bv\d+(?:\.\d+)+\b|\b\d+\.\d+\.\d+\b|\bversion\s+\d/i
 const CLAIM = /complian|certified/i
 /** SVG path data reads like version numbers ("M12 5.38c1.62…"). */
@@ -25,57 +24,32 @@ const SHADER = /^#version \d+ es\n/
 /** Not shown to anyone: words people search the admin by (lib/adminSections keywords). */
 const ALLOWED = new Set(["lib/adminSections.ts: compliance"])
 
-function sourceFiles(dir: string, out: string[] = []): string[] {
-  let entries
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const e of entries) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) {
-      if (e.name !== "node_modules") sourceFiles(p, out)
-    } else if (/\.tsx?$/.test(e.name) && !/\.(test|spec)\.tsx?$/.test(e.name) && !e.name.endsWith(".d.ts")) out.push(p)
-  }
-  return out
-}
-
 /** Copy in one file that breaks the rules, as "file: text". */
 export function brokenCopy(file: string, src: string): string[] {
   if (!VERSION.test(src) && !CLAIM.test(src)) return []
-  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found: string[] = []
-  const visit = (n: ts.Node) => {
-    let text: string | null = null
-    if (ts.isJsxText(n)) text = n.text
-    else if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) text = n.text
-    else if (ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) text = n.text
+  for (const { text } of copyTexts(file, src)) {
     if (text && !PATH_DATA.test(text.trim()) && !SHADER.test(text.trim()) && (VERSION.test(text) || CLAIM.test(text))) {
       const entry = `${relative(ROOT, file)}: ${text.trim().slice(0, 80)}`
       if (!ALLOWED.has(entry)) found.push(entry)
     }
-    ts.forEachChild(n, visit)
   }
-  visit(sf)
   return found
 }
 
-function brokenMessages(value: unknown, path: string): string[] {
-  if (typeof value === "string") return VERSION.test(value) || CLAIM.test(value) ? [`${path}: ${value.slice(0, 80)}`] : []
-  if (value && typeof value === "object") return Object.entries(value).flatMap(([k, v]) => brokenMessages(v, path ? `${path}.${k}` : k))
-  return []
-}
+const brokenMessages = (value: unknown): string[] =>
+  messageTexts(value).flatMap(({ path, text }) => (VERSION.test(text) || CLAIM.test(text) ? [`${path}: ${text.slice(0, 80)}`] : []))
 
 describe("copy rules", () => {
   it("has no version numbers and claims no compliance, in any copy", () => {
-    const found = DIRS.flatMap((d) => sourceFiles(join(ROOT, d))).flatMap((f) => brokenCopy(f, readFileSync(f, "utf8")))
+    const found = copyFiles().flatMap((f) => brokenCopy(f, readFileSync(f, "utf8")))
     expect(found).toEqual([])
   })
 
   it("keeps the English messages to the same rules", () => {
+    // A literal path, so scripts/relatedTests runs this test when en.json changes.
     const en = JSON.parse(readFileSync(join(ROOT, "lib/utils/i18n/locales/en/en.json"), "utf8"))
-    expect(brokenMessages(en, "")).toEqual([])
+    expect(brokenMessages(en)).toEqual([])
   })
 
   it("reads strings, not comments, and skips drawing paths and shaders", () => {

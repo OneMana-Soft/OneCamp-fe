@@ -4,8 +4,9 @@ import type { CalendarSync } from "@/lib/calendar/calendarSync"
 
 // What the server answers, by address: Outlook's link (/calendar/sync/microsoft),
 // the person's connectors, and whether they are an admin.
-const reads = vi.hoisted(() => ({ outlook: undefined as unknown, connected: false, admin: false, failing: [] as string[], refreshFailed: [] as string[], mutate: vi.fn() }))
+const reads = vi.hoisted(() => ({ outlook: undefined as unknown, connected: false, admin: false, failing: [] as string[], refreshFailed: [] as string[], mutate: vi.fn(), calendars: undefined as unknown[] | undefined }))
 const answer = (url: string) => {
+  if (url === "/calendar/calendars") return reads.calendars ? { data: reads.calendars } : undefined
   if (url === "/calendar/sync/microsoft") return reads.outlook ? { data: reads.outlook } : undefined
   if (url === "/connectors") return { data: { connectors: [{ id: "microsoft_calendar", name: "Outlook Calendar", icon_key: "outlook", connected: reads.connected, permissions: [], description: "" }] } }
   if (url === "/user/profile") return { data: { user_is_admin: reads.admin } }
@@ -35,13 +36,15 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import { CalendarsPanel } from "./calendarsPopover"
 import { CalendarOptionsDrawer } from "@/components/drawers/calendarOptionsDrawer"
+import OtherCalendarsLayer from "./otherCalendarsLayer"
+import { readFileSync } from "node:fs"
 import { useConnectorLink } from "@/lib/calendar/calendarSync"
 import { pinTestClock } from "@/lib/testing/testClock"
 
 pinTestClock()
 afterEach(() => {
   cleanup()
-  Object.assign(reads, { outlook: undefined, connected: false, admin: false, failing: [], refreshFailed: [] })
+  Object.assign(reads, { outlook: undefined, connected: false, admin: false, failing: [], refreshFailed: [], calendars: undefined })
   confirmed.length = 0
   reads.mutate.mockReset()
   http.get.mockReset()
@@ -275,5 +278,89 @@ describe("Outlook's link, asked once at a time", () => {
       await confirmed[0]
     })
     expect([again().disabled, disconnect().disabled]).toEqual([false, false])
+  })
+})
+
+// gcal-14 (W2 at 390): the phone's calendar options name a project's, a channel's or a team's calendar by its
+// container and say the level the server gives and who it is shared with, as the computer's panel does.
+describe("a container's calendar in the phone's options", () => {
+  it("shows its container's mark, the level and that it is shared with the container's members", () => {
+    reads.calendars = [
+      { id: "c1", name: "Launch", kind: "project", container_kind: "project", container_id: "p-1", access: "edit" },
+      { id: "c5", name: "design", kind: "channel", container_kind: "channel", container_id: "ch-1", access: "view" },
+      { id: "c6", name: "Design team", kind: "team", container_kind: "team", container_id: "t-1", access: "edit" },
+      { id: "c4", name: "Maya Chen", kind: "personal", access: "view" },
+    ]
+    render(<CalendarOptionsDrawer drawerOpenState setOpenState={vi.fn()} />)
+    const theirs = document.querySelector("[data-drawer-other-calendars]") as HTMLElement
+    // The row is the button around its switch.
+    const rowOf = (name: string) => screen.getByRole("switch", { name: `Show ${name}` }).parentElement?.closest("button") as HTMLElement
+    for (const [name, mark, words] of [
+      ["Launch", "folder-kanban", "Can edit · Shared with the project's members"],
+      ["design", "hash", "View only · Shared with the channel's members"],
+      ["Design team", "users", "Can edit · Shared with the team's members"],
+    ] as const) {
+      const row = rowOf(name)
+      expect(theirs.contains(row)).toBe(true)
+      expect(row.textContent).toContain(words)
+      expect(row.querySelector(`svg.lucide-${mark}`)).toBeTruthy()
+    }
+    // A calendar that is no container's says none of it.
+    expect(rowOf("Maya Chen").textContent).not.toContain("Shared with")
+  })
+
+  // CR-295 G1: at 390 an empty one says what fills it, as the computer's panel does, by the calendar's own count
+  // of the week (the one the panel shows), which the calendars' read hands on; a read that failed says no such thing.
+  it("says what fills an empty one, by the calendar's count of its week, and nothing of it when the read failed", async () => {
+    reads.calendars = [
+      { id: "c1", name: "Launch", kind: "project", container_kind: "project", container_id: "p-1", access: "edit" },
+      { id: "c5", name: "design", kind: "channel", container_kind: "channel", container_id: "ch-1", access: "view" },
+    ]
+    const from = new Date(2026, 9, 18)
+    const to = new Date(2026, 9, 25)
+    // The calendar's count of the week: two on Launch, none on design.
+    const weekCount = (pass: (it: { event_calendar_id?: string }) => boolean) => [{ event_calendar_id: "c1" }, { event_calendar_id: "c1" }].filter(pass).length
+    const both = () => (
+      <>
+        <OtherCalendarsLayer from={from} to={to} onChange={vi.fn()} weekCount={weekCount} />
+        <CalendarOptionsDrawer drawerOpenState setOpenState={vi.fn()} />
+      </>
+    )
+    const { rerender } = render(both())
+    const rowOf = (name: string) => screen.getByRole("switch", { name: `Show ${name}` }).parentElement?.closest("button") as HTMLElement
+    await waitFor(() => expect(rowOf("design").textContent).toContain("View only · Tasks linked from its messages show here"))
+    expect(rowOf("Launch").textContent).toContain("Can edit · Shared with the project's members")
+    // Its read failed: Couldn't load is the calendar's to say, never that nothing is on it.
+    reads.failing = [`/calendar/calendars/events?ids=c1,c5&from=${from.toISOString()}&to=${to.toISOString()}`]
+    rerender(both())
+    await waitFor(() => expect(rowOf("design").textContent).toContain("View only · Shared with the channel's members"))
+    expect(rowOf("design").textContent).not.toContain("show here")
+  })
+
+  // basecamp-05 head 3: a phone makes a link to a project's calendar as the computer's row menu does
+  // (Show in another app), in the same dialog, from beside the row (never inside its button with the switch).
+  it("offers a project's calendar in another app, in the computer's dialog for that calendar", async () => {
+    reads.calendars = [
+      { id: "c1", name: "Launch", kind: "project", container_kind: "project", container_id: "p-1", access: "edit" },
+      { id: "c9", name: "Holidays", kind: "subscribed", access: "view" },
+    ]
+    render(<CalendarOptionsDrawer drawerOpenState setOpenState={vi.fn()} />)
+    const entry = screen.getByRole("button", { name: "Show Launch in another app" })
+    // Beside the row: the row stays the one button around its switch.
+    const row = screen.getByRole("switch", { name: "Show Launch" }).parentElement?.closest("button") as HTMLElement
+    expect(row.contains(entry)).toBe(false)
+    expect(entry.closest("button")).toBe(entry)
+    // A calendar read from an address is subscribed to at its address, never a link of yours.
+    expect(screen.queryByRole("button", { name: "Show Holidays in another app" })).toBeNull()
+    fireEvent.click(entry)
+    expect(await screen.findByText("Show \u201cLaunch\u201d in another app")).toBeTruthy()
+  })
+
+  it("says it from the one line and the one test the panel uses", () => {
+    for (const file of ["../drawers/calendarOptionsDrawer.tsx", "./calendarsPopover.tsx"]) {
+      const text = readFileSync(new URL(file, import.meta.url), "utf8")
+      expect(text, file).toContain("emptyLine(")
+      expect(text, file).not.toMatch(/\.empty\b|count === 0/)
+    }
   })
 })

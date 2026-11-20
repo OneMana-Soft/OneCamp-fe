@@ -11,6 +11,13 @@ export interface Span {
   end: string
 }
 export type Week = Record<string, Span[]>
+/**
+ * A booking page's dates of its own ("YYYY-MM-DD" in the page's zone): ranges
+ * in place of the weekday's, [] a day off; at most pageHours' MAX_DATES. With its own
+ * week, a page's hours (availability's WorkingHours) keep them as `week` and
+ * `dates` beside days, start and end (gcal-7).
+ */
+export type Dates = Record<string, Span[]>
 
 /** At most this many ranges in a day, as the server keeps them. */
 export const MAX_SPANS = 6
@@ -30,20 +37,25 @@ export function weekOrder(start: number): number[] {
 
 /** Why these hours can't be kept, in the settings' words; null when they can. */
 export function weekProblem(week: Week): string | null {
-  let any = false
   for (const spans of Object.values(week)) {
-    if (spans.length > MAX_SPANS) return `Up to ${MAX_SPANS} ranges a day.`
-    const sorted = [...spans].sort((a, b) => minutes(a.start) - minutes(b.start))
-    let last = -1
-    for (const s of sorted) {
-      if (!s.start || !s.end) return "Pick a start and an end."
-      if (minutes(s.end) <= minutes(s.start)) return "Each range has to end after it starts."
-      if (minutes(s.start) < last) return "A day's ranges can't overlap."
-      last = minutes(s.end)
-      any = true
-    }
+    const problem = dayProblem(spans)
+    if (problem) return problem
   }
-  return any ? null : "Pick at least one day."
+  return Object.values(week).some((spans) => spans.length) ? null : "Pick at least one day."
+}
+
+/** Why one day's ranges can't be kept (a week's day or a page's date); null when they can. */
+export function dayProblem(spans: Span[]): string | null {
+  if (spans.length > MAX_SPANS) return `Up to ${MAX_SPANS} ranges a day.`
+  const sorted = [...spans].sort((a, b) => minutes(a.start) - minutes(b.start))
+  let last = -1
+  for (const s of sorted) {
+    if (!s.start || !s.end) return "Pick a start and an end."
+    if (minutes(s.end) <= minutes(s.start)) return "Each range has to end after it starts."
+    if (minutes(s.start) < last) return "A day's ranges can't overlap."
+    last = minutes(s.end)
+  }
+  return null
 }
 
 /** A day turned on (with the day before's ranges, or 09:00–17:00) or off. */
@@ -59,12 +71,12 @@ export function withDay(week: Week, day: number, on: boolean): Week {
 }
 
 /** One range of a day changed. */
-export function withSpan(week: Week, day: number, i: number, span: Span): Week {
+export function withSpan(week: Week, day: number | string, i: number, span: Span): Week {
   return { ...week, [String(day)]: (week[String(day)] ?? []).map((s, j) => (j === i ? span : s)) }
 }
 
 /** A range added after a day's last: an hour after it ends, for an hour, inside the day. */
-export function withNewSpan(week: Week, day: number): Week {
+export function withNewSpan(week: Week, day: number | string): Week {
   const spans = week[String(day)] ?? []
   const lastEnd = spans.length ? Math.max(...spans.map((s) => minutes(s.end))) : 8 * 60
   const start = Math.min(lastEnd + 60, 23 * 60)
@@ -73,7 +85,7 @@ export function withNewSpan(week: Week, day: number): Week {
 }
 
 /** A range of a day taken away; a day with none left is off. */
-export function withoutSpan(week: Week, day: number, i: number): Week {
+export function withoutSpan(week: Week, day: number | string, i: number): Week {
   const spans = (week[String(day)] ?? []).filter((_, j) => j !== i)
   const next = { ...week, [String(day)]: spans }
   if (!spans.length) delete next[String(day)]

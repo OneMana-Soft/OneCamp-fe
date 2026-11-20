@@ -95,7 +95,7 @@ describe("where toasts are drawn", () => {
   // A menu, popover or select is a phone's sheet too (app/overlay.css 8,
   // components/ui/floatMark): a call's notice came in over More's rows, on
   // Raise your hand (DESIGN-BUILD-20, 26 Oct).
-  it("comes in under the top bar while a sheet is open, a drawer or a float, as while the keyboard is up", () => {
+  it("comes in under the top bar while a sheet is open, a drawer or a float, as while the keyboard is up, and not as a float leaves", () => {
     const rules: { selector: string; decls: string }[] = []
     postcss.parse(read("app/phone.css")).walkRules((r) => {
       rules.push({ selector: r.selector, decls: r.nodes.map(String).join("; ") })
@@ -115,8 +115,12 @@ describe("where toasts are drawn", () => {
         html.setAttribute("data-sheet", "open")
         expect(el.matches(found[0].selector), `${cls} over a sheet`).toBe(true)
         html.removeAttribute("data-sheet")
-        html.setAttribute("data-float", "")
+        html.setAttribute("data-float", "open")
         expect(el.matches(found[0].selector), `${cls} over a float's sheet`).toBe(true)
+        // V-940: not once every float has begun to leave (components/ui/floatMark), so a toast said then comes in
+        // where it stays, never under the bar for the float's exit and then at the foot.
+        html.setAttribute("data-float", "closing")
+        expect(el.matches(found[0].selector), `${cls} as the float's sheet leaves`).toBe(false)
       } finally {
         html.removeAttribute("data-keyboard")
         html.removeAttribute("data-sheet")

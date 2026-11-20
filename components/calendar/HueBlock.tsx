@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { Moon, Plane } from "@/lib/icons"
+import { CircleCheck, Flag, Moon, Plane } from "@/lib/icons"
 import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { lazyView } from "@/lib/lazy/lazyView"
@@ -119,6 +119,8 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
   const kind = kindOf(item)
   const mark = hueMark(item)
   const Comp = as as "button"
+  // gcal-14: an entry the work fills in.
+  const src = item.event_source
   const lead =
     kind === "task" || kind === "block" ? (
       <>
@@ -130,6 +132,10 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
       <Moon className="size-3 shrink-0" aria-hidden="true" />
     ) : kind === "away" ? (
       <Plane className="size-3 shrink-0" aria-hidden="true" />
+    ) : src?.kind === "milestone" ? (
+      <Flag className="size-3 shrink-0" aria-hidden="true" />
+    ) : src?.kind === "task" ? (
+      <CircleCheck className="size-3 shrink-0" aria-hidden="true" />
     ) : null
   const bar = kind === "event" || kind === "focus" || kind === "block"
   return (
@@ -141,6 +147,7 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
       data-event-uuid={item.event_uuid}
       data-hue={kind === "event" || kind === "task" || kind === "block" ? (mark.own ? "own" : hueOf(item)) : undefined}
       data-own-hue={mark.own}
+      data-derived={src?.kind}
       data-past={past || undefined}
       data-live={live || undefined}
       data-selected={selected || undefined}
@@ -155,10 +162,12 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
         variant === "block" && "grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)] items-start pr-1.5 text-meta font-medium",
         bar && !continued ? "pl-[9px]" : "pl-1.5",
         hueBlockClasses(item, { past, live, selected, quiet }),
+        src && "outline-dashed outline-1 -outline-offset-1 outline-current/35",
         className,
       )}
       style={mark.style ? { ...mark.style, ...style } : style}
       {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+      aria-label={src && rest["aria-label"] ? `${rest["aria-label"]}, ${src.from}` : rest["aria-label"]}
     >
       {bar && !continued ? (
         <span aria-hidden="true" data-hue-bar="" className={cn("absolute inset-y-0 left-0 w-[3px]", kind === "focus" ? "bg-ink-3" : "bg-hue")} />
@@ -166,6 +175,7 @@ export function hueBlock({ item, variant, past, live, selected, quiet, continued
       {variant === "chip" && lead ? <span className="flex h-4 shrink-0 items-center">{lead}</span> : variant !== "block" ? lead : null}
       {variant === "block" && lead ? <span data-block-marks="" className="col-start-2 row-start-1 -mr-0.5 ml-1 mt-1 flex items-center opacity-80">{lead}</span> : null}
       {children}
+      {src ? <span className="sr-only">, {src.from}</span> : null}
     </Comp>
   )
 }

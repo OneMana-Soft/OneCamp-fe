@@ -32,6 +32,28 @@ export function withStatus(status: number, json: unknown) {
   return { [STATUS]: status, json }
 }
 
+/**
+ * A thread's createComment behind the server's send-once guard (V-1088): one
+ * reply per client_msg_id, and the same comment_id answered again for it. The
+ * first send fails as `first` says: "500" writes nothing; "lost" writes the
+ * reply and its answer never arrives. `sent` holds every body taken, `written`
+ * each reply the server holds.
+ */
+export function sendOnceReplies(first: "500" | "lost", commentId: (n: number) => string) {
+  const sent: Record<string, unknown>[] = []
+  const written = new Map<string, string>()
+  const answer = (_url: URL, request: Request) => {
+    const body = request.postDataJSON() as Record<string, unknown>
+    sent.push(body)
+    if (sent.length === 1 && first === "500") return withStatus(500, { msg: "Something went wrong" })
+    const key = typeof body.client_msg_id === "string" ? body.client_msg_id : `none-${sent.length}`
+    if (!written.has(key)) written.set(key, commentId(written.size))
+    if (sent.length === 1) return withStatus(0, {})
+    return { msg: "ok", data: { comment_id: written.get(key), comment_created_at: new Date().toISOString() } }
+  }
+  return { answer, sent, written }
+}
+
 const HEADERS = Symbol("headers")
 
 /**
@@ -77,6 +99,13 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   // The Inbox badge (lib/activity/inboxBadge), read with the nav on every page: nothing new.
   [/\/activity\/unread$/, { msg: "ok", data: { count: 0 } }],
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
+  // A project's SLA settings (hooks/useSlaView: a list's filter and Display, the project's tools): SLAs off, as the
+  // server answers a project that never turned them on. A spec about SLAs answers it itself (V-1093).
+  [/\/project\/[^/]+\/sla$/, { msg: "ok", data: { on: false, rules: [], defaults: false, hours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", tz: "UTC" }, hours_set: false, can_manage: false } }],
+  // A project's triage queue (linear-21 H3, components/work/triage): read only while its Triage tab is open, which a
+  // project's info draws only while project_triage says on. Off and empty, as the server answers a project that never
+  // turned triage on; a spec about triage answers it itself.
+  [/\/project\/[^/]+\/triage$/, { msg: "ok", data: { on: false, requests: [], can_decide: false } }],
   // A task's approval request (package 9 R2): none, unless a test sends one.
   [/\/task\/approval\/[^/]+$/, { msg: "ok", data: null }],
   // A task's links to other tasks (jira-01 J-H), read by every task panel: none, unless a test sends some.
@@ -256,6 +285,21 @@ export async function expectEveryCallAnswered(page: Page) {
  * fails on a skipped one.
  */
 export const SHOT_THEMES = process.env.SHOTS_DIR ? (["light", "dark"] as const) : (["light"] as const)
+
+/**
+ * reviewShot in each of SHOT_THEMES with that theme applied (the app follows
+ * the system's colour scheme), then back to the scheme the page had. Nothing
+ * when SHOTS_DIR is unset, so a gate run never changes the page's theme.
+ */
+export async function reviewShotInThemes(page: Page, name: string) {
+  if (!process.env.SHOTS_DIR) return
+  const was = (await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches)) ? "dark" : "light"
+  for (const theme of SHOT_THEMES) {
+    await page.emulateMedia({ colorScheme: theme })
+    await reviewShot(page, name, theme)
+  }
+  await page.emulateMedia({ colorScheme: was })
+}
 
 /** The server's ai feature on, so the AI edition's own entries draw (lib/addOns). */
 export const AI_ON = { "/config/client": { msg: "ok", data: { features: { ai: true } } } }

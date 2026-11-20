@@ -2,6 +2,7 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import { displayNameOf } from "@/lib/personName"
 import React, { Suspense, useState } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { format, parseISO, isSameDay } from "date-fns";
 import { shortDateTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -306,6 +307,8 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                 // Changed meanwhile: read again, and the edit stays open. Gone: the panel says so.
                 if (r.why === "stale") void mutateApi();
                 if (r.why === "gone") void mutate();
+                // A room it books is taken, too many or gone: said at the form's Rooms row while they stay chosen (gcal-6).
+                if (r.why === "room") setProblem({ field: "rooms", message: r.message, taken: r.taken, rooms: m.roomsKey(next) });
                 return;
             }
             stopEditing();
@@ -427,9 +430,13 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
     // organiser sees who said what, asks again, and copies the link of a
     // guest invited by email.
     const guestView = eventGuests(event, currentUserUUID);
+    // A guest invited by email (a guest with no member: the server keeps an
+    // address for each, though the public demo serves it blank): the lobby's
+    // switch and the recap's both ask this one question.
+    const outsideGuests = guestView.faces.some((f) => f.outside);
     const ended = end <= new Date();
     const callChoice = eventCallChoice(event, { mayChange: mayEdit, google: onGoogle, ended });
-    const skipLobby = inviteesSkipLobby(event, { mayChange: mayEdit, google: onGoogle, ended, outsideGuests: guestView.faces.some((f) => f.outside) });
+    const skipLobby = inviteesSkipLobby(event, { mayChange: mayEdit, google: onGoogle, ended, outsideGuests });
     // One change at a time: the switch waits, busy, while the first is asked.
     const setSkipLobby = async (on: boolean) => {
         setSkipAsked(on);
@@ -517,6 +524,39 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
             void readArtefacts();
         }
     };
+    // A call's recap's action item as a task (gcal-new-event-notes): by
+    // whoever may change the event (mayEdit, as the server rules), into a
+    // project they pick; the list reads again so the item shows its task.
+    // The organiser's "Send the recap to guests" is theirs alone, shown with
+    // a guest by email and a call. The list only presents; these are here.
+    const recapMeans = mayEdit
+        ? {
+              makeTask: async (key: string, index: number, project: string) => {
+                  try {
+                      const { makeActionTaskRequest } = await import("@/lib/calendar/eventRecap");
+                      await post.makeRequest(makeActionTaskRequest(eventUUID, key, index, project));
+                  } finally {
+                      void readArtefacts();
+                  }
+              },
+              projects: async () => {
+                  const { projectsRequest, projectsOf } = await import("@/lib/calendar/eventRecap");
+                  return projectsOf(await post.makeRequest(projectsRequest));
+              },
+          }
+        : undefined;
+    const recapSwitch =
+        isCreator && apiEvent && (event?.event_call || artefacts?.data?.length) && outsideGuests
+            ? {
+                  on: !!apiEvent.recap_to_guests,
+                  Toggle: Switch,
+                  set: async (on: boolean) => {
+                      const { recapToGuestsRequest } = await import("@/lib/calendar/eventRecap");
+                      await post.makeRequest(recapToGuestsRequest(apiEvent.id, on));
+                      void mutateApi();
+                  },
+              }
+            : undefined;
     // What the person can do with the event, once: quiet icon buttons in the
     // right panel's header, where hovering names them; on the phone's page,
     // where nothing hovers, Edit with its name and the rest in a labelled menu
@@ -654,6 +694,14 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                                 </dd>
                             </div>
                             {event.event_location ? <EventFormView.View fallback={null} render={(m) => <m.EventExtra place={event.event_location} />} /> : null}
+                            {apiEvent?.rooms?.length ? (
+                                <div className={fieldRow()} data-event-rooms="">
+                                    <dt className={fieldLabel}>Rooms</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">
+                                        {apiEvent.rooms.map((r) => r.name).join(", ")}
+                                    </dd>
+                                </div>
+                            ) : null}
                             {apiEvent?.recurrence ? (
                                 <div className={fieldRow()} data-event-repeats="">
                                     <dt className={fieldLabel}>Repeats</dt>
@@ -752,10 +800,12 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                             )}
                         </section>
                         {apiEvent?.files?.length ? <EventFormView.View fallback={null} render={(m) => <m.EventExtra files={apiEvent.files} />} /> : null}
-                        {artefacts?.data?.length ? (
+                        {artefacts?.data?.length || recapSwitch ? (
                             <Suspense fallback={null}>
                                 <EventRecordings
                                     body={artefacts}
+                                    recap={recapMeans}
+                                    recapToGuests={recapSwitch}
                                     selfUUID={currentUserUUID}
                                     onPlay={(call) => {
                                         // The one player reads the call by the event's own routes: its recording, or that it

@@ -14,6 +14,7 @@
 // An event's room (gcal-15, /app/meet/e/<id>) is one more door, read and
 // joined by the calendar's routes.
 
+import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { GREEN_ROOM_GROUND } from "@/components/livekit/CallStage"
@@ -50,6 +51,8 @@ type DoorStatus = { title?: string; state?: string; workspace_name?: string } & 
 export function MemberDoorView({ door }: { door: MemberDoor }) {
   const router = useRouter()
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // Backgrounds made from words (meet-09), where the workspace's AI is on.
+  const madeBackgrounds = useFeature(FEATURE_AI)
   const selfUUID = self.data?.data.user_uuid
   // A room's passcode, unlocked at its address in this tab.
   const slug = "slug" in door ? door.slug : ""
@@ -160,6 +163,7 @@ export function MemberDoorView({ door }: { door: MemberDoor }) {
               live={!!read?.live}
               username={name}
               hueId={selfUUID}
+              madeBackgrounds={madeBackgrounds}
               place={status?.title}
               recording={!!status?.recording?.on}
               recordingBy={status?.recording?.on ? status.recording.by || null : null}

@@ -18,6 +18,7 @@ vi.mock("@/lib/calendar/calendarSync", async (orig) => ({ ...(await orig<typeof 
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: { title: string; onConfirm: () => unknown }) => sent.confirms.push(opts) }))
 
 import { MonthView } from "./monthView"
+import { HueBlock } from "./HueBlock"
 import { EventPopover, whenLabel } from "./eventPopover"
 import { eventCallChoice, eventCallOf, inviteesSkipLobby, joinLinkOf } from "@/lib/calendar/joinLink"
 import { QuickCreateCard } from "./quickCreateCard"
@@ -410,5 +411,75 @@ describe("every event's call room (gcal-15)", () => {
     const join = screen.getByRole("link", { name: /Join/ })
     expect(join.getAttribute("href")).toBe("/app/meet/e/e4")
     expect(join.getAttribute("target")).toBeNull()
+  })
+})
+
+// gcal-14 (W3): an entry a project's, a channel's or a team's calendar fills itself with is drawn
+// apart and read only, and its card says where it comes from and opens that, never the entry.
+describe("an entry a calendar fills itself with", () => {
+  const derived = (p: Partial<CalendarEventInterface>): CalendarEventInterface => ({
+    event_uuid: "task:t-1",
+    event_title: "Ship beta",
+    event_start_time: "2026-10-15T00:00:00Z",
+    event_end_time: "2026-10-16T00:00:00Z",
+    event_all_day: true,
+    event_start_date: "2026-10-15",
+    event_end_date: "2026-10-16",
+    event_read_only: true,
+    event_calendar_id: "cal-p",
+    calendar_name: "Launch",
+    event_source: { kind: "task", id: "t-1", href: "/app/task/t-1", open: "Open task", from: "A task in Launch" },
+    ...p,
+  }) as CalendarEventInterface
+  const anchorEl = () => {
+    const a = document.createElement("button")
+    document.body.appendChild(a)
+    return a
+  }
+
+  it.each([
+    ["task", derived({}), "Open task", "/app/task/t-1", "A task in Launch"],
+    [
+      "milestone",
+      derived({ event_uuid: "milestone:m-1", event_title: "Beta", event_source: { kind: "milestone", id: "m-1", href: "/app/project/p-1?tab=updates", open: "Open milestone", from: "A milestone of Launch" } }),
+      "Open milestone",
+      "/app/project/p-1?tab=updates",
+      "A milestone of Launch",
+    ],
+    [
+      "person",
+      derived({ event_uuid: "away:u-1:1760486400", event_title: "Away", event_is_away: true, event_all_day: false, event_source: { kind: "person", id: "u-1", href: "/app/user/u-1", open: "Open profile", from: "Time off, on Design's calendar" } }),
+      "Open profile",
+      "/app/user/u-1",
+      "Time off, on Design's calendar",
+    ],
+  ])("a %s's card offers no edit and opens its source", (_kind, e, open, href, from) => {
+    const full = vi.fn()
+    render(<EventPopover event={e} anchor={anchorEl()} now={new Date(2026, 9, 15, 9)} onClose={vi.fn()} onOpenFull={full} />)
+    const dialog = screen.getByRole("dialog", { name: e.event_title })
+    expect(within(dialog).queryByRole("button", { name: "Edit event" })).toBeNull()
+    expect(within(dialog).queryByRole("button", { name: "Open details" })).toBeNull()
+    expect(within(dialog).getByRole("link", { name: open }).getAttribute("href")).toBe(href)
+    expect(dialog.textContent).toContain(from)
+    expect(full).not.toHaveBeenCalled()
+  })
+
+  it("opens a task beside the calendar, as the calendar opens one", () => {
+    const task = vi.fn()
+    render(<EventPopover event={derived({})} anchor={anchorEl()} now={new Date(2026, 9, 15, 9)} onClose={vi.fn()} onOpenFull={vi.fn()} onOpenTask={task} />)
+    fireEvent.click(screen.getByRole("link", { name: "Open task" }))
+    expect(task).toHaveBeenCalledWith("t-1")
+  })
+
+  it("draws apart in every view's block, named with where it comes from", () => {
+    render(
+      <>
+        <HueBlock item={derived({})} variant="bar">Ship beta</HueBlock>
+        <HueBlock item={derived({ event_uuid: "milestone:m-1", event_source: { kind: "milestone", id: "m-1", href: "/x", open: "Open milestone", from: "A milestone of Launch" } })} variant="chip">Beta</HueBlock>
+      </>,
+    )
+    const task = screen.getByRole("button", { name: /^Ship beta\s*, A task in Launch$/ })
+    expect(task.getAttribute("data-derived")).toBe("task")
+    expect(screen.getByRole("button", { name: /^Beta\s*, A milestone of Launch$/ }).getAttribute("data-derived")).toBe("milestone")
   })
 })

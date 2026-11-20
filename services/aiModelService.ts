@@ -845,31 +845,6 @@ export async function getAISelfTestStatus(): Promise<SelfTestStatus> {
   return res.data?.data
 }
 
-// ─── Code-aware bug analysis (member-facing) ────────────────────────────────
-
-export interface CodeAnalysisResult {
-  answer: string
-  files_considered: string[]
-  partial: boolean
-}
-
-interface AnalyzeCodeInput {
-  owner: string
-  repo: string
-  title: string
-  body: string
-  ref?: string
-  deep?: boolean
-}
-
-// Analyze a bug/issue against a linked GitHub repo and get a root-cause +
-// proposed fix. Read-only against GitHub. `deep` widens the file budget for a
-// "look harder" retry.
-export async function analyzeCodeIssue(input: AnalyzeCodeInput): Promise<CodeAnalysisResult> {
-  const res = await axiosInstance.post(AiPost.AnalyzeCode, input)
-  return res.data?.data
-}
-
 // ─── AI release notes (member-facing) ──────────────────────────────────────
 
 export interface ReleaseNotesResult {

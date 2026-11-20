@@ -1,8 +1,9 @@
 "use client"
 
 // RelationCell links a table row to OneCamp entities (tasks, docs, boards,
-// users, projects), reusing the access-scoped unified search (req 4.2), or to
-// rows of a table, found by name (pickRows). A row keeps each link as
+// users, projects, channels), reusing the access-scoped unified search (req
+// 4.2), to the reader's calls (GET /calls/linkable), or to rows of a table,
+// found by name (pickRows). A row keeps each link as
 // {id, type}; the server names each item for each reader, and sends the ones
 // a reader can't open without a name, shown here as one "can't open" chip. A
 // link to a table's row is stored by id, and comes back with the row's name.
@@ -10,7 +11,8 @@
 import * as React from "react"
 import { PopoverContent } from "@/components/ui/popover"
 import { LazyPopover } from "./LazyPopover"
-import { relationWrite, RelationRef, RelationTarget } from "@/services/tableService"
+import { relationWrite, RelationRef } from "@/services/tableService"
+import type { RelationTarget } from "@/lib/fieldTypes/types"
 import { cellPickers, PickerLoading } from "./cellPickerPart"
 import { relationAdd, relationMarkup } from "@/components/table/relationFace"
 
@@ -29,6 +31,7 @@ export function RelationCell({
   readOnly,
   onLink,
   onCommit,
+  openCall,
 }: {
   value: unknown
   /** How many chips show before "+N", and whether they wrap (gridCells' chipRoom); all, wrapping, by default. */
@@ -43,6 +46,8 @@ export function RelationCell({
   /** Links to a table's rows change one at a time, through this; other links through onCommit. */
   onLink?: (change: { add?: string[]; remove?: string[] }) => void
   onCommit: (value: RelationRef[]) => void
+  /** Opens a linked call (the tables page's opener, CellContext.openCall); without one, a call's chip is its name. */
+  openCall?: (id: string) => void
 }) {
   const rowsOf = target === "table" ? tableId : undefined
   const refs: RelationRef[] = Array.isArray(value) ? (value as RelationRef[]) : []
@@ -67,6 +72,7 @@ export function RelationCell({
     readOnly,
     people,
     remove,
+    openCall,
     add: readOnly ? null : (
       <LazyPopover open={open} onOpenChange={setOpen} trigger={relationAdd(refs, people)}>
         <PopoverContent align="start" sideOffset={2} className="w-auto bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()}>

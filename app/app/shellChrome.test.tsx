@@ -65,7 +65,7 @@ describe("the shell without a top bar", () => {
   })
 
   it("puts the sheet 8px from the frame's edges, and every sheet on the e-sheet ladder at r12", () => {
-    expect(NAV).toMatch(/data-shell-main=""[^>]*py-2 pr-2/)
+    expect(NAV).toMatch(/<main id="main-content"[^>]*py-2 pr-2/)
     expect(LAYOUT).toMatch(/"app-sheet relative flex h-full flex-col overflow-hidden"/)
     const css = read("app/globals.css")
     const sheet = css.slice(css.indexOf(".app-sheet {"), css.indexOf("}", css.indexOf(".app-sheet {")))

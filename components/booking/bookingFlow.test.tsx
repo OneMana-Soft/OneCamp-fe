@@ -32,7 +32,8 @@ vi.mock("@/lib/celebrate", () => ({ celebrate, prefersReducedMotion: () => reduc
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "UTC" }))
 vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null, madeWithHref: () => "" }))
 
-import { BookingFlow, bookLabel } from "./BookingFlow"
+import { BookingFlow } from "./BookingFlow"
+import { bookLabel } from "./bookingTime"
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] })
@@ -99,7 +100,10 @@ describe("the month", () => {
     expect(card.className).toMatch(/sm:max-w-\[740px\]/)
     expect(document.querySelector("[data-day-and-times]")?.className).toMatch(/flex-col min-\[1048px\]:flex-row/)
     const times = document.querySelector("[data-slot-column]")!
-    expect(times.className).toMatch(/sm:border-t/)
+    // The line between the month and the times only while they stack: a min-[1048px] reset came after sm:border-t in the
+    // built CSS and never applied, so the column carried a stray top line beside the month.
+    expect(times.className).toMatch(/sm:max-\[1048px\]:border-t/)
+    expect(times.className).not.toMatch(/border-t-0/)
     expect(times.querySelector("ul")?.className).toMatch(/max-\[1047px\]:grid-cols-3/)
   })
 
@@ -189,7 +193,7 @@ describe("booked", () => {
 // losing the offset, the part a visitor checks. Its label drops words instead.
 describe("the time zone's name", () => {
   it("says itself ever shorter, keeping the offset", async () => {
-    const { zoneLabels } = await import("./BookingFlow")
+    const { zoneLabels } = await import("./bookingTime")
     const t = zoneLabels("America/New_York")
     expect(t[0]).toMatch(/^Eastern (Daylight|Standard) Time \(GMT-[45]\)$/)
     expect(t[1]).toMatch(/^Eastern Time \(GMT-[45]\)$/)
@@ -262,14 +266,25 @@ describe("the confirmation", () => {
     expect(page).not.toMatch(/invite is in your email|Need to change it/)
     expect(screen.getByRole("link", { name: "Add to calendar (.ics)" })).toBeTruthy()
     expect(screen.getByRole("link", { name: "Google Calendar" })).toBeTruthy()
-    expect(document.querySelector("[data-cancel-link]")?.textContent).toMatch(/^To cancel, use the link in your email, or this one: .*\/booking\/secret-token$/)
+    expect(document.querySelector("[data-cancel-link]")?.textContent).toMatch(/^To change or cancel, use the link in your email, or this one: .*\/booking\/secret-token$/)
   })
 
   it("keeps the cancel link on the page when nothing was emailed, and promises no email", async () => {
     await bookWith({ emailed: false, booking_id: "b-123" })
     expect(document.querySelector("[data-emailed]")).toBeNull()
-    expect(document.querySelector("[data-cancel-link]")?.textContent).toMatch(/^Keep this link to cancel: .*\/booking\/secret-token$/)
+    expect(document.querySelector("[data-cancel-link]")?.textContent).toMatch(/^Keep this link to change or cancel: .*\/booking\/secret-token$/)
     expect(screen.getByRole("link", { name: "Add to calendar (.ics)" })).toBeTruthy()
+  })
+
+  // gcal-7 H2b: a guest is reminded by email a day and an hour before, so the
+  // promise is made only when an email went out (never on the demo).
+  it("promises the reminders only when it emailed", async () => {
+    await bookWith({ emailed: true, booking_id: "b-123" })
+    expect(document.querySelector("[data-reminders]")?.textContent).toBe("We'll remind you a day and an hour before.")
+    cleanup()
+    await bookWith({ emailed: false, booking_id: "b-123" })
+    expect(document.querySelector("[data-booked]")).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/remind you/)
   })
 
   it("adds the same event as the email's invite, and never carries the cancel link", async () => {

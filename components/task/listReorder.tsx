@@ -773,7 +773,7 @@ function Grip({ task, editable }: { task: TaskInfoInterface; editable: boolean }
       title={on ? "Drag to move" : "Moves in manual order"}
       data-reorder-grip=""
       data-drag-handle=""
-      className="absolute left-0.5 top-1/2 inline-flex h-6 w-4 -translate-y-1/2 items-center justify-center rounded-sm text-ink-3 opacity-0 outline-none transition-[opacity,color,background-color] duration-[140ms] hover:bg-hover hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100 group-focus-visible/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 [@media(hover:none)]:opacity-100"
+      className="absolute left-0.5 top-1/2 inline-flex h-6 w-4 -translate-y-1/2 items-center justify-center rounded-sm text-ink-3 opacity-0 outline-none transition-[opacity,color,background-color] duration-[140ms] row-hover:bg-hover row-hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring row-hover-in:opacity-100 kbd:opacity-100 [@media(hover:none)]:opacity-100"
     >
       <GripVertical className="size-3.5" aria-hidden="true" />
     </button>

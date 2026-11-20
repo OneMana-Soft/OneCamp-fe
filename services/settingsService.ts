@@ -394,6 +394,16 @@ export interface TranscriptionConfig {
     stt_api_key_source: ConfigSource
     has_google_credentials: boolean
     google_source: ConfigSource
+    // zoom-09 C2: where call audio goes (server, browser, deepgram, google,
+    // openai, custom, "" when off), whether that leaves this server, where an
+    // admin last said it may go, whether an install's env sends it away
+    // unacknowledged, and why captions are off ("" | transcription_disabled |
+    // transcriber_not_running).
+    where?: string
+    audio_leaves_server?: boolean
+    acknowledged_where?: string
+    needs_acknowledgement?: boolean
+    captions_off_reason?: string
 }
 
 interface UpdateTranscriptionConfigRequest {
@@ -405,6 +415,9 @@ interface UpdateTranscriptionConfigRequest {
     // Secret fields: omit to keep, "" to clear, value to set.
     stt_api_key?: string
     google_credentials?: string
+    // Where the admin acknowledges call audio goes (zoom-09 C2): a save that
+    // sends it off this server is refused (409) without it.
+    acknowledge_where?: string
 }
 
 export async function getTranscriptionConfig(): Promise<TranscriptionConfig | null> {

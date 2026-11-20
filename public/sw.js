@@ -270,6 +270,7 @@ var LAST_PAGE = /__ONECAMP_LAST_PAGE__/g;
 // How long a page's own answer is waited for when the device keeps the page: a weak signal can leave the browser
 // "online" with nothing getting through.
 var PAGE_WAIT_MS = 4000;
+var RETRY_MS = 300;
 var PAGES_KEPT = 60;
 var FILES_PER_GENERATION = 800;
 var GENERATION = 'x-onecamp-generation';
@@ -522,6 +523,17 @@ function within(promise, ms) {
     });
 }
 
+// A page's request that dropped (fetch() rejects with a TypeError, Chromium's navigation preload with a NetworkError)
+// is asked once more, RETRY_MS later. Never an answer of any status, an abort, or when the device says it is offline.
+// Only GETs reach openPage (the fetch listener), so a write is never sent twice.
+function askAgain(request, error) {
+    var dropped = !!error && (error.name === 'TypeError' || error.name === 'NetworkError');
+    if (!dropped || (self.navigator && self.navigator.onLine === false)) return Promise.reject(error);
+    return new Promise(function (resolve) { setTimeout(resolve, RETRY_MS); }).then(function () {
+        return fetch(request);
+    });
+}
+
 function openPage(event, url) {
     respond(event, function (later) {
         return loadState().then(function (s) {
@@ -529,6 +541,7 @@ function openPage(event, url) {
             var keep = member && isAppPage(url);
             var fresh = Promise.resolve(event.preloadResponse)
                 .then(function (preloaded) { return preloaded || fetch(event.request); })
+                .catch(function (error) { return askAgain(event.request, error); })
                 .then(function (response) {
                     if (keep && isWholePage(response)) later(keepPage(url.href, response.clone(), member));
                     return response;

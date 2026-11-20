@@ -26,11 +26,11 @@ export const AREA_RULES = [
   // Boards: the whiteboards.
   ...rule("boards", /^components\/board\//, /^app\/app\/board\//, /^lib\/board(\/|\.)/),
   // Calls: the room, recordings, transcripts.
-  ...rule("calls", /^components\/(livekit|callIndicator|recording)\//, /^app\/app\/(meet|recordings)\//, /^lib\/calls\//, /^services\/(callService|transcriptService)\./, /\/(call|meet|recording|transcript)[A-Z]?[^/]*\.(t|j)sx?$/i),
+  ...rule("calls", /^components\/(livekit|call|callIndicator|recording)\//, /^app\/app\/(meet|recordings)\//, /^lib\/calls\//, /^services\/(callService|transcriptService)\./, /\/(call|meet|recording|transcript)[A-Z]?[^/]*\.(t|j)sx?$/i),
   // Calendar: events, booking, focus time.
   ...rule("calendar", /^components\/(calendar|booking)\//, /^app\/(app\/calendar|book|booking|rsvp)\//, /^lib\/calendar\//, /^hooks\/use(Calendar|FocusTime|StartFocus)/, /^services\/(bookingService|eventInvitationService)\./, /\/(event|calendar|booking)[A-Z][^/]*\.(t|j)sx?$/),
   // Tables.
-  ...rule("tables", /^components\/table\//, /^app\/app\/tables\//, /^lib\/(tables|csv)\b/, /^services\/(tableService|tableEditingService|tableRows|tableCalls|tableViews)\b/),
+  ...rule("tables", /^components\/table\//, /^app\/app\/tables\//, /^lib\/(tables|csv)\b/, /^services\/(tableService|tableEditingService|tableRows|tableCalls|tableViews|tableLinkPicks)\b/),
   // Docs: the editor, the tree, comments, live entities.
   ...rule("docs", /^components\/(doc|docEditor|docTree|docComments|docTemplates|minimal-tiptap|entityLink|liveEntity)\//, /^app\/app\/doc\//, /^lib\/(doc[A-Za-z]*|docs|docComments|codec|anchors|embeds|liveEntity|export)(\/|\.)/, /^hooks\/useDoc/, /^services\/(doc[A-Za-z]*|entityLinkService|followService|connectedService)\./),
   // Projects and tasks.
@@ -46,7 +46,7 @@ export const AREA_RULES = [
   // Inbox, activity and later.
   ...rule("inbox", /^components\/(activity|inbox|notifications|Notification|later)\//, /^app\/app\/(inbox|later)\//, /^hooks\/use(Activity|Later|PauseNotifications|NotificationLevel)/, /^services\/(activityService|inboxService|laterService|catchUpService)\./, /^lib\/(activity|notifications)\//),
   // People and teams.
-  ...rule("people", /^components\/(team|member|profile|invite|guest)\//, /^app\/app\/(team|profile|user)\//, /^app\/guest\//, /^hooks\/useUserAvatar/, /^services\/guestService\./),
+  ...rule("people", /^components\/(team|member|profile|invite|guest)\//, /^app\/app\/(team|profile|user)\//, /^app\/guest\//, /^hooks\/useUserAvatar/, /^services\/guest(Service|BoardLinks)\./),
   // Chat: channels, DMs, groups, messages, threads.
   ...rule("chat", /^components\/(channel|chat|groupChat|message|messages|mobileChatMessage|mobileMessage|mobilePost|conversation|threads|textInput|typingIndicator|reactionPicker|posts|clips|command)\//, /^app\/app\/(channel|chat|forward|posts)\//, /^hooks\/use(Chat|Channel|Conversation|PostMessage|Message|JoinChannel|PublishTyping|ScheduledMessages|EarlierHistory|DeleteMessage|SaveEdit)/, /^lib\/(chat|conversation|messages|messageGrouping)(\/|\.)/, /^services\/(channelService|channelUnread|channelRestore|unreadCache|commandService|pollService|unfurlService|channelReportService)\./, /\/(channel|chat|message|thread|dm|groupChat)[A-Z][^/]*\.(t|j)sx?$/),
   // Home.

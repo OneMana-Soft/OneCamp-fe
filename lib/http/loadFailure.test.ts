@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { loadFailure } from "./loadFailure"
+import { failureWords, loadFailure } from "./loadFailure"
 
 describe("loadFailure", () => {
   it("is no-access when the server says it is there and not this person's", () => {
@@ -21,5 +21,20 @@ describe("loadFailure", () => {
     expect(loadFailure({ response: { status: 408 } })).toBe("failed")
     expect(loadFailure({ response: { status: 429 } })).toBe("failed")
     expect(loadFailure(new Error("Network Error"))).toBe("failed")
+  })
+})
+
+describe("failureWords", () => {
+  it("says a thing this person can't see is not theirs, and how to get it, naming it by its noun", () => {
+    expect(failureWords("no-access", "call")).toEqual({
+      title: "You can't see this call",
+      detail: "It hasn't been shared with you. Ask whoever sent you the link to give you access.",
+    })
+  })
+
+  it("says a thing that is gone may never have been there, with no word about trying again", () => {
+    const w = failureWords("gone", "project")
+    expect(w).toEqual({ title: "This project doesn't exist or was deleted", detail: "The link may be old or mistyped." })
+    expect(`${w.title} ${w.detail}`).not.toMatch(/try again/i)
   })
 })

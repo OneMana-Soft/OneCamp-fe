@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import AiModelPicker from "@/components/ai/AiModelPicker"
 import BoardUIStudio from "@/components/board/boardUIStudio"
 import { newElementId } from "@/lib/board/ids"
+import { AI_NO_RESULT } from "@/lib/board/boardAI"
 
 interface BoardAIPanelProps {
   boardId: string
@@ -102,12 +103,12 @@ const UI_INDIGO = "#4263eb"
 const UI_INDIGO_SOFT = "#edf2ff"
 const UI_INDIGO_LINE = "#bac8ff"
 
-// Shared modern-rendering defaults for AI-generated diagrams.
-// - DIAGRAM_FONT 2 is Excalidraw's normal sans; the editor default is a
-//   hand-drawn font that makes generated output look like a rough sketch.
-// - Graph nodes use a soft fill + coordinated darker stroke, shape-coded by
-//   flowchart convention (green start/end, amber decision, blue step), drawn
-//   solid with roughness 0 and rounded corners for a clean, production look.
+// Rendering defaults for AI-generated diagrams.
+// - DIAGRAM_FONT 2 is Excalidraw's sans; the editor's default hand-drawn
+//   font makes generated output look like a rough sketch.
+// - Graph nodes take a soft fill and a darker stroke, shaped by flowchart
+//   convention (green start/end, amber decision, blue step), solid, with
+//   roughness 0 and rounded corners for a clean look.
 const DIAGRAM_FONT = 2
 const GRAPH_STYLE: Record<string, { fill: string; stroke: string }> = {
   ellipse: { fill: "#d3f9d8", stroke: "#2f9e44" },
@@ -222,12 +223,12 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
     if (open && mode === "compose") textareaRef.current?.focus()
   }, [open, mode])
 
-  // Convert the laid-out graph into Excalidraw elements and add them to the
-  // scene. On a fresh generation new content is offset to the right of existing
-  // content; on a refine (opts.replaceGenId) the previous AI elements are marked
-  // deleted and the refined diagram is placed at the same offset, so it reads as
-  // an in-place edit. Graph nodes/arrows use stable, generation-namespaced ids
-  // so refine can find and replace exactly what it produced.
+  // Turn the laid-out graph into Excalidraw elements in the scene. A fresh
+  // generation sits right of existing content; a refine (opts.replaceGenId)
+  // marks the previous AI elements deleted and places the refined diagram at
+  // the same offset, so it reads as an in-place edit. Graph nodes/arrows use
+  // stable, generation-namespaced ids so refine can find and replace exactly
+  // what it produced.
   const renderGraph = React.useCallback(
     async (graph: BoardGenerateResult, opts?: { replaceGenId?: string; offsetX?: number }) => {
       if (!api) return
@@ -261,6 +262,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
       }
 
       const skeletons: Record<string, unknown>[] = []
+      let mindMap: typeof import("@/lib/board/mindMap") | null = null
 
       // UI mockup mode: device frame(s) + positioned UI components.
       if (isUI) {
@@ -289,7 +291,11 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
         const isMindmap = graph.type === "mindmap"
         const eid = (nodeId: string) => `${genId}__${nodeId}`
         const nodeById = new Map(graph.nodes.map((n) => [n.id, n]))
-        for (const n of graph.nodes) {
+        // A mind map (generated, or Cluster's summary) lands as a real one (miro-15): tagged, and laid out below by
+        // the one mind map layout, not where the server put it.
+        mindMap = isMindmap ? await import("@/lib/board/mindMap") : null
+        if (mindMap) skeletons.push(...mindMap.mindMapOf(graph, { id: eid, map: genId, dx: offsetX, font: DIAGRAM_FONT }))
+        for (const n of mindMap ? [] : graph.nodes) {
           const style = GRAPH_STYLE[n.shape] || GRAPH_STYLE.rectangle
           skeletons.push({
             type: n.shape,
@@ -307,7 +313,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
             label: { text: n.label, fontSize: 16, fontFamily: DIAGRAM_FONT, strokeColor: "#1f2933" },
           })
         }
-        graph.edges.forEach((e, i) => {
+        ;(mindMap ? [] : graph.edges).forEach((e, i) => {
           const from = nodeById.get(e.from)
           const to = nodeById.get(e.to)
           const arrow: Record<string, unknown> = {
@@ -341,7 +347,9 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
 
       // Keep node ids stable for graph mode (so refine can match); UI mockups
       // have no ids to preserve, so regenerate to avoid any collision.
-      const generated = convertToExcalidrawElements(skeletons as never, { regenerateIds: isUI })
+      const converted = convertToExcalidrawElements(skeletons as never, { regenerateIds: isUI })
+      const laid = mindMap ? new Map(mindMap.relayout(converted as never[], genId).map((e: { id: string }) => [e.id, e])) : null
+      const generated = laid ? converted.map((e) => (laid.get(e.id) as typeof e | undefined) ?? e) : converted
       if (!generated.length) {
         const msg = "The diagram came back empty. Try rephrasing your prompt."
         if (opts?.replaceGenId) setRefineError(msg)
@@ -465,7 +473,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
       if (finalResult && (hasGraph || hasUI)) {
         void renderGraph(finalResult)
       } else {
-        setError("The AI could not produce a result. Try rephrasing.")
+        setError(AI_NO_RESULT)
       }
     })()
   }, [prompt, type, detailed, isStreaming, isSubmitting, api, boardId, renderGraph, setOpen])
@@ -619,9 +627,9 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
   const sheet = useSheetMode()
   if (disabled) return null
 
-  // On a phone (useSheetMode, which alone decides) the composer is the app's sheet: what it asks, in the
-  // sheet's one scroller, and its actions (Plan first and Generate, or Apply change) pinned at its foot, over
-  // the keyboard while the prompt has it (miro-40 H1). A computer keeps the card over the board's foot.
+  // On a phone (useSheetMode alone decides) the composer is the app's sheet: its fields in one scroller, its
+  // actions (Plan first and Generate, or Apply change) pinned at its foot, over the keyboard (miro-40 H1).
+  // A computer keeps the card over the board's foot.
   const title = mode === "refine" ? "Refine diagram" : "Generate with AI"
   // A ready plan's row (Dismiss, Approve & build): in the plan's box on the card, pinned at the sheet's foot.
   const planRow = plan?.ready ? (
@@ -645,7 +653,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
             <button
               type="button"
               onClick={() => setShowTypes((s) => !s)}
-              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-meta font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 pointer-coarse:py-3.5 text-meta font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink"
               aria-expanded={showTypes}
             >
               <Sparkles className="size-3 text-agent" />
@@ -656,7 +664,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
             </button>
 
             {showTypes && (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <div data-touch-group="24" className="mt-[var(--touch-gap,6px)] mb-[var(--touch-gap,0px)] flex flex-wrap gap-1.5">
                 {DIAGRAM_TYPES.map((t) => {
                   const selected = type === t.value
                   return (
@@ -664,6 +672,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                       key={t.value}
                       type="button"
                       onClick={() => setType(t.value)}
+                      data-touch-target=""
                       aria-pressed={selected}
                       className={cn(
                         "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-meta font-medium transition-colors",
@@ -696,6 +705,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                 key={opt.label}
                 type="button"
                 onClick={() => setDetailed(opt.v)}
+                data-touch-target=""
                 aria-pressed={detailed === opt.v}
                 className={cn(
                   "h-6 rounded-md px-2.5 text-meta font-medium transition-colors",

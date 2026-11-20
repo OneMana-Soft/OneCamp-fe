@@ -14,6 +14,16 @@ vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({
     return peopleHours.value
   },
 }))
+// Rooms (gcal-6): who may book is read from the profile; here a reader who may not, unless a case says otherwise.
+const rooms = vi.hoisted(() => ({ mayBook: false, freeArgs: [] as unknown[] }))
+vi.mock("@/hooks/useRooms", () => ({
+  useMayBookRooms: () => rooms.mayBook,
+  useFreeRooms: (...args: unknown[]) => {
+    rooms.freeArgs = args
+    return { rooms: [], failed: false, retry: () => {} }
+  },
+  useRoomDirectory: () => ({ rooms: undefined, failed: false, retry: () => {} }),
+}))
 // The task finder is a chunk of its own; here it offers one task.
 vi.mock("@/components/task/taskFinder", () => ({
   TaskFinder: ({ onPick }: { onPick: (t: unknown) => void }) => (
@@ -32,7 +42,11 @@ import { format } from "date-fns"
 // The reader's day: Thu 15 Oct 2026, 10:20.
 pinTestClock(new Date(2026, 9, 15, 10, 20))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  rooms.mayBook = false
+  rooms.freeArgs = []
+})
 
 const base = (extra: Partial<EventFormValues> = {}): EventFormValues => ({
   ...newEventValues("Europe/London", new Date(2026, 9, 15, 10, 20)),
@@ -68,6 +82,35 @@ describe("the one Event Form", () => {
     const allDay = document.querySelector("[data-setting-row='switch']")
     expect(allDay?.querySelector("[role='switch']")?.getAttribute("aria-checked")).toBe("false")
     expect(allDay?.closest("[data-property-row]")).toBeNull()
+  })
+
+  it("asks for the rooms free all through the slot, seating its guests and you: its times, or its whole days on its own clock", () => {
+    rooms.mayBook = true
+    const guest = (uuid: string, name: string) => ({ uuid, email: "", name, optional: false })
+    const start = new Date("2026-10-21T09:00:00Z")
+    const end = new Date("2026-10-21T10:30:00Z")
+    render(<Form start={base({ start, end, guests: [guest("kai", "Kai Tane"), guest("sam", "Sam Rivera")] })} />)
+    expect(rooms.freeArgs).toEqual([start, end, 3])
+    cleanup()
+    // Kiritimati is UTC+14 all year: its midnights, never the browser's.
+    render(<Form start={base({ zone: "Pacific/Kiritimati", allDay: true, startDate: "2026-10-20", lastDate: "2026-10-21" })} />)
+    expect(rooms.freeArgs).toEqual([new Date("2026-10-19T10:00:00Z"), new Date("2026-10-21T10:00:00Z"), 1])
+  })
+
+  it("offers a room to a member on a meeting in the full form, and asks for no free rooms otherwise", () => {
+    rooms.mayBook = true
+    render(<Form creating />)
+    expect(rowLabels()).toEqual(["All day", "Starts", "Ends", "Time zone", "Repeat", "Guests", "Rooms", "Free times", "Place", "Linked", "Notes", "Reminders", "Calendar", "Colour", "Show as"])
+    expect(rooms.freeArgs).toHaveLength(3)
+    cleanup()
+    rooms.freeArgs = []
+    // The short form and your own time have no room row, and look for no rooms.
+    render(<Form full={false} creating />)
+    expect(rowLabels()).not.toContain("Rooms")
+    cleanup()
+    render(<Form start={base({ kind: "focus" })} />)
+    expect(rowLabels()).not.toContain("Rooms")
+    expect(rooms.freeArgs).toEqual([])
   })
 
   it("keeps to the fields the old stores have elsewhere", () => {

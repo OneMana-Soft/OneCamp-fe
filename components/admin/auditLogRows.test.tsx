@@ -190,3 +190,36 @@ describe("Export on the free plan", () => {
     expect(await screen.findByText(/Exporting the audit log needs a OneCamp licence\./)).toBeTruthy()
   })
 })
+
+// zoom-09 C1: a guest's OK or Leave on a recorded call is a call-privacy row with no account behind it. It read
+// "Unknown" beside the bot's glyph: it names the guest, from the row, as "guest · <name>", in the row and its detail.
+describe("a guest's call-privacy row names the guest (zoom-09)", () => {
+  const guestRow = (over: Partial<AuditEntry> = {}) =>
+    entry(1, {
+      action: "call.privacy.consent_accepted",
+      category: "calls",
+      summary: "Kai Lin (guest) accepted the call's recording",
+      actor_email: undefined,
+      metadata: JSON.stringify({ name: "Kai Lin", guest: true, choice: "accepted", identity: "guest-1" }),
+      ...over,
+    })
+
+  it("says guest · <name> where it said Unknown, and opens to the same", async () => {
+    await mount([guestRow()])
+    expect(screen.getAllByText("guest · Kai Lin").length).toBe(1)
+    expect(screen.queryByText("Unknown")).toBeNull()
+    expect(document.querySelector('[data-audit-row] .audit-actor[title="The system"]')).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Kai Lin \(guest\) accepted/ })))
+    expect(screen.getAllByText("guest · Kai Lin").length).toBe(2)
+  })
+
+  it("only for a call-privacy row of a guest: a member's names their email, and any other row without one stays Unknown", async () => {
+    await mount([
+      guestRow({ id: "m", actor_email: "maya@acme.test", summary: "Maya Chen accepted the call's recording", metadata: JSON.stringify({ name: "Maya Chen", guest: false }) }),
+      entry(2, { actor_email: undefined, action: "settings.update", metadata: JSON.stringify({ name: "Kai Lin", guest: true }) }),
+    ])
+    expect(screen.queryByText("guest · Kai Lin")).toBeNull()
+    expect(screen.getByText("maya@acme.test")).toBeTruthy()
+    expect(screen.getByText("Unknown")).toBeTruthy()
+  })
+})

@@ -153,6 +153,8 @@ export default function RowComments({ rowId, fields, target, onTargetDone, focus
           sendLabel="Comment"
           uploads={false}
           autoFocus={!!targetField || pressedAtMount}
+          // Made for every row opened or stepped to, mostly only read: its editor waits for the box to be asked for.
+          waitForUse
           onSend={send}
           onCancel={targetField ? onTargetDone : undefined}
         />

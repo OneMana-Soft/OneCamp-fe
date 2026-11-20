@@ -6,6 +6,7 @@ import groupChatSlice, { addPendingGroupChat, confirmPendingGroupChat, createGro
 import type { PostsRes } from "@/types/post"
 import type { ChatInfo } from "@/types/chat"
 import { indexOfEchoed, isLocalId, newLocalId, plainText, rowKey } from "./pendingSend"
+import { sendOnce } from "./sendOnce"
 
 // A message is in the conversation the moment Send is pressed, marked as
 // sending, and stays one row from then on: confirmed by the server's answer,
@@ -158,5 +159,53 @@ describe("a direct or group message sent from here", () => {
 
   it("finds nothing to replace for a message not sent from here", () => {
     expect(indexOfEchoed([chat("local-3")], { localId: (c) => c.chat_local_id, id: (c) => c.chat_uuid, author: (c) => c.chat_from?.user_uuid, html: (c) => c.chat_body_text, state: (c) => c.chat_send_state }, undefined, "<p>On it.</p>")).toBe(-1)
+  })
+})
+
+// A thread reply sent again is the same reply (V-1088): its client_msg_id is
+// kept while the draft is unchanged and not yet sent, so the server's send-once
+// guard answers a retry, or a second Send while the first is in flight, with the
+// reply it already wrote.
+describe("a reply's client_msg_id", () => {
+  const ids = (key: string, print: readonly unknown[], seen: string[], answer: Promise<unknown>) =>
+    sendOnce(key, print, (id) => { seen.push(id); return answer }).catch(() => undefined)
+
+  it("is the same when the unchanged draft is sent again after a failure, or while it is in flight", async () => {
+    const seen: string[] = []
+    await ids("channel:t1", ["<p>On it.</p>", [], false], seen, Promise.reject(new Error("timeout")))
+    const inFlight = ids("channel:t1", ["<p>On it.</p>", [], false], seen, new Promise(() => {}))
+    await ids("channel:t1", ["<p>On it.</p>", [], false], seen, Promise.resolve({ comment_id: "c1" }))
+    void inFlight
+    expect(seen).toHaveLength(3)
+    expect(isLocalId(seen[0])).toBe(true)
+    expect(new Set(seen).size).toBe(1)
+  })
+
+  it("is new once the words, the files or Also send change", async () => {
+    const seen: string[] = []
+    await ids("dm:t2", ["<p>On it.</p>", [], false], seen, Promise.reject(new Error("500")))
+    await ids("dm:t2", ["<p>On it now.</p>", [], false], seen, Promise.reject(new Error("500")))
+    await ids("dm:t2", ["<p>On it now.</p>", ["key-1"], false], seen, Promise.reject(new Error("500")))
+    await ids("dm:t2", ["<p>On it now.</p>", ["key-1"], true], seen, Promise.reject(new Error("500")))
+    expect(new Set(seen).size).toBe(4)
+  })
+
+  it("is new for the same words once they were sent", async () => {
+    const seen: string[] = []
+    await ids("group:t3", ["<p>Done.</p>", [], false], seen, Promise.resolve({ comment_id: "c3" }))
+    await ids("group:t3", ["<p>Done.</p>", [], false], seen, Promise.resolve({ comment_id: "c4" }))
+    expect(seen[0]).not.toBe(seen[1])
+  })
+
+  it("of a newer draft survives an older send's answer", async () => {
+    const seen: string[] = []
+    let answerFirst: (v: unknown) => void = () => {}
+    const first = ids("channel:t4", ["<p>A</p>", [], false], seen, new Promise((r) => { answerFirst = r }))
+    await ids("channel:t4", ["<p>B</p>", [], false], seen, Promise.reject(new Error("timeout")))
+    answerFirst({ comment_id: "cA" })
+    await first
+    await ids("channel:t4", ["<p>B</p>", [], false], seen, Promise.resolve({ comment_id: "cB" }))
+    expect(seen[2]).toBe(seen[1])
+    expect(seen[1]).not.toBe(seen[0])
   })
 })

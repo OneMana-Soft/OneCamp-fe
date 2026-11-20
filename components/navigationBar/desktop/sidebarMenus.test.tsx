@@ -18,7 +18,8 @@ vi.mock("react-redux", () => ({
 }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera", user_full_name: "Sam Rivera", user_email_id: "visitor@demo.onemana.dev" } } }) }))
+// useFetch: an admin's workspace menu reads the plan (PlanRow, planRow.test); here it hasn't come.
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined }), useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera", user_full_name: "Sam Rivera", user_email_id: "visitor@demo.onemana.dev" } } }) }))
 vi.mock("@/hooks/useLogout", () => ({ useLogout: () => ({ logout: vi.fn() }) }))
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "system", setTheme }) }))
 vi.mock("@/components/activeTheme/activeTheme", () => ({ useThemeConfig: () => ({ activeTheme: "onecamp", setActiveTheme: vi.fn() }) }))
@@ -181,7 +182,7 @@ describe("the sidebar's foot", () => {
   })
 })
 
-// S3 and M1: the header's mark, name and ⇅ open the workspace menu; compose
+// S3 and M1: the header's mark, name and ⌄ open the workspace menu; compose
 // opens the new-message picker.
 describe("the workspace header and menu", () => {
   it("names its buttons for what they do", () => {
@@ -203,6 +204,19 @@ describe("the workspace header and menu", () => {
     open("OneCamp Demo workspace menu")
     fireEvent.click(screen.getByRole("menuitem", { name: /Admin/ }))
     expect(push).toHaveBeenCalledWith("/app/admin")
+  })
+
+  // SHELL-34: ⇅ read as "switch workspace", and OneCamp has one. A chevron
+  // that points down says "menu", and turns over while it's open.
+  it("points its chevron down, and turns it over while the menu is open", () => {
+    vi.stubEnv("NEXT_PUBLIC_ORG_NAME", "OneCamp Demo")
+    render(<TooltipProvider><SidebarHeader isAdmin={false} onCollapse={() => {}} /></TooltipProvider>)
+    const trigger = screen.getByRole("button", { name: "OneCamp Demo workspace menu" })
+    const chevron = trigger.querySelector(".shell-chevron")!
+    expect(chevron.getAttribute("class")).toContain("lucide-chevron-down")
+    expect(readFileSync(join(process.cwd(), "app/globals.css"), "utf8")).toMatch(/\.shell-ws\[data-state="open"\] \.shell-chevron \{ transform: rotate\(180deg\); \}/)
+    open("OneCamp Demo workspace menu")
+    expect(trigger.getAttribute("data-state")).toBe("open")
   })
 
   it("returns focus to the header when Esc closes the menu", async () => {

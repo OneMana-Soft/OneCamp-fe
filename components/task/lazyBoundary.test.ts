@@ -70,7 +70,7 @@ describe("the work area's lazy chunks", () => {
   }
 
   it("clears the shared task lists once per project, never on a layout effect's re-run", () => {
-    for (const file of ["components/project/projectTaskTable.tsx", "components/myTask/myTaskTable.tsx", "components/project/projectTaskList.tsx", "components/myTask/myTaskList.tsx"]) {
+    for (const file of ["components/task/useTaskPages.tsx", "components/project/projectTaskList.tsx", "components/myTask/myTaskList.tsx"]) {
       const src = readFileSync(file, "utf8")
       expect(src, file).toMatch(/useLayoutOnce\(/)
       expect(src, file).not.toMatch(/useLayoutEffect\(\(\) => \{[^}]*clear(TaskListVisibleInfo|MyTask|ProjectTask)\(/)

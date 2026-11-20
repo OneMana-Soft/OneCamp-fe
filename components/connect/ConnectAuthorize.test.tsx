@@ -101,6 +101,23 @@ describe("approving an outside agent", () => {
     expect((screen.getByRole("button", { name: "Connect Claude" }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  // ADMIN-13: the footer sent everyone to Admin, which a member can't open.
+  it("a member is pointed at their own assistants; an admin at the inventory", async () => {
+    vi.mocked(getConsent).mockResolvedValue(view())
+    render(<ConnectAuthorize />)
+    const own = await screen.findByRole("link", { name: "Settings › Your AI assistants" })
+    expect(own.getAttribute("href")).toBe("/app/settings/assistants")
+    expect(own.closest("p")?.textContent).toContain("Disconnect it any time in Settings › Your AI assistants.")
+    expect(screen.queryByText(/Admin › Agent inventory/)).toBeNull()
+    cleanup()
+
+    vi.mocked(getConsent).mockResolvedValue(view({ is_admin: true }))
+    render(<ConnectAuthorize />)
+    const inventory = await screen.findByRole("link", { name: "Admin › Agent inventory" })
+    expect(inventory.getAttribute("href")).toBe("/app/admin?tab=ai-models#ai-models-inventory")
+    expect(inventory.closest("p")?.textContent).toContain("Pause or revoke it any time in Admin › Agent inventory.")
+  })
+
   it("sends a signed-out person to sign in and brings them back", async () => {
     vi.mocked(getConsent).mockRejectedValue({ response: { status: 401 } })
     render(<ConnectAuthorize />)

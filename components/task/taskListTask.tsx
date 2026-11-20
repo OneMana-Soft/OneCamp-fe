@@ -24,6 +24,7 @@ import { ReorderHold } from "@/components/task/reorderSlot"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 const TaskTypeGlyph = lazyPiece(() => import("@/components/task/TaskTypeGlyph"))
+const SlaChip = lazyPiece(() => import("@/components/task/SlaChip"))
 
 /** How far a row must travel to act (work.md W53). */
 export const SWIPE_THRESHOLD = 72
@@ -222,6 +223,11 @@ export const TaskListTask = React.memo(function TaskListTask({
             </span>
             {/* Only a restricted task mounts its mark: a row is held to the components it mounts (fluid-17). */}
             {taskInfo.task_restricted && <RestrictedMark restricted className="self-center" />}
+            {taskInfo.task_sla && (
+              <Suspense fallback={null}>
+                <SlaChip sla={taskInfo.task_sla} hidden={taskInfo.task_hidden} done={isCompleted} className="self-center" />
+              </Suspense>
+            )}
             <DueLabel date={taskInfo.task_due_date} done={isCompleted} className="text-xs" />
           </span>
           <span className="flex min-w-0 items-center gap-2 text-2xs text-ink-3">

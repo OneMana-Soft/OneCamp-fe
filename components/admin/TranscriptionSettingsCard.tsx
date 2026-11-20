@@ -24,7 +24,7 @@
 // gives the command that starts it as a code row.
 
 import { useSecretReentry } from "@/hooks/useSecretReentry"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,8 +37,8 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { CheckCircle2, HardDrive, Loader2, XCircle } from "@/lib/icons"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { CheckCircle2, HardDrive, Loader2, Send, XCircle } from "@/lib/icons"
+import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { saysWriteFailure } from "@/lib/http/writeSaid";
 import { saidHere } from "@/lib/http/saidHere";
 import {
@@ -51,6 +51,7 @@ import {
     type TranscriptionTestResult,
 } from "@/services/settingsService"
 import { appMutate as globalMutate } from "@/lib/swrMutate";
+import { SPEECH_SERVICE_NAME } from "@/lib/calls/speechServices"
 
 // Where a value comes from when it isn't saved here: the stored setting wins,
 // then the server's environment, then the built-in default.
@@ -139,19 +140,65 @@ const sourceNote = (source: string | undefined) => {
 const withSource = (help: string, source: string | undefined) =>
     [help, source ? SOURCE_NOTE[source] : undefined].filter(Boolean).join(" ")
 
+/**
+ * Where call audio goes, by the server's word for it (zoom-09 C2), as the
+ * card says it today and as the acknowledgement's button names it. The
+ * services' names are the call's own (lib/calls/speechServices).
+ */
+const WHERE_TODAY: Record<string, string> = {
+    server: "Call audio stays on this server.",
+    browser: "Call audio leaves this server: each person's browser sends their speech to Google (Chrome) or Microsoft (Edge) while captions are on.",
+    ...Object.fromEntries(
+        Object.entries(SPEECH_SERVICE_NAME).map(([where, name]) => [where, `Call audio leaves this server and goes to ${name} while captions are on.`]),
+    ),
+    custom: "Call audio leaves this server and goes to the endpoint set below while captions are on.",
+    "": "Transcription is off, so call audio isn't sent anywhere.",
+}
+const WHERE_NAME: Record<string, string> = { browser: "Google or Microsoft", ...SPEECH_SERVICE_NAME, custom: "your endpoint" }
+const NOT_SAVED = "Your choice wasn't saved. Try again in a moment."
+
+/**
+ * Where call audio would go with these settings, by the server's own rule
+ * (business/Transcription/where.go), so the confirm can name it before the
+ * save. The server has the last word: a 409 names where it really goes. Pure.
+ */
+function audioWhere(mode: TranscriptionMode, provider: STTProvider, baseUrl: string): string {
+    if (mode === "frontend") return "browser"
+    if (mode !== "backend") return ""
+    if (provider === "local") return "server"
+    if (provider !== "openai") return provider
+    let host = ""
+    try {
+        host = baseUrl.trim() ? new URL(baseUrl.trim()).hostname : ""
+    } catch {
+        return "custom"
+    }
+    return !host || host === "api.openai.com" ? "openai" : "custom"
+}
+
+/** Where a 409 acknowledgement_required says call audio would go, or "". Pure. */
+const acknowledgementAsked = (e: unknown): string =>
+    apiErrorCode(e) === "acknowledgement_required" ? String((e as { response?: { data?: { where?: unknown } } }).response?.data?.where ?? "") : ""
+
 /** The settings, with the agent's heartbeat (CALL-BUG-4): whether a server transcriber is connected. */
 type ConfigWithAgent = TranscriptionConfig & { where?: string; agent?: { running: boolean; seen_at?: number } }
 
-/** The agent's state in words: "Running" or "Not running", never a colour alone. Pure. */
-export function agentStatus(agent: ConfigWithAgent["agent"]): { running: boolean; label: string; detail: string } | null {
+/**
+ * The transcriber's state in words: "Running" or "Not running", never a colour
+ * alone. When the card already says captions are off because it isn't running
+ * (`saidAbove`), with the command, this keeps the state and points up. Pure.
+ */
+export function agentStatus(agent: ConfigWithAgent["agent"], saidAbove = false): { running: boolean; label: string; detail: string } | null {
     if (!agent) return null
     if (agent.running) {
-        return { running: true, label: "Running", detail: "The transcription agent is connected and joins calls when captions are turned on." }
+        return { running: true, label: "Running", detail: "The transcriber is connected and joins calls when captions are turned on." }
     }
     return {
         running: false,
         label: "Not running",
-        detail: "No transcription agent is connected, so calls get no captions and no transcript in this mode. Start it on the server.",
+        detail: saidAbove
+            ? "Captions are off until it starts; the command is above."
+            : "No transcriber is connected, so calls get no captions and no transcript in this mode. Start it on the server.",
     }
 }
 
@@ -171,11 +218,13 @@ export default function TranscriptionSettingsCard() {
     const [apiKey, setApiKey] = useState("")
     const [googleCreds, setGoogleCreds] = useState("")
 
-    const { status: modeStatus, run: runMode } = useSaveStatus()
+    const { status: modeStatus, run: runMode, clear: clearMode } = useSaveStatus()
     const savingMode = modeStatus.state === "saving"
     const [savingBackend, setSavingBackend] = useState(false)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<TranscriptionTestResult | null>(null)
+    // An install whose env already sends audio away is asked once per visit.
+    const askedOnLoad = useRef(false)
 
     // The speech-to-text fields, back to what is stored. Secret inputs always
     // reset to blank (write-only).
@@ -196,20 +245,60 @@ export default function TranscriptionSettingsCard() {
         resetBackend(c)
     }, [resetBackend])
 
+    // ASKS BEFORE CALL AUDIO LEAVES THIS SERVER (zoom-09 C2), naming where, and
+    // saves `req` with the acknowledgement. The shared confirm keeps its spinner
+    // while the save runs and says a refusal itself: a 409 for somewhere else
+    // asks again for there, anything else (503: the acknowledgement couldn't
+    // be recorded) saved nothing.
+    // Stable (confirm is), so the read below asks with it.
+    const acknowledge = useCallback(function ask(where: string, req: Parameters<typeof updateTranscriptionConfig>[0], saved: (c: TranscriptionConfig) => void) {
+        confirm({
+            title: "Send call audio off this server?",
+            description: `${WHERE_TODAY[where] ?? `Call audio leaves this server and goes to ${where}.`} Everyone in a call is told when captions come on. This is recorded in the audit log under your name.`,
+            confirmText: `Send call audio to ${WHERE_NAME[where] ?? where}`,
+            onConfirm: async () => {
+                try {
+                    const c = await updateTranscriptionConfig({ ...req, acknowledge_where: where })
+                    if (c) saved(c)
+                    globalMutate("client-config")
+                } catch (e) {
+                    const there = acknowledgementAsked(e)
+                    if (there && there !== where) {
+                        // After this confirm has closed, so the next one isn't closed with it.
+                        window.setTimeout(() => ask(there, req, saved), 0)
+                        return
+                    }
+                    saysWriteFailure(e)
+                    throw new Error(apiErrorStatus(e) === 503 ? NOT_SAVED : saidHere(e, NOT_SAVED))
+                }
+            },
+        })
+    }, [confirm])
+
     const load = useCallback(async () => {
+        let c: Awaited<ReturnType<typeof getTranscriptionConfig>> | undefined
         try {
-            const c = await getTranscriptionConfig()
+            c = await getTranscriptionConfig()
             if (!c) throw new Error("no transcription settings in the reply")
             applyConfig(c)
             setFailed(false)
         } catch {
             setFailed(true)
+            return
         }
-    }, [applyConfig])
+        // Outside the read's try: its catch says the read failed, and the
+        // acknowledgement's save says its own failure in the confirm.
+        if (c?.needs_acknowledgement && c.where && !askedOnLoad.current) {
+            askedOnLoad.current = true
+            acknowledge(c.where, {}, setConfig)
+        }
+    }, [applyConfig, acknowledge])
 
     useEffect(() => {
         void load()
     }, [load])
+
+    const askedFor = (where: string) => where !== "" && where !== "server" && config?.acknowledged_where !== where
 
     // Saving the mode also busts the client-config SWR cache so open call UIs
     // pick up the new mode on their next read. Only the mode is taken from the
@@ -218,22 +307,37 @@ export default function TranscriptionSettingsCard() {
         const before = mode
         setMode(next)
         const ok = await runMode(async () => {
-            const c = await updateTranscriptionConfig({ mode: next })
-            if (c) {
-                setConfig(c)
-                setMode(c.mode)
+            try {
+                const c = await updateTranscriptionConfig({ mode: next })
+                if (c) {
+                    setConfig(c)
+                    setMode(c.mode)
+                }
+                globalMutate("client-config")
+            } catch (e) {
+                // The server says it leaves after all: ask, naming where.
+                const there = acknowledgementAsked(e)
+                if (there) acknowledge(there, { mode: next }, modeAcknowledged)
+                throw e
             }
-            globalMutate("client-config")
         }, { what: `Transcription: ${MODE_LABEL[next]}`, undo: () => saveMode(before) })
         // A refusal slides the choice back; its reason is under the label.
         if (!ok) setMode(before)
         return ok
     }
 
+    const modeAcknowledged = (c: TranscriptionConfig) => {
+        clearMode()
+        setConfig(c)
+        setMode(c.mode)
+    }
+
     const pickMode = (next: TranscriptionMode) => {
-        if (next === mode || savingMode) return
+        if (next === mode || savingMode || !config) return
         if (next !== "off") {
-            void saveMode(next)
+            const where = audioWhere(next, config.stt_provider, config.stt_base_url ?? "")
+            if (askedFor(where)) acknowledge(where, { mode: next }, modeAcknowledged)
+            else void saveMode(next)
             return
         }
         confirm({
@@ -273,6 +377,13 @@ export default function TranscriptionSettingsCard() {
     // Backend block: provider + model + optional endpoint/language + the
     // relevant secret. Secrets are sent only when non-blank ("keep existing").
     // Returns true on success so callers (Save and test) can chain safely.
+    const lastBackendReq = useRef<Parameters<typeof updateTranscriptionConfig>[0] | null>(null)
+    const backendSaved = (c: TranscriptionConfig) => {
+        setConfig(c)
+        resetBackend(c)
+        setTestResult(null) // config changed — any prior test result is stale
+        toast({ title: "Speech-to-text settings saved" })
+    }
     const saveBackend = async (): Promise<boolean> => {
         if (!keyReentry.check()) return false
         setSavingBackend(true)
@@ -290,15 +401,21 @@ export default function TranscriptionSettingsCard() {
             } else if (apiKey.trim()) {
                 req.stt_api_key = apiKey.trim()
             }
-            const c = await updateTranscriptionConfig(req)
-            if (c) {
-                setConfig(c)
-                resetBackend(c)
+            lastBackendReq.current = req
+            const where = audioWhere("backend", sttProvider, baseUrl)
+            if (askedFor(where)) {
+                acknowledge(where, req, backendSaved)
+                return false
             }
-            setTestResult(null) // config changed — any prior test result is stale
-            toast({ title: "Speech-to-text settings saved" })
+            const c = await updateTranscriptionConfig(req)
+            if (c) backendSaved(c)
             return true
         } catch (e) {
+            const there = acknowledgementAsked(e)
+            if (there) {
+                acknowledge(there, lastBackendReq.current ?? {}, backendSaved)
+                return false
+            }
             toast({
                 title: "Couldn't save the speech-to-text settings",
                 description: saidHere(e, "Try again in a moment."),
@@ -337,7 +454,9 @@ export default function TranscriptionSettingsCard() {
 
     const busy = savingBackend || testing
     const where: Where = sttProvider === "local" ? "server" : "provider"
-    const agent = agentStatus(config?.agent)
+    // The cause and its command are said once, where the card says captions are off.
+    const transcriberDown = config?.captions_off_reason === "transcriber_not_running"
+    const agent = agentStatus(config?.agent, transcriberDown)
     const pickWhere = (next: Where) => {
         if (next === where) return
         setSttProvider(next === "server" ? "local" : config && config.stt_provider !== "local" ? config.stt_provider : CLOUD_PROVIDERS[0])
@@ -393,6 +512,29 @@ export default function TranscriptionSettingsCard() {
                                 disabled={savingMode}
                             />
                         </SettingRow>
+                        {/* Where call audio goes today, in words (zoom-09 C2); with the
+                            transcriber down, why captions are off and the one command. */}
+                        {config.where !== undefined ? (
+                            <div role="status" data-audio-where={config.where} className="set-row flex items-start gap-3">
+                                <span aria-hidden="true" className="mt-0.5 inline-grid size-7 shrink-0 place-items-center rounded-md bg-sunken text-ink-3 ring-1 ring-inset ring-line">
+                                    {config.audio_leaves_server ? <Send className="size-4" /> : <HardDrive className="size-4" />}
+                                </span>
+                                <div className="min-w-0 flex-1 space-y-2">
+                                    <p className="text-xs text-foreground text-pretty">{WHERE_TODAY[config.where] ?? WHERE_TODAY[""]}</p>
+                                    {transcriberDown ? (
+                                        <>
+                                            <p className="text-xs text-danger-ink text-pretty">Captions are off: the transcriber isn&apos;t running. Start it on the server:</p>
+                                            <CodeRow value="make stt_up" label="start command" className="max-w-xs" />
+                                        </>
+                                    ) : null}
+                                    {config.needs_acknowledgement && config.where ? (
+                                        <Button size="sm" variant="secondary" onClick={() => acknowledge(config.where ?? "", {}, setConfig)}>
+                                            Review where call audio goes
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ) : null}
                     </SettingsCard>
 
                     {/* Backend STT model config (only relevant in backend mode) */}
@@ -450,10 +592,10 @@ export default function TranscriptionSettingsCard() {
                                         )}
                                         <div className="min-w-0 flex-1 space-y-2">
                                             <p className="text-xs">
-                                                <span className={agent.running ? "font-medium text-foreground" : "font-medium text-danger-ink"}>Agent: {agent.label}.</span>{" "}
+                                                <span className={agent.running ? "font-medium text-foreground" : "font-medium text-danger-ink"}>Transcriber: {agent.label}.</span>{" "}
                                                 <span className="text-muted-foreground text-pretty">{agent.detail}</span>
                                             </p>
-                                            {!agent.running ? <CodeRow value="make stt_up" label="start command" className="max-w-xs" /> : null}
+                                            {!agent.running && !transcriberDown ? <CodeRow value="make stt_up" label="start command" className="max-w-xs" /> : null}
                                         </div>
                                     </div>
                                 ) : null}
@@ -464,8 +606,8 @@ export default function TranscriptionSettingsCard() {
                                             <HardDrive className="size-4" />
                                         </span>
                                         <div className="min-w-0 flex-1 space-y-2">
-                                            <p className="text-xs text-muted-foreground text-pretty">{LOCAL_RAM_HINT} Start it on the server:</p>
-                                            <CodeRow value="make stt_up" label="start command" className="max-w-xs" />
+                                            <p className="text-xs text-muted-foreground text-pretty">{LOCAL_RAM_HINT}{transcriberDown ? null : " Start it on the server:"}</p>
+                                            {transcriberDown ? null : <CodeRow value="make stt_up" label="start command" className="max-w-xs" />}
                                         </div>
                                     </div>
                                 ) : (

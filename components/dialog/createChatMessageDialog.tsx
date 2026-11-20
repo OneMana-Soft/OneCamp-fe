@@ -20,6 +20,7 @@ import {useRouter} from "next/navigation";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {generateGroupChatId} from "@/lib/utils/generateGroupChatId";
+import { greetingNameOf } from "@/lib/personName";
 import {useDispatch} from "react-redux";
 import {createGrpChatLocally} from "@/store/slice/groupChatSlice";
 
@@ -104,7 +105,7 @@ const CreateChatMessageDialog: React.FC<updateUserStatusDialogProps> = ({
     if(selectedUser.length > 1 && !isSelfSelected.current)  return 'Create group'
 
     const one = selectedUser.find((u) => u.user_uuid !== selfProfile.data?.data.user_uuid)
-    const first = (one?.user_full_name || one?.user_name || '').trim().split(/\s+/)[0]
+    const first = greetingNameOf(one)
     return first ? `Message ${first}` : 'Message'
   }
 

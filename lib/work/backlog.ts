@@ -61,7 +61,14 @@ export interface CycleSchedule {
 }
 
 export interface BacklogAnswer {
-  data: { backlog: BacklogData; schedule?: CycleSchedule | null; can_edit: boolean; can_plan: boolean }
+  data: {
+    backlog: BacklogData
+    schedule?: CycleSchedule | null
+    /** Whether the project runs cycles side by side (jira-04 C): off unless its admins turn it on. */
+    parallel?: boolean
+    can_edit: boolean
+    can_plan: boolean
+  }
 }
 
 /** "Every 2 weeks · 2 ready ahead · unfinished tasks move on". */
@@ -248,6 +255,11 @@ export async function saveSchedule(projectId: string, s: CycleSchedule): Promise
 /** Hands the project's cycles back to its people; the cycles made stay. */
 export async function stopSchedule(projectId: string): Promise<void> {
   await axiosInstance.post(`/project/${projectId}/cycles/schedule/stop`, {}, OWN_ERRORS)
+}
+
+/** Lets the project's cycles share days, or not (jira-04 C); the server refuses either while it can't be, in words. */
+export async function setParallelCycles(projectId: string, on: boolean): Promise<void> {
+  await axiosInstance.post(`/project/${projectId}/cycles/parallel`, { on }, OWN_ERRORS)
 }
 
 /** A person's calendar link to a project's cycles (linear-12): GET (whether there's one), POST (make one) and POST …/stop. */

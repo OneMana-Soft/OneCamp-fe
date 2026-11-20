@@ -206,10 +206,9 @@ test("on a phone, a board's change made offline is said to wait, then to be save
     for (const b of await Promise.all(foot.map(boxOf))) expect(overlap(card, b), JSON.stringify(b)).toBeNull()
   }
   await clearOfFoot()
-  // The notice says what the app's connection pill would, in its place: offline, the pill is there and steps
-  // aside while the notice shows, so no second status sits under it (DESIGN-BUILD-29 M1).
+  // The notice says what the app's connection pill would, in its place: offline, it is the page's one voice
+  // and the pill gives way while it shows, so no second status sits under it (DESIGN-BUILD-29 M1, V-695).
   const pill = sam.page.locator('[data-connection-pill="offline"]')
-  await expect(pill).toBeAttached()
   await expect(pill).toBeHidden()
   expect(await statusesUnder(notice.locator(".toast-card").first())).toEqual([])
   await sam.context.setOffline(false)

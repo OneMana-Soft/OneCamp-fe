@@ -147,6 +147,7 @@
     "jsdom": "^25.0.1",
     "magic-string": "^0.30.21",
     "postcss": "^8.5.29",
+    "postcss-selector-parser": "6.0.10",
     "tailwindcss": "^4.1.16",
     "tw-animate-css": "1.3.3",
     "typescript": "^5",

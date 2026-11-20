@@ -1,4 +1,4 @@
-import { isClosedStatus, type ProjectStatuses, type StatusOption } from "@/lib/taskStatus"
+import { BUILT_IN_STATUSES, isClosedStatus, type ProjectStatuses, type StatusOption, statusOptions } from "@/lib/taskStatus"
 
 /** A project's statuses with its board order (every status's value, as its admins set it). */
 export type OrderedStatuses = ProjectStatuses & { order?: string[] }
@@ -18,3 +18,7 @@ export function inOrder(options: StatusOption[], order?: string[]): StatusOption
   const closed = (o: StatusOption) => isClosedStatus(o.category)
   return [...out.filter((o) => !closed(o)), ...out.filter(closed)]
 }
+
+/** A project's statuses in its board order; the built-in ones without a project. */
+export const projectOptions = (project?: OrderedStatuses): StatusOption[] =>
+  project ? inOrder(statusOptions(project), project.order) : BUILT_IN_STATUSES

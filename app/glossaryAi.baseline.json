@@ -1,0 +1,66 @@
+{
+  "keys": [
+    "AI assistant",
+    "AI teammate",
+    "AI teammates",
+    "Save to memory",
+    "Your AI assistants"
+  ],
+  "files": {
+    "components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel.tsx": {
+      "Save to memory": 1
+    },
+    "components/admin/AIModelsCard.tsx": {
+      "AI assistant": 1
+    },
+    "components/admin/AgentDelegationCard.tsx": {
+      "AI teammate": 1
+    },
+    "components/admin/ai/AuthorizedModelsSection.tsx": {
+      "AI assistant": 1
+    },
+    "components/ai/AgentTeammatesMenuItem.tsx": {
+      "AI teammates": 1
+    },
+    "components/ai/AiComposer.tsx": {
+      "AI assistant": 1
+    },
+    "components/ai/MyAgentWorkDialog.tsx": {
+      "AI teammate": 1,
+      "AI teammates": 3
+    },
+    "components/ai/MyAssistantsCard.tsx": {
+      "Your AI assistants": 1
+    },
+    "components/connect/ConnectAuthorize.tsx": {
+      "Your AI assistants": 1
+    },
+    "components/livekit/InCallAIPanel.tsx": {
+      "AI assistant": 1
+    },
+    "components/member/channelAITeammates.tsx": {
+      "AI teammates": 2
+    },
+    "components/rightPanel/rightPanelHeader.tsx": {
+      "AI assistant": 1
+    },
+    "components/task/TaskTemplatesManager.tsx": {
+      "AI teammates": 1
+    },
+    "components/task/taskAssigneePicker.tsx": {
+      "AI teammates": 1
+    },
+    "components/ui/CommandPalette.tsx": {
+      "AI assistant": 1
+    },
+    "components/work/rules/RuleBuilder.tsx": {
+      "AI teammate": 2
+    },
+    "lib/botCopy.ts": {
+      "AI teammate": 1
+    },
+    "lib/settingsSections.ts": {
+      "Your AI assistants": 1
+    }
+  }
+}

@@ -9,6 +9,7 @@ import { holdsOf, type CallHold } from "@/lib/calls/holds"
 import type { Knock } from "@/lib/calls/lobby"
 import { readSignal, type SignalSender } from "@/lib/calls/signals"
 import { SLIDE_ID } from "@/lib/calls/slideId"
+import { SPEECH_SERVICE_NAME } from "@/lib/calls/speechServices"
 
 /** Where captioned speech is turned into text: the CALLS-FE ↔ CALLS-BE contract's `where`. */
 export type TranscriptionWhere = "browser" | "server" | "deepgram" | "google" | "openai" | "custom"
@@ -28,6 +29,11 @@ export interface CallTranscription {
   where?: TranscriptionWhere | string
   /** Final lines are stored as the call's transcript. False in an instant meeting: captions only. */
   kept?: boolean
+  /**
+   * The AI sums the call up after it (V-951): true only while the transcript is on and kept and the workspace makes
+   * AI summaries. Only the server says so; an older server, or one without AI, says nothing, read as no.
+   */
+  summary?: boolean
 }
 
 export interface CallRecording {
@@ -139,7 +145,7 @@ export function readTranscription(v: unknown): CallTranscription {
   const c = v as Record<string, unknown>
   const common = { by: str(c.by), byId: str(c.byId), since: typeof c.since === "number" ? c.since : undefined }
   if (c.on !== true) return { on: false, ...common }
-  return { on: true, ...common, where: str(c.where), kept: c.kept !== false }
+  return { on: true, ...common, where: str(c.where), kept: c.kept !== false, summary: c.summary === true }
 }
 
 /**
@@ -185,21 +191,7 @@ export function readCallMetadata(raw: string | null | undefined): CallMetadata {
  * to its maker's speech service. Pure.
  */
 export function captionsWhereText(t: Pick<CallTranscription, "where" | "kept">): string {
-  const kept = t.kept === false ? "The text isn't kept after the call." : "The text is kept as this call's transcript."
-  switch (t.where ?? "browser") {
-    case "browser":
-      return `What you say goes to your browser's speech service (Google in Chrome, Microsoft in Edge). ${kept}`
-    case "server":
-      return `What you say is transcribed on this workspace's own server. ${kept}`
-    case "deepgram":
-      return `What you say is sent to Deepgram to be transcribed. ${kept}`
-    case "google":
-      return `What you say is sent to Google Cloud to be transcribed. ${kept}`
-    case "openai":
-      return `What you say is sent to OpenAI to be transcribed. ${kept}`
-    default:
-      return `What you say is sent to the speech-to-text service this workspace set up. ${kept}`
-  }
+  return `What you say ${speechGoes("your", t.where)} ${keptText(t)}`
 }
 
 /**
@@ -207,17 +199,18 @@ export function captionsWhereText(t: Pick<CallTranscription, "where" | "kept">):
  * reaches everyone, and where everyone's speech goes. Pure.
  */
 export function captionsConfirmText(t: Pick<CallTranscription, "where" | "kept">): string {
-  const kept = t.kept === false ? "The text isn't kept after the call." : "The text is kept as this call's transcript."
-  const where: Record<string, string> = {
-    browser: "What each person says goes to their browser's speech service (Google in Chrome, Microsoft in Edge).",
-    server: "What each person says is transcribed on this workspace's own server.",
-    deepgram: "What each person says is sent to Deepgram to be transcribed.",
-    google: "What each person says is sent to Google Cloud to be transcribed.",
-    openai: "What each person says is sent to OpenAI to be transcribed.",
-  }
-  const said = where[t.where ?? "browser"] ?? "What each person says is sent to the speech-to-text service this workspace set up."
-  return `Everyone in the call is told, and can stop their own voice being captioned. ${said} ${kept}`
+  return `Everyone in the call is told, and can stop their own voice being captioned. What each person says ${speechGoes("their", t.where)} ${keptText(t)}`
 }
+
+/** Where the words go, after "What you say" or "What each person says" (`whose` browser). Pure. */
+function speechGoes(whose: string, where = "browser"): string {
+  if (where === "browser") return `goes to ${whose} browser's speech service (Google in Chrome, Microsoft in Edge).`
+  if (where === "server") return "is transcribed on this workspace's own server."
+  return Object.hasOwn(SPEECH_SERVICE_NAME, where) ? `is sent to ${SPEECH_SERVICE_NAME[where]} to be transcribed.` : "is sent to the speech-to-text service this workspace set up."
+}
+
+const keptText = (t: Pick<CallTranscription, "kept">): string =>
+  t.kept === false ? "The text isn't kept after the call." : "The text is kept as this call's transcript."
 
 /**
  * The pill's words, with the first name only: "Transcript on · Maya" while

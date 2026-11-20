@@ -1,5 +1,5 @@
 import * as React from "react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { Editor } from "@tiptap/core"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -17,7 +17,7 @@ vi.mock("./docCommentApi", () => ({
     uploadCommentFile: () => new Promise<string>((ok) => uploaded.push(ok)),
 }))
 
-const { CommentComposer } = await import("./CommentComposer")
+const { CommentComposer, CommentFoot } = await import("./CommentComposer")
 type Sent = { body: string; attachments: { attachment_uuid: string }[] }
 const sender = (impl: (b: Sent) => Promise<unknown> = async () => undefined) => vi.fn(impl)
 
@@ -151,5 +151,46 @@ describe("a composer that takes no files", () => {
         await editor()
         expect(screen.queryByRole("button", { name: "Attach files" })).toBeNull()
         expect(document.querySelector('[data-comment-composer] input[type="file"]')).toBeNull()
+    })
+})
+
+describe("the foot bar of a phone's comment pages", () => {
+    const published = () => document.documentElement.style.getPropertyValue("--mobile-drawer-h")
+    let top = 768
+    beforeEach(() => {
+        top = 768
+        Object.defineProperty(window, "innerHeight", { value: 844, configurable: true })
+        // The bar sits at the screen's foot, 76px tall.
+        vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+            return (this.hasAttribute("data-phone-foot") ? { top, bottom: 844, left: 0, right: 390, width: 390, height: 844 - top, x: 0, y: top } : { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0 }) as DOMRect
+        })
+    })
+    afterEach(() => {
+        cleanup()
+        vi.restoreAllMocks()
+        document.documentElement.style.removeProperty("--mobile-drawer-h")
+    })
+
+    it("publishes its top as the page's foot, and takes it back when it goes", () => {
+        const { unmount } = render(<CommentFoot>Reply</CommentFoot>)
+        expect(published()).toBe("76px")
+        unmount()
+        expect(published()).toBe("")
+    })
+
+    it("publishes it again when the screen turns", () => {
+        render(<CommentFoot>Reply</CommentFoot>)
+        top = 300
+        Object.defineProperty(window, "innerHeight", { value: 390, configurable: true })
+        act(() => void window.dispatchEvent(new Event("resize")))
+        expect(published()).toBe("90px")
+    })
+
+    it("keeps the bar's look, and a caller's padding over it", () => {
+        const { container } = render(<CommentFoot className="px-4 py-3">Note</CommentFoot>)
+        const bar = container.querySelector("[data-phone-foot]")!
+        expect(bar.className).toContain("border-t")
+        expect(bar.className).toContain("px-4 py-3")
+        expect(bar.className).not.toMatch(/\bpx-3\b|\bpt-2\b|pb-\[/)
     })
 })

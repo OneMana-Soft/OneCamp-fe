@@ -30,8 +30,12 @@ function linkAt(editor: Editor, pos: number): Target | null {
 const pasteMenuOpen = (editor: Editor) =>
   !!editor.state.plugins.find((p) => String((p as unknown as { key: string }).key).startsWith('smartPaste$'))?.getState(editor.state)
 
-/** Under the link's line, or over it near the bottom of what's visible; nowhere when it can't be measured. */
-function placeOf(editor: Editor, t: Target): React.CSSProperties | null {
+/**
+ * Under the link's line, or over it near the bottom of what's visible; nowhere
+ * when it can't be measured. Its left keeps all of the bar's `width` (as drawn;
+ * 0 before it is) 8 px inside the screen.
+ */
+function placeOf(editor: Editor, t: Target, width: number): React.CSSProperties | null {
   let a: { left: number; top: number }, b: { bottom: number }
   try {
     a = editor.view.coordsAtPos(t.from)
@@ -39,7 +43,7 @@ function placeOf(editor: Editor, t: Target): React.CSSProperties | null {
   } catch {
     return null
   }
-  const left = Math.max(8, Math.min(a.left, window.innerWidth - 340))
+  const left = Math.max(8, Math.min(a.left, window.innerWidth - 8 - (width || 332)))
   return b.bottom + 180 > window.innerHeight ? { position: 'fixed', left, bottom: window.innerHeight - a.top + 6 } : { position: 'fixed', left, top: b.bottom + 6 }
 }
 
@@ -62,6 +66,15 @@ export default function LinkBar({ editor, hide, openEdit }: { editor: Editor; hi
   const [, setTick] = React.useState(0)
   const timers = React.useRef<{ over?: number; leave?: number }>({})
   const inBar = React.useRef(false)
+  // The bar's width as drawn: it changes with the link, the form, and a
+  // finger's 44 px items (app/phone.css F3c), so the clamp keeps all of it on
+  // the screen. Read before paint, so a moved bar never shows where it was.
+  const bar = React.useRef<HTMLDivElement>(null)
+  const [width, setWidth] = React.useState(0)
+  React.useLayoutEffect(() => {
+    const w = bar.current?.offsetWidth ?? 0
+    if (w && w !== width) setWidth(w)
+  })
 
   const caretLink = React.useCallback((): Target | null => {
     const { selection } = editor.state
@@ -202,11 +215,14 @@ export default function LinkBar({ editor, hide, openEdit }: { editor: Editor; hi
     setHover(null)
   }
 
-  const place = placeOf(editor, shown)
+  // Its own width, never wider than the screen less 8 px each side: the link's address gives way (link-popover-block).
+  const place = placeOf(editor, shown, width)
   if (!place) return null
   return createPortal(
     <div
+      ref={bar}
       data-link-bar=""
+      className="w-max max-w-[calc(100vw-16px)]"
       style={{ ...place, zIndex: 50 }}
       onMouseEnter={() => {
         inBar.current = true
@@ -223,7 +239,7 @@ export default function LinkBar({ editor, hide, openEdit }: { editor: Editor; hi
           defaultText={editor.state.doc.textBetween(shown.from, shown.to, ' ')}
           onSave={save}
           onCancel={close}
-          className="content-float w-80 rounded-xl bg-pop p-3 text-ink shadow-e3"
+          className="content-float w-80 max-w-full rounded-xl bg-pop p-3 text-ink shadow-e3"
         />
       ) : (
         <LinkPopoverBlock

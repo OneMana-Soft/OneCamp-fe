@@ -5,6 +5,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { TablesGet, TablesPost } from "@/services/endpoints/tables"
 import type { RowQueryAnswers, RowSpec } from "@/lib/tables/query"
 import type { GroupCount, QuerySummaries } from "@/lib/querySpec/types"
+import type { RelationTarget } from "@/lib/fieldTypes/types"
 
 // Tables client: a first-class, Notion-style structured-data entity. A table
 // has fields (columns), rows, and saved views (grid/board/calendar). All
@@ -95,8 +96,6 @@ export function isHiddenRef(v: unknown): boolean {
 export function relationWrite(refs: RelationRef[]): { id: string; type: string }[] {
   return refs.filter((r) => !isMoreRef(r) && !!r.id).map((r) => ({ id: r.id, type: r.type }))
 }
-
-export type RelationTarget = "task" | "doc" | "board" | "user" | "project" | "any" | "table"
 
 export type ViewType = "grid" | "board" | "calendar" | "chart" | "gallery" | "list" | "timeline" | "gantt"
 export type Visibility = "private" | "workspace"
@@ -778,13 +777,6 @@ export async function listTableAIFills(tableId: string): Promise<AIFill[]> {
 // up there.
 export function tableFieldsKey(tableId: string): string {
   return `${TablesGet.GetTableFields}/${tableId}/fields`
-}
-
-// A table's rows to link to, by name: those whose name holds the text, or the
-// first ones when it's empty.
-export async function pickRows(tableId: string, q: string): Promise<{ id: string; label: string }[]> {
-  const res = await axiosInstance.get(`${TablesGet.PickTableRows}/${tableId}/rows/pick`, { params: { q } })
-  return (res.data?.data as { id: string; label: string }[]) || []
 }
 
 /**

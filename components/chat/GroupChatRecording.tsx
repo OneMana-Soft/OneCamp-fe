@@ -1,7 +1,6 @@
 "use client"
 
 import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import { RecordingsView } from "@/components/recording/RecordingsView"
 
@@ -11,10 +10,7 @@ export const GroupChatRecording = ({ grpId }: { grpId: string }) => {
     return (
         <RecordingsView
             listUrl={`${ChatGet.GroupChatRecordingList}/${grpId}`}
-            playerUrls={() => ({
-                media: `${GetEndpointUrl.GetGrpChatRecordingMedia}/${grpId}`,
-                transcript: `${GetEndpointUrl.GetGrpChatRecordingTranscript}/${grpId}`,
-            })}
+            call={{ kind: "group", id: grpId }}
             subtitle="Calls recorded in this group."
             onDelete={(egressId) => post.makeRequest({ apiEndpoint: ChatPost.DeleteGroupChatRecording, appendToUrl: `/${egressId}`, showToast: true }).then((answer) => { if (!answer) throw new Error("not deleted") })}
         />

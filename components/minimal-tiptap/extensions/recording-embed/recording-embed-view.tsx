@@ -7,6 +7,7 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { playerUrls, type PlayerUrls } from "@/lib/calls/playerUrls"
 import { Video, CheckSquare } from "@/lib/icons"
 import type { UserProfileInterface } from "@/types/user"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
@@ -28,32 +29,11 @@ export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
   const u1 = String(node.attrs.u1 || "")
   const u2 = String(node.attrs.u2 || "")
 
-  const resolveUrls = (): { mediaGetUrl: string; transcriptGetUrl: string } | null => {
-    switch (kind) {
-      case "channel":
-        if (!sid) return null
-        return {
-          mediaGetUrl: `${GetEndpointUrl.GetChannelRecordingMedia}/${sid}`,
-          transcriptGetUrl: `${GetEndpointUrl.GetChannelRecordingTranscript}/${sid}`,
-        }
-      case "group":
-        if (!sid) return null
-        return {
-          mediaGetUrl: `${GetEndpointUrl.GetGrpChatRecordingMedia}/${sid}`,
-          transcriptGetUrl: `${GetEndpointUrl.GetGrpChatRecordingTranscript}/${sid}`,
-        }
-      case "dm": {
-        const self = selfProfile?.data?.user_uuid
-        const peer = u1 && u1 !== self ? u1 : u2
-        if (!peer) return null
-        return {
-          mediaGetUrl: `${GetEndpointUrl.GetChatRecordingMedia}/${peer}`,
-          transcriptGetUrl: `${GetEndpointUrl.GetChatRecordingTranscript}/${peer}`,
-        }
-      }
-      default:
-        return null
-    }
+  // The one player's routes (lib/calls/playerUrls), as the recordings list and boards build them.
+  const resolveUrls = (): PlayerUrls | null => {
+    if (kind === "channel" || kind === "group") return sid ? playerUrls({ kind, id: sid }) : null
+    if (kind === "dm") return u1 || u2 ? playerUrls({ kind: "dm", id: `${u1} ${u2}`.trim() }, selfProfile?.data?.user_uuid) : null
+    return null
   }
 
   const handlePlay = () => {
@@ -65,8 +45,8 @@ export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
         key: "recordingPlayer",
         data: {
           egressId: egress,
-          mediaGetUrl: urls.mediaGetUrl,
-          transcriptGetUrl: urls.transcriptGetUrl,
+          mediaGetUrl: urls.media,
+          transcriptGetUrl: urls.transcript,
           fileName: "Meeting recording",
         },
       }),

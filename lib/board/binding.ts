@@ -187,18 +187,39 @@ type SharedObserver = (event: { keysChanged: Set<string> }, transaction: { origi
  * back would grow the document again. Call it inside the document's
  * transaction (LOCAL_ORIGIN). Returns how many it wrote.
  */
-export function storeScene(shared: Pick<SharedElements, "get" | "set">, scene: readonly BoardElement[]): number {
-  const changed = changedElements(shared, scene)
+export function storeScene(shared: Pick<SharedElements, "get" | "set">, scene: readonly BoardElement[], guard: SceneGuard): number {
+  const changed = guardedChanges(shared, scene, guard)
   for (const el of changed) shared.set(el.id, cloneElement(el))
   return changed.length
+}
+
+/** The layer filter's guard on the store (./layers layeredScene). */
+export interface SceneGuard {
+  setAside(el: BoardElement): boolean
+  restore(copies: readonly BoardElement[]): void
+}
+/** No layers: nothing set aside. */
+export const UNLAYERED: SceneGuard = { setAside: () => false, restore: () => {} }
+/** An API the layers wrapped (./layers layeredScene): it carries the store's guard. */
+export type Guarded = { readonly sceneGuard: SceneGuard }
+/** The guard a wrapped API carries (UNLAYERED for none). Only a wrapped API compiles here: a raw one would store unguarded (CR-413 N1). */
+export const guardOf = (api: Guarded | null | undefined): SceneGuard => api?.sceneGuard ?? UNLAYERED
+
+/** changedElements under the guard; the refused go back to it as live copies. */
+export function guardedChanges<T extends BoardElement>(shared: Pick<SharedElements, "get">, scene: readonly T[], guard: SceneGuard): T[] {
+  const { changed, refused } = changedElements(shared, scene, guard.setAside)
+  if (refused.length) guard.restore(refused.map((el) => cloneElement(shared.get(el.id)!)))
+  return changed
 }
 
 /**
  * The scene's elements storeScene writes to the document, by its rule, in the scene's order: a frame's changes, so
  * work for a change (a note's maker) goes over them, not over every element on the board. Pure.
+ * CR-401 F1: refuses a set-aside element's live-to-deleted (an undo on its tombstone).
  */
-export function changedElements<T extends BoardElement>(shared: Pick<SharedElements, "get">, scene: readonly T[]): T[] {
+export function changedElements<T extends BoardElement>(shared: Pick<SharedElements, "get">, scene: readonly T[], setAside: (el: T) => boolean): { changed: T[]; refused: T[] } {
   const changed: T[] = []
+  const refused: T[] = []
   for (const el of scene) {
     if (!isBoardElement(el)) continue
     const existing = shared.get(el.id)
@@ -206,9 +227,12 @@ export function changedElements<T extends BoardElement>(shared: Pick<SharedEleme
     if (!existing && deleted) continue
     const ev = existing?.version ?? -1
     const elv = el.version ?? 0
-    if (!existing || ev < elv || (ev === elv && existing.versionNonce !== el.versionNonce) || deleted !== (existing.isDeleted ?? false)) changed.push(el)
+    if (!existing || ev < elv || (ev === elv && existing.versionNonce !== el.versionNonce) || deleted !== (existing.isDeleted ?? false)) {
+      if (deleted && !existing!.isDeleted && setAside(el)) refused.push(el)
+      else changed.push(el)
+    }
   }
-  return changed
+  return { changed, refused }
 }
 
 export interface FollowOptions {

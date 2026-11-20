@@ -556,6 +556,56 @@ describe("an event's call recordings", () => {
     expect(dispatch).toHaveBeenCalledWith(openUI({ key: "recordingPlayer", data: { mediaPath: `${at}/recording`, transcriptPath: `${at}/transcript`, fileName: "Standup transcript", home: "event" } }))
   })
 
+  // The organiser's "Send the recap to guests" (gcal-new-event-notes) is
+  // there when someone is invited by email: a guest with no member, as the
+  // guest list draws them, the lobby's switch's one question. The public
+  // demo serves a visitor every address but their own as ""
+  // (helpers/demoPrivacy.go), and the guest is still one. Members alone, or a
+  // reader who didn't organise it, get no switch.
+  describe("the organiser's switch to send the recap to guests", () => {
+    const SWITCH = { name: "Send the recap to guests" }
+    /** The event's guests on both reads: `member`, and Alex Kim by `email` unless there is none. */
+    const invite = (email: string | undefined, member = MAYA) => {
+      participants = [member]
+      const alex = email === undefined ? [] : [{ email, name: "Alex Kim", role: "required", response: "needs_action" }]
+      more = {
+        event_guests: [{ user_uuid: member.user_uuid, role: "required", response: "accepted" }, ...alex],
+        attendees: [{ user_uuid: member.user_uuid, name: member.user_full_name, response: "accepted" }, ...alex],
+      }
+    }
+    const recordings = async () => {
+      repeats = true
+      kept = [recorded]
+      panel()
+      await screen.findByRole("button", { name: "Play recording" }, { timeout: 8000 })
+    }
+
+    it("shows for a guest by email whose address the demo serves blank, off until flipped", async () => {
+      invite("")
+      await recordings()
+      expect((await screen.findByRole("switch", SWITCH, { timeout: 8000 })).getAttribute("aria-checked")).toBe("false")
+    })
+
+    it("shows for a guest by email with their address", async () => {
+      invite("alex@example.com")
+      await recordings()
+      expect(await screen.findByRole("switch", SWITCH, { timeout: 8000 })).toBeTruthy()
+    })
+
+    it("isn't there when only members are invited", async () => {
+      invite(undefined)
+      await recordings()
+      expect(screen.queryByRole("switch", SWITCH)).toBeNull()
+    })
+
+    it("isn't there for a guest, with someone invited by email", async () => {
+      organiser = MAYA
+      invite("", SAM)
+      await recordings()
+      expect(screen.queryByRole("switch", SWITCH)).toBeNull()
+    })
+  })
+
   // DB-61's MUST 1: in the side panel, a link that leaves the event closes the
   // panel, so the chat or notes it opens get the page; the phone's own page
   // is left by the link itself.

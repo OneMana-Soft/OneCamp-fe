@@ -162,6 +162,9 @@ const SIZES: { id: NoteSize; label: string; name: string }[] = [
 export default function NotesBar({ api, ids, tagHues, votes, extra }: { api: ExcalidrawImperativeAPI; ids: string[]; tagHues: TagHues; votes?: BoardVotes; extra?: React.ReactNode }) {
   const [panel, setPanel] = React.useState(false)
   useHideExcalidrawPanel(panel)
+  // A phone has no panel beside the board: More opens Excalidraw's style panel, a sheet there (excalidrawTheme.css).
+  const { isMobile } = useMedia()
+  const more = () => (isMobile ? api.updateScene({ appState: { openMenu: "shape" } }) : setPanel((p) => !p))
   const { toast } = useToast()
   const sheet = useSheetMode()
   const [picker, setPicker] = React.useState<"colour" | "tags" | "cluster" | null>(null)
@@ -309,7 +312,7 @@ export default function NotesBar({ api, ids, tagHues, votes, extra }: { api: Exc
                 e.preventDefault()
                 addTag()
               }}
-              className="flex h-9 items-center gap-2 rounded-lg bg-raised px-2.5 shadow-e1 focus-within:focus-halo"
+              className="flex h-9 items-center gap-2 rounded-lg bg-raised px-2.5 shadow-e1 focus-within:focus-halo pointer-coarse:h-11"
             >
               <Tag className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
               <input
@@ -318,7 +321,7 @@ export default function NotesBar({ api, ids, tagHues, votes, extra }: { api: Exc
                 placeholder="Add a tag"
                 aria-label="Add a tag"
                 maxLength={32}
-                className="min-w-0 flex-1 bg-transparent text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base"
+                className="min-w-0 flex-1 bg-transparent text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base pointer-coarse:self-stretch"
               />
             </form>
             {known.length > 0 && (
@@ -392,7 +395,7 @@ export default function NotesBar({ api, ids, tagHues, votes, extra }: { api: Exc
           )}
           <MakeTasks notes={notes} onOpen={() => setTasksOpen(true)} />
           <FloatingBarDivider />
-          <FloatingBarButton label={panel ? "Hide the style panel" : "More: stroke, fill and layers"} active={panel} onClick={() => setPanel((p) => !p)}>
+          <FloatingBarButton label={panel ? "Hide the style panel" : "More: stroke, fill and layers"} active={panel} onClick={more}>
             <Ellipsis />
           </FloatingBarButton>
           {extra}

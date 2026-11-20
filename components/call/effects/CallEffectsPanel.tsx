@@ -2,16 +2,23 @@
 
 // The call's Effects panel: the picker beside the stage (a right column on a
 // computer, over the stage on a phone), where the person sees their own tile
-// change as they choose. Loaded when it is first opened.
+// change as they choose. Loaded when it is first opened. A background made
+// from words keeps its actions in the panel's pinned foot, at every width
+// (effectsFoot.tsx): on a phone the panel covers the dock, as the chat does,
+// and the foot is the screen's footer, clear of the home indicator.
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { X } from "@/lib/icons"
 import type { CallEffectsControl } from "./useCallEffects"
-import EffectsChooser from "./EffectsChooser"
+import { chooser } from "./chooserPart"
+import { PICKER_CONTROLS } from "./pickerControls"
+import { CALL_PANEL_FOOT } from "@/components/livekit/callPanelClasses"
+import { useEffectsFoot } from "./effectsFoot"
 
-export default function CallEffectsPanel({ control, onClose }: { control: CallEffectsControl; onClose: () => void }) {
+export default function CallEffectsPanel({ control, onClose, made }: { control: CallEffectsControl; onClose: () => void; made?: boolean }) {
   const titleId = React.useId()
+  const { foot, footer } = useEffectsFoot()
   return (
     <aside
       aria-labelledby={titleId}
@@ -27,8 +34,14 @@ export default function CallEffectsPanel({ control, onClose }: { control: CallEf
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <EffectsChooser control={control} />
+        <chooser.Part control={control} controls={PICKER_CONTROLS} made={made} foot={foot} />
       </div>
+      {/* The side panels' foot (Chat's, Q&A's), marked as the sheets' (data-sheet-footer: phone.css's fade over what scrolls under it). */}
+      {footer ? (
+        <div data-sheet-footer="" data-overlay-footer="" className={`relative ${CALL_PANEL_FOOT}`}>
+          {footer}
+        </div>
+      ) : null}
     </aside>
   )
 }

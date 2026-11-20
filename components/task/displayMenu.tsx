@@ -23,6 +23,8 @@ import { insightsHref } from "@/lib/board/boardQuery"
 import { ArrowDown, ArrowUp, BarChart3, Bookmark } from "@/lib/icons"
 import { DUE_WEEK } from "@/lib/tasks/listAddress"
 import { GROUPINGS, type Grouping } from "@/lib/tasks/grouping"
+import { useSlaView } from "@/hooks/useSlaView"
+import { SLA_SORT, TASK_SLA } from "@/lib/work/slaFilter"
 import { sameView, taskViewScope, type TaskViewState } from "@/lib/tasks/views"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -75,7 +77,12 @@ export function DisplayMenuBody<TData>({
     table.setSorting((v.sort ?? []) as SortingState)
     if (v.columns) table.setColumnVisibility(v.columns)
   }
-  const groupings = GROUPINGS.filter((g) => (projectId ? g.value !== "project" : g.value !== "assignee"))
+  // A project's SLA grouping and sort (linear-24) only for a reader of its SLA state with SLAs on (a guest's GET /sla is a 403).
+  const sla = useSlaView(projectId, !!projectId)
+  const groupings = GROUPINGS.filter((g) => (projectId ? g.value !== "project" : g.value !== "assignee") && (g.value !== "sla" || sla.shows))
+  const orderings = sla.shows ? [...ORDERINGS, { value: TASK_SLA, label: SLA_SORT.label }] : ORDERINGS
+  // The SLA sort runs one way only (the server reads no direction for it): no direction is offered or sent.
+  const oneWay = sort?.id === TASK_SLA
   return (
     <>
       {views.length > 0 && (
@@ -116,8 +123,8 @@ export function DisplayMenuBody<TData>({
         </Row>
         <Row label="Ordering">
           <span className="flex items-center gap-1">
-            <MenuSelect value={sort?.id ?? ""} onChange={(v) => table.setSorting(v ? [{ id: v, desc: !!sort?.desc }] : [])} options={ORDERINGS} label="Ordering" />
-            {sort && (
+            <MenuSelect value={sort?.id ?? ""} onChange={(v) => table.setSorting(v ? [{ id: v, desc: v !== TASK_SLA && !!sort?.desc }] : [])} options={orderings} label="Ordering" />
+            {sort && !oneWay && (
               <button type="button" aria-label={sort.desc ? "Descending" : "Ascending"} title={sort.desc ? "Descending" : "Ascending"} onClick={() => table.setSorting([{ id: sort.id, desc: !sort.desc }])} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-raised text-ink-2 shadow-e1 hover:text-foreground">
                 {sort.desc ? <ArrowDown className="size-3.5" aria-hidden="true" /> : <ArrowUp className="size-3.5" aria-hidden="true" />}
               </button>

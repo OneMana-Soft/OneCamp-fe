@@ -16,9 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import dynamic from "next/dynamic";
-
-// Backgrounds and sound on the preview, a piece of its own: none of a call's
-// first load. Until it arrives, a still button keeps its place.
+// The preview's backgrounds and sound, a piece of its own.
 const GreenRoomEffects = dynamic(() => import("@/components/call/effects/GreenRoomEffects"), {
   ssr: false,
   loading: () => <span aria-hidden className="grid size-12 place-items-center rounded-[12px] bg-[#2A2B30] @3xl:size-11" />,
@@ -71,6 +69,8 @@ interface PreJoinProps {
   embedded?: boolean;
   /** Whose colour the camera-off face wears: the person's id where there is one. */
   hueId?: string;
+  /** Made backgrounds (meet-09): a member's door passes useFeature(FEATURE_AI); a guest's never does. */
+  madeBackgrounds?: boolean;
   /**
    * Who is in the call already, when it is known. Undefined means unknown,
    * and the line is left out rather than claiming the room is empty.
@@ -141,6 +141,7 @@ export function PreJoin({
   onCancel,
   embedded = false,
   hueId,
+  madeBackgrounds = false,
   inCall,
   live = false,
   recordingBy,
@@ -389,7 +390,7 @@ export function PreJoin({
                 icon={videoEnabled ? <Video /> : <VideoOff />}
                 onClick={toggleVideo}
               />
-              <GreenRoomEffects preview={videoTrack} onOpen={askClientAgain} />
+              <GreenRoomEffects preview={videoTrack} onOpen={askClientAgain} made={madeBackgrounds} />
             </div>
             <NamePlate name={self} muted={!audioEnabled} className="max-md:hidden">
               {audioEnabled ? <MicMeter source={mic} className="ml-0.5 h-3 w-4" /> : null}

@@ -25,12 +25,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
-import { ProjectTaskPick, pickable } from "@/components/task/ProjectTaskPick"
+import { ProjectTaskPick } from "@/components/task/ProjectTaskPick"
+import { useKeptTaskChoices } from "@/components/task/keptTaskChoices"
 import { Check, ExternalLink, GitBranch, Plus, Sparkles, Trash2, X } from "@/lib/icons"
 import { CATEGORY_KIND, type StatusCategory } from "@/lib/taskStatus"
-import type { TimelineData } from "@/lib/timeline"
-import { timelineKey } from "@/lib/timelineKey"
-import { OWN_ERRORS } from "@/lib/http/ownErrors"
 import { busyWith } from "@/lib/ui/busyWith"
 import { lazyView } from "@/lib/lazy/lazyView"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -284,13 +282,10 @@ function Tasks({
 }) {
   const [picking, setPicking] = React.useState(false)
   const [refused, setRefused] = React.useState<string[]>([])
-  const loadTasks = React.useCallback(async () => (await http.get<{ data: TimelineData }>(timelineKey(projectId), OWN_ERRORS)).data.data, [http, projectId])
-  const project = useKeptRead<TimelineData>(picking ? timelineKey(projectId) : null, loadTasks)
   const tasks = React.useMemo(() => r.tasks ?? [], [r.tasks])
   const taken = React.useMemo(() => new Set(tasks.map((t) => t.task_uuid)), [tasks])
-  const choices = pickable(project.data?.tasks ?? [], taken)
   // A read that failed with nothing kept says so, with Try again; one with tasks kept shows those.
-  const unread = !project.data && project.failed
+  const pick = useKeptTaskChoices(http, projectId, picking, taken, (retry) => failed(retry, "this project's tasks"))
   return (
     <section className="flex flex-col gap-2" aria-label="Tasks">
       <div className="flex items-center justify-between gap-2">
@@ -299,9 +294,7 @@ function Tasks({
           <ProjectTaskPick
             open={picking}
             onOpenChange={setPicking}
-            tasks={choices}
-            loading={!project.data && !project.failed}
-            failed={unread ? failed(() => void project.again(), "this project's tasks") : undefined}
+            {...pick}
             lead={(t) => <StatusGlyph status={CATEGORY_KIND[t.task_status as StatusCategory] ?? "todo"} size={14} />}
             onPick={(t) =>
               void act(`add-${t.task_uuid}`, async () => {

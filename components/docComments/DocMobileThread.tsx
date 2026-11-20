@@ -18,7 +18,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { Button } from "@/components/ui/button"
 import { MessageSquare, RotateCcw } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
-import { CommentComposer } from "./CommentComposer"
+import { CommentComposer, CommentFoot } from "./CommentComposer"
 import { ThreadCard } from "./ThreadCard"
 import { ThreadsSkeleton } from "./ThreadsPanelParts"
 import { setUi, useUi } from "./commentsUi"
@@ -27,11 +27,6 @@ import { quoteLine } from "./threadView"
 import { useDocThreads } from "./useDocThreads"
 
 const docPath = (docId: string) => `/app/doc/${docId}`
-
-/** The bar docked at the foot of a phone's comment page, above the keyboard and the home indicator. */
-function Dock({ children }: { children: React.ReactNode }) {
-    return <div className="shrink-0 border-t border-line bg-sheet px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">{children}</div>
-}
 
 export function DocMobileThread({ docId, threadId }: { docId: string; threadId: string }) {
     const t = useDocThreads(docId)
@@ -90,12 +85,12 @@ export function DocMobileThread({ docId, threadId }: { docId: string; threadId: 
         <div data-doc-thread-page="" className="flex h-full flex-col">
             <div className="flex-1 overflow-y-auto px-1 pb-3 pt-2">{body}</div>
             {thread && thread.status === "open" && thread.can_reply && (
-                <Dock>
+                <CommentFoot>
                     <CommentComposer docId={docId} placeholder="Reply…" label="Reply in this thread" sendLabel="Reply" onSend={(b) => t.reply(threadId, b)} />
-                </Dock>
+                </CommentFoot>
             )}
             {thread && thread.status === "resolved" && (
-                <Dock>
+                <CommentFoot>
                     <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-sm text-ink-2">This thread is resolved.</span>
                         {thread.can_resolve && (
@@ -105,7 +100,7 @@ export function DocMobileThread({ docId, threadId }: { docId: string; threadId: 
                             </Button>
                         )}
                     </div>
-                </Dock>
+                </CommentFoot>
             )}
         </div>
     )
@@ -138,7 +133,7 @@ export function DocMobileNewThread({ docId }: { docId: string }) {
                 <p className="mb-1 text-meta text-ink-3">Commenting on</p>
                 <p className="line-clamp-4 border-l-2 border-camp-sun pl-2.5 text-body text-ink-2">{quoteLine(pending.quote, 400) || "This block"}</p>
             </div>
-            <Dock>
+            <CommentFoot>
                 <CommentComposer
                     docId={docId}
                     autoFocus
@@ -155,7 +150,7 @@ export function DocMobileNewThread({ docId }: { docId: string }) {
                         router.back()
                     }}
                 />
-            </Dock>
+            </CommentFoot>
         </div>
     )
 }

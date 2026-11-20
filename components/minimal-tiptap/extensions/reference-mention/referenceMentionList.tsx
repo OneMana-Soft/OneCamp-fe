@@ -21,7 +21,7 @@ import {
 } from "./referenceTypes"
 
 /** Who a hit's second line names after its kind: who made the doc or board, who has the task. */
-const madeBy: Record<HitRefKind, (r: SearchResult) => string | undefined> = {
+const madeBy: Record<Exclude<HitRefKind, "channel">, (r: SearchResult) => string | undefined> = {
   doc: (r) => r.doc?.doc_created_by_user_full_name,
   board: (r) => r.board?.board_created_by_user_full_name,
   task: (r) => r.task?.task_assignee_user_full_name,
@@ -31,17 +31,15 @@ const madeBy: Record<HitRefKind, (r: SearchResult) => string | undefined> = {
 // Maps a raw unified-search hit to a compact ReferenceItem for the chosen
 // trigger. Returns null for hits that don't apply (so one search call can back
 // both the # and + pickers by filtering to the requested types). A doc, board,
-// task or project is read as every picker that links one reads it
-// (lib/search/hitRef, handed in as readHit); its second line is this picker's own.
+// task, project or channel is read as every picker that links one reads it
+// (lib/search/hitRef, handed in as readHit); its second line is this picker's
+// own, and a channel's row is its name alone.
 function mapSearchResult(result: any, types: ReferenceType[], readHit: (r: SearchResult) => HitRef | null): ReferenceItem | null {
   const type = result?.type as string
   if (!types.includes(type as ReferenceType)) return null
-  if (type === "channel") {
-    if (!result.channel?.ch_id || !result.channel?.ch_name) return null
-    return { routeId: result.channel.ch_id, label: result.channel.ch_name, refType: "channel" }
-  }
   const hit = readHit(result)
   if (!hit) return null
+  if (hit.kind === "channel") return { routeId: hit.id, label: hit.title, refType: "channel" }
   const word = referenceTypeLabel(hit.kind)
   const who = madeBy[hit.kind](result)
   return { routeId: hit.id, label: hit.title, refType: hit.kind, subtitle: who ? `${word} · ${who}` : word }

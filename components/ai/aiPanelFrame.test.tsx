@@ -115,7 +115,9 @@ describe("the AI panel's frame (hub.md AI1, AI2, AI4, AI5, AI10)", () => {
     expect(yours.className).toContain("ai-user-bubble")
     const answer = container.querySelector('[data-message="assistant"]')!
     expect(answer.className).not.toMatch(/\bbg-|border/)
-    expect(answer.querySelector("[data-ai-mark]")).toBeTruthy()
+    // The mark beside the answer says who answered, so a screen reader hears it too.
+    const mark = answer.querySelector("[data-ai-mark]")!
+    expect([mark.getAttribute("role"), mark.getAttribute("aria-label"), mark.hasAttribute("aria-hidden")]).toEqual(["img", "OneCamp AI", false])
     // The action row is always there on the last answer.
     expect(answer.querySelector("[data-action-row]")?.className).toContain("opacity-100")
     expect(screen.getByRole("button", { name: "Copy answer" })).toBeTruthy()

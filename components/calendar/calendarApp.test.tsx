@@ -12,6 +12,9 @@ let syncState: string | undefined
 let outlookState: string | undefined
 // Whether the person linked their own Outlook, as GET /connectors says (read once Outlook is available).
 let outlookLinked = false
+// gcal-18: what each sync status read adds while the provider can't be read (stale_since, read_error).
+let googleSyncMore: Record<string, unknown> = {}
+let outlookSyncMore: Record<string, unknown> = {}
 let loading = false
 let failing = false
 // The calendars beside yours: one listed, and their events' read failing (F2).
@@ -51,9 +54,9 @@ vi.mock("@/hooks/useFetch", () => ({
     // What repeats (head 9) has its own spec (e2e/calendarRepeats): nothing here, kept like SWR keeps it.
     if (url.startsWith("/calendar/repeats")) return NO_REPEATS
     if (url.includes("bookingPages")) return { data: { data: [{}, {}] }, isLoading: false, mutate: vi.fn() }
-    if (url.includes("/calendar/sync/google")) return { data: syncState ? { data: { state: syncState } } : undefined, isLoading: false, mutate: vi.fn() }
+    if (url.includes("/calendar/sync/google")) return { data: syncState ? { data: { state: syncState, ...googleSyncMore } } : undefined, isLoading: false, mutate: vi.fn() }
     if (url === "/connectors") return { data: { data: { connectors: [{ id: "microsoft_calendar", connected: outlookLinked }] } }, isLoading: false, mutate: vi.fn() }
-    if (url.includes("/calendar/sync/microsoft")) return { data: { data: { state: outlookState ?? "none", available: !!outlookState } }, isLoading: false, mutate: vi.fn() }
+    if (url.includes("/calendar/sync/microsoft")) return { data: { data: { state: outlookState ?? "none", available: !!outlookState, ...outlookSyncMore } }, isLoading: false, mutate: vi.fn() }
     return { data: { data: { isConnected: connected, accountEmail: account } }, isLoading: false, mutate: vi.fn(async () => ({ data: { isConnected: connected, accountEmail: account } })) }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
@@ -99,6 +102,7 @@ import { choose } from "@/lib/calendar/choices"
 import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
 import { installPointerEvent } from "@/lib/testing/pointerEvent"
 import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
+import { clockTime } from "@/lib/utils/date/clock"
 
 // Today is TEST_TODAY wherever the code under test reads the time.
 pinTestClock()
@@ -128,6 +132,8 @@ afterEach(() => {
   syncState = undefined
   outlookState = undefined
   outlookLinked = false
+  googleSyncMore = {}
+  outlookSyncMore = {}
   toast.mockReset()
   loading = false
   failing = false
@@ -508,6 +514,47 @@ describe("linking Google Calendar", () => {
     outlookLinked = false
     render(<CalendarApp />)
     const button = screen.getByRole("button", { name: "Calendars" })
+    expect(button.querySelector("[data-sync-broken]")).toBeNull()
+  })
+
+  // gcal-18: Google down, timing out or slowing us down for over half an hour is said on the closed
+  // button too, as a warning (amber), not the danger dot: there is nothing to connect again.
+  it("marks the closed Calendars button with a warning while Google hasn't answered for a while", async () => {
+    connected = true
+    syncState = "synced"
+    const since = new Date(TEST_TODAY.getTime() - 2 * 3600_000).toISOString()
+    googleSyncMore = { stale_since: since, read_error: "unreachable" }
+    render(<CalendarApp />)
+    const button = await screen.findByRole("button", { name: `Calendars, Google hasn't answered since ${clockTime(since)}` })
+    expect(button.querySelector("[data-sync-stale]")).toBeTruthy()
+    expect(button.querySelector("[data-sync-broken]")).toBeNull()
+    // The words come from the sync reads the grid already makes: nothing new is asked.
+    expect(asked).not.toContain("/connectors")
+  })
+
+  it("says Outlook's stale sync the same way, and a broken link wins over a stale one", async () => {
+    outlookState = "synced"
+    const since = new Date(TEST_TODAY.getTime() - 3600_000).toISOString()
+    outlookSyncMore = { stale_since: since, read_error: "rate_limited" }
+    const { unmount } = render(<CalendarApp />)
+    const stale = await screen.findByRole("button", { name: `Calendars, Outlook asked us to slow down · last in step ${clockTime(since)}` })
+    expect(stale.querySelector("[data-sync-stale]")).toBeTruthy()
+    unmount()
+    connected = true
+    syncState = "broken"
+    render(<CalendarApp />)
+    const broken = screen.getByRole("button", { name: "Calendars, Google needs connecting again" })
+    expect(broken.querySelector("[data-sync-broken]")).toBeTruthy()
+    expect(broken.querySelector("[data-sync-stale]")).toBeNull()
+  })
+
+  it("says nothing of one read that failed while the sync is still in step", () => {
+    connected = true
+    syncState = "synced"
+    googleSyncMore = { stale_since: null, read_error: "unreachable" }
+    render(<CalendarApp />)
+    const button = screen.getByRole("button", { name: "Calendars" })
+    expect(button.querySelector("[data-sync-stale]")).toBeNull()
     expect(button.querySelector("[data-sync-broken]")).toBeNull()
   })
 
@@ -975,6 +1022,48 @@ describe("an event's menu", () => {
     render(<CalendarApp />)
     choose(await menuOn(block()), "Copy link")
     expect(copy).toHaveBeenCalledWith(`${window.location.origin}/app/calendar/event/e1`, "Link copied")
+  })
+
+  // gcal-14 (CR-295 F3): an entry the work puts on a container's calendar (a dated task) is the server's, read only:
+  // its menu opens the task and copies the task's link, and offers no copy of it and no delete.
+  describe("on an entry the work fills a calendar with", () => {
+    const task = () => ({
+      event_uuid: "task:t-notes", event_title: "Write launch notes", event_start_time: iso(now.getDate(), 11), event_end_time: iso(now.getDate(), 12),
+      event_calendar_id: "c1", event_read_only: true,
+      event_source: { kind: "task", id: "t-notes", href: "/app/task/t-notes", open: "Open task", from: "A task in Launch" },
+    })
+
+    it("offers only Open task and Copy link", async () => {
+      events = [task()]
+      render(<CalendarApp />)
+      expect(rows(await menuOn(block("task:t-notes")))).toEqual(["Open task", "Copy link"])
+    })
+
+    it("copies the task's link, not the calendar's", async () => {
+      events = [task()]
+      render(<CalendarApp />)
+      choose(await menuOn(block("task:t-notes")), "Copy link")
+      expect(copy).toHaveBeenCalledWith(`${window.location.origin}/app/task/t-notes`, "Link copied")
+    })
+
+    it("opens the task beside the calendar on a computer", async () => {
+      events = [task()]
+      render(<CalendarApp />)
+      choose(await menuOn(block("task:t-notes")), "Open task")
+      expect(dispatch).toHaveBeenCalledWith({ type: "rightPanel/openRightPanel", payload: { taskUUID: "t-notes" } })
+      expect(push).not.toHaveBeenCalled()
+    })
+
+    it("opens the task at its page on a phone", async () => {
+      mobile = true
+      events = [task()]
+      render(<CalendarApp />)
+      fireEvent.click(screen.getByRole("button", { name: "Day" }))
+      await waitFor(() => expect(block("task:t-notes")).toBeTruthy())
+      choose(await menuOn(block("task:t-notes")), "Open task")
+      expect(push).toHaveBeenCalledWith("/app/task/t-notes")
+      expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "rightPanel/openRightPanel" }))
+    })
   })
 
   // D16: a finger held on an event and let go without moving opens the same menu.

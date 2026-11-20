@@ -2,7 +2,7 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { Fragment } from "react"
-import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, Users, FolderKanban, Hash, LayoutDashboard, CalendarDays } from "@/lib/icons"
+import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, Users, FolderKanban, Hash, LayoutDashboard, CalendarDays, Captions } from "@/lib/icons"
 import { SearchResult } from "@/services/searchService"
 import { ChatUserAvatar } from "@/components/chat/chatUserAvatar"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
@@ -50,6 +50,7 @@ const TITLE_FIELD: Record<SearchResult["type"], string> = {
     channel: "ch_name",
     team: "team_name",
     event: "event_title",
+    transcript: "transcript_text",
 }
 
 /** A hit's title as plain text: stored bodies are escaped HTML ("everyone&#39;s"). */
@@ -67,6 +68,7 @@ export const getTitle = (result: SearchResult): string => {
         case "channel": return removeHtmlTags(result.channel?.ch_name)
         case "team": return removeHtmlTags(result.team?.team_name)
         case "event": return removeHtmlTags(result.event?.event_title) || "Untitled event"
+        case "transcript": return removeHtmlTags(result.transcript?.transcript_text)
         default: return ""
     }
 }
@@ -93,6 +95,7 @@ const contextText = (result: SearchResult): string => {
         case "channel": return "Channel"
         case "team": return "Team"
         case "event": return join(eventWhen(result.event), result.event?.event_location) || "Event"
+        case "transcript": return result.transcript?.transcript_by_user_full_name ? `In a call, from ${result.transcript.transcript_by_user_full_name}` : "In a call"
         default: return ""
     }
 }
@@ -138,6 +141,7 @@ export function hitHueId(result: SearchResult): string | undefined {
         case "team": return result.team?.team_id
         case "user": return result.user?.user_id
         case "event": return result.event?.event_calendar_id
+        case "transcript": return result.transcript?.transcript_by_user_id
         default: return undefined
     }
 }
@@ -155,6 +159,7 @@ const HIT_GLYPH: Record<SearchResult["type"], typeof Search> = {
     team: Users,
     user: Search,
     event: CalendarDays,
+    transcript: Captions,
 }
 
 /**

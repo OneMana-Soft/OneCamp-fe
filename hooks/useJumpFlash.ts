@@ -6,10 +6,22 @@ function flash(el: HTMLElement, into: ScrollIntoViewOptions) {
   el.classList.remove("set-flash")
   void el.offsetWidth // a second jump replays it
   el.classList.add("set-flash")
-  // The page may still fill in under it: its place is held as it flashes.
+  // The page may still fill in above it: its place is held from here, the
+  // jump, even if a card fills in before the hold's code has arrived.
   // Without the hold (its code failed to load) the jump has still landed.
-  void import("./jumpHold").then((m) => m.hold(el, into, 1300)).catch(() => undefined)
+  const at = placeOf(el)
+  void import("./jumpHold").then((m) => m.hold(el, into, at)).catch(() => undefined)
   window.setTimeout(() => el.classList.remove("set-flash"), 1300)
+}
+
+/**
+ * Where `el` sits down its page (the [data-page-frame] it is in), or null
+ * outside one. It changes when something above it grows or shrinks, not when
+ * the page scrolls, nor when the page grows below it.
+ */
+export function placeOf(el: HTMLElement): number | null {
+  const frame = el.closest("[data-page-frame]")
+  return frame ? el.getBoundingClientRect().top - frame.getBoundingClientRect().top : null
 }
 
 /**

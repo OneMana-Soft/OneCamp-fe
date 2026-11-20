@@ -7,6 +7,7 @@ import desktopRightPanelSlice from "@/store/slice/desktopRightPanelSlice"
 import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
 import { groupTasks, headedRows, whenOf } from "@/lib/tasks/grouping"
 import type { TaskInfoInterface } from "@/types/task"
+import { installPointerEvent } from "@/lib/testing/pointerEvent"
 
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => vi.fn(async () => ({ changed: 1, failed: 0, unchanged: 0 })) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
@@ -14,6 +15,9 @@ vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined
 vi.mock("@/lib/celebrate", () => ({ celebrateTask: () => 8, prefersReducedMotion: () => true }))
 
 const { GroupedTaskList, PROJECT_PROPS } = await import("@/components/task/GroupedTaskList")
+
+// The rows read a mouse by its pointerType and place (jsdom has no PointerEvent).
+installPointerEvent()
 
 afterEach(cleanup)
 
@@ -78,10 +82,30 @@ describe("the grouped list (work.md W18, W19)", () => {
     expect(boxes()).toHaveLength(0)
     expect(screen.getByRole("button", { name: "Priority of Task 1" }).getAttribute("aria-expanded")).toBe("false")
     expect(screen.queryByRole("menu")).toBeNull()
-    fireEvent.pointerEnter(row)
+    // A mouse's arrival, then its move on the row (an arrival alone is no move: below).
+    fireEvent.pointerEnter(row, { pointerType: "mouse", clientX: 20, clientY: 30 })
+    fireEvent.pointerMove(row, { pointerType: "mouse", clientX: 21, clientY: 30 })
     expect(boxes()).toHaveLength(1)
     fireEvent.pointerLeave(row)
     expect(boxes()).toHaveLength(0)
+  })
+
+  // A row drawn or moved under a resting mouse gets the browser's hover update: an arrival where the pointer already
+  // was, with no move (fluid-19, 13 Nov: a J's scroll lit row 20 under the mouse resting where it clicked, its
+  // Checkbox in place of the keys' box). It stays as it was; the mouse's own move lights it.
+  it("leaves a row the page moves under a resting mouse as it was, and lights it on the mouse's move", () => {
+    const { container } = renderList([t("1", "todo"), t("2", "todo")])
+    const row = container.querySelector<HTMLElement>("[data-task-id='2']")!
+    const boxes = () => container.querySelectorAll("[role=checkbox]:not([data-row-box])")
+    // The mouse's last move, on the first row's place.
+    fireEvent.pointerMove(container.querySelector<HTMLElement>("[data-task-id='1']")!, { pointerType: "mouse", clientX: 50, clientY: 60 })
+    fireEvent.pointerLeave(container.querySelector<HTMLElement>("[data-task-id='1']")!)
+    expect(boxes()).toHaveLength(0)
+    // The second row is drawn where the first was: the update's arrival, at the same place.
+    fireEvent.pointerEnter(row, { pointerType: "mouse", clientX: 50, clientY: 60 })
+    expect(boxes(), "an arrival with no move lights no row").toHaveLength(0)
+    fireEvent.pointerMove(row, { pointerType: "mouse", clientX: 50, clientY: 61 })
+    expect(boxes(), "the mouse's move lights it").toHaveLength(1)
   })
 
   it("adds a task in the group its + belongs to", () => {

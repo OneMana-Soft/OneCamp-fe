@@ -124,7 +124,7 @@ export interface InsightPoint {
 }
 
 /** The ways the server slices work (business/Project/insights.go), a custom field's as "field:<id>". */
-export type SliceBy = "project" | "person" | "priority" | "type" | "status" | "labels" | "cycle" | "estimate" | `field:${string}`
+export type SliceBy = "project" | "person" | "priority" | "type" | "status" | "labels" | "cycle" | "estimate" | "sla" | `field:${string}`
 
 /**
  * The spreads of one project, person, priority, type, status, label, cycle,

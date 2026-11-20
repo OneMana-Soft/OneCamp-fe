@@ -31,6 +31,7 @@ import { getHighlightedTitle, isResultPreviewable, Snippet } from "@/lib/utils/h
 import { highlightText } from "@/lib/search/highlight"
 import { resultTime } from "@/lib/search/scopes"
 import { eventWhen } from "@/lib/search/eventWhen"
+import { momentLabel } from "@/lib/calls/callMoment"
 import type { SearchResult } from "@/services/searchService"
 
 /** A task's status, as one of the glyph set's six. */
@@ -61,9 +62,10 @@ export function SearchLead({ result }: { result: SearchResult }) {
       )
     case "chat":
     case "post":
-    case "comment": {
-      const r = result[result.type] ?? {}
-      const name = r.chat_by_user_full_name || r.post_by_user_full_name || r.comment_by_user_full_name
+    case "comment":
+    case "transcript": {
+      const r: Record<string, string | undefined> = (result[result.type] as Record<string, string | undefined> | undefined) ?? {}
+      const name = r.chat_by_user_full_name || r.post_by_user_full_name || r.comment_by_user_full_name || r.transcript_by_user_full_name
       return (
         <span data-search-lead="message" className="grid place-items-center">
           <IdentityMark variant="avatar" size={24} id={avatarSeed(name)} label={name} />
@@ -108,7 +110,7 @@ export function inArchivedChannel(result: SearchResult): boolean {
 }
 
 /** Where a result is and who, in the words a person uses. */
-function SearchMeta({ result }: { result: SearchResult }) {
+function SearchMeta({ result, place, speakerId }: { result: SearchResult; place?: string; speakerId?: string }) {
   const parts: React.ReactNode[] = []
   const push = (n: React.ReactNode) => n && parts.push(n)
   switch (result.type) {
@@ -172,6 +174,18 @@ function SearchMeta({ result }: { result: SearchResult }) {
       push(eventWhen(result.event))
       push(result.event?.event_location)
       break
+    case "transcript": {
+      // A line said in a call: where the call was and the day it started. Its moment is the row's end (meta).
+      const t = result.transcript
+      push("Call")
+      push(place)
+      // Who said it, as a message row names its author; the link's name reads it too (speakerId).
+      const speaker = t?.transcript_by_user_full_name
+      if (speaker) push(<span id={speakerId}>{speaker}</span>)
+      const started = Number(t?.transcript_call_started_at)
+      if (started > 0) push(formatListTimestamp(new Date(started * 1000).toISOString()))
+      break
+    }
   }
   // From a channel that was archived: its members still find its history.
   if (inArchivedChannel(result)) push(<span data-search-archived="" className="text-ink-3">Archived</span>)
@@ -221,10 +235,26 @@ export interface SearchResultRowProps {
   onPreview?: (result: SearchResult) => void
   /** The address of what the row opens: the row is a link to it, and "Copy link" copies it. */
   href?: string
+  /** Where the hit was, by name ("#launch", a person), when the page knows it: a call's line names its conversation. */
+  place?: string
 }
 
-export function SearchResultRow({ result, onOpen, onPreview, href }: SearchResultRowProps) {
+export function SearchResultRow({ result, onOpen, onPreview, href, place }: SearchResultRowProps) {
+  const rowId = React.useId()
+  // A call's line the server marks deleted (its call is gone) is never drawn, wherever the hit came from.
+  if (result.type === "transcript" && Number(result.transcript?.deleted_date) > 0) return null
   const at = resultTime(result)
+  // A call's line ends in its moment: the row's end never cuts off, where its line would at 390 (CR-330 G1).
+  const meta =
+    result.type === "transcript"
+      ? `at ${momentLabel(result.transcript?.transcript_offset_ms ?? 0)}`
+      : at
+        ? formatListTimestamp(new Date(at).toISOString())
+        : undefined
+  // A call's line is named by its words and who said them (the initials in the lead are aria-hidden).
+  const titleId = `${rowId}-title`
+  const speakerId = result.type === "transcript" && result.transcript?.transcript_by_user_full_name ? `${rowId}-speaker` : undefined
+  const labelledBy = speakerId ? `${titleId} ${speakerId}` : undefined
   const copy = href
     ? () => {
         const url = new URL(href, window.location.origin).toString()
@@ -264,6 +294,8 @@ export function SearchResultRow({ result, onOpen, onPreview, href }: SearchResul
         href ? (
           <NextLink
             href={href}
+            id={titleId}
+            aria-labelledby={labelledBy}
             data-search-result=""
             onClick={(e) => {
               if (!isPlainLeftClick(e)) return
@@ -275,13 +307,13 @@ export function SearchResultRow({ result, onOpen, onPreview, href }: SearchResul
             {getHighlightedTitle(result)}
           </NextLink>
         ) : (
-          <button type="button" data-search-result="" onClick={() => onOpen(result)} className={TITLE_CONTROL}>
+          <button type="button" id={titleId} aria-labelledby={labelledBy} data-search-result="" onClick={() => onOpen(result)} className={TITLE_CONTROL}>
             {getHighlightedTitle(result)}
           </button>
         )
       }
-      second={<SearchMeta result={result} />}
-      meta={at ? formatListTimestamp(new Date(at).toISOString()) : undefined}
+      second={<SearchMeta result={result} place={place} speakerId={speakerId} />}
+      meta={meta}
       tools={tools}
     >
       <BodyMatch result={result} />

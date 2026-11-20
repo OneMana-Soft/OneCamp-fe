@@ -151,11 +151,11 @@ async function expectBadge(page: Page, phone: boolean, n: number) {
 const rows = (page: Page) => page.locator("[data-feed-row]")
 const dotted = (page: Page) => page.locator("[data-feed-row][data-unread]")
 
-/** A row marked read here, as opening it does: its tools show on hover, or under Actions on a phone. */
+/** A row marked read here, as opening it does: its tools show on hover, or in the drawer its Actions opens on a phone. */
 async function markRowRead(row: ReturnType<typeof rows>, phone: boolean) {
   if (phone) {
     await row.getByRole("button", { name: "Actions" }).tap()
-    await row.getByRole("button", { name: "Mark read" }).tap()
+    await row.page().getByRole("menuitem", { name: "Mark read", exact: true }).tap()
   } else {
     await row.hover()
     await row.getByRole("button", { name: "Mark read" }).click()

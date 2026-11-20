@@ -464,6 +464,140 @@ describe("the app's pages", () => {
   })
 })
 
+// A page whose request fails outright (the connection dropped, or the network changed under it) is asked once more
+// after a moment, before the device's page or the offline page stands in for it. An answer is never asked again,
+// whatever its status, and neither is a write.
+describe("a page whose request fails", () => {
+  const failed = () => new TypeError("Failed to fetch")
+  /** Answers with page() from the second ask on; the first fails as a dropped connection does. */
+  const failsOnce = (page: () => Response | Promise<Response>) => {
+    let asked = 0
+    return () => {
+      if (asked++ === 0) throw failed()
+      return page()
+    }
+  }
+  const asks = (w: ReturnType<typeof startWorker>, path: string) => w.net.mock.calls.filter(([url]) => url === at(path)).length
+  const navigation = (path: string, method = "GET") => ({
+    url: at(path),
+    method,
+    mode: "navigate",
+    destination: "document",
+    headers: new Headers({ accept: "text/html" }),
+  })
+
+  it("is asked once more after a moment, and opens when the second ask is answered", async () => {
+    const w = startWorker()
+    await w.ready()
+    w.online({ "/app/project/p1": failsOnce(() => html("p1")) })
+    vi.useFakeTimers()
+    const answer = w.open("/app/project/p1")
+    await vi.advanceTimersByTimeAsync(299)
+    expect(asks(w, "/app/project/p1"), "not asked again at once").toBe(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(asks(w, "/app/project/p1")).toBe(2)
+    vi.useRealTimers()
+    expect(await (await answer)?.text()).toBe("p1")
+  })
+
+  it("gives the offline page only when the second ask fails too, and is never asked a third time", async () => {
+    const w = await memberWorker()
+    w.offline()
+    const page = await (await w.open("/app/project/p2"))?.text()
+    expect(page).toContain("data-offline-page")
+    expect(asks(w, "/app/project/p2")).toBe(2)
+  })
+
+  // Chromium rejects a dropped navigation preload with a DOMException named NetworkError (CR-280's probe), and a
+  // dropped fetch() with a TypeError.
+  it("is asked through the network when the navigation preload's connection drops", async () => {
+    const w = startWorker()
+    await w.ready()
+    w.online({ "/app/home": () => html("home") })
+    const preload = Promise.reject(new DOMException("The service worker navigation preload request failed with a network error.", "NetworkError"))
+    preload.catch(() => {})
+    const answer = await w.fire("fetch", { request: navigation("/app/home"), preloadResponse: preload, clientId: "", resultingClientId: "c1" })
+    expect(await answer?.text()).toBe("home")
+    expect(asks(w, "/app/home")).toBe(1)
+  })
+
+  // A cold start with no network at all (e2e/offlineTasks' cold board): the preload drops, the second ask fails too,
+  // and where the app starts still opens the page the member left.
+  it("where the app starts, a dropped preload asked again with the network gone still opens the last page kept", async () => {
+    const w = await memberWorker()
+    w.online({ "/app/project/p1": () => html("p1") })
+    await w.open("/app/project/p1")
+    w.offline()
+    const preload = Promise.reject(new DOMException("The service worker navigation preload request failed with a network error.", "NetworkError"))
+    preload.catch(() => {})
+    const answer = await w.fire("fetch", { request: navigation("/"), preloadResponse: preload, clientId: "", resultingClientId: "c1" })
+    expect(answer?.status).toBe(302)
+    expect(answer?.headers.get("location")).toBe(at("/app/project/p1"))
+    expect(asks(w, "/")).toBe(1)
+  })
+
+  it("with a page kept, gives the fresh page when the second ask is answered, and the kept page when it fails too", async () => {
+    const w = await memberWorker()
+    w.online({ "/app/home": () => html("home") })
+    await w.open("/app/home")
+    w.online({ "/app/home": failsOnce(() => html("home, newer")) })
+    expect(await (await w.open("/app/home"))?.text()).toBe("home, newer")
+    w.offline()
+    expect(await (await w.open("/app/home"))?.text()).toBe("home, newer")
+    expect(asks(w, "/app/home")).toBe(5)
+  })
+
+  it("with a page kept, still gives it when the second ask hasn't answered in 4 seconds, and keeps the late answer", async () => {
+    const w = await memberWorker()
+    w.online({ "/app/home": () => html("home") })
+    await w.open("/app/home")
+    vi.useFakeTimers()
+    // The second ask is answered at 10.3 s: a worker that waited for it would answer "fresh".
+    w.online({ "/app/home": failsOnce(() => new Promise<Response>((r) => setTimeout(() => r(html("fresh")), 10_000))) })
+    const answer = w.open("/app/home")
+    await vi.advanceTimersByTimeAsync(11_000)
+    vi.useRealTimers()
+    expect(await (await answer)?.text()).toBe("home")
+    expect(asks(w, "/app/home")).toBe(3)
+    w.offline()
+    expect(await (await w.open("/app/home"))?.text()).toBe("fresh")
+  })
+
+  it("is never asked again for an answer, whatever its status", async () => {
+    const w = await memberWorker()
+    w.online({ "/app/broken": () => new Response("down", { status: 503, headers: { "content-type": "text/html" } }) })
+    const answer = await w.open("/app/broken")
+    expect(answer?.status).toBe(503)
+    expect(asks(w, "/app/broken")).toBe(1)
+  })
+
+  it("is not asked again when it failed for another reason than the network, or when the device says it is offline", async () => {
+    const w = startWorker()
+    await w.ready()
+    w.online({
+      "/app/stopped": () => {
+        throw new DOMException("The operation was aborted.", "AbortError")
+      },
+    })
+    expect(await (await w.open("/app/stopped"))?.text()).toContain("data-offline-page")
+    expect(asks(w, "/app/stopped")).toBe(1)
+
+    const away = startWorker("", { navigator: { onLine: false } })
+    await away.ready()
+    away.offline()
+    expect(await (await away.open("/app/project/p1"))?.text()).toContain("data-offline-page")
+    expect(asks(away, "/app/project/p1")).toBe(1)
+  })
+
+  it("is never a write: the worker leaves a form sent as a navigation to the browser, so it is never asked again", async () => {
+    const w = await memberWorker()
+    w.offline()
+    const sent = await w.fire("fetch", { request: navigation("/app/project/p1", "POST"), preloadResponse: Promise.resolve(undefined), clientId: "", resultingClientId: "c1" })
+    expect(sent).toBeUndefined()
+    expect(asks(w, "/app/project/p1")).toBe(0)
+  })
+})
+
 describe("push, in the same worker", () => {
   it("opens the notification's place", async () => {
     const w = await memberWorker()

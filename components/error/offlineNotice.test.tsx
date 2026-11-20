@@ -9,6 +9,7 @@ const reload = vi.fn()
 vi.mock("@/hooks/useUpdateReady", () => ({ useUpdateReady: () => ({ ready, reload }) }))
 
 import { FootPill, OfflineNotice } from "@/components/error/OfflineNotice"
+import { useClaimOffline } from "@/components/error/pillPlace"
 import { MqttContext, type MqttContextValue } from "@/components/mqtt/mqttContext"
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity"
 import { markSchemaOutdated, resetSchemaOutdated } from "@/lib/schemaOutdated"
@@ -222,5 +223,106 @@ describe("the connection pill with changes kept offline", () => {
     expect(pill()?.textContent).toContain("2 changes need you")
     act(() => screen.getByRole("button", { name: "Review" }).click())
     expect(getOfflineStatus().reviewing).toBe(true)
+  })
+})
+
+// V-695: a page that says its own connection state (a doc's pill) owns the
+// offline state while it shows it (pillPlace.useClaimOffline). The pill then
+// keeps only what that page can't say, the changes waiting on this device,
+// and says it without a second live region. Every other kind is unchanged.
+describe("the connection pill while a page says it is offline itself", () => {
+  afterEach(() => resetOfflineStatus())
+  function Claim({ on = true }: { on?: boolean }) {
+    useClaimOffline(on)
+    return null
+  }
+  const drawn = () => document.querySelector<HTMLElement>("[data-connection-pill]")
+
+  for (const [where, Notice] of [["floating", OfflineNotice], ["above the sidebar's foot", FootPill]] as const) {
+    it(`${where}, says nothing when nothing waits on the device, and speaks again once the claim ends`, () => {
+      setOnline(false)
+      const { rerender } = render(<><Claim /><Notice /></>)
+      expect(drawn()).toBeNull()
+      rerender(<><Claim on={false} /><Notice /></>)
+      expect(pill()?.textContent).toMatch(/You're offline/)
+      expect(pill()?.getAttribute("aria-live")).toBe("polite")
+    })
+
+    it(`${where}, with 2 changes waiting, shows the count but is no live region`, () => {
+      setOnline(false)
+      act(() => setOfflineStatus({ waiting: 2 }))
+      render(<><Claim /><Notice /></>)
+      expect(drawn()?.textContent).toContain("2 changes waiting")
+      expect(drawn()?.getAttribute("data-connection-pill")).toBe("offline")
+      expect(drawn()?.hasAttribute("role")).toBe(false)
+      expect(drawn()?.hasAttribute("aria-live")).toBe(false)
+      expect(pill()).toBeNull()
+    })
+  }
+
+  it("says every other kind as before", () => {
+    act(() => setOfflineStatus({ waiting: 1 }))
+    render(<><Claim /><FootPill /></>)
+    expect(pill()?.getAttribute("data-connection-pill")).toBe("waiting")
+    expect(pill()?.getAttribute("aria-live")).toBe("polite")
+  })
+})
+
+// V-696: just after the network comes back, the server is asked at once
+// (lib/connectivity's probeServer, the pill's own), and until that first ask
+// is answered or fails the pill says "Reconnecting…", never a false "Can't
+// reach the server".
+describe("the connection pill as the network comes back", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+  /** The server's answer to an ask, held until the test lets it come. */
+  function heldAsk() {
+    const pending: { answer: () => void; fail: () => void }[] = []
+    const asked = vi.fn(() => new Promise<Response>((resolve, reject) => {
+      pending.push({ answer: () => resolve(new Response("{}")), fail: () => reject(new TypeError("Failed to fetch")) })
+    }))
+    vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "https://api.example.test/")
+    vi.stubGlobal("fetch", asked)
+    return { asked, answer: () => pending.shift()?.answer(), fail: () => pending.shift()?.fail() }
+  }
+  /** The pill's title, or "none". */
+  const title = () => {
+    const el = pill()
+    return el ? (el.textContent ?? "").replace(/Retry$/, "") : "none"
+  }
+  /** Offline long enough that the reads got no answer: the server counts unreachable too. */
+  const goOffline = () => {
+    act(() => setOnline(false))
+    act(() => {
+      noteNetworkFailure()
+      noteNetworkFailure()
+    })
+  }
+
+  it("goes offline -> online -> reconnecting -> clear, with no \"Can't reach\" step", async () => {
+    const ask = heldAsk()
+    render(<FootPill />)
+    const said: string[] = []
+    goOffline()
+    said.push(title())
+    act(() => setOnline(true))
+    said.push(title())
+    expect(ask.asked).toHaveBeenCalledTimes(1)
+    await act(async () => void ask.answer())
+    said.push(title())
+    expect(said).toEqual(["You're offline", "Reconnecting…", "none"])
+  })
+
+  it("says it can't reach the server only once that first ask fails", async () => {
+    const ask = heldAsk()
+    render(<FootPill />)
+    goOffline()
+    act(() => setOnline(true))
+    expect(title()).toBe("Reconnecting…")
+    await act(async () => void ask.fail())
+    expect(title()).toBe("Can't reach the server")
+    expect(ask.asked).toHaveBeenCalledTimes(1)
   })
 })

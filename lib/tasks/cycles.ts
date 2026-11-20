@@ -54,6 +54,24 @@ export function openCycles(cycles: Cycle[]): Cycle[] {
   return cycles.filter((c) => c.state !== "completed" && !c.completed_at).sort((a, b) => (rank[a.state ?? "upcoming"] ?? 3) - (rank[b.state ?? "upcoming"] ?? 3) || a.number - b.number)
 }
 
+/**
+ * The cycles under way, the one ending first first: those running now, and
+ * with `ended`, those past their end not yet completed. Two or more run at
+ * once only in a project that runs cycles side by side (jira-04 C).
+ */
+export function runningCycles<C extends Cycle>(cycles: C[], ended = false): C[] {
+  return cycles
+    .filter((c) => !c.completed_at && (c.state === "current" || (ended && c.state === "ended")))
+    .sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at) || a.number - b.number)
+}
+
+/** Where completing c carries its unfinished tasks, as the server's nextCycle: the first
+ * open cycle after it sharing no days with it (never one running beside it), or a new one. */
+export function carryTarget<C extends Cycle>(cycles: C[], c: Cycle): C | undefined {
+  const [s, e] = [Date.parse(c.starts_at), Date.parse(c.ends_at)]
+  return cycles.filter((x) => x.number > c.number && !x.completed_at && !(Date.parse(x.starts_at) < e && s < Date.parse(x.ends_at))).sort((a, b) => a.number - b.number)[0]
+}
+
 /** Where a new cycle starts: the day the last one ends, or today. */
 export function nextStart(cycles: Cycle[], today: Date = new Date()): string {
   const last = cycles.reduce<Date | null>((m, c) => {

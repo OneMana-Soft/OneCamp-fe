@@ -3,6 +3,9 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 import { ConnectionPill } from "@/components/docEditor/ConnectionPill"
 import { RecoveredEditsBanner } from "@/components/docEditor/RecoveredEditsBanner"
 import { SAY_PROBLEM_AFTER_MS } from "@/components/docEditor/connectionTiming"
+import { SaveDot } from "@/components/docEditor/SaveDot"
+import { OfflineNotice } from "@/components/error/OfflineNotice"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 afterEach(() => {
   cleanup()
@@ -165,4 +168,58 @@ describe("the pill's live region", () => {
       }
     })
   }
+})
+
+// V-695: offline, a page says so once, counted over every live region,
+// role=status or aria-live. On a doc page the doc's own pill speaks, and the
+// app's connection pill (OfflineNotice) and the header dot's spoken copy
+// (SaveDot's live region) yield to it while it shows; before its wait is up,
+// the dot speaks. Where a save dot is the page's only voice (a table, a
+// board), the dot speaks and the app's pill yields.
+describe("a page offline", () => {
+  afterEach(() => vi.restoreAllMocks())
+  const offlineVoices = () =>
+    [...document.querySelectorAll<HTMLElement>('[role="status"], [aria-live]')].filter((n) => /offline/i.test(n.textContent ?? ""))
+
+  for (const docked of [false, true]) {
+    it(`has one voice saying offline, the doc's pill${docked ? ", docked" : ""}`, () => {
+      vi.useFakeTimers()
+      vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+      render(
+        <TooltipProvider>
+          <SaveDot state="offline" live />
+          <ConnectionPill problem="offline" docked={docked} />
+          <OfflineNotice />
+        </TooltipProvider>,
+      )
+      expect(offlineVoices().map((n) => n.textContent)).toEqual(["Offline. Changes are kept and will sync"])
+      expect(offlineVoices()[0].getAttribute("role")).toBeNull()
+      act(() => void vi.advanceTimersByTime(SAY_PROBLEM_AFTER_MS))
+      const voices = offlineVoices()
+      expect(voices.map((n) => n.textContent)).toEqual(["Offline. Changes are kept and will sync"])
+      expect(screen.getAllByRole("status")).toHaveLength(1)
+      // The header dot still shows it.
+      expect(screen.getByText("Offline")).toBeTruthy()
+    })
+  }
+
+  it("with only a save dot, the dot speaks and the app's pill yields", () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+    const { rerender } = render(
+      <TooltipProvider>
+        <SaveDot state="offline" live />
+        <OfflineNotice />
+      </TooltipProvider>,
+    )
+    expect(offlineVoices().map((n) => n.textContent)).toEqual(["Offline. Changes are kept and will sync"])
+    expect(document.querySelector("[data-connection-pill]")).toBeNull()
+    // Back to saved: the dot says so, and offline is the app pill's again if the network is still gone.
+    rerender(
+      <TooltipProvider>
+        <SaveDot state="saved" live />
+        <OfflineNotice />
+      </TooltipProvider>,
+    )
+    expect(screen.getByRole("status").textContent).toMatch(/You're offline/)
+  })
 })

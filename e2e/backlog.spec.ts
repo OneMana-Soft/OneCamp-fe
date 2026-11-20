@@ -79,7 +79,10 @@ const KINDS = [
 /** Fibonacci as the server shows a project's scale. */
 const FIBONACCI = { kind: "fibonacci", extended: false, allow_zero: false, count_unestimated: true, sizes: [1, 2, 3, 5, 8], labels: ["1", "2", "3", "5", "8"] }
 
-/** The backlog as the server counts it on a Fibonacci scale: every other task has points, the rest count as one; its answer names the scale. */
+/**
+ * The backlog as the server counts it on a Fibonacci scale: every other task has points, the rest count as one; its answer names the scale.
+ * With sideBySide (jira-04 C), the list's chip reads the project's cycles too, and its admin may run them side by side.
+ */
 function inPoints(plan: Plan) {
   const pts = <T extends { task_uuid: string }>(t: T, i: number): T & { task_estimate_points?: number } => (i % 2 === 0 ? { ...t, task_estimate_points: [1, 2, 3, 5, 8][i % 5] } : t)
   const sum = (tasks: { task_estimate_points?: number }[]) => tasks.reduce((n, t) => n + (t.task_estimate_points ?? 1), 0)
@@ -156,7 +159,7 @@ async function estimatesWhileItsCodeComes(page: Page, phone: boolean) {
   await code.done()
 }
 
-async function openBacklog(page: Page, testInfo: TestInfo, empty = false, scheduled = false, points = false) {
+async function openBacklog(page: Page, testInfo: TestInfo, empty = false, scheduled = false, points = false, sideBySide = false) {
   const state: {
     backlog: ReturnType<typeof world>
     schedule: typeof SCHEDULE | null
@@ -169,7 +172,10 @@ async function openBacklog(page: Page, testInfo: TestInfo, empty = false, schedu
     estimatesHeld?: Promise<void>
     readFails?: boolean
     saveFails?: boolean
+    /** Whether the project runs cycles side by side (jira-04 C). */
+    parallel: boolean
   } = {
+    parallel: false,
     backlog: world(empty),
     schedule: scheduled ? SCHEDULE : null,
     scale: points ? { kind: "fibonacci" } : undefined,
@@ -196,7 +202,19 @@ async function openBacklog(page: Page, testInfo: TestInfo, empty = false, schedu
     [`/project/info/${P}`]: { msg: "ok", data: project },
     [`/project/membersInfo/${P}`]: { msg: "ok", data: project },
     [`/project/${P}/updates`]: { msg: "ok", data: { updates: [], can_post: true } },
-    [`/project/${P}/cycles`]: { msg: "ok", data: { cycles: [], can_edit: true } },
+    [`/project/${P}/cycles`]: () => ({ msg: "ok", data: { cycles: sideBySide ? state.backlog.cycles : [], can_edit: true, parallel: state.parallel } }),
+    // Off is refused while two running cycles share days, in the server's words.
+    [`/project/${P}/cycles/parallel`]: (_url: URL, request: Request) => {
+      const { on } = request.postDataJSON() as { on: boolean }
+      const running = state.backlog.cycles.filter((c) => c.state === "current")
+      if (!on && running.length > 1) return withStatus(400, { msg: "Cycle 3 and Launch week share days. Complete or delete one of them, then turn parallel cycles off." })
+      state.parallel = on
+      return { msg: "ok", data: { parallel: on } }
+    },
+    [`/project/${P}/cycles/c-4/start`]: () => {
+      Object.assign(state.backlog.cycles[1], { state: "current", starts_at: new Date().toISOString() })
+      return { msg: "ok", data: null }
+    },
     [`/project/${P}/goals`]: { msg: "ok", data: { goals: [] } },
     [`/project/${P}/statuses`]: { msg: "ok", data: null },
     [`/project/${P}/fields`]: { msg: "ok", data: { fields: [], can_edit: true } },
@@ -204,7 +222,7 @@ async function openBacklog(page: Page, testInfo: TestInfo, empty = false, schedu
     [`/project/${P}/types`]: { msg: "ok", data: [], icons: [] },
     [`/project/${P}/backlog`]: () => ({
       msg: "ok",
-      data: { backlog: state.scale?.kind === "fibonacci" ? inPoints(state.backlog as unknown as Plan) : state.backlog, schedule: state.schedule, can_edit: true, can_plan: true },
+      data: { backlog: state.scale?.kind === "fibonacci" ? inPoints(state.backlog as unknown as Plan) : state.backlog, schedule: state.schedule, parallel: state.parallel, can_edit: true, can_plan: true },
     }),
     // How the project estimates (linear-05): hours until its admin picks a scale.
     [`/project/${P}/estimates`]: async (_url: URL, request: Request) => {
@@ -419,6 +437,31 @@ for (const theme of ["light", "dark"] as const) {
       expect(state.capacity).toEqual({ capacity_minutes: 2160 })
     })
 
+    // jira-04 C: parallel cycles, opt-in per project.
+    test("cycles side by side: turned on, the next started beside the running one, each completed on its own; the chip and the switcher hold both", async ({ page }, testInfo) => {
+      test.setTimeout(240_000)
+      const state = await openBacklog(page, testInfo, false, false, false, true)
+      const side = page.getByRole("switch", { name: "Run cycles side by side" })
+      await expect(side).toHaveAttribute("aria-checked", "false")
+      await side.click()
+      await expect(side).toHaveAttribute("aria-checked", "true")
+      await page.locator("[data-container='c-4']").getByRole("button", { name: "Start cycle" }).click()
+      await expect(page.getByRole("button", { name: "Complete cycle" })).toHaveCount(2)
+      await shot(page, "side-by-side", theme)
+      // Off is refused while the two share days, in the server's words, and the switch stays on.
+      await side.click()
+      await expect(page.getByLabel("Notifications (Alt+T)").getByText("Cycle 3 and Launch week share days.", { exact: false })).toBeVisible()
+      await expect(side).toHaveAttribute("aria-checked", "true")
+      expect(state.parallel).toBe(true)
+      // The list's chip names the one ending first and counts the other; its switcher holds both.
+      await page.goto(`/app/project/${P}?tab=list`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const chip = page.getByRole("button", { name: /^Cycles: Cycle 3, .*; also running: Launch week$/ })
+      await expect(chip).toContainText("+1", { timeout: 60_000 })
+      await chip.click()
+      await expect(page.getByRole("list", { name: "Current cycles" }).getByRole("listitem")).toHaveCount(2)
+      await shot(page, "side-by-side-switcher", theme)
+    })
+
     test("before any cycle, and with everything planned", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
       await openBacklog(page, testInfo, true)
@@ -443,6 +486,23 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Move Plan the webinar" }).click()
       await expect(page.locator("[data-move-sheet]")).toBeVisible()
       await shot(page, "move", theme)
+    })
+
+    test("a phone runs cycles side by side: the switch in reach, both cycles' Complete on screen", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openBacklog(page, testInfo, false, false, false, true)
+      const side = page.getByRole("switch", { name: "Run cycles side by side" })
+      await side.tap()
+      await expect(side).toHaveAttribute("aria-checked", "true")
+      await page.locator("[data-container='c-4']").getByRole("button", { name: "Start cycle" }).tap()
+      const complete = page.getByRole("button", { name: "Complete cycle" })
+      await expect(complete).toHaveCount(2)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+      for (const b of await complete.all()) {
+        const r = (await b.boundingBox())!
+        expect(r.x + r.width).toBeLessThanOrEqual(390)
+      }
+      await shot(page, "phone-side-by-side", theme)
     })
 
     test("a phone sets a cycle's capacity in a sheet", async ({ page }, testInfo) => {

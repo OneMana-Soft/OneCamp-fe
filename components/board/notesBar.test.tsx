@@ -267,6 +267,16 @@ describe("the notes bar", () => {
     expect(document.querySelector("[data-notes-bar]")?.hasAttribute("data-following-bar")).toBe(true)
   })
 
+  it("opens Excalidraw's style panel from More on a phone, a sheet there, and leaves the computer's panel flag alone (design-22 4)", () => {
+    mobile = true
+    const s = boardScene(note("a"))
+    const updateScene = vi.spyOn(s.api as { updateScene: (scene: unknown) => void }, "updateScene")
+    mount(s, ["a"])
+    fireEvent.click(screen.getByRole("button", { name: "More: stroke, fill and layers" }))
+    expect(updateScene).toHaveBeenCalledWith({ appState: { openMenu: "shape" } })
+    expect(document.querySelector<HTMLElement>("[data-board-page]")!.dataset.propsOpen).toBeUndefined()
+  })
+
   it("leaves Make tasks off for notes that are already tasks", () => {
     const s = boardScene(note("a"))
     s.elements()[0].customData = { kind: "note", colour: "yellow", taskUuid: "t-1" }

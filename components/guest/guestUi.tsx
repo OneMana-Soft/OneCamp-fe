@@ -136,7 +136,7 @@ export function GuestNameForm({ onName }: { onName: (name: string) => void }) {
         <label htmlFor={id} className="text-xs font-medium text-foreground">Your name, as the team will see it</label>
         <div className="flex gap-2">
           <Input ref={box} id={id} name="name" value={draft} onChange={(e) => setDraft(e.target.value)} autoComplete="name" maxLength={GUEST_NAME_MAX} />
-          <Button type="submit" size="sm" className="h-8" disabled={!draft.trim()}>Continue</Button>
+          <Button type="submit" size="sm" className="h-8 max-sm:h-11" disabled={!draft.trim()}>Continue</Button>
         </div>
       </div>
     </form>
@@ -212,7 +212,7 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
 
 export function GuestCentered({ children }: { children: React.ReactNode }) {
   return (
-    <main className="relative flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">
+    <main id="main-content" className="relative flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">
       <GuestBand className="absolute inset-x-0 top-0" />
       {children}
     </main>

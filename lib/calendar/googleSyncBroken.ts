@@ -1,30 +1,32 @@
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
-import type { CalendarSync } from "@/lib/calendar/calendarSync"
+import type { CalendarSync, staleWords } from "@/lib/calendar/calendarSync"
 import { SYNC, syncUrl, type SyncProvider } from "@/lib/calendar/syncProviders"
 
 type Read = { data?: CalendarSync }
 type Connectors = { data?: { connectors?: { id: string; connected: boolean }[] } }
 const PROVIDERS = Object.keys(SYNC) as SyncProvider[]
+/** The Calendars panel's chunk (lazyView), which says a stale sync. */
+type Panel = { useLoaded: (ask?: boolean) => { staleWords: typeof staleWords } | null }
 
 /**
- * A linked provider stopped answering the sync (C9: Google's, or Outlook's,
- * B7), for the closed Calendars button, in words: "Google needs connecting
- * again", "Google and Outlook need connecting again", or "". Only a linked
- * one (CR-B22 F1): the person's own Disconnect leaves Outlook's sync "broken"
- * (the next sweep finds no token) with nothing to connect again, while a token
- * Microsoft revoked keeps its connector row, so that one is still said.
- * Google's sync is read once it is connected; Outlook's always, and its link
- * from the connectors only while that sync says broken (the Calendars panel
- * reads the same keys). Small: it loads with the grid.
+ * What the closed Calendars button says of the person's syncs, and how loud: a
+ * linked provider that stopped answering (C9, B7; CR-B22 F1: only a linked
+ * one), as danger, "Google needs connecting again"; else one its provider
+ * can't be read for (gcal-18), as a warning, in the panel's words (its chunk
+ * is asked for once one is stale). It reads the panel's keys, the connectors only
+ * while Outlook's says broken. Small: it loads with the grid.
  */
-export function useSyncBroken(googleConnected: boolean): string {
+export function useSyncNote(googleConnected: boolean, panel: Panel): { words: string; tone?: "danger" | "warning" } {
   const sync: Record<SyncProvider, CalendarSync | undefined> = {
     google: useFetch<Read>(googleConnected ? syncUrl("google") : "", undefined, undefined, OWN_ERRORS).data?.data,
     microsoft: useFetch<Read>(syncUrl("microsoft"), undefined, undefined, OWN_ERRORS).data?.data,
   }
+  const said = panel.useLoaded(PROVIDERS.some((p) => sync[p]?.state === "synced" && sync[p]?.stale_since))
   const connectors = useFetch<Connectors>(sync.microsoft?.state === "broken" ? "/connectors" : "", undefined, undefined, OWN_ERRORS).data?.data?.connectors
   const linked = (p: SyncProvider) => (p === "google" ? googleConnected : !!connectors?.find((c) => c.id === SYNC[p].connector)?.connected)
   const names = PROVIDERS.filter((p) => linked(p) && sync[p]?.state === "broken").map((p) => SYNC[p].name)
-  return names.length ? `${names.join(" and ")} ${names.length > 1 ? "need" : "needs"} connecting again` : ""
+  if (names.length) return { words: `${names.join(" and ")} ${names.length > 1 ? "need" : "needs"} connecting again`, tone: "danger" }
+  const stale = said ? PROVIDERS.map((p) => said.staleWords(p, sync[p])).filter(Boolean).join("; ") : ""
+  return stale ? { words: stale, tone: "warning" } : { words: "" }
 }

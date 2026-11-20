@@ -36,6 +36,7 @@ const prefs = {
   email_calendar_invites: true,
   email_calendar_changes: true,
   email_calendar_answers: true,
+  email_calendar_recaps: true,
   email_channel_invites: true,
   email_only_when_offline: true,
   email_digest_frequency: "off",
@@ -186,10 +187,11 @@ describe("the calendar's emails, by kind", () => {
     ["Invitations and bookings", "email_calendar_invites"],
     ["Changes and cancellations", "email_calendar_changes"],
     ["Replies to my events", "email_calendar_answers"],
+    ["Meeting recaps", "email_calendar_recaps"],
   ] as const
   const calendar = () => screen.getByRole("group", { name: "Calendar" })
 
-  it("is a group named Calendar, of its three switches only", () => {
+  it("is a group named Calendar, of its four switches only", () => {
     render(<NotificationPreferencesCard />)
     expect(within(calendar()).getAllByRole("switch").map((s) => s.getAttribute("id"))).toEqual(CALENDAR.map(([, key]) => key))
   })

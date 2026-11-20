@@ -75,6 +75,9 @@ interface VirtualInfiniteScrollProps<T> {
      */
     className?: string
 
+    /** A row to centre in view (a call's moment). */
+    scrollToIndex?: number
+
     /**
      * Unique key extractor for items
      */
@@ -110,6 +113,7 @@ export function VirtualInfiniteScroll<T>({
                                              keyExtractor = byIndex,
                                              overscan,
                                              itemSize,
+                                             scrollToIndex,
                                          }: VirtualInfiniteScrollProps<T>) {
 
 
@@ -152,6 +156,15 @@ export function VirtualInfiniteScroll<T>({
     )
 
     useEffect(() => debouncedHandleScroll.cancel, [debouncedHandleScroll])
+
+    // Once per row: a later page never pulls the reader back. To the nearest edge, so a row already in view
+    // stays where it is (centring it once scrolled a short list through its end room, clipping its first row).
+    const scrolledTo = useRef<number | undefined>(undefined)
+    useEffect(() => {
+        if (scrollToIndex === undefined || scrollToIndex < 0 || scrollToIndex >= items.length || scrolledTo.current === scrollToIndex) return
+        scrolledTo.current = scrollToIndex
+        listRef.current?.scrollToIndex(scrollToIndex, { align: "nearest" })
+    }, [scrollToIndex, items.length])
 
     // Only the rows virtua draws, each made once until the list or its renderer
     // changes: every render made all N (373 on a phone's long project list) for

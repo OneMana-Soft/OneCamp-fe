@@ -79,6 +79,20 @@ export function money(currency: string, locale?: string) {
 
 // Currencies written to two decimals: rates and amounts are kept in hundredths.
 export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED", "CHF", "NZD", "ZAR"] as const
+type Currency = (typeof CURRENCIES)[number]
+const EURO = new Set("AD AT BE BG CY DE EE ES FI FR GR HR IE IT LT LU LV MC ME MT NL PT SI SK SM VA XK".split(" "))
+const BY_REGION: Record<string, Currency> = { US: "USD", GB: "GBP", IN: "INR", AU: "AUD", CA: "CAD", SG: "SGD", AE: "AED", CH: "CHF", NZ: "NZD", ZA: "ZAR" }
+
+/** A new invoice's currency from its reader's region ("en-GB" GBP, "fr" EUR); dollars elsewhere. Pure. */
+export function localeCurrency(tag: string | undefined): Currency {
+  let region = ""
+  try {
+    region = (tag && new Intl.Locale(tag).maximize().region) || ""
+  } catch {
+    // Not a language tag.
+  }
+  return EURO.has(region) ? "EUR" : (BY_REGION[region] ?? "USD")
+}
 
 /** A suggested invoice number: the project's initials and the month, e.g. "Q4L-2026-10". */
 export function suggestNumber(project: string, at: Date): string {

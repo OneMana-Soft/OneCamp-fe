@@ -9,6 +9,9 @@ import type { LocalTrack, LocalVideoTrack } from "livekit-client"
 import { NO_EFFECTS, cameraOn, readEffects, settersFor, writeEffects, type CallEffects } from "@/lib/calls/processors/effects"
 import type { CallEffectsControl } from "./useCallEffects"
 
+// The camera's processor's own check, imported here as the green room puts it on: one import() of it for the green room (callBuildsOnceGuard).
+const unavailable = () => import("@/lib/calls/processors/background").then((m) => m.backgroundUnavailable())
+
 export function useGreenRoomEffects(preview: LocalTrack | undefined): CallEffectsControl & { problem: string | null } {
   const [effects, setEffects] = useState<CallEffects>(() => (typeof window === "undefined" ? NO_EFFECTS : readEffects()))
   const [busy, setBusy] = useState<CallEffectsControl["busy"]>(null)
@@ -45,5 +48,5 @@ export function useGreenRoomEffects(preview: LocalTrack | undefined): CallEffect
   )
   const set = useMemo(() => settersFor(change), [change])
 
-  return useMemo(() => ({ effects, ...set, busy, problem }), [effects, set, busy, problem])
+  return useMemo(() => ({ effects, ...set, busy, problem, unavailable }), [effects, set, busy, problem])
 }

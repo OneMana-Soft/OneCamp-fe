@@ -23,7 +23,12 @@ export interface CallEffectsControl {
   busy: "camera" | "noise" | null
   /** Whether the CPU watch has made the effects lighter, until the person chooses again. */
   lightened?: boolean
+  /** Why backgrounds can't run in this browser, or null: the camera's processor's own check, from where this surface puts it on. */
+  unavailable: () => Promise<string | null>
 }
+
+// The call asks its runner, which imports the camera's processor: one import() of it for the call (callBuildsOnceGuard).
+const unavailable = () => import("./effectsRunner").then((m) => m.backgroundUnavailable())
 
 const cameraOf = (room: Room) => room.localParticipant.getTrackPublication?.(Track.Source.Camera)?.track as LocalVideoTrack | undefined
 const micOf = (room: Room) => room.localParticipant.getTrackPublication?.(Track.Source.Microphone)?.track as LocalAudioTrack | undefined
@@ -107,5 +112,5 @@ export function useCallEffects(room: Room): CallEffectsControl {
     }
   }, [heavy, run])
 
-  return useMemo(() => ({ effects, ...set, busy, lightened }), [effects, set, busy, lightened])
+  return useMemo(() => ({ effects, ...set, busy, lightened, unavailable }), [effects, set, busy, lightened])
 }

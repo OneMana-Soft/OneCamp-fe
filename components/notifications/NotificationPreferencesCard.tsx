@@ -38,6 +38,7 @@ import {
   SwitchRow,
 } from "@/components/ui/settingsSection"
 import { SavedTick, reasonOf, type SaveStatus } from "@/components/ui/saveStatus"
+import { PushDelaySection } from "@/components/notifications/PushDelaySection"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -58,6 +59,7 @@ type Preferences = {
   email_calendar_invites: boolean
   email_calendar_changes: boolean
   email_calendar_answers: boolean
+  email_calendar_recaps: boolean
   email_channel_invites: boolean
   email_only_when_offline: boolean
   email_digest_frequency: "off" | "daily" | "weekly"
@@ -82,6 +84,7 @@ const DEFAULTS: Preferences = {
   email_calendar_invites: true,
   email_calendar_changes: true,
   email_calendar_answers: true,
+  email_calendar_recaps: true,
   email_channel_invites: true,
   email_only_when_offline: true,
   email_digest_frequency: "off",
@@ -114,6 +117,7 @@ export const CALENDAR_EMAIL_EVENTS = [
   { key: "email_calendar_invites", label: "Invitations and bookings", help: "You're invited to an event, or someone books time with you." },
   { key: "email_calendar_changes", label: "Changes and cancellations", help: "An event you're in moves, changes or is cancelled." },
   { key: "email_calendar_answers", label: "Replies to my events", help: "Someone answers an invitation you sent." },
+  { key: "email_calendar_recaps", label: "Meeting recaps", help: "The recap of an event's call, unless it came to a chat you're in." },
 ] as const satisfies ReadonlyArray<EmailEvent>
 
 /** The events' groups, in order: the first under the switch above it, the rest under their names. */
@@ -386,6 +390,8 @@ export function NotificationPreferencesCard() {
           </SettingRow>
         </SettingsList>
       </SettingsSection>
+
+      <PushDelaySection />
 
       <SettingsSection
         id="notifications-quiet"

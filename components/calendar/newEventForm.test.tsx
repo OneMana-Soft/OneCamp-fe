@@ -124,4 +124,79 @@ describe("a new event", () => {
       expect(created()).toHaveLength(1)
     })
   })
+
+  // basecamp-05 head 3: the sheet a phone opens from a slot reads plain words
+  // as the quick card does (parseEventText): the day and time they name move
+  // the event from the slot, and it is saved titled without them.
+  describe("plain words in the title", () => {
+    const created = () => makeRequest.mock.calls.filter(([o]) => o.apiEndpoint === "/event/createEvent")
+    const slot = { title: "", start: new Date(2026, 9, 15, 11), end: new Date(2026, 9, 15, 12), isFocus: false, guests: [] }
+
+    it("moves the event to the day and time they name, and leaves them out of its title", async () => {
+      render(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={slot} />)
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Lunch with Ada tomorrow 1pm" } })
+      // The Starts row follows the words while they are typed.
+      await waitFor(() => expect(screen.getByLabelText(/^Start, /).textContent).toMatch(/^Fri 16 Oct · 1:00\sPM$/))
+      fireEvent.click(screen.getByRole("button", { name: "Create event" }))
+      await waitFor(() => expect(created()).toHaveLength(1))
+      const sent = created()[0][0].payload
+      expect(sent.title).toBe("Lunch with Ada")
+      expect(new Date(sent.startTime).getTime()).toBe(new Date(2026, 9, 16, 13).getTime())
+      expect(new Date(sent.endTime).getTime()).toBe(new Date(2026, 9, 16, 14).getTime())
+    })
+
+    it("keeps a title with no day or time in it as typed, at the slot", async () => {
+      render(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={slot} />)
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Lunch with Ada" } })
+      fireEvent.click(screen.getByRole("button", { name: "Create event" }))
+      await waitFor(() => expect(created()).toHaveLength(1))
+      const sent = created()[0][0].payload
+      expect(sent.title).toBe("Lunch with Ada")
+      expect(new Date(sent.startTime).getTime()).toBe(slot.start.getTime())
+    })
+
+    it("reads the words again as the title changes", async () => {
+      render(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={slot} />)
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Standup 9am" } })
+      await waitFor(() => expect(screen.getByLabelText(/^Start, /).textContent).toMatch(/9:00\sAM$/))
+      // A second edit that names the same time moves nothing again.
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Team standup 9am" } })
+      fireEvent.click(screen.getByRole("button", { name: "Create event" }))
+      await waitFor(() => expect(created()).toHaveLength(1))
+      expect(created()[0][0].payload.title).toBe("Team standup")
+    })
+
+    // The calendar keeps the dialog mounted once it's used: opened again, it forgets
+    // the words the last opening moved it by and where that one stood.
+    const reopened = (initial: typeof slot) => {
+      const { rerender } = render(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={slot} />)
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Lunch with Ada tomorrow 1pm" } })
+      rerender(<CreateCalendarEventDialog open={false} onOpenChange={() => {}} initial={slot} />)
+      rerender(<CreateCalendarEventDialog open onOpenChange={() => {}} initial={initial} />)
+    }
+
+    it("opened again with a title that names a time, saves that title as it came", async () => {
+      const dup = { ...slot, title: "Lunch with Ada tomorrow 1pm", start: new Date(2026, 9, 20, 14), end: new Date(2026, 9, 20, 14, 30) }
+      reopened(dup)
+      await waitFor(() => expect(screen.getByLabelText("Title")).toHaveValue("Lunch with Ada tomorrow 1pm"))
+      fireEvent.click(screen.getByRole("button", { name: "Create event" }))
+      await waitFor(() => expect(created()).toHaveLength(1))
+      const sent = created()[0][0].payload
+      expect(sent.title).toBe("Lunch with Ada tomorrow 1pm")
+      expect(new Date(sent.startTime).getTime()).toBe(dup.start.getTime())
+    })
+
+    it("opened again, moves by where this opening stands, not the last one", async () => {
+      const dup = { ...slot, title: "Standup 9am", start: new Date(2026, 9, 20, 14), end: new Date(2026, 9, 20, 14, 30) }
+      reopened(dup)
+      await waitFor(() => expect(screen.getByLabelText("Title")).toHaveValue("Standup 9am"))
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Standup 10am" } })
+      await waitFor(() => expect(screen.getByLabelText(/^Start, /).textContent).toMatch(/^Tue 20 Oct · 10:00\sAM$/))
+      fireEvent.click(screen.getByRole("button", { name: "Create event" }))
+      await waitFor(() => expect(created()).toHaveLength(1))
+      const sent = created()[0][0].payload
+      expect(new Date(sent.startTime).getTime()).toBe(new Date(2026, 9, 20, 10).getTime())
+      expect(new Date(sent.endTime).getTime()).toBe(new Date(2026, 9, 20, 10, 30).getTime())
+    })
+  })
 })

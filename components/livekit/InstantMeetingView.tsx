@@ -6,6 +6,7 @@
 // page that is gone. The guest link is shown again in this tab, and can be
 // replaced, with the old one turned off, from the Invite pill.
 
+import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
 import { displayNameOf } from "@/lib/personName"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -51,6 +52,8 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   const router = useRouter()
   const confirm = useConfirm()
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // A background made from words, through the workspace's model (meet-09): offered to a member where AI is on.
+  const madeBackgrounds = useFeature(FEATURE_AI)
   // The token the start page just minted, if this tab started the meeting.
   const [handoff] = useState(() => peekMeetingHandoff(meetingId))
   useEffect(() => {
@@ -144,6 +147,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
       onJoin={life.join}
       username={displayNameOf(self.data?.data) || ""}
       hueId={self.data?.data.user_uuid}
+      madeBackgrounds={madeBackgrounds}
       joinLabel="Join meeting"
       companion={companion}
       place={place}

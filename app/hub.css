@@ -387,9 +387,9 @@
   /* Where nothing can hover (interaction audit SH-31, SH-32, 15 Oct 2026),
      the toolbar was simply gone: on a phone the inbox, Later and search had
      no way to mark read, save, remind or remove. There, a row with tools
-     shows an Actions button (HubRow), which marks the row data-revealed and
-     shows the toolbar; a tap anywhere else puts it away. Keyboard focus in
-     the row shows it too. A tap on the row itself still opens the row. */
+     shows an Actions button (HubRow), which opens the row's drawer: its
+     tools in their own words (V-704: a tray of two unworded icons was
+     there). A tap on the row itself still opens the row. */
   .hub-row-more {
     display: none;
   }
@@ -414,15 +414,14 @@
     .hub-row-more:active {
       background: var(--press);
     }
-    .hub-row-tools { display: none; }
-    .hub-row:is([data-revealed], :focus-visible, :has(:focus-visible)) .hub-row-tools {
-      display: flex;
-      opacity: 1;
-      pointer-events: auto;
-      transform: translateY(-50%);
+    /* The tools stay laid out at the row's end, unseen and untouched: the
+       drawer presses them, and a menu or panel one opens stands there. The
+       meta stays beside Actions. */
+    .hub-row-tools {
+      visibility: hidden;
     }
-    .hub-row[data-has-tools]:is([data-revealed], :has(:focus-visible)) .hub-row-meta {
-      opacity: 0;
+    .hub-row[data-has-tools]:focus-within .hub-row-meta {
+      opacity: 1;
     }
   }
   /* Under a finger each tool is 44px across, so no tool takes its
@@ -431,6 +430,20 @@
     .hub-row-tools > :is(a, button) {
       min-width: var(--m-hit);
       min-height: var(--m-hit);
+    }
+  }
+  /* data-meta-below (V-939): on a phone, a meta of actions goes under the content. */
+  @media (max-width: 639.98px) {
+    .hub-row[data-meta-below] {
+      grid-template-columns: 12px var(--hub-lead) minmax(0, 1fr);
+    }
+    .hub-row[data-meta-below] > .hub-row-meta {
+      grid-area: 2 / 3;
+      justify-self: end;
+      margin-top: 8px;
+    }
+    .hub-row[data-meta-below] > .hub-row-more {
+      grid-row: 1;
     }
   }
   /* An open fold of shares (STEP4 #6) lists its docs under the sentence: its
@@ -444,11 +457,6 @@
   }
   @media (hover: hover) {
     .hub-row[data-expanded]:hover .hub-row-tools {
-      transform: none;
-    }
-  }
-  @media (hover: none) {
-    .hub-row[data-expanded]:is([data-revealed], :focus-visible, :has(:focus-visible)) .hub-row-tools {
       transform: none;
     }
   }

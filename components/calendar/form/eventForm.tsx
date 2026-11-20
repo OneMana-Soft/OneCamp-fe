@@ -20,9 +20,12 @@ import { ReminderRows } from "@/components/calendar/form/reminderRows"
 import { defaultRemindersFor } from "@/lib/calendar/reminders"
 import { HueRow } from "@/components/calendar/form/hueRow"
 import { FilesRow } from "@/components/calendar/form/filesRow"
+import { RoomRows } from "@/components/calendar/form/roomRows"
+import { useMayBookRooms } from "@/hooks/useRooms"
+import { roomIds } from "@/lib/calendar/rooms"
 import { fieldLabel, fieldRow, inlineChoice } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
-import { mayAddToGoogle, problemNow, meets, withAllDay, withEndZone, withStart, withZone, type EventFormValues, type FormProblem, type OOODecline } from "@/lib/calendar/eventForm"
+import { mayAddToGoogle, problemNow, meets, roomSpan, withAllDay, withEndZone, withStart, withZone, type EventFormValues, type FormProblem, type OOODecline } from "@/lib/calendar/eventForm"
 import { keepsOtherZone } from "@/lib/calendar/ownZone"
 import { onDeviceClock, wallOf } from "@/lib/utils/date/wallTime"
 import { browserTZ } from "@/lib/utils/timeZone"
@@ -92,6 +95,8 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
   const meeting = meets(v)
   // Once a save was stopped, the problem is said as the form stands, for every host: put right, the alert goes (DB-51).
   const problem = problemNow(v, said)
+  // Rooms are a member's to book (gcal-6): a guest or a bot is never offered one.
+  const rooms = useMayBookRooms() && full && meeting
   // Focus time and time for a task run from a time to a time.
   const timed = v.kind === "focus" || v.kind === "task_block"
   // A block is named for its task until it's given a name; it has nobody on it.
@@ -229,10 +234,24 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
         </Row>
       ) : null}
 
+      {rooms ? (
+        <Row label="Rooms" htmlFor={`${id}-rooms`} align="start">
+          <RoomRows
+            id={`${id}-rooms`}
+            rooms={v.rooms}
+            onChange={(next) => set({ rooms: next })}
+            {...roomSpan(v)}
+            capacity={v.guests.length + 1}
+            problem={problem?.field === "rooms" ? problem : null}
+          />
+        </Row>
+      ) : null}
+
       {creating && meeting && !v.allDay ? (
         <Row label="Free times">
           <FindTimeSuggestions
             participants={v.guests.filter((g) => g.uuid).map((g) => g.uuid)}
+            rooms={rooms ? roomIds(v.rooms) : undefined}
             durationMinutes={length}
             selected={v.start}
             onPick={(start, end) => set({ start, end })}
@@ -242,7 +261,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
 
       {full && v.kind !== "working_location" ? (
         <Row label="Place" htmlFor={`${id}-place`}>
-          <Input id={`${id}-place`} value={v.location} onChange={(e) => set({ location: e.target.value })} placeholder="Add a room, an address or a call link" />
+          <Input id={`${id}-place`} value={v.location} onChange={(e) => set({ location: e.target.value })} placeholder="Add an address or a call link" />
         </Row>
       ) : null}
 

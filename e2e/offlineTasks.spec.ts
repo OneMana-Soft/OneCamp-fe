@@ -1181,6 +1181,20 @@ for (const theme of SHOT_THEMES) {
           await stubBoard(cold, testInfo, server)
           await context.setOffline(true)
           server.up = false
+          // No network for the worker's page asks either. setOffline drops the page's own requests, its navigation
+          // preload too, but the worker that starts again below still reaches the app's server: when sw.js asked a
+          // dropped page again, "/" came back as the live sign-in page. A device with no network fails that ask too.
+          // Only the worker's page asks (Accept: text/html) fail here; its file asks still reach the server, as they
+          // did before (a gap in this test's world, V-983).
+          const app = appOrigin(testInfo)
+          await context.route(
+            (url) => url.origin === app.origin && !server.up,
+            (route) => {
+              const r = route.request()
+              const pageAsk = !!r.serviceWorker() && (r.headers()["accept"] ?? "").includes("text/html")
+              return pageAsk ? route.abort("internetdisconnected") : route.fallback()
+            },
+          )
           const cdp = await context.newCDPSession(cold)
           await cdp.send("ServiceWorker.enable")
           await cdp.send("ServiceWorker.stopAllWorkers")

@@ -125,6 +125,17 @@ describe("a relation's settings", () => {
     expect((screen.getByRole("checkbox") as HTMLInputElement).disabled).toBe(true)
   })
 
+  it("links to a channel or a call, OneCamp's own, as it does a task", () => {
+    const changed = vi.fn()
+    render(<Relation onChange={changed} />)
+    expect(optionsOf("Links to")).toEqual(expect.arrayContaining(["Channels", "Calls"]))
+    choose("Links to", "Channels")
+    expect(changed).toHaveBeenLastCalledWith({ relation_target: "channel" })
+    choose("Links to", "Calls")
+    expect(changed).toHaveBeenLastCalledWith({ relation_target: "call" })
+    expect(screen.queryByLabelText("Table")).toBeNull()
+  })
+
   it("can still link to OneCamp items", () => {
     const changed = vi.fn()
     render(<Relation onChange={changed} />)

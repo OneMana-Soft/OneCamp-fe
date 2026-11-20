@@ -15,8 +15,8 @@ describe("the calendar's one sidebar", () => {
   it("keeps the calendars behind one button, as a popover or a pinned rail", () => {
     // The button says Calendars (its label folds to the icon on a narrow sheet).
     expect(src).toMatch(/Calendars(\n|<\/span>)/)
-    // Its name is Calendars, and says so when Google's or Outlook's sync needs connecting again.
-    expect(src).toMatch(/data-calendars-trigger="" aria-label=\{syncBroken \? `Calendars, \$\{syncBroken\}` : "Calendars"\}/)
+    // Its name is Calendars, and says so when Google's or Outlook's sync needs connecting again, or can't be read.
+    expect(src).toMatch(/data-calendars-trigger="" aria-label=\{syncNote \? `Calendars, \$\{syncNote\}` : "Calendars"\}/)
     expect(src).toMatch(/w-\[300px\]/)
     expect(src).toMatch(/min-width: 1600px/)
   })

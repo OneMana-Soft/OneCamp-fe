@@ -10,6 +10,8 @@ import { appMutate as mutate } from "@/lib/swrMutate";
 // Not lazy (fluid-16): drawers/accountSheetOpen.test.tsx
 import { UserProfileDrawer } from "@/components/drawers/userProfileDrawer";
 import { useReturnFocus } from "@/components/ui/returnFocus";
+import { lazyDialog } from "@/lib/lazy/lazyDialog";
+import { whenIdle } from "@/lib/whenIdle";
 
 // Lazy load dialogs/drawers to keep bundle size small
 const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"), { ssr: false });
@@ -21,7 +23,8 @@ const AskApprovalSheet = dynamic(() => import("@/components/work/approvals/AskAp
 const EditProfileDialog = dynamic(() => import("@/components/dialog/editProfileDailog"), { ssr: false });
 const OtherProfileDialog = dynamic(() => import("@/components/dialog/otherUserProfileDialog"), { ssr: false });
 const UpdateStatusDialog = dynamic(() => import("@/components/dialog/updateUserStatusDialog"), { ssr: false });
-const ConfirmAlertDialog = dynamic(() => import("@/components/dialog/confirmAlertDialog").then(mod => mod.ConfirmAlertDialog), { ssr: false });
+// V-978: "Couldn't open the confirmation" names it whatever it confirms; warmed when idle.
+const ConfirmAlertDialog = lazyDialog(() => import("@/components/dialog/confirmAlertDialog").then(mod => mod.ConfirmAlertDialog), "the confirmation");
 const DocShareDialog = dynamic(() => import("@/components/dialog/docShareDialog").then(mod => mod.DocShareDialog), { ssr: false });
 const CreateChatMessageDialog = dynamic(() => import("@/components/dialog/createChatMessageDialog"), { ssr: false });
 const ChannelDetailsSheet = dynamic(() => import("@/components/channel/details/channelDetailsSheet"), { ssr: false });
@@ -89,6 +92,7 @@ export function UnifiedUIManager() {
   const ui = useSelector((state: RootState) => state.ui);
   // The profile card anchors to whatever was pressed to open it (lib/hub/lastAnchor).
   useEffect(() => installAnchorTracking(), []);
+  useEffect(() => whenIdle(ConfirmAlertDialog.warm), []);
   // The details sheets' own Radix Content is lazy: their close focus is held here.
   const channelBack = useReturnFocus();
   const chatBack = useReturnFocus();

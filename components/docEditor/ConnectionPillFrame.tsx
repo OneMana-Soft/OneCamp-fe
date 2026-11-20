@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { SAY_PROBLEM_AFTER_MS } from "@/components/docEditor/connectionTiming"
 import { CHANGES_KEPT } from "@/components/docEditor/SaveDot"
+import { useClaimOffline } from "@/components/error/pillPlace"
 import { Button } from "@/components/ui/button"
 import { useTellHeight } from "@/hooks/useTellHeight"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -42,8 +43,9 @@ export function useShownProblem(problem: ConnectionProblem, carried?: React.RefO
   return shown
 }
 
-/** Docked, a row that says its height: a phone's toasts come in under it (app/phone.css C9). */
+/** Docked, a row that says its height: a phone's toasts come in under it (app/phone.css C9). Lost, the page's offline voice (V-695). */
 export function PillFrame({ shown, docked, className, children }: { shown: NonNullable<Shown>; docked: boolean; className?: string; children: React.ReactNode }) {
+  useClaimOffline(shown === "offline" || shown === "reconnecting")
   const row = React.useRef<HTMLDivElement>(null)
   const tellRowHeight = React.useCallback(
     (px: number) => {

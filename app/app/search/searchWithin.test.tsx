@@ -6,6 +6,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 let address = "query=launch&channel=c1"
 const replace = vi.fn()
+// The page names a call's conversation from the sidebar (zoom-13): an empty one here.
+vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: (pick: (s: unknown) => unknown) => pick({ users: { userSidebar: {} } }) }))
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(address),
   useRouter: () => ({ replace, back: vi.fn(), push: vi.fn() }),

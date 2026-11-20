@@ -15,7 +15,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => reads[url] ?? {},
   useFetchOnlyOnce: (url: string) => reads[url] ?? {},
 }))
-vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ transcription_mode: "frontend" }) }))
+vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => false, useClientConfig: () => ({ transcription_mode: "frontend" }) }))
 
 let conference: Record<string, unknown> = {}
 vi.mock("@/components/livekit/VideoConference", () => ({

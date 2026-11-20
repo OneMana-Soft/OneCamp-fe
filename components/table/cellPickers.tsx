@@ -15,9 +15,13 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { useGlobalSearch, type SearchResult } from "@/services/searchService"
+import { linkableCalls, pickRows, SEARCHED_CALLS, type LinkableCall } from "@/services/tableLinkPicks"
+import { isAppOffline, subscribeConnectivity } from "@/lib/connectivity"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { hitRef } from "@/lib/search/hitRef"
 import { HitKindWord } from "@/components/search/hitKindWord"
-import { pickRows, type FieldOption, type RelationRef, type RelationTarget } from "@/services/tableService"
+import type { FieldOption, RelationRef } from "@/services/tableService"
+import type { RelationTarget } from "@/lib/fieldTypes/types"
 import { campHueOf } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -125,8 +129,8 @@ export function DayPicker({ day, onPick }: { day: Date | undefined; onPick: (d: 
 }
 
 // A unified-search result as a {id,label,type} ref (lib/search/hitRef reads a
-// doc, board, task or project hit), scoped to the allowed target type ("any"
-// accepts the linkable kinds).
+// doc, board, task, project or channel hit), scoped to the allowed target type
+// ("any" accepts the linkable kinds).
 function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | null {
   const accept = (t: string) => target === "any" || target === t
   const hit = hitRef(r)
@@ -136,10 +140,19 @@ function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | n
   return null
 }
 
+/** A call the reader may link, as a ref: its id, and its title as the server names it for them. */
+const callRef = (c: LinkableCall): RelationRef => ({ id: c.id, label: c.title, type: "call" })
+/** The calls "any" offers after what the search found. */
+const ANY_CALLS = 3
+const notOffline = () => false
+
 /**
- * A link's picker: a table's rows, shown before anything is typed and found
- * by name (pickRows), or items found by search. A pick toggles a link; a pick
- * of an item closes the picker.
+ * A link's picker: a table's rows or the reader's calls, shown before anything
+ * is typed and found by name (pickRows, GET /calls/linkable), or items found
+ * by search ("any" adds the reader's calls after them). A pick toggles a link;
+ * a pick of an item closes the picker. A read that failed says so in place,
+ * with Try again; offline, it says so and reads again once the app is back
+ * (lib/connectivity, the state hooks/useFetch waits on).
  */
 export function RelationPicker({
   refs,
@@ -161,6 +174,12 @@ export function RelationPicker({
   const [query, setQuery] = React.useState("")
   const [items, setItems] = React.useState<RelationRef[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [failed, setFailed] = React.useState(false)
+  const [tries, setTries] = React.useState(0)
+  const offline = React.useSyncExternalStore(subscribeConnectivity, isAppOffline, notOffline)
+  const calls = target === "call"
+  // A table's rows and the reader's calls show before anything is typed; anything else is searched for.
+  const listsFirst = !!rowsOf || calls
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const reqId = React.useRef(0)
   const list = React.useRef<CommandListHandle>(null)
@@ -176,40 +195,48 @@ export function RelationPicker({
   React.useEffect(() => {
     const q = query.trim()
     if (timer.current) clearTimeout(timer.current)
-    // A table's rows show before anything is typed; anything else is searched for.
-    if (!q && !rowsOf) {
-      reqId.current++ // a search still running was for text that's gone
-      setItems([])
+    if ((!q && !listsFirst) || offline) {
+      reqId.current++ // a search still running was for text that's gone, or can't answer
+      if (!offline) setItems([])
+      setFailed(false)
       setLoading(false)
       return
     }
     setLoading(true)
+    setFailed(false)
     const myReq = ++reqId.current
     timer.current = setTimeout(
       async () => {
-        let mapped: RelationRef[] = []
+        const mapped: RelationRef[] = []
+        let failedNow = false
         try {
           if (rowsOf) {
             const rows = await pickRows(rowsOf, q)
-            mapped = rows.map((r) => ({ id: r.id, label: r.label, type: "row", table_id: rowsOf }))
+            for (const r of rows) mapped.push({ id: r.id, label: r.label, type: "row", table_id: rowsOf })
+          } else if (calls) {
+            for (const c of await linkableCalls(q)) mapped.push(callRef(c))
           } else {
-            const res = await search(q)
+            // "any" lists the reader's calls after what the search found; a listing that fails leaves the search's.
+            const [res, more] = await Promise.all([search(q), target === "any" ? linkableCalls(q).catch(() => []) : []])
             for (const r of res?.page ?? []) {
               const ref = refFromResult(r, target)
               if (ref) mapped.push(ref)
               if (mapped.length >= 8) break
             }
+            for (const c of more.slice(0, ANY_CALLS)) mapped.push(callRef(c))
           }
         } catch {
-          // surfaced by the interceptor; nothing to offer
+          // Said in place, with Try again (the error state keeps the request's toast quiet).
+          failedNow = true
         }
         if (myReq !== reqId.current) return
         setItems(mapped)
+        setFailed(failedNow)
         setLoading(false)
       },
-      rowsOf && !q ? 0 : 180,
+      listsFirst && !q ? 0 : 180,
     )
-  }, [query, search, target, rowsOf])
+  }, [query, search, target, rowsOf, calls, listsFirst, offline, tries])
 
   const listItems: CommandListItem[] = items.map((ref) => ({
     id: `${ref.type}-${ref.id}`,
@@ -227,13 +254,29 @@ export function RelationPicker({
     ) : undefined,
   }))
   const placeholder = rowsOf ? `Link a row from ${tableName || "the table"}` : `Search ${target === "any" ? "tasks, docs and people" : target + "s"}`
-  const emptyText = loading
-    ? null
-    : !query.trim() && !rowsOf
-      ? "Type to search"
-      : rowsOf && !query.trim()
-        ? "That table has no rows yet"
-        : `Nothing matches “${query.trim()}”`
+  const q = query.trim()
+  const emptyText = failed ? (
+    // Said in place (role alert, once), so the request's own toast stays quiet (lib/http/loadFailure).
+    <span role="alert" className="flex flex-col items-center gap-2">
+      <SaysLoadFailure />
+      {`Couldn't load ${rowsOf ? "rows" : calls ? "calls" : "search results"}`}
+      <Button type="button" size="sm" variant="outline" onClick={() => setTries((n) => n + 1)}>
+        Try again
+      </Button>
+    </span>
+  ) : offline ? (
+    "You're offline. This list comes back when you're online."
+  ) : loading ? null : !q && !listsFirst ? (
+    "Type to search"
+  ) : rowsOf && !q ? (
+    "That table has no rows yet"
+  ) : calls && !q ? (
+    "No calls to link yet"
+  ) : calls ? (
+    `Nothing matches “${q}”. Only your ${SEARCHED_CALLS} newest calls are searched.`
+  ) : (
+    `Nothing matches “${q}”`
+  )
 
   return (
     <CommandList
@@ -252,7 +295,7 @@ export function RelationPicker({
       }}
       empty={emptyText}
       after={
-        loading ? (
+        loading && !offline ? (
           <div className="flex h-9 items-center gap-2 px-2 text-ui-sm text-ink-3">
             <Loader2 className="size-3.5 animate-spin" /> Searching…
           </div>

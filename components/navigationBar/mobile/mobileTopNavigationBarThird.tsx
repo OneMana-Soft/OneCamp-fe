@@ -213,7 +213,7 @@ export function MobileTopNavigationBarThird() {
     };
 
     return (
-        <div className='flex justify-end items-center'>
+        <div className='flex justify-end items-center empty:hidden'>
             {renderComponent()}
         </div>
     );

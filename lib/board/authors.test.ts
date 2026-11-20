@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { authorName, stampNewNotes, storeWithMakers, type NoteAuthor } from "./authors"
+import { UNLAYERED } from "./binding"
 
 // Who made each note (miro-36): stamped once, by the screen that first puts
 // the note on the shared board, in the board document's own map.
@@ -80,7 +81,7 @@ describe("a frame's sync to the shared board (miro-06)", () => {
     // A drag's frame: one note moved (a new version), and one note new to the board.
     const frame = notes.map((n, i) => (i === 7 ? { ...n, version: 3, versionNonce: 99, x: 40 } : n))
     frame.push(note("fresh", { version: 1, versionNonce: 5 }))
-    expect(storeWithMakers(authors, b.elements as never, frame, ANN)).toEqual({ wrote: 2, stamped: 1 })
+    expect(storeWithMakers(authors, b.elements as never, frame, ANN, UNLAYERED)).toEqual({ wrote: 2, stamped: 1 })
     expect(asked, "only the changed notes' makers are asked after").toBeLessThanOrEqual(2)
     expect(b.authors.get("fresh")).toEqual(ANN)
     expect(b.authors.has("n7")).toBe(false)
@@ -89,7 +90,7 @@ describe("a frame's sync to the shared board (miro-06)", () => {
     expect(b.elements.get("fresh")).not.toBe(frame[frame.length - 1])
     // Nothing changed: nothing written, nothing asked.
     asked = 0
-    expect(storeWithMakers(authors, b.elements as never, [...b.elements.values()] as never, ANN)).toEqual({ wrote: 0, stamped: 0 })
+    expect(storeWithMakers(authors, b.elements as never, [...b.elements.values()] as never, ANN, UNLAYERED)).toEqual({ wrote: 0, stamped: 0 })
     expect(asked).toBe(0)
   })
 })

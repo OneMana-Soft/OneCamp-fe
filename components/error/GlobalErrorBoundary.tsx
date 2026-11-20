@@ -44,22 +44,24 @@ export class GlobalErrorBoundary extends Component<Props, State> {
       const error = this.state.error ?? new Error("Unknown error")
       return (
         <SplashFrame role="alert">
-          <CrashState
-            title="OneCamp hit a problem it couldn't recover from"
-            line="Nothing you saved is lost. Reload the page to carry on."
-            digest={(error as Error & { digest?: string }).digest}
-            onRetry={() => window.location.reload()}
-            retryLabel="Reload page"
-          >
-            {process.env.NODE_ENV === "development" && (
-              <div className="mt-6 max-h-48 w-full max-w-xl overflow-auto rounded-lg bg-sunken p-4 text-left">
-                <p className="mb-2 font-mono text-xs font-semibold text-danger-ink">
-                  {error.name}: {error.message}
-                </p>
-                <p className="whitespace-pre font-mono text-2xs text-ink-2">{error.stack}</p>
-              </div>
-            )}
-          </CrashState>
+          <main id="main-content">
+            <CrashState
+              title="OneCamp hit a problem it couldn't recover from"
+              line="Nothing you saved is lost. Reload the page to carry on."
+              digest={(error as Error & { digest?: string }).digest}
+              onRetry={() => window.location.reload()}
+              retryLabel="Reload page"
+            >
+              {process.env.NODE_ENV === "development" && (
+                <div className="mt-6 max-h-48 w-full max-w-xl overflow-auto rounded-lg bg-sunken p-4 text-left">
+                  <p className="mb-2 font-mono text-xs font-semibold text-danger-ink">
+                    {error.name}: {error.message}
+                  </p>
+                  <p className="whitespace-pre font-mono text-2xs text-ink-2">{error.stack}</p>
+                </div>
+              )}
+            </CrashState>
+          </main>
         </SplashFrame>
       )
     }

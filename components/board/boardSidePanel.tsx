@@ -32,7 +32,9 @@ export type SideWords = {
 } & Marks
 
 /** The board's side panels, as one place says them: each panel's own words and its frame's (boardWorkbench). */
-export const SIDE_PANELS: Record<"find" | "frames" | "tagFilter" | "addWork" | "slides", (editable?: boolean) => SideWords> = {
+export const SIDE_PANELS: Record<"find" | "frames" | "tagFilter" | "addWork" | "slides" | "layers", (editable?: boolean) => SideWords> = {
+  // A board's layers (miro-03, components/board/layersPanel): a read-only list for those who can't edit.
+  layers: () => ({ name: "Layers", closeLabel: "Close layers", detent: "half", "data-layers-panel": "" }),
   find: (editable) => ({ name: editable ? "Find and replace" : "Find on board", closeLabel: "Close find", detent: "half", "data-board-find": "" }),
   frames: () => ({ name: "Frames", closeLabel: "Close frames", "data-frames-panel": "" }),
   tagFilter: () => ({ name: "Filter by tag", closeLabel: "Close Filter by tag", detent: "medium", "data-tag-filter": "" }),

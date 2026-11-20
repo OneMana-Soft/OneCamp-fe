@@ -73,3 +73,35 @@ describe("resultPath", () => {
     }
   })
 })
+
+// A line said in a call (zoom-13) opens its conversation's recordings, its player at that moment: ids and a time only.
+describe("resultPath: a call's line", () => {
+  const CH = "33333333-3333-4333-8333-333333333333"
+  const line = (t: Record<string, unknown>) =>
+    hit({ type: "transcript", transcript: { transcript_id: "t1", transcript_text: "ship it friday", transcript_offset_ms: 125_400, transcript_recording_id: "EG_abc", transcript_has_media: true, ...t } })
+
+  it("opens a channel's call on its recordings, playing that recording at the moment", () => {
+    expect(resultPath(line({ transcript_conv_id: CH, transcript_conv_kind: "channel" }), ME)).toBe(`/app/channel/${CH}/recording?play=EG_abc&at=125400`)
+  })
+
+  it("opens a DM's call by the other person, as the chat route takes them", () => {
+    expect(resultPath(line({ transcript_conv_id: DM, transcript_conv_kind: "dm" }), ME)).toBe(`/app/chat/${MAYA}/recording?play=EG_abc&at=125400`)
+    expect(resultPath(line({ transcript_conv_id: DM, transcript_conv_kind: "dm" }), MAYA)).toBe(`/app/chat/${ME}/recording?play=EG_abc&at=125400`)
+  })
+
+  it("opens a group's call by its grouping id", () => {
+    expect(resultPath(line({ transcript_conv_id: GROUP, transcript_conv_kind: "group" }), ME)).toBe(`/app/chat/group/${GROUP}/recording?play=EG_abc&at=125400`)
+  })
+
+  it("asks for no picture only of a call nobody recorded", () => {
+    expect(resultPath(line({ transcript_conv_id: CH, transcript_conv_kind: "channel", transcript_has_media: false }), ME)).toBe(
+      `/app/channel/${CH}/recording?play=EG_abc&at=125400&media=0`,
+    )
+  })
+
+  it("opens nowhere without its conversation or its recording", () => {
+    expect(resultPath(line({ transcript_conv_kind: "channel" }), ME)).toBeNull()
+    expect(resultPath(line({ transcript_conv_id: CH, transcript_conv_kind: "channel", transcript_recording_id: "" }), ME)).toBeNull()
+    expect(resultPath(hit({ type: "transcript" }), ME)).toBeNull()
+  })
+})

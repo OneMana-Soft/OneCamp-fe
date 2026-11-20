@@ -41,3 +41,21 @@ describe("asking again", () => {
   })
 })
 
+
+describe("a refusal's word", () => {
+  // A password link's refusals (miro-33, C6) say which in the body's "status": the page asks for the
+  // password on password_needed and says the server's words on the others.
+  it("is the body's code, or else its status word", async () => {
+    const { publicCall } = await import("./publicApi")
+    const answer = (body: object, status: number) => async () => new Response(JSON.stringify(body), { status })
+    const real = globalThis.fetch
+    try {
+      globalThis.fetch = answer({ msg: "This link needs its password.", status: "password_needed" }, 401) as typeof fetch
+      expect(await publicCall("/guest/collab/t")).toMatchObject({ ok: false, status: 401, code: "password_needed", msg: "This link needs its password." })
+      globalThis.fetch = answer({ msg: "Locked", code: "locked", status: "x" }, 401) as typeof fetch
+      expect(await publicCall("/guest/x")).toMatchObject({ code: "locked" })
+    } finally {
+      globalThis.fetch = real
+    }
+  })
+})

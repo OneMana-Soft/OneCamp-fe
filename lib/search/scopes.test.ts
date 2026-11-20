@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { SearchResult } from "@/services/searchService"
-import { groupResults, resultTime, scopeCounts, visibleScopes } from "@/lib/search/scopes"
+import { groupResults, resultTime, scopeCounts, scopeOf, SCOPES, visibleScopes } from "@/lib/search/scopes"
 
 const task = (n: number, t = n) => ({ type: "task", task: { task_id: `t${n}`, task_name: `Task ${n}`, created_date: t } }) as SearchResult
 const doc = { type: "doc", doc: { doc_uuid: "d1", doc_title: "Q4 launch plan", created_date: 5 } } as SearchResult
@@ -62,7 +62,7 @@ describe("search scopes and groups", () => {
 
   it("takes the server's counts: a chip for a kind no page has listed yet, and Show all for what's past the page", () => {
     const rs = [task(1, 3), task(2, 9)]
-    const counts = { all: 47, messages: 0, tasks: 40, docs: 7, events: 0, projects: 0, people: 0, channels: 0, files: 0 }
+    const counts = { all: 47, messages: 0, tasks: 40, docs: 7, events: 0, projects: 0, people: 0, channels: 0, files: 0, calls: 0 }
     expect(visibleScopes(rs, counts).map((s) => s.id)).toEqual(["all", "tasks", "docs"])
     const tasks = groupResults(rs, "all", counts).find((g) => g.scope === "tasks")!
     expect(tasks.total).toBe(40)
@@ -82,5 +82,18 @@ describe("when a result was made", () => {
     expect(resultTime(r(1791614952000000))).toBe(1791614952000)
     expect(resultTime(r(1791614952000000000))).toBe(1791614952000)
     expect(new Date(resultTime(r(1791614952000))).getUTCFullYear()).toBe(2026)
+  })
+})
+
+// zoom-13: what was said in a call is a kind of its own, Calls, counted in lines.
+describe("a call's lines", () => {
+  const line = { type: "transcript", transcript: { transcript_id: "t1", transcript_text: "ship it", created_date: 1_763_000_000 } } as unknown as SearchResult
+  it("group under Calls, a line or lines", () => {
+    expect(scopeOf(line)).toBe("calls")
+    expect(SCOPES.find((s) => s.id === ("calls" as string))).toEqual({ id: "calls", label: "Calls", singular: "line", plural: "lines" })
+    expect(groupResults([line], "all").map((g) => [g.scope, g.label])).toEqual([["calls", "Calls"]])
+  })
+  it("keep their time in their line, as an event does", () => {
+    expect(resultTime(line)).toBe(0)
   })
 })

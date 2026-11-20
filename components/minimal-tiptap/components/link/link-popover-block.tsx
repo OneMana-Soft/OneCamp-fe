@@ -44,8 +44,8 @@ export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear
   }, [url])
 
   return (
-    <FloatingBar label="Link" data-link-bubble="" onEscape={onEscape}>
-      <FloatingBarButton label={`Open ${url}`} onClick={onOpen} disabled={!isSafeHref(url)} className="max-w-[240px] gap-1.5 px-2 font-[450] text-brand-text">
+    <FloatingBar label="Link" data-link-bubble="" onEscape={onEscape} className="max-w-full">
+      <FloatingBarButton label={`Open ${url}`} onClick={onOpen} disabled={!isSafeHref(url)} className="max-w-[240px] shrink gap-1.5 px-2 font-[450] text-brand-text">
         <ExternalLink />
         <span className="truncate">{shortUrl(url)}</span>
       </FloatingBarButton>

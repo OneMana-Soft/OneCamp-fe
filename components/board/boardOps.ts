@@ -676,17 +676,29 @@ export function setFrame(api: Api, ids: ReadonlySet<string>, frameId: string | n
 /**
  * Selects elements and starts typing in the first one's words, as Excalidraw
  * does for Enter on a selected shape (its own keyboard handler, so the editor
- * it opens is its own). Waits two frames for the selection to land.
+ * it opens is its own). The Enter goes once Excalidraw has the selection, and
+ * again each frame until its words are open: a busy or slow device takes
+ * longer than any fixed wait (CR-421 F5).
  */
 export function selectAndEdit(api: Api, ids: string[], container: Element | null, edit = true): void {
   api.updateScene({ appState: { selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) } as never })
   if (!edit || !container) return
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
+  let frames = 0
+  let sent = 0
+  const open = () => {
+    const state = api.getAppState()
+    if (state.editingTextElement || sent === EDIT_TRIES || ++frames > EDIT_FRAMES) return
+    if (ids.every((id) => state.selectedElementIds[id])) {
       container.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
-    }),
-  )
+      sent++
+    }
+    requestAnimationFrame(open)
+  }
+  requestAnimationFrame(open)
 }
+/** selectAndEdit's wait for the selection (about two seconds at 60 frames a second) and its Enters at most. */
+const EDIT_FRAMES = 120
+const EDIT_TRIES = 3
 
 /** The middle of what the person is looking at, in scene coordinates. */
 export function viewMiddle(api: Pick<ExcalidrawImperativeAPI, "getAppState">): { x: number; y: number } {

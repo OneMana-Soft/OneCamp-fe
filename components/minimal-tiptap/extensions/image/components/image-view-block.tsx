@@ -341,6 +341,27 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
       />
     )
 
+  // The Picture bar sits at the picture's top right. Wider than a small picture
+  // (a finger's 44 px items, app/phone.css F3c), it moves right until its left
+  // edge meets the column's, so no item spills under a rail beside the column.
+  const bar = React.useRef<HTMLDivElement>(null)
+  const [barRight, setBarRight] = React.useState<number>()
+  const barShown = !isResizing && imageState.imageLoaded && !imageState.error
+  React.useLayoutEffect(() => {
+    const el = bar.current
+    const picture = el?.offsetParent
+    if (!barShown || !el || !(picture instanceof HTMLElement) || !containerRef.current) return
+    const fit = () => {
+      // The picture's right edge in the column (its offsetParent), less the bar: what the bar's 8 px may grow to.
+      const room = picture.offsetLeft + picture.offsetWidth - el.offsetWidth
+      setBarRight(room < 8 ? room : undefined)
+    }
+    fit()
+    const seen = new ResizeObserver(fit)
+    for (const box of [containerRef.current, picture, el]) seen.observe(box)
+    return () => seen.disconnect()
+  }, [barShown, align])
+
   return (
     <NodeViewWrapper ref={containerRef} data-drag-handle data-image-align={align} className="relative">
       <div className={cn('group/node-image relative', ALIGN[align])} style={full ? undefined : { maxWidth: `min(${maxWidth}px, 100%)`, width: hasPixelDims ? currentWidth : '100%' }}>
@@ -438,7 +459,9 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
 
         {!isResizing && imageState.imageLoaded && !imageState.error ? (
           <FloatingBar
+            ref={bar}
             label="Picture"
+            style={barRight === undefined ? undefined : { right: barRight }}
             className={cn(
               'absolute right-2 top-2 opacity-0 transition-opacity duration-[140ms] focus-within:opacity-100 group-hover/node-image:opacity-100 [@media(hover:none)]:opacity-100 max-sm:hidden',
               drawnSelected(editor, selected) && 'opacity-100',

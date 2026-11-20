@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import { ReportInsights } from "@/components/reports/ReportInsights"
 import type { Insights, InsightSlice, Spread } from "@/lib/reports"
 import { pinTestClock } from "@/lib/testing/testClock"
+import { sliceChoices, sliceName, slicesBy } from "@/lib/reportInsights"
 
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => <a href={href} {...rest}>{children}</a> }))
 
@@ -115,5 +116,27 @@ describe("ReportInsights", () => {
     expect(screen.getByText("No task done in these weeks spent time at a step.")).toBeTruthy()
     expect(screen.getByText("Nothing done or open to slice in these weeks.")).toBeTruthy()
     expect(screen.getAllByText("None")).toHaveLength(4)
+  })
+})
+
+describe("the SLA slice (linear-24 W2)", () => {
+  // The server sends SLA slices only for projects whose SLA state the reader
+  // reads (members, SLAs on): a guest's or an SLAs-off report has none, so it
+  // is never offered there.
+  const withSla: Insights = {
+    ...insights,
+    slices: [...insights.slices, slice("sla", "breached", "Breached", spread(2, 40), spread(2, 90)), slice("sla", "", "", spread(1, 20), spread(1, 30))],
+  }
+
+  it("is offered only when the server sent SLA slices, named in the SLA words", () => {
+    expect(sliceChoices(insights).map((c) => c.by)).not.toContain("sla")
+    expect(sliceChoices(withSla)).toContainEqual({ by: "sla", label: "SLA" })
+    // The server names each SLA state (business/SLA stateNames); the work with no SLA is "No SLA".
+    expect(sliceName({ by: "sla", key: "breached", name: "Breached" })).toBe("Breached")
+    expect(sliceName({ by: "sla", key: "", name: "" })).toBe("No SLA")
+  })
+
+  it("lists the SLA slices, the busiest first, when SLA is the slice picked", () => {
+    expect(slicesBy(withSla.slices, "sla").map(sliceName)).toEqual(["Breached", "No SLA"])
   })
 })

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { SAM } from "../stubbedApp"
-import { TableServer } from "./tableServer"
+import { scrollClearOfLead, TableServer } from "./tableServer"
 
 // TABLES-LEAD-27 (main, 25 Oct; DESIGN-BUILD-15's SF): on a phone, a column
 // wider than the screen put its running fill's Stop at the column's right
@@ -34,13 +34,7 @@ test("at 390, by touch, a running fill in a column wider than the phone is stopp
 
   // They scroll the grid until the column's name sits clear of the frozen
   // column, and tap the name, as a person does (its middle is off screen).
-  await header.evaluate((th) => {
-    let p = th.parentElement
-    while (p && !(p.scrollWidth > p.clientWidth && getComputedStyle(p).overflowX !== "visible")) p = p.parentElement
-    if (!p) return
-    const edge = Math.max(p.getBoundingClientRect().left, ...[...(th.parentElement?.querySelectorAll("th[data-frozen]") ?? [])].map((f) => f.getBoundingClientRect().right))
-    p.scrollLeft += th.getBoundingClientRect().left - edge - 4
-  })
+  await scrollClearOfLead(header)
   const name = page.getByRole("button", { name: /^Summary, .* column\. Edit column$/ })
   // The header's own Stop is off screen at the column's far edge.
   await expect(header.getByRole("button", { name: /^Stop filling Summary/ })).not.toBeInViewport()

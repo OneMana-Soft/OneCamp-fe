@@ -31,55 +31,31 @@ export const AttachmentIcon = ({
 
     const mediaRes = useMediaFetch<GetMediaURLRes>(getUrl ? getUrl : '')
 
+    // A video whose file won't load keeps its glyph; a thumbnail that lands
+    // after its URL has moved on, or the card has gone, is dropped.
     useEffect( () => {
-        if(attachmentType == 'video' && mediaRes.data?.url) {
-            getVideoThumbnail(mediaRes.data?.url)
-                .then((res)=>{
-                    setThumbnailUrl(res)
-                })
-
-        }
-
+        if(attachmentType !== 'video' || !mediaRes.data?.url) return
+        let current = true
+        getVideoThumbnail(mediaRes.data.url)
+            .then((res) => { if (current) setThumbnailUrl(res) })
+            .catch(() => {})
+        return () => { current = false }
     },[mediaRes.data?.url, attachmentType])
 
+    // An image, or a video's first frame, once there is a URL; until then, and
+    // for every other kind, its glyph on its camp tint (FileGlyph).
     const renderIcon = () => {
-        if (mediaRes.data?.url) {
-            switch (attachmentType) {
-                case 'image':
-                    return (
-                        <Image
-                            src={mediaRes.data?.url}
-                            className='w-10 h-10 m-1 rounded-lg'
-                            alt={fileName}
-                            width={40}
-                            height={40}
-                        />
-                    );
-                case 'video':
-                    return thumbnailUrl ? (
-                        <div className='relative '>
-                            <Image
-                                src={thumbnailUrl}
-                                className='w-10 h-10 m-1 rounded-lg'
-                                alt={fileName}
-                                width={40}
-                                height={40}
-                            />
-                            <Play size={16} className='absolute top-[30%]  left-[30%]'/>
-                        </div>
-
-                    ) : (
-                        <FileGlyph name={fileName} className='m-1' />
-                    );
-                default:
-                    return <FileGlyph name={fileName} className='m-1' />;
-            }
-        }
-
-        // Until there is a URL, every kind is its glyph on its camp tint (FileGlyph).
-        return <FileGlyph name={fileName} className='m-1' />;
+        const src = mediaRes.data?.url
+        const url = src && (attachmentType === 'image' ? src : attachmentType === 'video' && thumbnailUrl)
+        if (!url) return <FileGlyph name={fileName} className='m-1' />
+        const image = <Image src={url} className='w-10 h-10 m-1 rounded-lg' alt={fileName} width={40} height={40} />
+        return attachmentType === 'image' ? image : (
+            <div className='relative'>
+                {image}
+                <Play size={16} className='absolute top-[30%] left-[30%]'/>
+            </div>
+        )
     };
-
 
     // A button: it was a div with a click handler, which the keyboard could
     // not reach and a screen reader did not announce. With nothing to open yet

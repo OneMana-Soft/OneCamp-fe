@@ -214,7 +214,18 @@ describe("what the tab says with nothing to show", () => {
     serve([])
     render(<ThreadsList unreadOnly={false} onShowAll={() => {}} />)
     expect(screen.getByText("No threads you follow")).toBeTruthy()
-    expect(screen.getByText("Reply in a thread, or follow one from its menu, and it lands here.")).toBeTruthy()
+    // V-702: a followed thread nobody has replied to yet isn't listed (the
+    // server lists a thread once it has a reply, as Slack does), so the words
+    // promise only that.
+    expect(screen.getByText("A thread you reply in or follow shows here once someone replies.")).toBeTruthy()
+    expect(screen.queryByText(/and it lands here/)).toBeNull()
+  })
+
+  it("lists every thread the server sends, whatever its replies: the web filters nothing out", () => {
+    serve([{ ...THREADS[0], replies: 0, new: 0, latest: [], unread: false }])
+    render(<ThreadsList unreadOnly={false} onShowAll={() => {}} />)
+    expect(screen.getAllByRole("link", { name: /^Jonas Weber in #engineering/ })).toHaveLength(1)
+    expect(screen.queryByText("No threads you follow")).toBeNull()
   })
 
   it("shows only unread threads under Unread only, and says when there are none", () => {

@@ -132,6 +132,7 @@ async function stub(page: Page, testInfo: TestInfo, server: Server) {
     // Admin › Permissions' other cards, answered empty.
     "/admin/policies": { msg: "ok", data: [] },
     "/admin/capabilities": { msg: "ok", data: [] },
+    "/admin/calendar/feeds": { msg: "ok", data: { feeds: [], more: false } },
     "/project/plan/": { msg: "ok", data: { categories: [], statuses: [], labels: [], colors: [] } },
     "/user/assignedTaskList": { msg: "ok", pageCount: 1, data: { user_tasks: [] } },
     "/task/views": { msg: "ok", data: [] },

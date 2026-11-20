@@ -27,7 +27,7 @@ import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import { useToast } from "@/hooks/use-toast"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoListRawInterface } from "@/types/project"
-import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templates"
+import { BOARD_TEMPLATES, centreAt, lockedBackground, type BoardTemplate } from "@/lib/board/templates"
 import { loadConvert, stampLaidOut, type SceneElement } from "@/components/board/boardOps"
 import { STYLE_FONT, makeTasksLabel, type BoardElementLike, type BoardStyle, type SelectedNote } from "@/lib/board/notes"
 import { CAPTURE, bumped } from "@/lib/board/binding"
@@ -76,7 +76,8 @@ export async function insertBoardTemplate(api: ExcalidrawImperativeAPI, t: Board
     font === undefined ? sk : sk.type === "rectangle" ? { ...sk, label: { ...sk.label, fontFamily: font } } : sk.type === "text" ? { ...sk, fontFamily: font } : sk,
   )
   // Laid out before their face has come (a phone's first board), the notes say so, and are fitted again when it lands (V-229).
-  const generated = stampLaidOut(convertToExcalidrawElements(built as never, { regenerateIds: false }) as unknown as SceneElement[])
+  // Its background (its frames) lands locked, its notes free (miro-03).
+  const generated = lockedBackground(stampLaidOut(convertToExcalidrawElements(built as never, { regenerateIds: false }) as unknown as SceneElement[]))
   // One undo step (lib/board/binding).
   api.updateScene({ elements: [...api.getSceneElements(), ...generated] as never, captureUpdate: CAPTURE.IMMEDIATELY })
   api.scrollToContent(generated as never, { fitToContent: true, animate: !prefersReducedMotion() })
@@ -121,7 +122,8 @@ export default function BoardTools({ api, editable, synced = true, quiet = false
   if (!editable || !api || !cardShown) return null
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
+    // A layer a finger meets over the canvas: it steps behind a phone's style sheet (excalidrawTheme.css).
+    <div data-canvas-layer="" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
       <div
         data-empty-canvas=""
         className={cn(
@@ -174,11 +176,14 @@ export function NotesToTasksDialog({
   onOpenChange,
   api,
   notes,
+  what = "note",
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   api: ExcalidrawImperativeAPI
   notes: SelectedNote[]
+  /** What each one is called: a note, or a mind map's idea (miro-15's Make tasks from a branch). */
+  what?: "note" | "idea"
 }) {
   const projects = useFetch<ProjectInfoListRawInterface>(open ? GetEndpointUrl.projectListByAdminUID : "")
   const { revalidateTaskKeys } = useTaskUpdate()
@@ -233,7 +238,7 @@ export function NotesToTasksDialog({
     }
     setBusy(false)
     if (made.size === chosen.length) {
-      toast({ title: made.size === 1 ? "Made a task" : `Made ${made.size} tasks`, description: "Each note now links to its task." })
+      toast({ title: made.size === 1 ? "Made a task" : `Made ${made.size} tasks`, description: `Each ${what} now links to its task.` })
       onOpenChange(false)
     } else {
       toast({
@@ -249,10 +254,10 @@ export function NotesToTasksDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           {/* No count here: the ticks change it, and the button says it (DB-27). */}
-          <DialogTitle>{fresh.length === 1 ? "Make this note a task" : "Make notes into tasks"}</DialogTitle>
+          <DialogTitle>{fresh.length === 1 ? `Make this ${what} a task` : `Make ${what}s into tasks`}</DialogTitle>
           <DialogDescription>
-            Each note becomes a task in the project you choose, and links to it from the board.
-            {already > 0 && ` ${already} selected ${already === 1 ? "note is" : "notes are"} already a task and will be skipped.`}
+            Each {what} becomes a task in the project you choose, and links to it from the board.
+            {already > 0 && ` ${already} selected ${already === 1 ? `${what} is` : `${what}s are`} already a task and will be skipped.`}
             {waiting > 0 && ` ${waiting} private ${waiting === 1 ? "note waits" : "notes wait"} for the round to end.`}
           </DialogDescription>
         </DialogHeader>

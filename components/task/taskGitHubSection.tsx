@@ -7,7 +7,7 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button"
 import type { TaskInfoInterface } from "@/types/task"
 import { lazyPart } from "@/lib/lazy/lazyPart"
-import { analyzeCodeIssue, type CodeAnalysisResult } from "@/services/aiModelService"
+import { analyzeCodeIssue, type CodeAnalysisResult } from "@/services/aiCodeAnalysisService"
 import { useToast } from "@/hooks/use-toast"
 import { saysWriteFailure } from "@/lib/http/writeSaid";
 
@@ -29,9 +29,11 @@ function prStateWord(task: Pick<TaskInfoInterface, "task_github_pr_state" | "tas
 }
 
 export type ChecksTone = "ok" | "bad" | "busy" | "quiet"
+/** A short phrase and the tone it reads in: the checks, the review. */
+export type ToneWords = { text: string; tone: ChecksTone }
 
 /** What a pull request's checks are doing, in words and a tone; null with no checks. Pure. */
-export function checksInWords(status?: string | null): { text: string; tone: ChecksTone } | null {
+export function checksInWords(status?: string | null): ToneWords | null {
   switch (status) {
     case "success":
       return { text: "Checks passing", tone: "ok" }
@@ -59,14 +61,35 @@ export function checksInWords(status?: string | null): { text: string; tone: Che
 const CHECKS_INK: Record<ChecksTone, string> = { ok: "text-success-ink", bad: "text-danger-ink", busy: "text-warning-ink", quiet: "text-ink-3" }
 const CHECKS_DOT: Record<ChecksTone, string> = { ok: "bg-success", bad: "bg-destructive", busy: "bg-warning", quiet: "bg-ink-4" }
 
-/** The checks, as a dot and their words: on a phone too. */
-function ChecksLine({ status }: { status?: string }) {
-  const c = checksInWords(status)
-  if (!c) return null
+/**
+ * How a pull request was reviewed, in words and a tone. The server stores
+ * only these three, as GitHub decides (V-986, domain/GitHubPRReview Decision):
+ * each reviewer's latest decisive review stands, so a later comment never
+ * replaces their approval or request for changes, and a dismissal clears it.
+ * Then "changes_requested" while any standing review asks for changes, else
+ * "approved" while any approves, else "commented" when reviewers have only
+ * commented. Anything else, or none, is null and shows nothing. Pure.
+ */
+export function reviewInWords(state?: string | null): ToneWords | null {
+  switch (state) {
+    case "approved":
+      return { text: "Approved", tone: "ok" }
+    case "changes_requested":
+      return { text: "Changes requested", tone: "bad" }
+    case "commented":
+      return { text: "Reviewed", tone: "quiet" }
+    default:
+      return null
+  }
+}
+
+/** A dot and words in their tone (the checks, the review): visible words on a phone too; the dot is decoration. */
+function DotWords({ words }: { words: ToneWords | null }) {
+  if (!words) return null
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={cn("size-2 rounded-full", CHECKS_DOT[c.tone], c.tone === "busy" && "motion-safe:animate-pulse")} />
-      <span className={cn("text-2xs font-medium", CHECKS_INK[c.tone])}>{c.text}</span>
+    <span data-dot-words={words.tone} className="inline-flex items-center gap-1.5">
+      <span aria-hidden className={cn("size-2 rounded-full", CHECKS_DOT[words.tone], words.tone === "busy" && "motion-safe:animate-pulse")} />
+      <span className={cn("text-2xs font-medium", CHECKS_INK[words.tone])}>{words.text}</span>
     </span>
   )
 }
@@ -194,7 +217,8 @@ export function TaskGitHubSection({
                     <ExternalLink aria-hidden className="size-3 shrink-0 text-ink-3" />
                   </a>
                   <span className="text-2xs font-medium text-ink-2">{prStateWord(task)}</span>
-                  <ChecksLine status={task.task_github_pr_check_status} />
+                  <DotWords words={reviewInWords(task.task_github_pr_review_state)} />
+                  <DotWords words={checksInWords(task.task_github_pr_check_status)} />
                 </dd>
               </div>
             )}

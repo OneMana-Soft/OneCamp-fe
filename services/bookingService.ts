@@ -1,5 +1,5 @@
 // Booking pages, public side: anyone may look at a page's free slots, book
-// one, and cancel through their link. Plain fetch, so the signed-in axios
+// one, and move or cancel it through their link. Plain fetch, so the signed-in axios
 // instance (refresh, CSRF, logout) is never involved, as with guest links.
 
 import type { Slot } from "@/lib/calendar/availability"
@@ -43,7 +43,7 @@ export interface BookingView {
   page_live?: boolean
   /** The owner cancelled it, by deleting the meeting. */
   cancelled_by_host?: boolean
-  /** On the answer to a cancel: the owner was told. */
+  /** On the answer to a move or a cancel: the owner was told. */
   owner_told?: boolean
 }
 
@@ -57,5 +57,9 @@ export const getBooking = (token: string) => publicCall<BookingView>(`/public/bo
 
 export const cancelBooking = (token: string) =>
   publicCall<BookingView>(`/public/booking/${encodeURIComponent(token)}/cancel`, { method: "POST" })
+
+/** Moves the booking to `start`, one of its page's free times (the token is the only credential). */
+export const rescheduleBooking = (token: string, start: string) =>
+  publicCall<BookingView>(`/public/booking/${encodeURIComponent(token)}/reschedule`, { method: "POST", body: JSON.stringify({ start }) })
 
 export const bookingPageUrl = (slug: string) => (typeof window === "undefined" ? `/book/${slug}` : `${window.location.origin}/book/${slug}`)

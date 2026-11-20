@@ -101,6 +101,8 @@ describe("CALL-BUG-2: captions are one switch for the call, said with where spee
     expect(captionsWhereText({ where: "server" })).toContain("this workspace's own server")
     expect(captionsWhereText({ where: "deepgram" })).toContain("Deepgram")
     expect(captionsWhereText({ where: "custom" })).toContain("speech-to-text service this workspace set up")
+    expect(captionsConfirmText({ where: "google" })).toContain("is sent to Google Cloud to be transcribed.")
+    expect(captionsWhereText({ where: "constructor" })).toContain("speech-to-text service this workspace set up")
     expect(captionsConfirmText({ where: "browser", kept: true })).toContain("(Google in Chrome, Microsoft in Edge)")
     expect(captionsConfirmText({ where: "browser", kept: true })).toContain("Everyone in the call is told")
     // Kept as a transcript, the pill says so (calls audit); shown only, captions.

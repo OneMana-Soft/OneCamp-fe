@@ -66,6 +66,8 @@ export const RELATION_TARGETS: { value: string; label: string }[] = [
   { value: "doc", label: "Docs" },
   { value: "board", label: "Boards" },
   { value: "project", label: "Projects" },
+  { value: "channel", label: "Channels" },
+  { value: "call", label: "Calls" },
   { value: "user", label: "People" },
 ]
 

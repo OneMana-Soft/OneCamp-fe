@@ -390,8 +390,9 @@ for (const theme of SHOT_THEMES) {
       expect(chipBox && toastBox && chipBox.y + chipBox.height <= toastBox.y, `the chip ${JSON.stringify(chipBox)} clear of the toast ${JSON.stringify(toastBox)}`).toBe(true)
       await reviewShot(page, "link-refused", theme)
 
-      // The toast closed by its ×, the form's adds offline.
-      await toast.getByRole("button", { name: "Close notification" }).tap()
+      // The toast goes by its timer once the pointer holding it leaves, the form's adds offline. On a phone a timed
+      // toast has no tappable × (V-917): it goes by a swipe or its timer.
+      await page.mouse.move(4, 422)
       await expect(toast).toHaveCount(0, { timeout: 20_000 })
       await page.getByRole("button", { name: "Edit event" }).tap({ timeout: 20_000 })
       await expect(row.getByRole("link", { name: "Task: Book the venue" })).toBeVisible({ timeout: 20_000 })

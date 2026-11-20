@@ -18,7 +18,7 @@ import { publicCall } from "@/services/publicApi"
  * guest poller (components/guest/guestPoll: every 5 s while the page is shown, backing off after failures and keeping
  * the server's Retry-After; a guest hears no MQTT). In the slides' chunk, which reaches no shared core.
  */
-export type SlidePollsSource = { board: string; http: Pick<AxiosInstance, "get" | "post">; topic: string } | { token: string }
+export type SlidePollsSource = { board: string; http: Pick<AxiosInstance, "get" | "post">; topic: string } | { token: string; /** A password link's unlock (miro-33). */ k?: string }
 
 export interface SlidePollsRead {
   /** The board's polls, oldest first; undefined until the first answer. */
@@ -34,6 +34,7 @@ export interface SlidePollsRead {
 export function useSlidePolls(source: SlidePollsSource | undefined): SlidePollsRead {
   const member = source && "board" in source ? source : undefined
   const token = source && "token" in source ? source.token : ""
+  const k = source && "token" in source ? (source.k ?? "") : ""
   const board = member?.board ?? ""
   const http = member?.http
   const [polls, setPolls] = React.useState<BoardPoll[] | undefined>(undefined)
@@ -65,11 +66,11 @@ export function useSlidePolls(source: SlidePollsSource | undefined): SlidePollsR
   // A guest's list, through its link; its outcome paces the guest poller.
   const readLink = React.useCallback(async (): Promise<GuestPollOutcome> => {
     const n = ++asked.current
-    const res = await publicCall<{ polls?: unknown }>(guestBoardPollsPath(token))
+    const res = await publicCall<{ polls?: unknown }>(guestBoardPollsPath(token, k))
     if (res.ok) got(n, res.data?.polls)
     else failed(n, res.status === 0 || isAppOffline(), res.status < 500 ? res.msg : undefined)
     return pollOutcome(res)
-  }, [token, got, failed])
+  }, [token, k, got, failed])
 
   const read = React.useCallback(() => void (token ? readLink() : readBoard()), [token, readLink, readBoard])
 

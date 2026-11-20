@@ -1,0 +1,265 @@
+{
+  "keys": [
+    "spark",
+    "sparkles",
+    "spinner",
+    "square"
+  ],
+  "files": {
+    "app/app/board/[board-id]/page.tsx": {
+      "sparkles": 1
+    },
+    "app/app/search/page.tsx": {
+      "sparkles": 1
+    },
+    "app/app/templates/page.tsx": {
+      "sparkles": 1
+    },
+    "components/activity/hubEmpty.tsx": {
+      "spark": 1
+    },
+    "components/admin/AdminAuditLog.tsx": {
+      "sparkles": 1
+    },
+    "components/admin/AgentEditDialog.tsx": {
+      "sparkles": 1,
+      "square": 1
+    },
+    "components/admin/AgentsCard.tsx": {
+      "sparkles": 1
+    },
+    "components/admin/ApiTokensCard.tsx": {
+      "sparkles": 1
+    },
+    "components/admin/WorkflowEditDialog.tsx": {
+      "sparkles": 1
+    },
+    "components/admin/ai/AuthorizedModelsSection.tsx": {
+      "sparkles": 1
+    },
+    "components/admin/ai/ModelCatalog.tsx": {
+      "sparkles": 1
+    },
+    "components/admin/ai/tabs/OverviewTab.tsx": {
+      "square": 1
+    },
+    "components/admin/importParts.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/AgentCardDetails.tsx": {
+      "spinner": 1
+    },
+    "components/ai/AgentQueryPlan.tsx": {
+      "spinner": 1
+    },
+    "components/ai/AgentWorkCard.tsx": {
+      "spinner": 1,
+      "square": 1
+    },
+    "components/ai/AiEmpty.tsx": {
+      "spark": 3
+    },
+    "components/ai/AiInstructionsDialog.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/AiScheduleDialog.tsx": {
+      "sparkles": 1,
+      "spinner": 2
+    },
+    "components/ai/BriefingCard.tsx": {
+      "sparkles": 1,
+      "square": 1
+    },
+    "components/ai/CatchMeUpBanner.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/ChannelMemoryIndicator.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/ComposerAIButton.tsx": {
+      "spinner": 2
+    },
+    "components/ai/DocAiAssistantPanel.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/DocAiBar.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/DocAiTasks.tsx": {
+      "spinner": 2
+    },
+    "components/ai/ExtractTasksDialog.tsx": {
+      "sparkles": 1,
+      "spinner": 2
+    },
+    "components/ai/MeetingPrepDialog.tsx": {
+      "sparkles": 1,
+      "spinner": 1
+    },
+    "components/ai/MyAIActivityCard.tsx": {
+      "spinner": 4
+    },
+    "components/ai/MyAgentWorkDialog.tsx": {
+      "sparkles": 1,
+      "spinner": 1
+    },
+    "components/ai/MyAssistantsCard.tsx": {
+      "spinner": 1
+    },
+    "components/ai/PendingActionsTray.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/PlanSteps.tsx": {
+      "spinner": 1
+    },
+    "components/ai/ReleaseNotesDialog.tsx": {
+      "sparkles": 1,
+      "spinner": 1
+    },
+    "components/ai/RescheduleDialog.tsx": {
+      "spinner": 2
+    },
+    "components/ai/SocialComposeDialog.tsx": {
+      "spinner": 1
+    },
+    "components/ai/StreamingText.tsx": {
+      "spark": 1
+    },
+    "components/ai/TaskNameSuggestion.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/ThreadSummaryButton.tsx": {
+      "sparkles": 1,
+      "spinner": 1
+    },
+    "components/ai/WhileYouWereAwayCard.tsx": {
+      "sparkles": 1,
+      "square": 1
+    },
+    "components/ai/WorkspaceMemoryPanel.tsx": {
+      "sparkles": 1,
+      "spinner": 1
+    },
+    "components/ai/askAboutAddOn.tsx": {
+      "sparkles": 1
+    },
+    "components/ai/docAiRegister.ts": {
+      "sparkles": 1
+    },
+    "components/ai/translateAddOn.tsx": {
+      "spinner": 1
+    },
+    "components/auth/CampHeroes.tsx": {
+      "spark": 2
+    },
+    "components/board/boardAIPanel.tsx": {
+      "sparkles": 1
+    },
+    "components/board/boardUIStudio.tsx": {
+      "sparkles": 1
+    },
+    "components/calendar/calendarApp.tsx": {
+      "sparkles": 1
+    },
+    "components/calendar/callRecap.tsx": {
+      "sparkles": 1
+    },
+    "components/calendar/findTimeSuggestions.tsx": {
+      "sparkles": 1
+    },
+    "components/calendar/planWeek.tsx": {
+      "sparkles": 1
+    },
+    "components/call/effects/EffectsPicker.tsx": {
+      "sparkles": 2
+    },
+    "components/call/effects/GreenRoomEffects.tsx": {
+      "sparkles": 1
+    },
+    "components/chat/DmComposerExtras.tsx": {
+      "sparkles": 1
+    },
+    "components/docEditor/DocIconPicker.tsx": {
+      "sparkles": 1
+    },
+    "components/docEditor/chrome/glyphs.tsx": {
+      "sparkles": 1
+    },
+    "components/drawers/userProfileDrawer.tsx": {
+      "sparkles": 1
+    },
+    "components/home/GreetingComposition.tsx": {
+      "spark": 2
+    },
+    "components/home/NeedsMeSection.tsx": {
+      "spark": 1
+    },
+    "components/home/SetupChecklist.tsx": {
+      "sparkles": 1
+    },
+    "components/inbox/InboxPage.tsx": {
+      "sparkles": 1,
+      "spinner": 2
+    },
+    "components/livekit/VideoControls.tsx": {
+      "sparkles": 2
+    },
+    "components/marketplace/PublishTemplateDialog.tsx": {
+      "sparkles": 1
+    },
+    "components/message/tintMentions.ts": {
+      "spark": 1
+    },
+    "components/minimal-tiptap/extensions/callout/components/callout-view.tsx": {
+      "sparkles": 1
+    },
+    "components/minimal-tiptap/extensions/slash-command/slashCommand.tsx": {
+      "sparkles": 1
+    },
+    "components/profile/profileCard.tsx": {
+      "spark": 1,
+      "square": 1
+    },
+    "components/projectTemplates/DescribeProject.tsx": {
+      "sparkles": 1
+    },
+    "components/projectUpdates/ProjectUpdates.tsx": {
+      "sparkles": 1
+    },
+    "components/projectUpdates/UpdateComposer.tsx": {
+      "sparkles": 1
+    },
+    "components/protectedRoute/Splash.tsx": {
+      "spark": 1,
+      "square": 1
+    },
+    "components/rightPanel/eventInfoPanel.tsx": {
+      "sparkles": 1
+    },
+    "components/rightPanel/rightPanelHeader.tsx": {
+      "sparkles": 1,
+      "square": 1
+    },
+    "components/task/taskGitHubSection.tsx": {
+      "sparkles": 1
+    },
+    "components/textInput/phoneComposerShell.tsx": {
+      "sparkles": 1
+    },
+    "components/ui/CommandPalette.tsx": {
+      "sparkles": 1
+    },
+    "components/work/releases/ReleaseSheet.tsx": {
+      "sparkles": 1
+    },
+    "lib/adminSections.ts": {
+      "sparkles": 1
+    },
+    "lib/icons.ts": {
+      "sparkles": 2
+    },
+    "lib/settingsSections.ts": {
+      "sparkles": 1
+    }
+  }
+}

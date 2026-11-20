@@ -1,4 +1,4 @@
-import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Request, type Route, type TestInfo } from "@playwright/test"
+import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page, type Request, type Route, type TestInfo } from "@playwright/test"
 
 import { brokerOn, mqttConfig, SAM, stubBackend } from "../stubbedApp"
 
@@ -196,6 +196,14 @@ export class TableServer {
   readonly exports: Record<string, unknown>[] = []
   /** The export answers as for a table the reader can't open: not found. */
   exportRefused = false
+  /** Each export of every table a page asked for (POST /tables/export): its query, as sent. */
+  readonly exportsAll: string[] = []
+  /** The export of every table is refused in these words (a 422), as past what one workbook holds. */
+  exportAllRefused: string | null = null
+  /** The list of tables answers none, as for a reader who can open no table. */
+  listsNoTable = false
+  /** The export of every table answers only once this settles, so a test can see it while it runs. */
+  exportAllHeld: Promise<void> | null = null
   private reader = ""
   aiFill: { id: string; table_id: string; field_id: string; started_by?: string; change_set?: string; total: number; asked: number; filled: number; state: string } | null = null
   readonly undos: string[] = []
@@ -236,6 +244,8 @@ export class TableServer {
 
   /** What the server names a linked task, project, doc or board, by its id: a link is written as its id and type, and named on each read. */
   readonly names = new Map<string, string>()
+  /** What the reader can't open, by its id: the server sends its link with no name, hidden (business/DataTable itemLinks). */
+  readonly hidden = new Set<string>()
 
   /** A row's cells as a read gives them: people named, as the server names a link to people, and links to what names has. */
   private named(values: Values): Values {
@@ -243,7 +253,9 @@ export class TableServer {
     const out: Values = { ...values }
     for (const f of this.fields) {
       const refs = out[f.id]
-      if (f.type === "relation" && Array.isArray(refs)) out[f.id] = refs.map((r: { id: string; label?: string }) => (this.names.has(r.id) ? { ...r, label: this.names.get(r.id) } : r))
+      if (f.type === "relation" && Array.isArray(refs)) out[f.id] = refs.map((r: { id: string; type?: string; label?: string }) =>
+          this.hidden.has(r.id) ? { id: r.id, type: r.type, hidden: true } : this.names.has(r.id) ? { ...r, label: this.names.get(r.id) } : r,
+        )
       if (!kinds.has(f.type) || !Array.isArray(refs)) continue
       out[f.id] = refs.map((r: { id: string }) => {
         const who = this.people.find((p) => p.user_uuid === r.id)
@@ -461,7 +473,25 @@ export class TableServer {
     const body = (req.postDataJSON() ?? {}) as Record<string, unknown>
     const parts = url.pathname.slice(url.pathname.indexOf("/tables")).split("/").filter(Boolean)
     // ["tables"], ["tables", id], ["tables", id, "rows"], ["tables", id, "rows", rowId, "patch"], ...
-    if (parts.length === 1 && req.method() === "GET") return json(200, { data: [this.table(), ...this.others.map((t) => ({ ...this.table(), ...t }))] })
+    if (parts.length === 1 && req.method() === "GET") return json(200, { data: this.listsNoTable ? [] : [this.table(), ...this.others.map((t) => ({ ...this.table(), ...t }))] })
+    if (parts.length === 2 && parts[1] === "export" && req.method() === "POST") {
+      // Every table the reader can open as one workbook (business/DataTable tablesExport.go), or its refusal in words.
+      this.exportsAll.push(url.search)
+      const workbook = () =>
+        this.exportAllRefused
+          ? json(422, { msg: this.exportAllRefused })
+          : route.fulfill({
+              status: 200,
+              headers: {
+                ...headers,
+                "access-control-expose-headers": "Content-Disposition",
+                "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "content-disposition": `attachment; filename="Tables.xlsx"; filename*=UTF-8''Tables.xlsx`,
+              },
+              body: Buffer.from("PK\u0003\u0004"),
+            })
+      return this.exportAllHeld ? this.exportAllHeld.then(workbook) : workbook()
+    }
     const theirs = this.linked.get(parts[1])
     if (theirs && parts[2] === "fields" && req.method() === "GET") return json(200, { data: fieldsJson(parts[1], theirs) })
     // Who edits the table (V-170): GET answers it, POST changes it as business/DataTable SetEditing does.
@@ -907,4 +937,20 @@ export class TableServer {
     await expect(page.locator("[data-table-page]")).toBeVisible({ timeout: 60_000 })
     return { page, close: () => context.close() }
   }
+}
+
+/**
+ * Scrolls the grid sideways until a cell or header sits clear of the frozen lead (the row's gutter and its frozen
+ * columns, which stick over whatever scrolls under them), as a person does before tapping it. A test that opened a
+ * picker further right left the cells before it under the lead, where a tap meets the gutter's "Open row" instead.
+ */
+export async function scrollClearOfLead(target: Locator) {
+  await target.evaluate((el) => {
+    let p = el.parentElement
+    while (p && !(p.scrollWidth > p.clientWidth && getComputedStyle(p).overflowX !== "visible")) p = p.parentElement
+    if (!p) return
+    const lead = [...(el.closest("tr")?.querySelectorAll("[data-frozen], [data-sticky-lead]") ?? [])].filter((f) => f !== el)
+    const edge = Math.max(p.getBoundingClientRect().left, ...lead.map((f) => f.getBoundingClientRect().right))
+    p.scrollLeft += el.getBoundingClientRect().left - edge - 4
+  })
 }

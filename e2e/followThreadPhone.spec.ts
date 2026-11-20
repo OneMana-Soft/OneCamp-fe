@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
-import { reviewShot, SAM, stubBackend, tidy, untilStill } from "./stubbedApp"
+import { reviewShot, SAM, sendOnceReplies, stubBackend, tidy, untilStill, type Answers } from "./stubbedApp"
 
 // V-699: on a phone nobody could follow or unfollow a thread. The thread
 // page's bar had only Back and "Thread", and a message's long-press sheet had
@@ -30,7 +30,7 @@ const channel = {
 const FOLLOW = `/chat-threads/${ROOT.post_uuid}/follow`
 
 /** The app on stubs, with a server that keeps the thread's standing; answers the PUTs it took. */
-async function stubbed(page: Page, testInfo: TestInfo, server: { follow: string; following: boolean }) {
+async function stubbed(page: Page, testInfo: TestInfo, server: { follow: string; following: boolean }, more: Answers = {}) {
   const writes: string[] = []
   await stubBackend(page, testInfo, {
     "/command/catalog": { msg: "ok", data: { commands: [] } },
@@ -70,6 +70,7 @@ async function stubbed(page: Page, testInfo: TestInfo, server: { follow: string;
     "/conversations/": { msg: "ok", data: { pins: [], can_pin: true, max: 100 } },
     [`/user/profile/${MAYA.user_uuid}`]: { msg: "ok", data: MAYA },
     "/dm/": { msg: "ok", data: [] },
+    ...more,
   })
   return writes
 }
@@ -207,5 +208,29 @@ test("at 1280: the thread panel's bell follows the thread and unfollows it, and 
   await expect.poll(() => writes).toEqual(["on", "off"])
   await open()
   await expect(bell("Follow thread")).toHaveAttribute("aria-pressed", "false", { timeout: 20_000 })
+  await context.close()
+})
+
+// A reply sent again from the phone's thread page is the same reply (V-1088):
+// the first send fails, the words stay, and Send again carries the same
+// client_msg_id; the thread shows the reply once.
+test("at 390 with touch: a reply sent again from the thread page after a failed send is the same reply", async ({ browser }, testInfo) => {
+  const { context, page } = await phone(browser, testInfo)
+  const server = sendOnceReplies("500", (n) => uuid(200 + n))
+  await stubbed(page, testInfo, { follow: "auto", following: false }, { "/po/createComment": server.answer })
+  await openThread(page)
+  const box = page.locator('[contenteditable="true"]').last()
+  await box.tap()
+  await page.keyboard.type("Copy is live.")
+  const send = page.getByRole("button", { name: "Send", exact: true }).last()
+  await send.tap()
+  await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(1)
+  await expect(box).toContainText("Copy is live.")
+  await send.tap()
+  await expect.poll(() => server.sent.length, { timeout: 20_000 }).toBe(2)
+  expect(server.sent[0].client_msg_id, "the first send carries an id").toMatch(/^local-/)
+  expect(server.sent[1].client_msg_id, "Send again carries the same id").toBe(server.sent[0].client_msg_id)
+  await expect(box).not.toContainText("Copy is live.", { timeout: 20_000 })
+  await expect(page.getByText("Copy is live.")).toHaveCount(1)
   await context.close()
 })

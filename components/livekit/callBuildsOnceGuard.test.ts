@@ -77,12 +77,19 @@ const KNOWN: Record<string, string[]> = {
 }
 
 const call = modules([CALL], true)
-const loadedFirst = (n: string) => new Set([...modules(surfaces[n].entries)].filter((m) => call.has(m)))
+/** What surface `n` has loaded of `of` (the call, or a lazy part of it) with its first load. */
+const loadedFirst = (n: string, of = call) => new Set([...modules(surfaces[n].entries)].filter((m) => of.has(m)))
 
-/** For each module of the call some of `names` have loaded first and some haven't (KNOWN aside): who has. */
-function split(names: string[]): string[] {
-  const loaded = Object.fromEntries(names.map((n) => [n, loadedFirst(n)]))
-  for (const n of names) for (const m of KNOWN[n] ?? []) loaded[n].delete(m)
+/** The files, from every call surface on, that make an import() of `target`. */
+function importersOf(target: string): string[] {
+  const reach = walk(callPages.flatMap((p) => routeEntries(p)).concat(Object.values(LAZY_SURFACES).flat()), { dynamic: true })
+  return [...reach.files.keys()].filter((f) => [...sourceOf(f).matchAll(dynamicImportRe)].some((m) => resolve(m[1], f) === target)).sort()
+}
+
+/** For each module of `of` (the call) some of `names` have loaded first and some haven't (the call's KNOWN aside): who has. */
+function split(names: string[], of = call): string[] {
+  const loaded = Object.fromEntries(names.map((n) => [n, loadedFirst(n, of)]))
+  if (of === call) for (const n of names) for (const m of KNOWN[n] ?? []) loaded[n].delete(m)
   const all = new Set(Object.values(loaded).flatMap((s) => [...s]))
   return [...all]
     .filter((m) => names.some((n) => !loaded[n].has(m)))
@@ -96,11 +103,7 @@ describe("the call builds once", () => {
   })
 
   it("loads the call's code through one import(): LazyCall's", () => {
-    const others = walk(callPages.flatMap((p) => routeEntries(p)).concat(Object.values(LAZY_SURFACES).flat()), { dynamic: true })
-    const importers = [...others.files.keys()].filter((f) =>
-      [...sourceOf(f).matchAll(dynamicImportRe)].some((m) => resolve(m[1], f) === CALL),
-    )
-    expect(importers).toEqual([ENTRY])
+    expect(importersOf(CALL)).toEqual([ENTRY])
   })
 
   it("every lazy way in to the call is a listed surface", () => {
@@ -124,7 +127,92 @@ describe("the call builds once", () => {
     expect(stale).toEqual([])
   })
 
+  // zoom-09 C1: the notice that asks first is a guest's alone. Its import() inside the call built a copy of it, and of
+  // the dialog it draws with, for the signed-in call and another for the guest's (main, 12 Nov 17:4x), though no member
+  // ever opens it. One import(), reached from the guest's pages alone, builds it once.
+  it("imports the notice that asks once, reached from the guest's call pages alone, so it builds once (zoom-09)", () => {
+    const ASKED = "components/livekit/AskedNotice.tsx"
+    const names = Object.keys(surfaces)
+    const guests = names.filter((n) => !surfaces[n].signedIn)
+    const reaches = (n: string) => walk(surfaces[n].entries, { dynamic: true }).files.has(ASKED)
+    expect(guests.length).toBeGreaterThan(0)
+    expect(guests.filter((n) => !reaches(n))).toEqual([])
+    expect(names.filter((n) => surfaces[n].signedIn && reaches(n))).toEqual([])
+    const all = walk(names.flatMap((n) => surfaces[n].entries), { dynamic: true })
+    const importers = [...all.files.keys()].filter((f) => [...sourceOf(f).matchAll(dynamicImportRe)].some((m) => resolve(m[1], f) === ASKED))
+    expect(importers).toEqual(["components/livekit/LazyAskedNotice.tsx"])
+  })
+
   it("every guest call surface has loaded the same part of the call", () => {
     expect(split(Object.keys(surfaces).filter((n) => !surfaces[n].signedIn))).toEqual([])
+  })
+})
+
+// The effects' lazy parts build once too (UX-CALLS-H4b, meet-09), by the same
+// rule: a lazy part is built once for each different set of its modules
+// already loaded where its import() is made. So the effects' chooser (the
+// picker, the backdrops, one's own pictures) and the made background's part
+// (the composer's frame and its own import()) are imported from every call
+// surface's first load (components/livekit/callDevices, which the green room
+// and the call already load: no page gains a first-load module, which would
+// re-cut the meet pages' shared chunk), not from the green room's button or
+// the call's panel, whose
+// chunks load different parts of them (the call's Trash2 and calls endpoints,
+// the green room's camera loader). The chooser then builds once for members
+// and once for guests (the shell loads its radio tiles first); the made part
+// once for all (`apart`: members and guests may load different parts of it).
+const EFFECTS = "components/call/effects"
+const EFFECTS_HOST = "components/livekit/callDevices.ts"
+const EFFECTS_PARTS: { part: string; apart: boolean }[] = [
+  { part: `${EFFECTS}/EffectsChooser.tsx`, apart: true },
+  { part: `${EFFECTS}/madePart.tsx`, apart: false },
+]
+
+describe("the effects' lazy parts build once", () => {
+  for (const { part, apart } of EFFECTS_PARTS) {
+    const name = path.basename(part, ".tsx")
+    it(`imports ${name} from one file, in every call surface's first load`, () => {
+      const sites = importersOf(part)
+      expect(sites, `the files that import() ${name}`).toEqual([EFFECTS_HOST])
+      const not = Object.keys(surfaces).filter((n) => !modules(surfaces[n].entries).has(sites[0]))
+      expect(not, `${sites[0]} is not in the first load of`).toEqual([])
+    })
+
+    it(`every ${apart ? "signed-in surface, and every guest one," : "call surface"} has loaded the same part of ${name}`, () => {
+      const of = modules([part], true)
+      const kinds = apart ? [true, false].map((s) => Object.keys(surfaces).filter((n) => surfaces[n].signedIn === s)) : [Object.keys(surfaces)]
+      expect(kinds.flatMap((names) => split(names, of))).toEqual([])
+    })
+  }
+
+  // The camera's processor is built once for the green room's chunk and once for the call's runner: the chooser asks
+  // it whether backgrounds can run through its surface (CallEffectsControl.unavailable), never with an import() of
+  // its own, from a third set of loaded modules.
+  it("imports the camera's processor only where the green room and the call put it on", () => {
+    expect(importersOf("lib/calls/processors/background.ts")).toEqual([`${EFFECTS}/effectsRunner.tsx`, `${EFFECTS}/useGreenRoomEffects.ts`])
+  })
+
+  // The made part paints its scene with the chooser's drawing (ComposerProps.paint), never an import of its own: its
+  // import() is made from the first load, where nothing has loaded the backdrops, so its chunk would carry a copy of
+  // them (and their list of effects) beside the chooser's.
+  it("the made part loads nothing of the chooser's own that no call surface loads first", () => {
+    const first = Object.keys(surfaces)
+      .map((n) => modules(surfaces[n].entries))
+      .reduce((a, b) => new Set([...a].filter((m) => b.has(m))))
+    const chooser = modules([`${EFFECTS}/EffectsChooser.tsx`])
+    expect([...modules([`${EFFECTS}/madePart.tsx`], true)].filter((m) => chooser.has(m) && !first.has(m))).toEqual([])
+  })
+
+  // The picker's shared controls (its radio groups, the segmented control, the person icon) come
+  // from the surface that draws the chooser (pickerControls.ts), never from the chooser's own chunk: a member's first
+  // load has them, a guest's green room and call panel carry them. In the chooser's chunk they would join one more
+  // chunk group to the modules the app's first load shares, and Turbopack would re-cut that first load into one
+  // more chunk on every page (UX-CALLS-H4b size round, 12 Nov).
+  it("the chooser loads none of the controls its surface hands it", () => {
+    const handed = [`${EFFECTS}/pickerControls.ts`, "package @radix-ui/react-radio-group", "components/ui/segmentedControl.tsx", "icon User"]
+    const chooser = modules([`${EFFECTS}/EffectsChooser.tsx`])
+    expect(handed.filter((m) => chooser.has(m))).toEqual([])
+    const surfaces = [`${EFFECTS}/GreenRoomEffects.tsx`, `${EFFECTS}/CallEffectsPanel.tsx`]
+    expect(surfaces.filter((f) => !modules([f]).has(`${EFFECTS}/pickerControls.ts`)), "draws the chooser without handing it its controls").toEqual([])
   })
 })

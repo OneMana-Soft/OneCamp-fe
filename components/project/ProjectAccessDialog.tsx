@@ -6,20 +6,15 @@
 // The project's admins choose, and the server records each change. A choice
 // shows at once and springs back, with the server's reason, when refused.
 
-import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { SavedTick, useSaveStatus } from "@/components/ui/saveStatus"
-import { useFetch } from "@/hooks/useFetch"
-import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { appMutate } from "@/lib/swrMutate"
+import { SavedTick } from "@/components/ui/saveStatus"
+import { useProjectPolicy, type ProjectCalls } from "@/hooks/useProjectPolicy"
 import type { EditWho } from "@/lib/work/types"
 import {
   EDIT_WHO,
   EDIT_WHO_CHOICES,
   editWhoLabel,
-  projectPoliciesKey,
-  setProjectEditWho,
   type PolicyInfo,
 } from "@/services/workAccessService"
 
@@ -32,26 +27,14 @@ export function chosenOf(info?: PolicyInfo): string {
   return info.is_set ? String(info.value) : WORKSPACE
 }
 
-export function ProjectAccessDialog({ projectId, open, onOpenChange }: { projectId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
-  const key = projectPoliciesKey(projectId)
-  const policies = useFetch<{ data: PolicyInfo[] }>(open ? key : "", undefined, undefined, OWN_ERRORS)
-  const info = policies.data?.data?.find((p) => p.key === EDIT_WHO)
-  const [picked, setPicked] = useState<string | null>(null)
-  const { status, run } = useSaveStatus()
-  const shown = picked ?? chosenOf(info)
+export function ProjectAccessDialog({ projectId, calls, open, onOpenChange }: { projectId: string; calls: ProjectCalls; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const policy = useProjectPolicy(projectId, EDIT_WHO, open, calls)
+  const { info, status } = policy
+  // While a choice saves it shows; null is the workspace's.
+  const shown = policy.picked === undefined ? chosenOf(info) : policy.picked === null ? WORKSPACE : String(policy.picked)
 
-  const choose = async (next: string): Promise<boolean> => {
-    setPicked(next)
-    const held = await run(async () => {
-      const saved = await setProjectEditWho(projectId, next === WORKSPACE ? null : (next as EditWho))
-      await appMutate(key, { data: (policies.data?.data ?? []).map((p) => (p.key === EDIT_WHO ? saved : p)) }, { revalidate: false })
-    }, { what: `Who can change tasks: ${next === WORKSPACE ? "As the workspace has it" : editWhoLabel(next)}`, undo: () => choose(shown) })
-    setPicked(null)
-    // What each person may do in the project follows the choice: every read
-    // of it that carries project_access is asked again.
-    if (held) void appMutate((k) => typeof k === "string" && k.includes(projectId) && k !== key)
-    return held
-  }
+  const choose = (next: string): Promise<boolean> =>
+    policy.choose(next === WORKSPACE ? null : (next as EditWho), `Who can change tasks: ${next === WORKSPACE ? "As the workspace has it" : editWhoLabel(next)}`, () => choose(shown))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,10 +48,10 @@ export function ProjectAccessDialog({ projectId, open, onOpenChange }: { project
             Admins always can. Viewers and commenters never do. Choose for the members of this project.
           </DialogDescription>
         </DialogHeader>
-        {policies.isError && !info ? (
+        {policy.isError && !info ? (
           <p role="alert" className="text-ui-sm text-danger-ink">
             This project&apos;s settings couldn&apos;t be read.{" "}
-            <button type="button" className="underline underline-offset-2" onClick={() => void policies.mutate()}>
+            <button type="button" className="underline underline-offset-2" onClick={policy.retry}>
               Try again
             </button>
           </p>

@@ -34,12 +34,25 @@ import { ix } from "@/lib/ui/interactive"
 import { useToast } from "@/hooks/use-toast"
 import type { ResolvedAnchor } from "@/lib/anchors/types"
 import type { ThreadView } from "@/components/threads/types"
+import type { UserProfileDataInterface } from "@/types/user"
 import { CommentComposer } from "./CommentComposer"
 import { UnreadDot } from "./UnreadDot"
 import { foldComments, lostLabel, onPage, quoteLine, quotesWords, threadLabel } from "./threadView"
 import type { ThreadActions } from "./useDocThreads"
 import { setUi, uiOf, useUi } from "./commentsUi"
 import { reattachAnchor, showInDoc } from "./inDoc"
+
+/**
+ * A comment's author as the shared message row draws it. The row is shared
+ * with chat and names its author by user_name, which for an older bot is its
+ * login handle, so a bot's row takes the full name the server sends with
+ * is_bot (the rule lib/utils/userDisplayName keeps for other surfaces). It is
+ * written here, not imported: one more importer of that shared util re-cuts
+ * the /app layout's chunks (V-1023, V-1049). A person comes as they are.
+ */
+function commentAuthor<T extends UserProfileDataInterface>(by: T): T {
+    return by?.is_bot && by.user_full_name ? { ...by, user_name: by.user_full_name } : by
+}
 
 export interface ThreadCardProps {
     docId: string
@@ -230,7 +243,7 @@ export const ThreadCard = React.memo(function ThreadCard({ docId, thread, action
         page ? (
             <MobileMessage
                 key={c.comment_uuid}
-                userInfo={c.comment_by}
+                userInfo={commentAuthor(c.comment_by)}
                 createdAt={c.comment_created_at}
                 content={c.comment_text}
                 rawReactions={c.comment_reactions}
@@ -247,7 +260,7 @@ export const ThreadCard = React.memo(function ThreadCard({ docId, thread, action
         ) : (
             <MessageContent
                 key={c.comment_uuid}
-                userInfo={c.comment_by}
+                userInfo={commentAuthor(c.comment_by)}
                 createdAt={c.comment_created_at}
                 content={c.comment_text}
                 rawReactions={c.comment_reactions}

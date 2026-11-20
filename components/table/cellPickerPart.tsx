@@ -2,21 +2,9 @@
 
 import * as React from "react"
 import { Loader2 } from "@/lib/icons"
-import { lazyView } from "@/lib/lazy/lazyView"
+import { cellPickers } from "./cellLoaders"
 
-/**
- * The grid's cell pickers (cellPickers.tsx): one chunk, loaded the first time
- * a select's, a date's or a link's picker opens, and warmed once the table is
- * drawn (warmCellPickers), so a picker opens at once.
- */
-export const cellPickers = lazyView(() => import("@/components/table/cellPickers"))
-
-/**
- * Tables B1's cells that draw more than text (people's faces, a long text's
- * box, a rating's stars, a row's own facts): a chunk of its own, asked for by
- * the first one drawn; each shows its text until it lands.
- */
-export const kindCells = lazyView(() => import("@/components/table/kindCells"))
+export { cellPickers, kindCells } from "./cellLoaders"
 
 type Pickers = typeof import("@/components/table/cellPickers")
 

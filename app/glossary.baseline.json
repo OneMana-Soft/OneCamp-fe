@@ -1,0 +1,166 @@
+{
+  "keys": [
+    "Backlink",
+    "Backlinks",
+    "Boards",
+    "Check-in",
+    "Check-ins",
+    "Connected",
+    "Copy doc link",
+    "Edit doc title",
+    "Ready to join?",
+    "Recordings",
+    "Remove from starred",
+    "Reply with quote",
+    "backlink",
+    "backlinks",
+    "reaches your inbox"
+  ],
+  "files": {
+    "app/app/board/page.tsx": {
+      "Boards": 1
+    },
+    "app/app/templates/page.tsx": {
+      "Boards": 1
+    },
+    "components/MessageDesktopHover/MessageDesktopDropdown.tsx": {
+      "Reply with quote": 1
+    },
+    "components/admin/ExportCard.tsx": {
+      "Boards": 1
+    },
+    "components/admin/ImportCard.tsx": {
+      "Boards": 2
+    },
+    "components/admin/ImportPlanDialog.tsx": {
+      "Boards": 1
+    },
+    "components/admin/archiveEntities.ts": {
+      "Recordings": 1
+    },
+    "components/board/boardPicker.tsx": {
+      "Boards": 1
+    },
+    "components/board/exportRecord.ts": {
+      "Boards": 1
+    },
+    "components/calendar/eventRecordings.tsx": {
+      "Recordings": 1
+    },
+    "components/channel/chanelIdDesktop.tsx": {
+      "Check-ins": 1,
+      "Connected": 1,
+      "Recordings": 1
+    },
+    "components/chat/chatIdDesktop.tsx": {
+      "Recordings": 1
+    },
+    "components/checkins/ChannelCheckIns.tsx": {
+      "Check-in": 3,
+      "Check-ins": 1
+    },
+    "components/dialog/channelCheckInsDialog.tsx": {
+      "Check-ins": 1
+    },
+    "components/dialog/docShareDialog.tsx": {
+      "Copy doc link": 1
+    },
+    "components/docEditor/DocHeader.tsx": {
+      "Connected": 1
+    },
+    "components/docEditor/actions/doc.ts": {
+      "Edit doc title": 1
+    },
+    "components/docEditor/chrome/LinkedFromList.tsx": {
+      "backlink": 1,
+      "backlinks": 2
+    },
+    "components/docTree/DocRowMenu.tsx": {
+      "Remove from starred": 1
+    },
+    "components/drawers/channelOptionsDrawer.tsx": {
+      "Check-ins": 1
+    },
+    "components/drawers/userProfileDrawer.tsx": {
+      "Boards": 1
+    },
+    "components/groupChat/chatGrpIdDesktop.tsx": {
+      "Recordings": 1
+    },
+    "components/livekit/CallStage.tsx": {
+      "Recordings": 1
+    },
+    "components/livekit/PreJoin.tsx": {
+      "Ready to join?": 1
+    },
+    "components/navigationBar/mobile/mobileTopNavigationBarSecond.tsx": {
+      "Boards": 1,
+      "Recordings": 4
+    },
+    "components/notifications/NotificationPreferencesCard.tsx": {
+      "reaches your inbox": 3
+    },
+    "components/project/projectBoardsLink.tsx": {
+      "Boards": 1
+    },
+    "components/projectUpdates/UpdateComposer.tsx": {
+      "Check-in": 1
+    },
+    "components/recording/RecordingsView.tsx": {
+      "Recordings": 1
+    },
+    "components/recording/recordingState.ts": {
+      "Recordings": 1
+    },
+    "components/table/LinkSettings.tsx": {
+      "Boards": 1
+    },
+    "components/ui/CommandPalette.tsx": {
+      "Boards": 1,
+      "Recordings": 1
+    },
+    "components/workGraph/ConnectedOverlay.tsx": {
+      "Connected": 1
+    },
+    "components/workGraph/ConnectedTrigger.tsx": {
+      "Connected": 1
+    },
+    "lib/board/boardListFilter.ts": {
+      "Boards": 2
+    },
+    "lib/board/templateLibrary.ts": {
+      "Check-in": 1
+    },
+    "lib/botCopy.ts": {
+      "Check-in": 1,
+      "Check-ins": 1
+    },
+    "lib/calendar/repeats.ts": {
+      "Check-in": 1
+    },
+    "lib/goKeys.ts": {
+      "Boards": 1
+    },
+    "lib/nav/focusMode.ts": {
+      "Boards": 1,
+      "Recordings": 1
+    },
+    "lib/nav/primaryNavLinks.ts": {
+      "Boards": 1,
+      "Recordings": 1
+    },
+    "lib/search/scopes.ts": {
+      "Boards": 1
+    },
+    "lib/utils/pageTitle.ts": {
+      "Boards": 1,
+      "Recordings": 1
+    },
+    "lib/workGraph/workGraph.ts": {
+      "Connected": 1
+    },
+    "lib/workspaceExport/workspaceExport.ts": {
+      "Boards": 1
+    }
+  }
+}

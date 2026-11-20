@@ -18,6 +18,7 @@ const MISSES_BEFORE_UNREACHABLE = 2
 
 let misses = 0
 let unreachable = false
+let reconnecting = false
 const listeners = new Set<Listener>()
 
 function emit() {
@@ -36,14 +37,36 @@ export function noteNetworkFailure(): void {
 /** A request got an answer, whatever its status. */
 export function noteNetworkOk(): void {
   misses = 0
-  if (unreachable) {
-    unreachable = false
+  if (unreachable || reconnecting) {
+    unreachable = reconnecting = false
     emit()
   }
 }
 
 export function isServerUnreachable(): boolean {
   return unreachable
+}
+
+/** The network came back and the first ask is out: "Reconnecting…", not yet "Can't reach the server" (V-696). */
+export const isReconnecting = (): boolean => reconnecting
+
+/** Asks the server, cheaply, whether it answers. */
+export function probeServer(onAnswer: () => void, onMiss = () => {}): void {
+  const base = process.env.NEXT_PUBLIC_BACKEND_URL
+  if (!base) return onMiss()
+  fetch(new URL("auth/providers", base), { cache: "no-store", credentials: "omit" }).then(() => onAnswer(), onMiss)
+}
+
+// The network is back: ask the server now, not when something next asks.
+function networkBack() {
+  if (unreachable && !reconnecting) {
+    reconnecting = true
+    probeServer(noteNetworkOk, () => {
+      reconnecting = false
+      emit()
+    })
+  }
+  emit()
 }
 
 /**
@@ -61,7 +84,7 @@ let watching = false
 export function subscribeConnectivity(listener: Listener): () => void {
   if (!watching) {
     watching = true
-    window.addEventListener("online", emit)
+    window.addEventListener("online", networkBack)
     window.addEventListener("offline", emit)
   }
   listeners.add(listener)

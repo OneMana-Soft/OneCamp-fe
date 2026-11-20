@@ -68,6 +68,20 @@ html[data-task-sheet] {
 html[data-task-sheet] [data-task-body="panel"] {
   padding-bottom: calc(3 * 16px + 12px + 2 * 8px);
 }
+/* From sm up toasts sit bottom right, 24px off the foot, and up to ~885px
+   wide a full-screen overlay's own foot controls reach under them (the
+   lightbox's zoom controls, centred 24px off the foot; a video's controls
+   along it): a toast raised over the lightbox covered their right end and,
+   over the dialog (--z-toast), took their taps. While an overlay holds its foot
+   (html[data-overlay-foot], --overlay-foot: components/attachments/overlayFoot,
+   holdOverlayFoot) toasts stand 12px above it. Keyed on the page's attribute,
+   never a :has() (app/selectorKeyGuard); unlayered, so it outranks the
+   toast's sm:bottom utility. A phone's toasts keep C9. */
+@media (min-width: 640px) {
+  html[data-overlay-foot] .toast-viewport {
+    bottom: max(calc(1.5rem + var(--corner-right-h, 0px)), var(--call-dock-floor, 0px), calc(var(--overlay-foot) + 12px));
+  }
+}
 .dark {
   --e-bar: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 -8px 24px -12px rgb(0 0 0 / 0.7);
 }
@@ -75,8 +89,11 @@ html[data-task-sheet] [data-task-body="panel"] {
 /* F2. THE PRESS RESPONSE. Three, by what is pressed, on touch screens only
    (a mouse has hover). A row fills at once and fades out over 180ms: a row
    of the interaction layer in its tint at the press alpha (app/interaction.css),
-   any other in --press. A control dips to .96 (an icon button .92) in 90ms and
-   springs back in 220ms; a card dips to .985. Nothing pressed while disabled.
+   any other in --press. A control dips to .96 in 90ms and springs back in
+   220ms; a card dips to .985. An icon dips its glyph to .92, never its box:
+   the box carries its 44px reach (F3), which the dip narrowed while pressed
+   (V-1047). So an icon's box and a chip's stand still under a finger, and a
+   chip's press is its tint. Nothing pressed while disabled.
    Unlayered, so it outranks a component's own transition utilities: each rule
    lists every property those utilities transitioned, plus scale. */
 @media (pointer: coarse) {
@@ -108,7 +125,6 @@ html[data-task-sheet] [data-task-body="panel"] {
     transition-timing-function: var(--ease-out);
   }
   [data-press="icon"]:active:not(:disabled, [aria-disabled="true"]) {
-    scale: 0.92;
     transition-duration: 140ms, 140ms, 140ms, 140ms, 0ms, 90ms;
     transition-timing-function: var(--ease-out);
   }
@@ -123,6 +139,22 @@ html[data-task-sheet] [data-task-body="panel"] {
 @media (pointer: coarse) {
   [data-press="icon"]:active:not(:disabled, [aria-disabled="true"]) {
     background-color: var(--press);
+  }
+  :is([data-press="icon"], [data-interactive="icon"], [data-interactive="chip"]):active {
+    scale: none;
+  }
+}
+/* Layered, under the utilities, so a glyph that turns keeps its own transition. */
+@layer components {
+  @media (pointer: coarse) and (prefers-reduced-motion: no-preference) {
+    :is([data-press="icon"], [data-interactive="icon"]) > * {
+      transition: scale 220ms var(--ease-spring);
+    }
+    :is([data-press="icon"], [data-interactive="icon"]):active:not(:disabled, [aria-disabled="true"]) > * {
+      scale: 0.92;
+      transition-duration: 90ms;
+      transition-timing-function: var(--ease-out);
+    }
   }
 }
 
@@ -169,9 +201,14 @@ html[data-task-sheet] [data-task-body="panel"] {
    heading keeps the same space above it (the board's Tags list).
    One rule, not a gap per screen; app/touchGroups.test.ts finds a
    row of small controls without it, and e2e/touchTargets.spec.ts taps one.
+   A page header's actions row (data-page-actions: PageHeader, SettingsPage
+   and every page that draws its own header) is one too, so a header needs
+   no gap of its own: the tables page's Export all tables sat 12px from
+   Trash and a tap at its edge opened Trash (V-1025; e2e/headerTapReach).
+   A mouse keeps the row's own gap.
    Unlayered, so it wins over the row's own gap utility. */
 @media (pointer: coarse) {
-  [data-touch-group] {
+  :is([data-touch-group], [data-page-actions]) {
     --touch-gap: calc(var(--m-hit) - 28px);
     gap: var(--touch-gap);
   }
@@ -183,6 +220,48 @@ html[data-task-sheet] [data-task-body="panel"] {
   }
   [data-touch-group="20"] {
     --touch-gap: calc(var(--m-hit) - 20px);
+  }
+}
+
+/* F3d. SQUARE BUTTONS SET 4PX APART, AND THE FIELDS BESIDE THEM (V-1106).
+   Find's buttons (FindIconButton: Match case, Whole word, Previous, Next,
+   Replace) and a board bar's segment icons (Facilitation options, a timer's
+   Pause) are 28px, 36 on a phone, and stand 4px apart, where F3's reach would
+   take a neighbour's tap; so under a finger each is drawn 44px, and so is
+   Find's field beside them, which a reach can't extend. A mouse keeps them as
+   they are. Keyed on the primitives' own marks; unlayered, so it wins over
+   their sizes. */
+@media (pointer: coarse) {
+  :is([data-find-icon], [data-segment-icon]) {
+    width: var(--m-hit);
+    height: var(--m-hit);
+  }
+  [data-find-field] {
+    height: var(--m-hit);
+  }
+}
+
+/* F3c. A FLOATING BAR UNDER A FINGER (components/ui/FloatingBar, design-22):
+   each 28px button takes a 44px finger and looks the same, a clear 8px
+   border around the 28px it draws (its radius grows by 8px so the fill keeps
+   its own), and the bar drops its padding to hold them. The bar's height is
+   its token, --float-bar, so the bar and every room made for one (table.css)
+   grow together. Keyed on the primitive's own attributes, so every bar gets
+   it and its source stays as it is; unlayered, so it wins over the button's
+   and the bar's sizes. */
+@media (pointer: coarse) {
+  :root {
+    --float-bar: var(--m-hit);
+  }
+  [data-floating-bar] {
+    padding: 0;
+  }
+  [data-bar-item] {
+    min-width: var(--m-hit);
+    height: var(--m-hit);
+    border: 8px solid transparent;
+    border-radius: 16px;
+    background-clip: padding-box;
   }
 }
 
@@ -576,8 +655,8 @@ html[data-task-sheet] [data-task-body="panel"] {
     min-height: 48px;
     border-radius: 0;
   }
-  .sheet-group > * + [data-press="row"]::before,
-  .sheet-group > * + * > [data-press="row"]::before {
+  .sheet-group > [data-press="row"]:where(:not(:first-child))::before,
+  .sheet-group > :where(:not(:first-child)) > [data-press="row"]::before {
     content: "";
     position: absolute;
     top: 0;
@@ -860,9 +939,11 @@ html[data-keyboard="open"] .v3-dialog[role="dialog"][data-v3-sheet] {
      a dialog or confirm drawn as one, the task's sheet; never an html:has(),
      app/globals.css AppShellMark; a toast covered Add section, 22 Oct; a
      menu, popover or select is a sheet here too,
-     html[data-float], components/ui/floatMark: a call's notice covered More's
-     Raise your hand, 26 Oct), so they come in under the top bar instead. So they
-     do while the field in use meets the foot slot (data-slot="top",
+     html[data-float="open"], components/ui/floatMark: a call's notice covered
+     More's Raise your hand, 26 Oct; not once it has begun to leave, so a toast
+     said as a held menu closes comes in at the foot it keeps, V-940), so they
+     come in under the top bar instead. So they do while the field in use
+     meets the foot slot (data-slot="top",
      components/ui/toast's ToastViewport), keyboard reported or not. With a
      call on screen they come in 12px under its top row (--call-top, which
      the call keeps): on its own page it sits under the bar and any banner,
@@ -910,13 +991,13 @@ html[data-keyboard="open"] .v3-dialog[role="dialog"][data-v3-sheet] {
       line-height: var(--text-sm--line-height);
       font-weight: 590;
     }
-    html:is([data-keyboard="open"], [data-sheet="open"], [data-float]) .toast-viewport,
+    html:is([data-keyboard="open"], [data-sheet="open"], [data-float="open"]) .toast-viewport,
     .toast-viewport[data-slot="top"] {
       --toast-dir: 1;
       bottom: auto !important;
       top: max(calc(var(--app-vv-top, 0px) + env(safe-area-inset-top) + var(--m-bar) + var(--docked-row-h, 0px) + 12px), calc(var(--call-top, 0px) + 12px));
     }
-    html:is([data-keyboard="open"], [data-sheet="open"], [data-float]) .toast-root,
+    html:is([data-keyboard="open"], [data-sheet="open"], [data-float="open"]) .toast-root,
     .toast-viewport[data-slot="top"] .toast-root {
       top: 0;
       bottom: auto;

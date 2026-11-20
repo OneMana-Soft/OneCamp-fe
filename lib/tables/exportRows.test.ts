@@ -9,6 +9,7 @@ const downloadFrom = vi.fn()
 vi.mock("@/lib/utils/download", () => ({ downloadBlob: (...a: unknown[]) => downloadBlob(...a), downloadFrom: (...a: unknown[]) => downloadFrom(...a) }))
 
 import { exportRows, MAX_EXPORT_IDS, type ExportInput } from "./exportRows"
+import { exportAllTables } from "./exportAll"
 import { MAX_PRINT_ROWS } from "./printView"
 import { rulesToSpec } from "./query"
 
@@ -153,6 +154,36 @@ describe("a view's Excel workbook", () => {
     downloadFrom.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 422"), { response: { status: 422, data: file } }))
     await exportRows(input({ toast: t.toast, fields: [...fields, total], rules: byTotal }))
     expect(t.said.at(-1)).toMatchObject({ tone: "error", title: "Couldn't export the table", description: why })
+  })
+})
+
+// Every table the reader can open as one workbook (gsheets-import-02, items 1
+// and 3): the server's, POST /tables/export, a sheet a table; its refusals in
+// its words, read back from the file they came as, as one table's are.
+describe("an export of every table", () => {
+  it("is the server's one workbook, asked for in the reader's zone, with one toast that ends saying so", async () => {
+    const t = toasts()
+    downloadFrom.mockResolvedValueOnce(undefined)
+    await exportAllTables(t.toast)
+    expect(downloadFrom).toHaveBeenLastCalledWith(expect.stringMatching(/^\/tables\/export(\?|$)/), "Tables.xlsx", {})
+    expect(t.opened()).toBe(1)
+    expect(t.said[0]).toMatchObject({ tone: "loading", title: "Exporting every table" })
+    expect(t.said.at(-1)).toMatchObject({ tone: "success", title: "Exported to Excel" })
+  })
+
+  it("says the server's own words when it refuses, from the file the refusal came as, and to try again when it failed", async () => {
+    const t = toasts()
+    const why = "You can open more than 100 tables, more than one workbook holds. Export the tables one at a time."
+    const file = { type: "application/json", text: async () => JSON.stringify({ msg: why }) }
+    downloadFrom.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 422"), { response: { status: 422, data: file } }))
+    await exportAllTables(t.toast)
+    expect(t.said.at(-1)).toMatchObject({ tone: "error", title: "Couldn't export the tables", description: why })
+    downloadFrom.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 503"), { response: { status: 503 } }))
+    await exportAllTables(t.toast)
+    expect(t.said.at(-1)).toMatchObject({ tone: "error", title: "Couldn't export the tables", description: "Not every table could be read. Try again." })
+    downloadFrom.mockRejectedValueOnce(new Error("Network Error"))
+    await exportAllTables(t.toast)
+    expect(t.said.at(-1)).toMatchObject({ tone: "error", description: "Not every table could be read. Try again." })
   })
 })
 

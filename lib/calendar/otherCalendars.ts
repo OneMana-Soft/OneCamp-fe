@@ -10,7 +10,7 @@
  * device's memory.
  */
 
-import { useMemo } from "react"
+import { useMemo, useSyncExternalStore } from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { useCalendarList, type CalendarView } from "@/lib/calendar/calendarList"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -19,6 +19,7 @@ import { isCampHue, type CampHue } from "@/lib/campHue"
 import { listOf } from "@/lib/utils/listOf"
 import type { CalendarEventInterface, EventRoom } from "@/types/calendar"
 import { OWN_HUE, otherHue } from "@/components/calendar/calendarTones"
+import { derivedSource } from "@/lib/calendar/derived"
 
 export type { CalendarView }
 
@@ -37,6 +38,9 @@ interface OtherEvent {
   visibility?: string
   /** Its call room (gcal-15), to a reader who may join it; none on a Busy block. */
   room?: EventRoom | null
+  /** An entry its calendar fills itself with (gcal-14): never changed here, and where it comes from. */
+  read_only?: boolean
+  source?: { kind: string; id: string } | null
 }
 
 // The choices kept on this device: one store, which the calendar, its panel
@@ -90,6 +94,8 @@ export function asGridEvent(e: OtherEvent, cal: CalendarView | undefined, hues: 
     event_is_away: e.kind === "out_of_office",
     event_visibility: e.visibility,
     event_room: e.room ?? null,
+    ...(e.read_only ? { event_read_only: true } : {}),
+    ...(e.source ? { event_source: derivedSource(e.source, cal) ?? undefined } : {}),
   }
 }
 
@@ -174,6 +180,33 @@ export function useCalendarRows() {
     addPerson: (o: Overlay) => choose((k) => (k.people.some((p) => p.id === o.id) ? {} : { people: [...k.people, o].slice(-20) })),
     removePerson: (calendarId: string) => choose((k) => ({ people: k.people.filter((p) => p.id !== calendarId) })),
   }
+}
+
+/**
+ * The shown week's count of each calendar's entries, as the calendar counts
+ * them, and whether the read of the calendars beside the person's failed,
+ * handed on by that read (otherCalendarsLayer) for each calendar's row in the
+ * panel and in the phone's options (gcal-14). None while the calendar isn't open.
+ */
+export interface ShownCount {
+  countOf: (calendarId: string) => number
+  failed: boolean
+}
+let shownCount: ShownCount | undefined
+const countWatchers = new Set<() => void>()
+
+export function tellShownCount(next?: ShownCount) {
+  shownCount = next
+  countWatchers.forEach((w) => w())
+}
+
+function watchCount(w: () => void) {
+  countWatchers.add(w)
+  return () => void countWatchers.delete(w)
+}
+
+export function useShownCount() {
+  return useSyncExternalStore(watchCount, () => shownCount, () => undefined)
 }
 
 /**

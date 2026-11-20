@@ -9,6 +9,8 @@
 export enum InboxPost {
     // The Inbox marks the feed seen by asking; reading the feed marks nothing.
     MarkActivitySeen = "/activity/seen",
+    // Takes the session's own Inbox items out of Priority, or puts them back (A4 H5).
+    DismissFromPriority = "/activity/dismiss",
     // Email notification preferences (per-user).
     UpdateNotificationPreferences = "/user/notificationPreferences",
     AICatchUp = "/ai/catch-up",

@@ -166,9 +166,16 @@ const NOT_A_READ = new Map<string, string>([
   ["components/ui/part-retry.tsx", "a part's code that couldn't come, not a read"],
 ])
 
-// Files whose reads go through a service (or a hook) that makes them with OWN_ERRORS.
+// A read made quiet: OWN_ERRORS, its suppressErrorToast, or a makeRequest request's own `quiet: true` (hooks/usePost.ts
+// turns quiet into suppressErrorToast, so the global toast stands down and the file's words are the one saying).
+const QUIET_READ = /OWN_ERRORS|suppressErrorToast|\bquiet:\s*true\b/
+
+// Files whose reads go through a service (or a hook) that makes them quietly (QUIET_READ).
 const QUIET_SERVICE = new Map<string, string>([
   ["components/inbox/InboxPage.tsx", "services/inboxService.ts"],
+  // An event's call recap (gcal-new-event-notes): the event panel reads the projects for Make task by
+  // lib/calendar/eventRecap's projectsRequest (quiet) and hands the read in, so the lazy recap chunk imports nothing.
+  ["components/calendar/callRecap.tsx", "lib/calendar/eventRecap.ts"],
   // A slide's poll card (miro-28): the board's polls are read by useSlidePolls, with OWN_ERRORS.
   ["components/board/slidePoll.tsx", "components/board/useSlidePolls.ts"],
 ])
@@ -186,6 +193,14 @@ describe("every error state says it is there", () => {
     }
   })
 
+  it("takes a service's read as quiet by OWN_ERRORS, suppressErrorToast or a request's quiet: true, and no other", () => {
+    expect(QUIET_READ.test(`export const projectsRequest = { method: "GET", apiEndpoint: "/user/userProjectList", quiet: true } as const`)).toBe(true)
+    expect(QUIET_READ.test(`await api.get("/inbox", OWN_ERRORS)`)).toBe(true)
+    expect(QUIET_READ.test(`export const projectsRequest = { method: "GET", apiEndpoint: "/user/userProjectList" } as const`)).toBe(false)
+    expect(QUIET_READ.test(`const r = { method: "GET", apiEndpoint: "/x", quiet: false }`)).toBe(false)
+    expect(QUIET_READ.test(`const unquiet = true`)).toBe(false)
+  })
+
   it("draws a failed load through a shared error state, or says it there with useSaysLoadFailure or OWN_ERRORS", () => {
     const offenders: string[] = []
     for (const f of sources.filter((f) => f.endsWith(".tsx"))) {
@@ -195,7 +210,7 @@ describe("every error state says it is there", () => {
       const own = src.replace(/<(ErrorState|SettingsCardError|HubError|ConversationLoadError)\b[\s\S]*?\/>/g, "").replace(/<LoadFailedRow\b[\s\S]*?<\/LoadFailedRow>/g, "")
       if (!SAYS_A_LOAD_FAILED.test(own)) continue
       if (/useSaysLoadFailure\(|<SaysLoadFailure\b|OWN_ERRORS|suppressErrorToast/.test(src)) continue
-      if (QUIET_SERVICE.has(f) && /OWN_ERRORS|suppressErrorToast/.test(read(QUIET_SERVICE.get(f)!))) continue
+      if (QUIET_SERVICE.has(f) && QUIET_READ.test(read(QUIET_SERVICE.get(f)!))) continue
       offenders.push(`${f}: says a load failed in its own words; draw ErrorState, or put <SaysLoadFailure /> beside the words, or make the read with OWN_ERRORS`)
     }
     expect(offenders).toEqual([])
@@ -207,7 +222,7 @@ describe("every error state says it is there", () => {
       const src = read(f)
       for (const m of src.matchAll(/toast\(\{[^}]*?title:\s*(["'`])((?:(?!\1).)*)\1/g)) {
         if (!SAYS_A_LOAD_FAILED.test(m[2])) continue
-        const quiet = /OWN_ERRORS|suppressErrorToast/.test(QUIET_SERVICE.has(f) ? read(QUIET_SERVICE.get(f)!) : src)
+        const quiet = QUIET_SERVICE.has(f) ? QUIET_READ.test(read(QUIET_SERVICE.get(f)!)) : /OWN_ERRORS|suppressErrorToast/.test(src)
         if (!quiet) offenders.push(`${f}: toasts "${m[2]}" for a read that raises its own; make that read with OWN_ERRORS`)
       }
     }

@@ -25,3 +25,28 @@ describe("a list grouped by type (linear-03)", () => {
     expect(GROUPINGS.find((g) => g.value === ("type" as never))?.label).toBe("Type")
   })
 })
+
+describe("a list grouped by SLA (linear-24 W1)", () => {
+  const sla = (id: string, state?: string, status = "todo") =>
+    ({ task_uuid: id, task_name: id, task_status: status, ...(state ? { task_sla: { state } } : {}) }) as unknown as TaskInfoInterface
+  it("reads breached, at risk, on track, met, then tasks with no SLA; empty groups step aside and breached is in danger ink", () => {
+    const groups = groupTasks([sla("a", "on_track"), sla("b"), sla("c", "breached"), sla("d", "met", "done"), sla("e", "at_risk"), sla("f", "breached", "canceled")], "sla")
+    expect(groups.map((g) => [g.label, g.tasks.map((t) => t.task_uuid)])).toEqual([
+      ["Breached", ["c"]],
+      ["At risk", ["e"]],
+      ["On track", ["a"]],
+      ["Met", ["d"]],
+      ["No SLA", ["b"]],
+    ])
+    expect(groups[0].danger).toBe(true)
+    expect(groups.find((g) => g.label === "Met")?.closed).toBe(true)
+  })
+  it("reads by status when no row carries an SLA: a guest's rows, or a project with SLAs off (V-1011)", () => {
+    const rows = [sla("b"), sla("g", undefined, "done")]
+    expect(groupTasks(rows, "sla")).toEqual(groupTasks(rows, "status"))
+    expect(groupTasks(rows, "sla").some((g) => g.label === "No SLA")).toBe(false)
+  })
+  it("is offered as a grouping", () => {
+    expect(GROUPINGS.some((g) => g.value === "sla" && g.label === "SLA")).toBe(true)
+  })
+})

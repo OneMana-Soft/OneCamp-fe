@@ -10,12 +10,12 @@ import * as React from "react"
 import { addDays, format, startOfDay } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { TimeField } from "@/components/ui/date-field"
+import { DateField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Clock, Globe } from "@/lib/icons"
+import { Clock, Globe, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PaperCard } from "@/components/guest/PublicFrame"
 import { WorkspaceMark } from "@/components/guest/publicHeader"
@@ -23,21 +23,40 @@ import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
 import { CalendarPost } from "@/services/endpoints/calendar"
 import { bookingPageUrl } from "@/services/bookingService"
-import { defaultHours, slugify, type WorkingHours } from "@/lib/calendar/availability"
-import { asBookingHours, type Week } from "@/lib/calendar/workingHours"
+import { dayKey, defaultHours, slugify, type WorkingHours } from "@/lib/calendar/availability"
+import { asBookingHours, weekProblem, type Dates, type Week } from "@/lib/calendar/workingHours"
+import { MAX_DATES, datesGoneBy, datesProblem, goneBySentence, pageWeek, withPageWeek } from "@/lib/calendar/pageHours"
+import { DayHours, WeekHoursEditor } from "@/components/calendar/workingHours/weekHoursEditor"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { usePreferences } from "@/lib/preferences/usePreference"
 import { zoneLabels, zoneRows } from "@/lib/utils/zones"
 import { FitLabel } from "@/components/common/FitLabel"
 import { clockTime } from "@/lib/utils/date/clock"
 import type { BookingPage } from "@/components/calendar/bookingSettings"
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 /** The week as it reads here: Monday first. */
 const WEEK = [1, 2, 3, 4, 5, 6, 0]
 const DURATIONS = [15, 20, 30, 45, 60, 90]
+/** A date opened without its weekday's ranges: nine to five. */
+const defaultSpans = [{ start: "09:00", end: "17:00" }]
 const BUFFERS = [0, 5, 10, 15, 30]
 const NOTICE: [number, string][] = [[0, "None"], [60, "1 hour"], [240, "4 hours"], [1440, "1 day"], [2880, "2 days"]]
 const AHEAD = [7, 14, 30, 60, 90]
+
+/** "Thu 24 Dec", with its year when it isn't this one's. */
+const dateName = (d: string) => format(new Date(`${d}T12:00:00`), d.slice(0, 4) === String(new Date().getFullYear()) ? "EEE d MMM" : "EEE d MMM yyyy")
+
+/** Your working hours as a page's (its own week, ranges and all), or null without them. */
+function fromMine(week: Week | null | undefined, tz: string | null | undefined): WorkingHours | null {
+  const hours = asBookingHours(week, tz)
+  return hours && week ? { ...hours, week } : null
+}
+
+/** A page as opened, its dates gone by (in its zone) taken off, and the sentence that says so. */
+function opened(page: BookingPage): { page: BookingPage; tookOff: string | null } {
+  const { dates, gone } = datesGoneBy(page.hours.dates, page.hours.tz)
+  return { page: gone.length ? { ...page, hours: { ...page.hours, dates } } : page, tookOff: goneBySentence(gone) }
+}
 
 /** A new page: your working hours where kept, else nine to five. */
 const blank = (mine?: BookingPage["hours"] | null): BookingPage => ({
@@ -55,7 +74,11 @@ const blank = (mine?: BookingPage["hours"] | null): BookingPage => ({
 /** A page's editor: the page opened, or (null) a new one from your working hours. */
 export function BookingEditor({ page, onCancel, onSaved }: { page: BookingPage | null; onCancel: () => void; onSaved: () => void }) {
   const prefs = usePreferences()
-  const [p, setP] = React.useState<BookingPage>(() => page ?? blank(asBookingHours(prefs?.["calendar.working_hours"] as Week | null, prefs?.zone as string | null)))
+  const [first] = React.useState(() => opened(page ?? blank(fromMine(prefs?.["calendar.working_hours"] as Week | null, prefs?.zone as string | null))))
+  const [p, setP] = React.useState<BookingPage>(first.page)
+  // What came off the page's dates as gone by, said once to its owner; a refused save's words.
+  const [tookOff, setTookOff] = React.useState(first.tookOff)
+  const [refused, setRefused] = React.useState<string | null>(null)
   // The list is built on first open (CAL-BUG-20).
   const [zonesOpen, setZonesOpen] = React.useState(false)
   const zones = React.useMemo(() => (zonesOpen ? zoneRows() : []), [zonesOpen])
@@ -64,15 +87,34 @@ export function BookingEditor({ page, onCancel, onSaved }: { page: BookingPage |
   const { toast } = useToast()
   const set = <K extends keyof BookingPage>(k: K, v: BookingPage[K]) => setP((x) => ({ ...x, [k]: v }))
   const setHours = (h: Partial<WorkingHours>) => setP((x) => ({ ...x, hours: { ...x.hours, ...h } }))
+  const week = pageWeek(p.hours)
+  const setWeek = (next: Week) => setP((x) => ({ ...x, hours: withPageWeek(x.hours, next) }))
+  const dates: Dates = p.hours.dates ?? {}
+  const setDates = (next: Dates) => setHours({ dates: next })
+  const problem = weekProblem(week) ?? datesProblem(p.hours.dates)
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    const res = await makeRequest<BookingPage, BookingPage>({
-      apiEndpoint: CalendarPost.SaveBookingPage,
-      // The count is the server's to say, never sent back.
-      payload: { ...p, upcoming_bookings: undefined, slug: slugify(p.slug || p.title) },
-      showErrorToast: true,
-    })
+    // A date that went by while the page was open comes off before the save: the server refuses one.
+    const now = opened(p)
+    if (now.tookOff) {
+      setP(now.page)
+      setTookOff(now.tookOff)
+    }
+    setRefused(null)
+    let res: BookingPage | undefined
+    try {
+      res = await makeRequest<BookingPage, BookingPage>({
+        apiEndpoint: CalendarPost.SaveBookingPage,
+        // The count is the server's to say, never sent back.
+        payload: { ...now.page, upcoming_bookings: undefined, slug: slugify(now.page.slug || now.page.title) },
+        quiet: true,
+      })
+    } catch (err) {
+      // The edits stay; the server's reason shows as written.
+      setRefused(apiErrorMessage(err, "Couldn't save the page. Your changes are still here; try again."))
+      return
+    }
     if (res) {
       toast({ title: page?.id ? "Saved" : "Booking page ready", description: bookingPageUrl(res.slug) })
       onSaved()
@@ -128,29 +170,15 @@ export function BookingEditor({ page, onCancel, onSaved }: { page: BookingPage |
 
         <fieldset className="grid gap-2">
           <legend className="mb-1.5 text-ui-sm font-medium text-ink">Available</legend>
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Days">
-            {WEEK.map((i) => {
-              const on = p.hours.days.includes(i)
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setHours({ days: on ? p.hours.days.filter((x) => x !== i) : [...p.hours.days, i].sort() })}
-                  className={cn(
-                    "h-8 w-12 rounded-md text-ui-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
-                    on ? "bg-ink text-sheet" : "bg-raised text-ink-2 shadow-e1 hover:text-ink",
-                  )}
-                >
-                  {DAYS[i]}
-                </button>
-              )
-            })}
+          <div className="grid gap-1" data-hours-week="">
+            <WeekHoursEditor week={week} order={WEEK} onWeek={setWeek} switchLabel={(day) => `Open on ${day}s`} />
           </div>
+          {problem ? (
+            <p role="alert" className="text-meta text-danger-ink">
+              {problem}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2 text-ui text-ink-2">
-            <span className="w-28"><TimeField dense aria-label="From" value={p.hours.start} onChange={(start) => setHours({ start })} className="h-8" /></span>
-            <span>to</span>
-            <span className="w-28"><TimeField dense aria-label="Until" value={p.hours.end} since={p.hours.start} onChange={(end) => setHours({ end })} className="h-8" /></span>
             <Select value={p.hours.tz} onValueChange={(tz) => setHours({ tz })} onOpenChange={setZonesOpen}>
               <SelectTrigger dense className="min-w-0 basis-full" aria-label="Time zone">
                 <FitLabel options={zoneLabels(p.hours.tz)} />
@@ -167,6 +195,43 @@ export function BookingEditor({ page, onCancel, onSaved }: { page: BookingPage |
           <p className="text-meta text-ink-3">Times you already have events, here or on Google Calendar, are never offered.</p>
         </fieldset>
 
+        <fieldset className="grid gap-2" data-hours-dates="">
+          <legend className="mb-1.5 text-ui-sm font-medium text-ink">Dates of its own</legend>
+          {tookOff ? <p className="text-meta text-ink-2">{tookOff}</p> : null}
+          {Object.keys(dates).length ? (
+            <div className="grid gap-1">
+              {Object.keys(dates)
+                .sort()
+                .map((d) => (
+                  <DayHours
+                    key={d}
+                    hours={dates}
+                    k={d}
+                    name={dateName(d)}
+                    switchLabel={`Open on ${dateName(d)}`}
+                    offWord="Day off"
+                    onToggle={(on) => setDates({ ...dates, [d]: on ? (week[String(new Date(`${d}T12:00:00`).getDay())] ?? defaultSpans).map((s) => ({ ...s })) : [] })}
+                    onChange={setDates}
+                    data-hours-date={d}
+                    after={
+                      <Button type="button" size="icon-sm" variant="ghost" className="max-sm:size-11 pointer-coarse:size-11" aria-label={`Remove ${dateName(d)}`} title="Remove date" onClick={() => setDates(Object.fromEntries(Object.entries(dates).filter(([k]) => k !== d)))}>
+                        <X />
+                      </Button>
+                    }
+                  />
+                ))}
+            </div>
+          ) : (
+            <p className="text-meta text-ink-3">No dates of its own: every week runs as above.</p>
+          )}
+          {Object.keys(dates).length < MAX_DATES ? (
+            <span className="w-48 max-w-full">
+              <DateField value="" aria-label="Add a date" placeholder="Add a date" min={dayKey(new Date(), p.hours.tz)} onChange={(d) => d && !dates[d] && setDates({ ...dates, [d]: [] })} />
+            </span>
+          ) : null}
+          <p className="text-meta text-ink-3">A date takes the place of its weekday: a day off, or other hours.</p>
+        </fieldset>
+
         <label className="flex items-center justify-between gap-3 border-t border-line pt-4">
           <span className="grid gap-0.5">
             <span className="text-ui font-medium text-ink">Taking bookings</span>
@@ -175,11 +240,16 @@ export function BookingEditor({ page, onCancel, onSaved }: { page: BookingPage |
           <Switch checked={p.active} onCheckedChange={(v) => set("active", v)} />
         </label>
 
+        {refused ? (
+          <p role="alert" className="text-meta text-danger-ink">
+            {refused}
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={p.hours.days.length === 0} busy={isSubmitting}>
+          <Button type="submit" disabled={!!problem} busy={isSubmitting}>
             {page?.id ? "Save" : "Create page"}
           </Button>
         </div>

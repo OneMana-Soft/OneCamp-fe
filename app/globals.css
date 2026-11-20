@@ -37,6 +37,46 @@
    focus ring the element has still wins over it. */
 @custom-variant lit (&:where([data-highlighted]));
 
+/* The keys' focus on a list's row, read by the row's own children through a
+   child selector (fluid-17 part 2), so a key that moves the focus restyles
+   the two rows' marks and nothing else in them. kbd: while the row holds the
+   keys' focus, its own or a control's in it; kbd-lit: and is the keys' place
+   (the cursor's ring); kbd-box: the box in its select slot, while the row
+   itself holds it. As group variants (group-focus-visible/row:,
+   group-has-[:focus-visible]/row:) every element under a row was matched
+   against the row's focus, so each J restyled both rows' whole subtrees.
+   Weighed as a plain class, so a hover's ring still wins over them and they
+   win over hidden, invisible and opacity-0, as the variants they replaced. */
+@custom-variant kbd (:where([data-task-id]:is(:focus-visible, :has(:focus-visible))) > &);
+@custom-variant kbd-lit (:where([data-task-id][data-highlighted]:is(:focus-visible, :has(:focus-visible))) > &);
+@custom-variant kbd-box (:where([data-task-id]:focus-visible > [data-row-select]) > &);
+
+/* A list row's hover, and a look under its row's hover (its grip, its box),
+   while the pointer points: held while the keys drive the list (data-kbd-nav
+   on its root, lib/ui/listNav keysDrive), since a key's scroll carries rows
+   under a resting pointer and the browser moves :hover with them (V-1054).
+   For pointers that hover, as hover: and group-hover: are. The mark is read
+   against the element's own class, as settled: is, so marking a list restyles
+   only what uses these; a row's hover restyles that row (row-hover:) and the
+   looks under it (row-hover-in:), with no :is(... *) that reaches wider.
+   row-hover: weighs as a plain class, so a press (active:) and a selection
+   still win over it; row-hover-in: weighs as group-hover/row: did, so it
+   wins over the look's own hidden opacity. */
+@custom-variant row-hover {
+  @media (hover: hover) {
+    &:where(:hover:not([data-kbd-nav] &)) {
+      @slot;
+    }
+  }
+}
+@custom-variant row-hover-in {
+  @media (hover: hover) {
+    :where([data-task-id]):hover &:where(:not([data-kbd-nav] &)) {
+      @slot;
+    }
+  }
+}
+
 @theme inline {
   /* An entrance holds nothing once it ends (18 Oct 2026): tw-animate-css fills
      animate-in forwards, so every menu, popover and sheet kept the last frame,
@@ -1319,6 +1359,70 @@
   color: var(--ink-2);
   box-shadow: inset 0 0 0 1px var(--line);
 }
+/* A chip's remove ×, every chip that has one (relationFace's links and
+   people, FilesCell's files and its list of them): shown on its chip's hover,
+   on keyboard focus, and always under a finger, by opacity, never display
+   (V-1034): a × that came and went made the chip under the pointer wider than
+   at rest, so a mouse leaving the chip for the "+" after it saw the + slide
+   back from under it, and its press missed. In a chip ([data-chip], relative)
+   a pointer's × lies over the end of the name, so a chip is as wide as its
+   name at rest and under the pointer; a slot kept for it cut a grid cell's
+   names to a letter. V-1072: the chip keeps room for it at its end (below:
+   a chip that holds a ×), so a short name stays whole under the × and a cut
+   one is cut where it was. Under a finger it is 32 by 22 (in a chip, its
+   end beside the name; in FilesCell's list, a 44 px row's end), and it
+   carries data-touch-target, so it takes the
+   shared 44 px reach (phone.css F3): 6 px past its sides, clear of the name
+   and of the next chip or "+", 11 px over and under, clear of the chip line
+   above and below. */
+@utility chip-x {
+  @apply -mr-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-ink-3 opacity-0 pointer-events-none transition-opacity hover:bg-hover hover:text-ink group-hover/chip:opacity-100 group-hover/chip:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto;
+  @media (hover: hover) {
+    [data-chip] > & {
+      position: absolute;
+      top: 3px;
+      right: 1px;
+      margin-right: 0;
+      background-color: var(--raised);
+      box-shadow: -2px 0 2px var(--raised);
+    }
+    [data-chip] > &:hover {
+      background-image: linear-gradient(var(--hover), var(--hover));
+    }
+  }
+  @media (hover: none) {
+    width: 32px;
+    height: 22px;
+    [data-chip] > & {
+      margin-left: 4px;
+      margin-right: -3px;
+    }
+  }
+}
+/* A chip that holds a remove × says so (data-chip="x": relationFace's chips
+   where the reader may edit, FilesCell's where they may write), so its room
+   is keyed on the chip itself (app/selectorKeyGuard: never a :has()). Under
+   the pointer the room is a spacer at the chip's end that gives way first
+   (shrink 1000) when the chip has none: a width, not a flex-basis, since
+   a chip as wide as its words counts an item's width and never its basis
+   (a basis-only spacer gave way at rest, to 0.03 px);
+   under a finger the chip keeps 4 px
+   over and under, so the ×'s reach stays clear of the chip line beside it.
+   A viewer's chip has no ×, and none of this. */
+@media (hover: hover) {
+  [data-chip="x"]::after {
+    content: "";
+    flex: 0 1000 auto;
+    width: 14px;
+    min-width: 0;
+    margin-left: -4px;
+  }
+}
+@media (hover: none) {
+  [data-chip="x"] {
+    margin-block: 4px;
+  }
+}
 /* A label that appears over a glyph after a beat (work.md W01: the status
    word over its glyph, at 400 ms), from data-tip, so a list of 200 rows
    carries no tooltip components. It was this element's ::after, which any
@@ -1733,11 +1837,13 @@ body {
     pointer-events: none;
     transition: opacity 140ms var(--ease-standard);
   }
+  /* Held while the keys drive its list (data-kbd-nav, lib/ui/listNav), as the row-hover variants hold a row's hover:
+     a key's move leaves no card lifted under a resting pointer beside the keys' cursor. (0,2,0), as a plain :hover. */
   @media (hover: hover) {
-    &:hover {
+    &:hover:where(:not([data-kbd-nav] &)) {
       translate: 0 -1px;
     }
-    &:hover::after {
+    &:hover:where(:not([data-kbd-nav] &))::after {
       opacity: 1;
     }
   }
@@ -2860,6 +2966,11 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     transition: background-color 140ms var(--ease-out);
   }
   .shell-menu-item[data-highlighted] { background: var(--press); transition-duration: 0ms; }
+  /* The accent's text on a highlight (V-955): --press and the item's tint
+     under it take the accent under AA (3.5:1 light, 4.49:1 dark rose), so
+     there it leans a fifth toward the ink: 4.75:1 at worst, every theme and
+     mode (app/brandTextLit.test.ts). */
+  [data-highlighted] { --brand-text: color-mix(in oklab, var(--brand) 80%, var(--ink)); }
   .shell-menu-item > svg.lucide { width: 16px; height: 16px; color: var(--ink-3); flex: none; }
   .shell-menu-item[data-danger] { color: var(--danger-ink); }
   .shell-menu-item[data-danger] > svg.lucide { color: var(--danger-ink); }
@@ -3475,6 +3586,27 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
       content: "";
       position: absolute;
       inset: -20px -4px -4px -20px;
+    }
+  }
+  /* On a touch screen that reach goes 24px above the × and stops at the
+     card's top edge, still 44px each way with the × itself: below that edge
+     the action ends under the × (the pill's 6px inset), and the reach took
+     the action's top right (V-917). A hidden ×
+     takes no tap until it shows: a tap on the empty corner closed a timed
+     toast, and its Undo, unseen. */
+  @media (pointer: coarse) {
+    .toast-root[data-stays] .toast-close::before {
+      inset: -24px -4px 14px -20px;
+    }
+  }
+  @media (pointer: coarse) and (hover: none) {
+    .toast-root:not([data-stays], :focus-within) .toast-close {
+      pointer-events: none;
+    }
+  }
+  @media (pointer: coarse) and (hover: hover) {
+    .toast-root:not(:hover, :focus-within) .toast-close {
+      pointer-events: none;
     }
   }
 

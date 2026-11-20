@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test"
+import type { Page, Route } from "@playwright/test"
 
 /**
  * A real video for a player to play, made in the page: a canvas `width` x
@@ -34,4 +34,26 @@ export async function recordedVideo(page: Page, width: number, height: number, f
     { width, height, frames },
   )
   return Buffer.from(bytes)
+}
+
+/**
+ * A route that serves `body` as the store serves a file (the app's media
+ * address is a MinIO presigned GET, which answers a Range request with a 206):
+ * a range gets just that slice. Chromium seeks only in a file its server sends
+ * by ranges; sent whole with a 200, its seekable range stays empty and a seek
+ * snaps back to 0.
+ */
+export const servedInRanges = (body: Buffer, contentType: string) => (route: Route) => {
+  const headers = { "accept-ranges": "bytes" }
+  const range = /^bytes=(\d*)-(\d*)$/.exec(route.request().headers()["range"] ?? "")
+  if (!range || (!range[1] && !range[2])) return route.fulfill({ status: 200, contentType, headers, body })
+  const start = range[1] ? Number(range[1]) : Math.max(0, body.length - Number(range[2]))
+  const end = range[1] && range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1
+  if (start > end) return route.fulfill({ status: 416, headers: { ...headers, "content-range": `bytes */${body.length}` } })
+  return route.fulfill({
+    status: 206,
+    contentType,
+    headers: { ...headers, "content-range": `bytes ${start}-${end}/${body.length}` },
+    body: body.subarray(start, end + 1),
+  })
 }

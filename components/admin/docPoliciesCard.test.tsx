@@ -107,6 +107,23 @@ describe("Settings > Docs", () => {
     expect(toast.mock.calls[0][0]).toMatchObject({ title: "Handed on to Maya Chen", description: "12 docs and 3 links moved." })
   })
 
+  // V-972: a board-only leaver read "0 links". Their boards are counted and handed on with their docs (miro-32).
+  it("counts a leaver's boards, and says them as handed on", async () => {
+    const ray = { user_uuid: "22222222-2222-4222-8222-222222222222", name: "Ray Kim", left_at: "2026-10-01T09:00:00Z", docs: 0, boards: 2, links: 0 }
+    workspace(0, [ray])
+    svc.handOver.mockResolvedValue({ docs: 0, boards: 2, links: 0, failed: 1 })
+    render(<DocPoliciesCard />)
+    const row = document.querySelector(`[data-departed="${ray.user_uuid}"]`) as HTMLElement
+    expect(row.textContent).toContain("2 boards")
+    expect(row.textContent).not.toContain("0 links")
+    fireEvent.click(within(row).getByRole("button", { name: "Hand on…" }))
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.textContent).toContain("2 boards. Each doc's and board's people see who it went to")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Pick Maya" }))
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Hand on" })))
+    expect(toast.mock.calls[0][0]).toMatchObject({ title: "Handed on to Maya Chen", description: "2 boards moved. 1 couldn't, so try again later." })
+  })
+
   it("asks before turning their links off", async () => {
     workspace(0, [DANA])
     svc.turnOffLinks.mockResolvedValue(3)
@@ -158,6 +175,6 @@ describe("Settings > Docs", () => {
   it("says when no one who left has work under their name", () => {
     workspace(0, [])
     render(<DocPoliciesCard />)
-    expect(screen.getByText("No one who left has docs or links under their name.")).toBeTruthy()
+    expect(screen.getByText("No one who left has docs, boards or links under their name.")).toBeTruthy()
   })
 })

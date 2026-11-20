@@ -1,0 +1,9 @@
+{
+  "why": "Lazy groups whose code is hundreds of small parts that Turbopack merges greedily by size: a head must not re-pair them (a module in their chunks gaining a copy) nor load them through more chunk lists. Read by the size check every head runs (knownresplit.mjs check P, poolguard.mjs).",
+  "pools": [
+    {
+      "source": "components/rightPanel/taskInfoPanel.tsx",
+      "why": "V-1172: the task panel's lazy group (the right panel, TaskInPlace and a task beside the page all load it through rightPanel's import); about 300 parts under 50,000 B. Its split-pane next/dynamic entry re-paired on V-1099's +37 B: 43 module copies, +14,382 gz."
+    }
+  ]
+}

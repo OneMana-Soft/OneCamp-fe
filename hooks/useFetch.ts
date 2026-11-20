@@ -1,7 +1,7 @@
 import useSWR, { SWRConfiguration, useSWRConfig } from 'swr';
 import axiosInstance from "@/lib/axiosInstance";
 import type { AxiosRequestConfig } from "axios";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { tellReadFailure } from "@/lib/http/loadFailure";
 import { freshlySeeded } from "@/lib/swrSeed";
 import { noteAnswered, unanswered } from "@/lib/http/answered";
@@ -78,7 +78,8 @@ export const useFetch = <T>(url: string, schema?: ResponseShape<T>, fetchConfig?
     const onFetchedRef = useRef(onFetched);
     onFetchedRef.current = onFetched;
     const requestSequenceRef = useRef(0);
-    const [lastRequestStartedAt, setLastRequestStartedAt] = useState<number>();
+    // A ref: as state, each answer drew the reader once more (V-1099).
+    const lastRequestStartedAt = useRef<number>(undefined);
     const failure = useReadFailure(url, requestConfig);
     const { cache } = useSWRConfig();
     const { data, error, isLoading, mutate } = useSWR<T>(
@@ -91,7 +92,7 @@ export const useFetch = <T>(url: string, schema?: ResponseShape<T>, fetchConfig?
             // Only pair Redux authority with the newest completed request.
             // A slower superseded response must not advance the watermark.
             if (sequence === requestSequenceRef.current) {
-                setLastRequestStartedAt(requestStartedAt);
+                lastRequestStartedAt.current = requestStartedAt;
             }
             return result;
         },
@@ -133,8 +134,8 @@ export const useFetch = <T>(url: string, schema?: ResponseShape<T>, fetchConfig?
         isError: waiting ? undefined : error,
         isPrevious,
         mutate,
-        lastRequestStartedAt,
-    }), [data, isLoading, error, waiting, isPrevious, mutate, lastRequestStartedAt]);
+        lastRequestStartedAt: lastRequestStartedAt.current,
+    }), [data, isLoading, error, waiting, isPrevious, mutate]);
 };
 
 

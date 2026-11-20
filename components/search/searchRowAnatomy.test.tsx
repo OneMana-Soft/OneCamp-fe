@@ -128,3 +128,63 @@ describe("the match highlight", () => {
     expect(mark).not.toMatch(/--primary|--brand/)
   })
 })
+
+// zoom-13: a line said in a call reads as a message does, said by its speaker, with where and when in the call.
+describe("a call's line", () => {
+  const STARTED = 1_762_500_000
+  const line = {
+    type: "transcript",
+    transcript: {
+      transcript_id: "t1", transcript_text: "we ship it friday", transcript_offset_ms: 125_900, transcript_recording_id: "EG_1", transcript_has_media: true,
+      transcript_conv_id: "c1", transcript_conv_kind: "channel", transcript_by_user_id: "u1", transcript_by_user_full_name: "Maya Rao",
+      transcript_call_started_at: STARTED, created_date: STARTED + 126,
+    },
+    highlight: { transcript_text: ["we <mark>ship</mark> it friday"] },
+  } as unknown as SearchResult
+  const row = (r: SearchResult, place?: string) =>
+    render(<ul><SearchResultRow result={r} onOpen={() => {}} href="/app/channel/c1/recording?play=EG_1&at=125900" place={place} /></ul>).container
+
+  it("leads with its speaker, says its words marked, and the call's place, day and moment", async () => {
+    const { formatListTimestamp } = await import("@/lib/utils/date/formatTimeForPostOrComment")
+    const c = row(line, "#launch")
+    const l = c.querySelector("[data-search-lead]")
+    expect(l?.getAttribute("data-search-lead")).toBe("message")
+    expect(l?.textContent).toBe("MR")
+    expect(c.querySelector("[data-search-result]")?.textContent).toBe("we ship it friday")
+    expect(c.querySelector("[data-search-result] mark")?.textContent).toBe("ship")
+    expect(c.querySelector("[data-hub-second]")?.textContent).toBe(`Call · #launch · Maya Rao · ${formatListTimestamp(new Date(STARTED * 1000).toISOString())}`)
+    // Its moment is the row's end, which never cuts off at 390, so a long line can't hide it (CR-330 G1).
+    expect(c.querySelector(".hub-row-meta")?.textContent).toBe("at 2:05")
+  })
+
+  it("names its speaker in the line under its words, and in the link's name, as a message row does (CR-330 F1)", async () => {
+    const { formatListTimestamp } = await import("@/lib/utils/date/formatTimeForPostOrComment")
+    const { getByRole } = render(
+      <ul><SearchResultRow result={line} onOpen={() => {}} href="/app/channel/c1/recording?play=EG_1&at=125900" place="#launch" /></ul>,
+    )
+    const day = formatListTimestamp(new Date(STARTED * 1000).toISOString())
+    expect(document.querySelector("[data-hub-second]")?.textContent).toBe(`Call · #launch · Maya Rao · ${day}`)
+    expect(document.querySelector(".hub-row-meta")?.textContent).toBe("at 2:05")
+    // A screen reader hears who said it with the words; the 24 px initials stay out of the reading.
+    expect(getByRole("link", { name: "we ship it friday Maya Rao" })).toBeTruthy()
+    expect(document.querySelector("[data-search-lead] [aria-label], [data-search-lead][aria-label]")).toBeNull()
+  })
+
+  it("says its words unmarked with no highlight, and no place it doesn't know", () => {
+    const c = row({ ...line, highlight: undefined } as SearchResult)
+    expect(c.querySelector("[data-search-result]")?.textContent).toBe("we ship it friday")
+    expect(c.querySelector("[data-hub-second]")?.textContent).toMatch(/^Call · Maya Rao · [^·]+$/)
+    expect(c.querySelector(".hub-row-meta")?.textContent).toBe("at 2:05")
+    expect(c.textContent).not.toContain("undefined")
+  })
+
+  it("is a link, so Enter opens it", () => {
+    const a = row(line, "#launch").querySelector("a[data-search-result]")
+    expect(a?.getAttribute("href")).toBe("/app/channel/c1/recording?play=EG_1&at=125900")
+  })
+
+  it("never draws a line the server marks deleted", () => {
+    const gone = { ...line, transcript: { ...(line.transcript as object), deleted_date: STARTED + 999 } } as SearchResult
+    expect(row(gone, "#launch").querySelector("[data-hub-row]")).toBeNull()
+  })
+})

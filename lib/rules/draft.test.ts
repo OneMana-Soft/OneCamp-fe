@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { BLANK_DRAFT, VARIABLES, draftFromTemplate, draftProblem, newAction, newCondition, savedIn, variablesFor, withTrigger } from "@/lib/rules/draft"
+import { ARRIVAL_DOORS, BLANK_DRAFT, VARIABLES, actionKinds, conditionFields, draftFromTemplate, draftProblem, newAction, newCondition, savedIn, variablesFor, withTrigger } from "@/lib/rules/draft"
+import type { RuleAction, RuleDraft } from "@/lib/rules/types"
 
 describe("a rule's draft", () => {
   it("says what's missing, one thing at a time", () => {
@@ -68,5 +69,37 @@ describe("a rule's draft", () => {
     expect(variablesFor("task_created")).toEqual(VARIABLES)
     // An answered approval: who answered last, how it ended, what they said (R2b).
     expect(variablesFor("approval_decided")).toEqual(["{task}", "{approver}", "{outcome}", "{comment}", "{project}", "{link}"])
+  })
+})
+
+// linear-21 H4: rules on arriving work (task_arrived) test the door it came in by and accept or decline
+// it through the triage queue, as business/Workflow arrival.go takes them; no other trigger may.
+describe("a rule on arriving work", () => {
+  const arriving = (over: Partial<RuleDraft> = {}): RuleDraft => ({ ...withTrigger({ ...BLANK_DRAFT, name: "Bugs from forms" }, "task_arrived"), ...over })
+
+  it("task_arrived offers the door and the decision, and leaving it drops them", () => {
+    expect(conditionFields("task_arrived")).toContain("source")
+    expect(conditionFields("task_created")).not.toContain("source")
+    expect(actionKinds("task_arrived")).toContain("triage")
+    expect(actionKinds("task_status_changed")).not.toContain("triage")
+    // Every door the server lets a rule test: an import runs as bulk work, which rules never hear.
+    expect(ARRIVAL_DOORS).toEqual(["form", "api", "agent", "github", "chat"])
+    expect(newCondition("source")).toEqual({ field: "source", op: "is", value: "form" })
+    expect(newAction("triage")).toEqual({ type: "triage", decision: "accept", status: "" })
+
+    const d = arriving({ conditions: { match: "all", items: [newCondition("source"), newCondition("priority")] }, actions: [newAction("triage"), { type: "assign", assign: "on_duty" }] })
+    expect(draftProblem(d)).toBe("")
+    const moved = withTrigger(d, "task_created")
+    expect(moved.conditions.items?.map((c) => c.field)).toEqual(["priority"])
+    // Whoever is on duty is the project's rota, which any project rule may give work to.
+    expect(moved.actions).toEqual([{ type: "assign", assign: "on_duty" }])
+  })
+
+  it("a decline needs a reason, the requester is told it, at most 500 characters", () => {
+    const decline = (text: string): RuleAction => ({ type: "triage", decision: "decline", text })
+    expect(draftProblem(arriving({ actions: [decline(" ")] }))).toBe("Say why it's declined: the requester is told.")
+    expect(draftProblem(arriving({ actions: [decline("x".repeat(501))] }))).toBe("A reason is at most 500 characters.")
+    expect(draftProblem(arriving({ actions: [decline("Not ours to do")] }))).toBe("")
+    expect(draftProblem(arriving({ actions: [{ type: "triage", decision: "accept", status: "doing" }] }))).toBe("")
   })
 })

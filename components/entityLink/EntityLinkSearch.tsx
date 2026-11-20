@@ -17,7 +17,7 @@ import { HitKindWord } from "@/components/search/hitKindWord"
 import { FileText, LayoutDashboard, ListTodo, Loader2, Check, Search } from "@/lib/icons"
 
 /** What the search links: a doc, a board or a task. */
-export type LinkKind = Exclude<HitRefKind, "project">
+export type LinkKind = Exclude<HitRefKind, "project" | "channel">
 
 const LOOK: Record<LinkKind, { plural: string; Icon: typeof FileText; tile: string }> = {
   doc: { plural: "docs", Icon: FileText, tile: "bg-success/10 text-success-ink" },

@@ -237,3 +237,57 @@ describe("a rule on a form that adds table rows (package 9 R4b)", () => {
     expect(screen.queryByRole("option", { name: "Vendor sign-up" })).toBeNull()
   })
 })
+
+// linear-21 H4: the triage settings open the same dialog on the rules about arriving work.
+describe("rules on arriving work", () => {
+  const choose = async (scope: HTMLElement, label: string, option: string) => {
+    const box = within(scope).getByRole("combobox", { name: label })
+    await act(async () => {
+      box.focus()
+      fireEvent.keyDown(box, { key: "Enter" })
+    })
+    await act(async () => fireEvent.keyDown(await screen.findByRole("option", { name: option }), { key: "Enter" }))
+  }
+
+  it("arrival rules list only task_arrived and save the trigger, the door and the decision", async () => {
+    const formsIn = rule({ id: "r2", name: "Forms in", trigger_type: "task_arrived", conditions: { match: "all", items: [{ field: "source", op: "is", value: "form" }] }, actions: [{ type: "triage", decision: "accept", status: "" }] })
+    payload = { rules: [rule(), formsIn], can_manage: true, templates: [template], max: 50 }
+    render(<ProjectRulesDialog projectId="p" arrival onClose={() => {}} />)
+    expect(screen.getByText("Rules on arrival")).toBeTruthy()
+    expect(screen.queryByText("Share new work out")).toBeNull()
+    expect(screen.getByText("Forms in")).toBeTruthy()
+
+    // No ready-made rules hear arriving work: a new one starts on it, testing the door and accepting.
+    fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    const builder = document.querySelector("[data-rule-builder]") as HTMLElement
+    expect(within(builder).getByRole("combobox", { name: "Trigger" }).textContent).toBe("Work arrives in triage")
+    expect(within(builder).getByRole("combobox", { name: "Field" }).textContent).toBe("Came in by")
+    await choose(builder, "Door", "API")
+    await choose(builder, "Into status", "In progress")
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Make rule" })))
+    expect(save).toHaveBeenCalledTimes(1)
+    const [draft] = save.mock.calls[0] as unknown as [{ trigger_type: string; conditions: { items: unknown[] }; actions: unknown[] }]
+    expect(draft.trigger_type).toBe("task_arrived")
+    expect(draft.conditions.items).toEqual([{ field: "source", op: "is", value: "api" }])
+    expect(draft.actions).toEqual([{ type: "triage", decision: "accept", status: "inProgress" }])
+  })
+
+  it("declines with a reason the requester is told, and offers no door or decision off arriving work", async () => {
+    payload = { rules: [], can_manage: true, templates: [], max: 50 }
+    render(<ProjectRulesDialog projectId="p" arrival onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    const builder = document.querySelector("[data-rule-builder]") as HTMLElement
+    fireEvent.click(within(builder).getByRole("radio", { name: "Decline" }))
+    fireEvent.change(within(builder).getByRole("textbox", { name: "Why it's declined" }), { target: { value: "We don't take these" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Make rule" })))
+    const [draft] = save.mock.calls[0] as unknown as [{ actions: unknown[] }]
+    expect(draft.actions).toEqual([{ type: "triage", decision: "decline", text: "We don't take these" }])
+
+    // Moved to another trigger, the door and the decision go: the server refuses them there.
+    fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    const next = document.querySelector("[data-rule-builder]") as HTMLElement
+    await choose(next, "Trigger", "A task is made")
+    expect(within(next).queryByRole("combobox", { name: "Door" })).toBeNull()
+    expect(within(next).queryByRole("radio", { name: "Decline" })).toBeNull()
+  })
+})

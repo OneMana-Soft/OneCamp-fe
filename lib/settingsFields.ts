@@ -32,6 +32,7 @@ export const SETTINGS_FIELDS: SettingsField[] = [
   // You
   row("profile", "Appear online", "appear-online", { keywords: ["status", "invisible", "presence"] }),
   sw("profile", "Put task due dates on my calendar"),
+  sw("profile", "Show when you're busy", { keywords: ["busy times", "free/busy", "availability", "calendar", "find a time"] }),
   row("profile", "Show me in Who knows", "who-knows-listed", { keywords: ["who knows", "expert", "suggested"] }),
   row("notifications", "Send me the daily note", "daily-note"),
   row("notifications", "Email me about activity", "email_enabled", { keywords: ["email"] }),
@@ -52,6 +53,7 @@ export const SETTINGS_FIELDS: SettingsField[] = [
   sw("settings", "Allow read receipts", { keywords: ["seen"] }),
   row("settings", "Turn off push notifications", "push-turn-off", { keywords: ["push"] }),
   sw("permissions", "Members see when others are busy", { keywords: ["calendar", "free busy", "availability"] }),
+  sw("permissions", "Members can show a calendar in another app", { keywords: ["calendar", "feed", "ics", "subscribe", "link", "google calendar", "outlook"] }),
   sw("security", "Allow guest links", { keywords: ["guest", "external"] }),
   sw("security", "Pages can be published to the web", { keywords: ["publish", "public"] }),
   sw("security", "Personal meeting rooms", { keywords: ["room", "meeting", "call", "guest"] }),

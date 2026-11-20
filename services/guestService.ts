@@ -19,7 +19,7 @@ export function guestMeetingLink(rawToken: string): string {
 //     server that didn't answer (publicTrouble). ---
 
 
-// --- Member: create a scoped, read-only external share link for a doc/board ---
+// --- Member: a resource's external share links ---
 
 interface GuestLinkResponse {
     token: string // raw link token, shown once
@@ -37,6 +37,7 @@ export async function createGuestLink(
     ttlHours?: number,
     capability: GuestCapability = "view",
     neverExpires = false,
+    password?: string,
 ): Promise<GuestLinkResponse> {
     const res = await axiosInstance.post(PeoplePost.CreateGuestLink, {
         resource_type: resourceType,
@@ -44,6 +45,7 @@ export async function createGuestLink(
         ttl_hours: ttlHours ?? 0,
         capability,
         never_expires: neverExpires,
+        ...(password ? { password } : {}),
     })
     return (res.data as { data: GuestLinkResponse }).data
 }
@@ -82,8 +84,8 @@ export async function turnOffGuestLink(id: string): Promise<void> {
 }
 
 export type GuestResourceType = "doc" | "board" | "table" | "channel" | "project"
-/** comment is for docs and projects; post is channel-only (the server coerces anything else to view). */
-export type GuestCapability = "view" | "comment" | "post"
+/** comment: docs, projects, boards; post: channels; edit (draw): boards. */
+export type GuestCapability = "view" | "comment" | "post" | "edit"
 
 /** Where each kind of shared resource opens for its guest. */
 const guestLinkSegment: Record<GuestResourceType, string> = { doc: "d", board: "b", table: "t", channel: "c", project: "p" }
@@ -102,20 +104,22 @@ export interface GuestCollabSession {
     document_name: string
     resource_type: "doc" | "board"
     resource_id: string
-    capability?: "view" | "comment"
+    capability?: "view" | "comment" | "edit"
+    /** A password link's unlock (?k= on the board's reads). */
+    unlock?: string
     /** The doc's or board's name, when it has one. */
     title?: string
-    /** The workspace's public name (backend round: on every guest answer). */
+    /** The workspace's public name. */
     workspace_name?: string
     /** A doc's view link is the server's own script-free page (docs C6): its
      *  address, given instead of a collaboration token. */
     page_url?: string
 }
 
-export const getGuestCollabSession = (token: string, displayName?: string) =>
+export const getGuestCollabSession = (token: string, displayName?: string, key: { password?: string; unlock?: string } = {}) =>
     publicCall<GuestCollabSession>(`/guest/collab/${encodeURIComponent(token)}`, {
         method: "POST",
-        body: JSON.stringify({ display_name: (displayName || "").trim() }),
+        body: JSON.stringify({ display_name: (displayName || "").trim(), ...key }),
         credentials: "omit",
     })
 
@@ -133,7 +137,7 @@ export interface GuestTableBundle {
     rows: TableRow[]
     /** Every row of the table: a share carries its first page of them. */
     row_count?: number
-    /** The workspace's public name (backend round: on every guest answer). */
+    /** The workspace's public name. */
     workspace_name?: string
 }
 
@@ -148,7 +152,7 @@ export interface GuestDocComment {
     guest_name: string
     body: string // plain text; render escaped
     created_at: string
-    /** A team reply (C5-2): what it answers, and the member's own name for their face; author_id is one guest on one link. */
+    /** A team reply (C5-2): what it answers and the member's name; author_id is one guest on one link. */
     parent_id?: string
     from_team?: boolean
     author_id?: string
@@ -217,7 +221,7 @@ export interface GuestChannelPage {
     can_post: boolean
     messages: GuestChannelMessage[]
     has_more: boolean
-    /** The workspace's public name (backend round: on every guest answer). */
+    /** The workspace's public name. */
     workspace_name?: string
 }
 
@@ -259,7 +263,7 @@ export interface GuestTaskCard {
 
 export interface GuestProjectView {
     project: string
-    /** The project's id, so the client's tile is the project's own (servers before 12 Oct send none). */
+    /** The project's id, for the client's tile (none from servers before 12 Oct). */
     project_uuid?: string
     can_comment: boolean
     columns: { status: string; label: string; tasks: GuestTaskCard[] }[]
@@ -284,7 +288,7 @@ export interface GuestTaskView extends GuestTaskCard {
     can_comment: boolean
 }
 
-/** refresh marks a poll, so only the first open is recorded in the audit log. */
+/** refresh marks a poll: only the first open is audited. */
 export const getGuestProject = (token: string, refresh = false) =>
     publicCall<GuestProjectView>(`/guest/project/${encodeURIComponent(token)}${refresh ? "?refresh=1" : ""}`)
 

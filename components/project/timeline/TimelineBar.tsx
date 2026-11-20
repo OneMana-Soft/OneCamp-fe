@@ -10,6 +10,7 @@ import type { EditKind, TimelineTask } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
 import { stuckRoom } from "@/hooks/useTimelineView"
 import { waitingOn } from "@/lib/tasks/waitingOn"
+import { displayNameOf } from "@/lib/personName"
 
 /**
  * Whether a bar holds its whole name: a 12.5px name runs about 7px a
@@ -106,7 +107,7 @@ export const TimelineBar = memo(function TimelineBar({
   onHover,
 }: BarProps) {
   const dragging = bubble !== undefined
-  const who = task.task_assignee?.user_full_name || task.task_assignee?.user_name || ""
+  const who = displayNameOf(task.task_assignee)
   const face = !!who && !milestone && width >= FACE_FROM
   const icons = (done ? 1 : 0) + (blocked > 0 ? 1 : 0) + (late ? 1 : 0)
   const inside = !milestone && fitsName(task.task_name, width - (face ? 24 : 0), icons)

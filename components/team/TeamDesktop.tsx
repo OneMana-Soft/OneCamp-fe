@@ -10,6 +10,7 @@ import {openUI} from "@/store/slice/uiSlice";
 import {TeamMemberCard} from "@/components/team/TeamMemberCard";
 import dynamic from "next/dynamic";
 import { SpaceDocsCardFallback } from "@/components/docTree/SpaceDocsCard";
+import { TeamCalendarButton } from "@/components/team/teamCalendarButton";
 
 // The team's docs: the pages made in its space (docs programme B5), a chunk
 // of their own. Its card's heading stands in while it arrives.
@@ -28,8 +29,10 @@ export const TeamDesktop = ({teamId}:{teamId: string})=> {
                 eyebrow="Team"
                 className="px-8 pt-8"
                 title={teamInfo.data?.data.team_name || "\u00a0"}
-                actions={teamInfo.data?.data.team_is_admin && (
-                                <Button aria-label="Rename team" 
+                actions={teamInfo.data?.data && (<>
+                                {/* Its own calendar, once the team itself read: whoever may read the team may read it (gcal-14). */}
+                                <TeamCalendarButton teamId={teamId} />
+                                {teamInfo.data.data.team_is_admin && <Button aria-label="Rename team" 
                                     size='icon' 
                                     variant='ghost' 
                                     className="h-8 w-8 text-muted-foreground hover:text-primary"
@@ -38,8 +41,8 @@ export const TeamDesktop = ({teamId}:{teamId: string})=> {
                                     }}
                                 >
                                     <Pencil className="h-4 w-4" />
-                                </Button>
-                )}
+                                </Button>}
+                </>)}
             />
 
             {/* Content */}

@@ -4,34 +4,45 @@
 // BoardComments: Miro-style pinned comments on the canvas.
 //
 // Comments live in the SAME Yjs document as the drawing (a Y.Map "comments"),
-// so they sync in real time, persist with the board state, and are rejected
-// server-side for read-only viewers (who can still read them). Each comment is
-// a pin at a scene coordinate with a small message thread + a resolved flag.
+// so they sync in real time and persist with the board. Editors write them
+// there; a commenter's go through the server (lib/board/commentServer), the
+// board being read-only for them; viewers read them. The writes are the
+// caller's (miro-33): the board page's member writes (boardCommentWrites), or a
+// board link's guest's ask with their link, so a guest carries no member code. Each is a pin at a scene
+// coordinate with a small message thread + a resolved flag.
 //
 // Pins are an HTML overlay positioned from Excalidraw's scene<->viewport
 // transforms, kept in sync with pan/zoom by useBoardView.
 // ---------------------------------------------------------------------------
 
-import { personHue } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import { useBoardView } from "@/hooks/useBoardView"
 import { clientToScene, sceneToLocal } from "@/lib/board/viewport"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { Button } from "@/components/ui/button"
-import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { SHEET_FOOTER_ROW } from "@/components/ui/sheetRows"
-import { avatarHueClass } from "@/components/ui/graphics/hues"
-import { Check, X, Trash, SmilePlus } from "@/lib/icons"
+import { Check } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { useRelativeTime } from "@/hooks/useRelativeTime"
 import { onEscape } from "@/lib/keys/onEscape"
-import { usePost } from "@/hooks/usePost"
-import { BoardsPost } from "@/services/endpoints/boards"
 import { BoardMentionInput, type MentionedUser } from "@/components/board/boardMentionInput"
+import { useRelativeTime } from "@/hooks/useRelativeTime"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import { CommentFace } from "@/components/board/commentFace"
+import type { CommentAsk } from "@/lib/board/commentServer"
 
-interface ThreadMessage {
+// A pin's thread, a piece of its own (fetched once the board shows a pin). Like the board's other pieces it keeps
+// lazyPiece's own failure (a deploy reloads the page; otherwise it asks again online or when next drawn): a `failed` row here would put
+// PieceUnavailable in the board's first load, and Turbopack then re-splits the app layout's chunk for every route.
+const CommentThread = lazyPiece(() => import("@/components/board/boardCommentThread"))
+// A phone's sheet for the thread and a new comment, from the shared sheet's chunk (components/ui/responsive-sheet),
+// which holds the drawer: this file and the thread reach no drawer, so the guest board's comments piece (miro-33)
+// opens no chunk group holding it, and the app layout's shell keeps its chunks (WZ39K trace, 16 Nov). Warmed while
+// a phone shows pins or places one, so a sheet opens at once.
+export const CommentSheet = lazyPiece(() => import("@/components/ui/responsive-sheet").then((m) => ({ default: m.DrawnSheet })))
+
+export interface ThreadMessage {
   id: string
   authorId: string
   authorName: string
@@ -40,7 +51,7 @@ interface ThreadMessage {
   reactions?: Record<string, string[]> // emoji -> userIds
 }
 
-interface BoardComment {
+export interface BoardComment {
   id: string
   x: number
   y: number
@@ -53,13 +64,32 @@ interface BoardComment {
 
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-interface BoardCommentsProps {
+/**
+ * The comments' writes, from the caller (miro-33): the board page's member writes (boardCommentWrites: usePost, the
+ * mirror, the server's ask, the people search), or a board link's guest's ask with their link, mentioning no one.
+ */
+export interface CommentWrites {
+  /** An editor's comment mirrored into search and activity (best effort); a guest's has no mirror. */
+  syncComment?: (c: BoardComment, mentioned: MentionedUser[]) => Promise<unknown>
+  deleteCommentMirror?: (id: string) => Promise<unknown>
+  /** A commenter's comment asked of the server: the answer, or nothing once it wasn't taken (said by the writer). */
+  ask: (c: CommentAsk) => Promise<{ id?: string } | undefined>
+  /** The workspace's people on "@" (a member's); a guest mentions no one. */
+  findPeople?: React.ComponentProps<typeof BoardMentionInput>["findPeople"]
+  /** Fetches the server's part ahead of a comment (a member's). */
+  warm?: () => void
+}
+
+const unmirrored = async () => undefined
+
+export interface BoardCommentsProps {
   provider: HocuspocusProvider
   api: ExcalidrawImperativeAPI | null
   user: { id: string; name: string }
-  /** Board uuid, used to mirror @mentions into the activity feed. */
-  boardId: string
+  writes: CommentWrites
   editable: boolean
+  /** May comment, not edit (miro-32): through the server. */
+  commenter?: boolean
   /** Controlled comment-placement mode (toggle lives in the page chrome). */
   commentMode: boolean
   onCommentModeChange: (on: boolean) => void
@@ -67,64 +97,27 @@ interface BoardCommentsProps {
   showResolved?: boolean
 }
 
-/** A person's initials for a 22 px face: one letter below 24 px. */
-const initial = (name: string) => (name || "?").trim().charAt(0).toUpperCase() || "?"
-
-function BoardComments({ provider, api, user, boardId, editable, commentMode, onCommentModeChange, showResolved = false }: BoardCommentsProps) {
+function BoardComments({ provider, api, user, writes, editable, commenter = false, commentMode, onCommentModeChange, showResolved = false }: BoardCommentsProps) {
   const yDoc = provider.document
   const yComments = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("comments"), [yDoc])
 
-  const { makeRequest } = usePost()
-
-  // Mirror a board comment to the server-side stores (activity, global search,
-  // AI assistant), keyed by the stable Yjs comment id so an edit upserts the
-  // same record instead of duplicating it. The canvas thread itself stays in
-  // Yjs; this is best-effort and never blocks the UI. Mentioned users (if any)
-  // additionally get a notification.
-  const syncComment = React.useCallback(
-    (c: BoardComment, mentioned: MentionedUser[]) => {
-      if (!boardId) return
-      const text = (c.messages || [])
-        .map((m) => m.body)
-        .join("\n")
-        .trim()
-      if (!text) return
-      const uuids = Array.from(new Set((mentioned || []).map((m) => m.uuid))).filter(Boolean)
-      makeRequest({
-        apiEndpoint: BoardsPost.BoardCommentMention,
-        payload: {
-          board_uuid: boardId,
-          board_comment_id: c.id,
-          comment_text: text,
-          mentioned_user_uuids: uuids,
-        },
-        showErrorToast: false,
-      }).catch(() => {
-        // Best-effort; the comment is already in the thread.
-      })
-    },
-    [boardId, makeRequest],
-  )
-
-  // Remove a board comment's server-side mirror when it is deleted on canvas, so
-  // it stops surfacing in activity, global search, and the AI assistant.
-  const deleteCommentMirror = React.useCallback(
-    (commentId: string) => {
-      if (!boardId) return
-      makeRequest({
-        apiEndpoint: BoardsPost.BoardCommentDelete,
-        payload: { board_uuid: boardId, board_comment_id: commentId },
-        showErrorToast: false,
-      }).catch(() => {
-        // Best-effort; the comment is already removed from the thread.
-      })
-    },
-    [boardId, makeRequest],
+  const { syncComment = unmirrored, deleteCommentMirror = unmirrored, ask, findPeople, warm } = writes
+  // The box finds people with the caller's search: a member's; a guest's box says nothing of mentions.
+  const Mention = React.useMemo<typeof BoardMentionInput>(
+    () => (findPeople ? function PeopleMentionInput(p) { return <BoardMentionInput {...p} findPeople={findPeople} /> } : BoardMentionInput),
+    [findPeople],
   )
 
   const [comments, setComments] = React.useState<BoardComment[]>([])
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState<{ x: number; y: number } | null>(null)
+  React.useEffect(() => {
+    if (commentMode || openId) warm?.()
+  }, [commentMode, openId, warm])
+  const pins = comments.length > 0
+  React.useEffect(() => {
+    if (pins) CommentThread.warm()
+  }, [pins])
   // Where the board is looking, only while there is something to place on
   // it: pins, an open thread, a draft, or a click to place a new one.
   const view = useBoardView(api, comments.length > 0 || commentMode || !!openId || !!draft)
@@ -154,6 +147,11 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
 
   const addComment = React.useCallback(
     (sceneX: number, sceneY: number, body: string, mentioned: MentionedUser[]) => {
+      if (commenter)
+        return ask({ action: "add", x: sceneX, y: sceneY, text: body, mentioned }).then((taken) => {
+          if (taken?.id) setOpenId(taken.id)
+          return taken
+        })
       const id = uid()
       const c: BoardComment = {
         id,
@@ -169,11 +167,12 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
       setOpenId(id)
       syncComment(c, mentioned)
     },
-    [user.id, user.name, writeComment, syncComment],
+    [commenter, ask, user.id, user.name, writeComment, syncComment],
   )
 
   const addReply = React.useCallback(
     (commentId: string, body: string, mentioned: MentionedUser[]) => {
+      if (commenter) return ask({ action: "reply", id: commentId, text: body, mentioned })
       const cur = yComments.get(commentId) as unknown as BoardComment | undefined
       if (!cur) return
       const next: BoardComment = {
@@ -183,7 +182,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
       writeComment(next)
       syncComment(next, mentioned)
     },
-    [yComments, user.id, user.name, writeComment, syncComment],
+    [commenter, ask, yComments, user.id, user.name, writeComment, syncComment],
   )
 
   const toggleResolved = React.useCallback(
@@ -260,11 +259,16 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
   // bottom edge, what they hold in the sheet's one scroller and the reply or Comment pinned at its foot (miro-40
   // H1). A computer keeps the cards at the pin.
   const sheet = useSheetMode()
+  React.useEffect(() => {
+    if (sheet && (pins || commentMode)) CommentSheet.warm()
+  }, [sheet, pins, commentMode])
 
   return (
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
+      // A layer a finger meets over the canvas: it steps behind a phone's style sheet (excalidrawTheme.css).
+      data-canvas-layer=""
       className={cn(
         "absolute inset-0 z-10",
         commentMode ? "pointer-events-auto cursor-crosshair" : "pointer-events-none",
@@ -295,9 +299,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
             aria-label={`${c.resolved ? "Resolved comment" : "Comment"} by ${c.authorName}`}
             title={c.resolved ? "Resolved comment" : c.authorName}
           >
-            <span className={cn(avatarHueClass(personHue(c.authorName)), "avatar-person inline-flex size-[22px] items-center justify-center rounded-[11px] text-micro")}>
-              {initial(c.authorName)}
-            </span>
+            <CommentFace name={c.authorName} className="size-[22px] rounded-[11px]" />
             {c.resolved ? (
               <span className="absolute -right-1 -top-1 inline-flex size-3.5 items-center justify-center rounded-[7px] bg-camp-moss text-white ring-2 ring-pop">
                 <Check className="size-2.5" />
@@ -308,18 +310,23 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
       })}
 
       {/* Open thread popover */}
-      {open && (() => {
+      {open && <React.Suspense>{(() => {
         const thread = (
           <CommentThread
             sheet={sheet}
             comment={open}
             editable={editable}
             currentUserId={user.id}
-            onReply={(body, mentioned) => addReply(open.id, body, mentioned)}
+            onReply={editable || commenter ? (body, mentioned) => addReply(open.id, body, mentioned) : undefined}
+            onDeleteMessage={commenter ? (message) => ask({ action: "delete", id: open.id, message }) : undefined}
             onResolve={() => toggleResolved(open.id)}
             onDelete={() => deleteComment(open.id)}
             onToggleReaction={(messageId, emoji) => toggleReaction(open.id, messageId, emoji)}
             onClose={() => setOpenId(null)}
+            Mention={Mention}
+            useWhen={useRelativeTime}
+            useAsking={useAsking}
+            Sheet={CommentSheet}
           />
         )
         if (sheet) return thread
@@ -339,18 +346,16 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
             {thread}
           </div>
         )
-      })()}
+      })()}</React.Suspense>}
 
       {/* New-comment draft composer */}
       {draft && (() => {
         const composer = (
           <NewCommentComposer
             sheet={sheet}
-            onSubmit={(body, mentioned) => {
-              addComment(draft.x, draft.y, body, mentioned)
-              setDraft(null)
-            }}
-            onCancel={() => setDraft(null)}
+            Mention={Mention}
+            onSubmit={(body, mentioned) => addComment(draft.x, draft.y, body, mentioned)}
+            onClose={() => setDraft((d) => (d === draft ? null : d))}
           />
         )
         if (sheet) return composer
@@ -374,266 +379,73 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
   )
 }
 
-function CommentThread({
-  sheet = false,
-  comment,
-  editable,
-  currentUserId,
-  onReply,
-  onResolve,
-  onDelete,
-  onToggleReaction,
-  onClose,
-}: {
-  /** The app's sheet (a phone): its messages in the sheet's one scroller, the reply pinned at its foot. */
-  sheet?: boolean
-  comment: BoardComment
-  editable: boolean
-  currentUserId: string
-  onReply: (body: string, mentioned: MentionedUser[]) => void
-  onResolve: () => void
-  onDelete: () => void
-  onToggleReaction: (messageId: string, emoji: string) => void
-  onClose: () => void
-}) {
-  const [reply, setReply] = React.useState("")
-  const [replyMentions, setReplyMentions] = React.useState<MentionedUser[]>([])
-  const canManage = editable && comment.authorId === currentUserId
+/**
+ * What a comment's ask hands back (miro-32): nothing for an editor's, the board's at once; a commenter's waits on the
+ * server: its answer, or nothing once it wasn't taken.
+ */
+export type Asked = void | Promise<{ id?: string } | undefined>
 
-  const submitReply = () => {
-    const body = reply.trim()
-    if (!body) return
-    onReply(body, replyMentions)
-    setReply("")
-    setReplyMentions([])
+/**
+ * A box or button whose ask may wait on the server (miro-32): busy until the answer, a second press asking nothing;
+ * `done` once it's taken; refused or not sent, the words stay and the focus goes back to `field`.
+ */
+export function useAsking(field?: React.RefObject<HTMLTextAreaElement | null>) {
+  const [busy, setBusy] = React.useState(false)
+  const send = (asked: Asked, done?: () => void) => {
+    if (busy) return
+    if (!asked) return done?.()
+    setBusy(true)
+    void asked.then((taken) => {
+      setBusy(false)
+      if (taken) done?.()
+      else field?.current?.focus()
+    })
   }
-
-  const messages = (comment.messages || []).map((m) => (
-    <ThreadMessageRow
-      key={m.id}
-      message={m}
-      editable={editable}
-      currentUserId={currentUserId}
-      onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
-    />
-  ))
-  const replyBox = (
-    <BoardMentionInput
-      value={reply}
-      onChange={setReply}
-      onMentionedUsersChange={setReplyMentions}
-      onSubmit={submitReply}
-      placeholder="Reply… (use @ to mention)"
-      className="min-h-[44px] resize-none text-sm"
-    />
-  )
-  const replyButton = (
-    <Button size="sm" disabled={!reply.trim()} onClick={submitReply}>
-      Reply
-    </Button>
-  )
-
-  if (sheet) {
-    return (
-      <Drawer open onOpenChange={(o) => !o && onClose()} detent="medium">
-        <DrawerContent
-          data-board-comment=""
-          header={
-            <DrawerTitle asChild>
-              <p className="text-heading text-ink">{comment.resolved ? "Resolved" : "Comment"}</p>
-            </DrawerTitle>
-          }
-          footer={
-            editable ? (
-              <div className="flex flex-col gap-2">
-                {replyBox}
-                <div className={SHEET_FOOTER_ROW}>{replyButton}</div>
-              </div>
-            ) : undefined
-          }
-        >
-          <div className="space-y-2 px-2 pb-2">
-            {editable ? (
-              <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="sm" onClick={onResolve}>
-                  <Check className={cn("h-3.5 w-3.5", comment.resolved && "text-success-ink")} />
-                  {comment.resolved ? "Reopen" : "Resolve"}
-                </Button>
-                {canManage && (
-                  <Button variant="ghost" size="sm" className="text-ink-3 hover:text-danger-ink" onClick={onDelete}>
-                    <Trash className="h-3.5 w-3.5" />
-                    Delete
-                  </Button>
-                )}
-              </div>
-            ) : null}
-            {messages}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    )
-  }
-
-  return (
-    <div className="flex max-h-[60vh] flex-col">
-      <div className="flex h-11 items-center justify-between px-3">
-        <span className="text-ui-sm font-medium text-ink">{comment.resolved ? "Resolved" : "Comment"}</span>
-        <div className="flex items-center gap-1">
-          {editable && (
-            <Button variant="ghost" size="icon" aria-label="Resolve this comment" className="h-6 w-6" onClick={onResolve} title={comment.resolved ? "Reopen" : "Resolve"}>
-              <Check className={cn("h-3.5 w-3.5", comment.resolved && "text-success-ink")} />
-            </Button>
-          )}
-          {canManage && (
-            <Button variant="ghost" size="icon" aria-label="Delete this comment" className="h-6 w-6 text-muted-foreground hover:text-danger-ink" onClick={onDelete} title="Delete">
-              <Trash className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" aria-label="Close comments" className="h-6 w-6" onClick={onClose} title="Close">
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">{messages}</div>
-
-      {editable && (
-        <div className="border-t border-line p-2">
-          {replyBox}
-          <div className="mt-1.5 flex justify-end">{replyButton}</div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const QUICK_REACTIONS = ["👍", "❤️", "🎉", "✅", "😄", "👀"]
-
-function ThreadMessageRow({
-  message,
-  editable,
-  currentUserId,
-  onToggleReaction,
-}: {
-  message: ThreadMessage
-  editable: boolean
-  currentUserId: string
-  onToggleReaction: (emoji: string) => void
-}) {
-  const relative = useRelativeTime(message.createdAt ? new Date(message.createdAt).toISOString() : null)
-  const [pickerOpen, setPickerOpen] = React.useState(false)
-  const reactions = message.reactions || {}
-  const reactionEntries = Object.entries(reactions).filter(([, users]) => users.length > 0)
-  return (
-    <div className="group/msg flex gap-2.5 rounded-xl bg-sunken px-3 py-2.5">
-      <span className={cn(avatarHueClass(personHue(message.authorName)), "avatar-person inline-flex size-6 shrink-0 items-center justify-center rounded-[12px] text-micro")}>
-        {initial(message.authorName)}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="truncate text-ui-sm font-semibold text-ink">{message.authorName}</span>
-          {relative && <span className="text-meta text-ink-3">{relative}</span>}
-        </div>
-        <p className="whitespace-pre-wrap break-words text-ui text-ink">{message.body}</p>
-
-        {/* Reactions */}
-        {(reactionEntries.length > 0 || editable) && (
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            {reactionEntries.map(([emoji, users]) => {
-              const mine = users.includes(currentUserId)
-              return (
-                <button
-                  key={emoji}
-                  type="button"
-                  disabled={!editable}
-                  onClick={() => onToggleReaction(emoji)}
-                  className={cn(
-                    "flex h-[26px] items-center gap-1 rounded-[13px] px-2 text-meta tabular-nums transition-colors",
-                    mine ? "bg-brand-muted text-brand-text ring-1 ring-inset ring-brand/30" : "bg-raised text-ink-2 shadow-e1 hover:text-ink",
-                  )}
-                  title={`${users.length} reaction${users.length > 1 ? "s" : ""}`}
-                >
-                  <span>{emoji}</span>
-                  <span>{users.length}</span>
-                </button>
-              )
-            })}
-            {editable && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen((o) => !o)}
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border/60 text-muted-foreground opacity-0 transition-opacity hover:bg-accent/50 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto extend-touch-target"
-                  title="Add reaction"
-                >
-                  <SmilePlus className="h-3 w-3" />
-                </button>
-                {pickerOpen && (
-                  <>
-                    <div className="fixed inset-0 z-0" onClick={() => setPickerOpen(false)} />
-                    <div className="absolute z-10 mt-1 flex gap-0.5 rounded-lg border bg-popover p-1 shadow-e3">
-                      {QUICK_REACTIONS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => {
-                            onToggleReaction(emoji)
-                            setPickerOpen(false)
-                          }}
-                          className="rounded p-0.5 text-sm hover:bg-accent"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  return { busy, send }
 }
 
 function NewCommentComposer({
   sheet = false,
+  Mention = BoardMentionInput,
   onSubmit,
-  onCancel,
+  onClose,
 }: {
+  Mention?: typeof BoardMentionInput
   /** The app's sheet (a phone): the words in its one scroller, Cancel and Comment pinned at its foot. */
   sheet?: boolean
-  onSubmit: (body: string, mentioned: MentionedUser[]) => void
-  onCancel: () => void
+  onSubmit: (body: string, mentioned: MentionedUser[]) => Asked
+  /** Cancel, or the comment taken. */
+  onClose: () => void
 }) {
   const [body, setBody] = React.useState("")
   const [mentions, setMentions] = React.useState<MentionedUser[]>([])
+  const field = React.useRef<HTMLTextAreaElement>(null)
+  const { busy, send } = useAsking(field)
 
   const submit = () => {
     const text = body.trim()
-    if (!text) return
-    onSubmit(text, mentions)
+    if (text) send(onSubmit(text, mentions), onClose)
   }
 
   const words = (
-    <BoardMentionInput
+    <Mention
       value={body}
       onChange={setBody}
       onMentionedUsersChange={setMentions}
       onSubmit={submit}
-      onCancel={onCancel}
+      onCancel={onClose}
+      inputRef={field}
       autoFocus
-      placeholder="Add a comment… (use @ to mention)"
+      placeholder="Add a comment…"
       className="min-h-[60px] resize-none text-sm"
     />
   )
   const actions = (
     <>
-      <Button variant="ghost" size="sm" onClick={onCancel}>
+      <Button variant="ghost" size="sm" onClick={onClose}>
         Cancel
       </Button>
-      <Button size="sm" disabled={!body.trim()} onClick={submit}>
+      <Button size="sm" disabled={!body.trim()} busy={busy} onClick={submit}>
         Comment
       </Button>
     </>
@@ -641,24 +453,21 @@ function NewCommentComposer({
 
   if (sheet) {
     return (
-      <Drawer open onOpenChange={(o) => !o && onCancel()} detent="medium">
-        <DrawerContent
+      <React.Suspense fallback={null}>
+        <CommentSheet
           data-board-comment=""
-          header={
-            <DrawerTitle asChild>
-              <p className="text-heading text-ink">New comment</p>
-            </DrawerTitle>
-          }
+          title={<p className="text-heading text-ink">New comment</p>}
           footer={<div className={SHEET_FOOTER_ROW}>{actions}</div>}
+          onClose={onClose}
         >
           <div className="px-4 pb-2 pt-1">{words}</div>
-        </DrawerContent>
-      </Drawer>
+        </CommentSheet>
+      </React.Suspense>
     )
   }
 
   return (
-    <div>
+    <div role="group" aria-label="New comment">
       {words}
       <div className="mt-2 flex justify-end gap-2">{actions}</div>
     </div>

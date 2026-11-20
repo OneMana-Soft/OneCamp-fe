@@ -4,7 +4,6 @@
  * own area's. An endpoint a second area comes to use moves to services/endPoints.ts
  * (app/endpointsShared.test.ts); scripts/endpoints/areas.mjs says which file is whose.
  */
-/* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum BoardsGet {
     GetBoardList = "/board/getBoardList",
@@ -17,6 +16,7 @@ export enum BoardsGet {
 
 export enum BoardsPost {
     UpdateBoard = "/board/updateBoard",
+    GenerateBoardDiagram = "/board/aiGenerate",
     GenerateBoardDiagramStream = "/board/aiGenerateStream",
     PlanBoardDiagram = "/board/aiPlan",
     RefineBoardDiagram = "/board/aiRefineDiagram",
@@ -24,6 +24,7 @@ export enum BoardsPost {
     GenerateBoardUI = "/board/aiGenerateUI",
     RefineBoardUI = "/board/aiRefineUI",
     SearchUserForBoard = "/board/searchUsers",
+    BoardComment = "/board/comment",
     BoardCommentMention = "/board/commentMention",
     BoardCommentDelete = "/board/commentDelete",
     RestoreBoardSnapshot = "/board/restoreBoardSnapshot",

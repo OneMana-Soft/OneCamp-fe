@@ -198,6 +198,8 @@ export default function FramesPanel({
                   <button
                     type="button"
                     aria-label={`Move ${row.frame.name || "frame"}: drag, or Alt with the arrow keys`}
+                    // Touch has no Alt: the grip itself takes a finger, its reach 44px (app/phone.css F3).
+                    data-touch-target=""
                     onPointerDown={startDrag(i)}
                     onKeyDown={(e) => {
                       if (!e.altKey) return

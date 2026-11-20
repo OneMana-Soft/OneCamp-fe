@@ -61,11 +61,14 @@ function slotsLine(guests: number, kept: number): string {
  */
 export function FindTimeSuggestions({
   participants,
+  rooms = [],
   durationMinutes,
   onPick,
   selected,
 }: {
   participants: string[]
+  /** The rooms chosen (gcal-6): a time one of them is booked is never offered. */
+  rooms?: string[]
   durationMinutes: number
   onPick: (start: Date, end: Date) => void
   /** The event's start as it stands, so the chip it matches is ringed. */
@@ -84,6 +87,7 @@ export function FindTimeSuggestions({
       apiEndpoint: CalendarPost.SuggestTimes,
       payload: {
         participants,
+        ...(rooms.length ? { rooms } : {}),
         duration_minutes: Math.min(480, Math.max(15, durationMinutes)),
         from: from.toISOString(),
         to: to.toISOString(),
@@ -97,15 +101,15 @@ export function FindTimeSuggestions({
       setKept(res.private?.length ?? 0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key below names what matters
-  }, [participants.join(","), durationMinutes, tz])
+  }, [participants.join(","), rooms.join(","), durationMinutes, tz])
 
-  // A change of people or length makes old suggestions wrong; with guests, look again.
-  const key = `${participants.join(",")}|${durationMinutes}`
+  // A change of people, rooms or length makes old suggestions wrong; with guests or a room, look again.
+  const key = `${participants.join(",")}|${rooms.join(",")}|${durationMinutes}`
   React.useEffect(() => {
     setSlots(null)
     setUnread(0)
     setKept(0)
-    if (participants.length === 0) return
+    if (participants.length === 0 && rooms.length === 0) return
     const t = setTimeout(() => void find(), 400)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps

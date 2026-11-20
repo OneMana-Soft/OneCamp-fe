@@ -14,4 +14,6 @@ export enum CallsPost {
     SaveMyTranscript = "/livekit/my-transcript",
     ReportTranscriptionCapability = "/livekit/my-capability",
     AIInCallAskStream = "/ai/in-call/ask/stream",
+    /** A background made from words by the workspace's model: answers a recipe the browser paints (AiBackground.tsx). */
+    AICallBackground = "/ai/call-background",
 }

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
+import type { CallEffectsControl } from "./useCallEffects"
+import { PICKER_CONTROLS } from "./pickerControls"
 
 // Backgrounds and sound in a call: they cost nothing until someone turns one
 // on, they go on as the camera and microphone publish, and the picker offers
@@ -15,9 +17,12 @@ vi.mock("./effectsRunner", () => ({
     return { camera: runner.camera, noise: runner.noise, watch: runner.watch }
   },
 }))
+vi.mock("@/lib/calls/processors/backdrops", () => ({ backdropUrl: vi.fn(async (id: string) => `blob:${id}`) }))
+vi.mock("@/components/livekit/callSurface", () => ({ callToast: vi.fn() }))
 
 const { useCallEffects } = await import("./useCallEffects")
 const { EffectsPicker } = await import("./EffectsPicker")
+const { default: EffectsChooser } = await import("./EffectsChooser")
 
 afterEach(() => {
   cleanup()
@@ -127,7 +132,7 @@ describe("the call route's first load", () => {
   const HEAVY = ["@livekit/track-processors", "@mediapipe/tasks-vision", "@sapphi-red/web-noise-suppressor"]
   const LAZY = [
     "lib/calls/processors/effects", "lib/calls/processors/background", "lib/calls/processors/noise", "lib/calls/processors/backdrops", "lib/calls/processors/picture", "lib/calls/processors/strain", "lib/calls/onePeerConnection",
-    "components/call/effects/CallEffects", "components/call/effects/GreenRoomEffects", "components/call/effects/useCallEffects", "components/call/effects/useGreenRoomEffects", "components/call/effects/effectsRunner", "components/call/effects/EffectsPicker", "components/call/effects/EffectsChooser", "components/call/effects/CallEffectsPanel",
+    "components/call/effects/CallEffects", "components/call/effects/GreenRoomEffects", "components/call/effects/useCallEffects", "components/call/effects/useGreenRoomEffects", "components/call/effects/effectsRunner", "components/call/effects/EffectsPicker", "components/call/effects/EffectsChooser", "components/call/effects/CallEffectsPanel", "components/call/effects/AiBackground", "components/call/effects/composerFrame", "components/call/effects/chooserPart",
     "components/livekit/CallPeoplePanel", "components/livekit/PersonMenuItems",
     // Hands (CALLS-3a): what changes your hand, its badge, the signs that stay, and the unmute notice.
     "lib/calls/hands", "components/livekit/handsRunner", "components/livekit/HandBadge", "components/livekit/FeedbackRow", "components/livekit/unmuteToast",
@@ -144,25 +149,66 @@ describe("the call route's first load", () => {
     return null
   }
 
+  /** Every file an entry's static imports reach, with each import seen on the way (`spec` as written, `rel` resolved). */
+  const walk = (entry: string, each: (spec: string, rel: string | null, from: string) => void) => {
+    const seen = new Set<string>([path.join(root, entry)])
+    const queue = [...seen]
+    while (queue.length) {
+      const file = queue.shift()!
+      const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+      for (const m of src.matchAll(importRe)) {
+        const next = resolve(m[1], file)
+        each(m[1], next && path.relative(root, next).replace(/\.tsx?$/, ""), path.relative(root, file))
+        if (!next || seen.has(next)) continue
+        seen.add(next)
+        queue.push(next)
+      }
+    }
+  }
+
   it("reaches none of the effects' code, MediaPipe or RNNoise, nor anything opened by a click", () => {
     for (const entry of ENTRIES) {
-      const seen = new Set<string>([path.join(root, entry)])
-      const queue = [...seen]
-      const found: string[] = []
-      while (queue.length) {
-        const file = queue.shift()!
-        const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
-        for (const m of src.matchAll(importRe)) {
-          if (HEAVY.some((h) => m[1] === h || m[1].startsWith(`${h}/`))) found.push(`${m[1]} from ${path.relative(root, file)}`)
-          const next = resolve(m[1], file)
-          if (!next || seen.has(next)) continue
-          const rel = path.relative(root, next).replace(/\.tsx?$/, "")
-          if (LAZY.includes(rel)) found.push(`${rel} from ${path.relative(root, file)}`)
-          seen.add(next)
-          queue.push(next)
-        }
-      }
-      expect(found, entry).toEqual([])
+      const found = new Set<string>()
+      walk(entry, (spec, rel, from) => {
+        if (HEAVY.some((h) => spec === h || spec.startsWith(`${h}/`))) found.add(`${spec} from ${from}`)
+        if (rel && LAZY.includes(rel)) found.add(`${rel} from ${from}`)
+      })
+      expect([...found], entry).toEqual([])
+    }
+  })
+
+  // The composer (meet-09) is one lazy chunk that every picker shares (MAIN, 10 Nov): a picker that imported it
+  // would carry a copy of its own, one per chunk the picker is bundled into.
+  it("leaves the made-background composer out of every picker's static imports", () => {
+    for (const entry of ["CallEffects", "CallEffectsPanel", "GreenRoomEffects", "EffectsChooser"].map((f) => `components/call/effects/${f}.tsx`)) {
+      const found = new Set<string>()
+      walk(entry, (_, rel, from) => rel === "components/call/effects/AiBackground" && found.add(from))
+      expect([...found], entry).toEqual([])
+    }
+  })
+
+  // The chooser is ONE lazy entry that every surface shares (chooserPart.tsx, MAIN RULING 11 Nov): a surface that
+  // imported it would carry a copy of the effects' code in its own chunk, one per chunk that surface is built into.
+  it("loads the chooser through the one lazy entry every surface shares, never in a surface's own chunk", () => {
+    for (const entry of ["CallEffects", "CallEffectsPanel", "GreenRoomEffects"].map((f) => `components/call/effects/${f}.tsx`)) {
+      const found = new Set<string>()
+      const entries = new Set<string>()
+      walk(entry, (_, rel, from) => {
+        if (rel === "components/call/effects/EffectsChooser") found.add(from)
+        if (rel === "components/call/effects/chooserPart") entries.add(from)
+      })
+      expect([...found], entry).toEqual([])
+      expect(entries.size, entry).toBeGreaterThan(0)
+    }
+  })
+
+  // A lazy chunk never imports the shared core: the shared Button in the chooser's or the composer's chunk made
+  // Turbopack hoist it into every first load (+81 B canonical on /, wZ38 A). Their buttons are the call's own.
+  it("brings no shared Button into the chooser's chunk or the composer's", () => {
+    for (const entry of ["chooserPart", "EffectsChooser", "madePart", "AiBackground"].map((f) => `components/call/effects/${f}.tsx`)) {
+      const found = new Set<string>()
+      walk(entry, (_, rel, from) => rel === "components/ui/button" && found.add(from))
+      expect([...found], entry).toEqual([])
     }
   })
 })
@@ -170,6 +216,7 @@ describe("the call route's first load", () => {
 describe("the picker", () => {
   const picker = (over: Partial<Parameters<typeof EffectsPicker>[0]> = {}) => {
     const props = {
+      controls: PICKER_CONTROLS,
       effects: { background: { kind: "none" as const }, noise: "standard" as const, touchUp: "off" as const, lowLight: false },
       onBackground: vi.fn(),
       onNoise: vi.fn(),
@@ -267,5 +314,42 @@ describe("the picker", () => {
     expect(screen.getByRole("radio", { name: "Your picture" }).getAttribute("aria-checked")).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: "Remove it" }))
     expect(p.picture.onForget).toHaveBeenCalled()
+  })
+})
+
+describe("the chooser", () => {
+  /** The chooser as a surface hands it its effects, with that surface's own check of whether backgrounds can run here. */
+  const chooser = (unavailable: CallEffectsControl["unavailable"]) => {
+    const control: CallEffectsControl = {
+      effects: { background: { kind: "none" }, noise: "standard", touchUp: "off", lowLight: false },
+      setBackground: vi.fn(),
+      setNoise: vi.fn(),
+      setTouchUp: vi.fn(),
+      setLowLight: vi.fn(),
+      busy: null,
+      unavailable,
+    }
+    render(<EffectsChooser control={control} controls={PICKER_CONTROLS} />)
+  }
+
+  it("says why its surface's check found backgrounds can't run here, or that the check couldn't load", async () => {
+    const why = "This browser can't change your background. Chrome, Edge, Firefox and Safari 17 or later can."
+    chooser(async () => why)
+    expect(await screen.findByText(why)).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Light blur" }).hasAttribute("disabled")).toBe(true)
+    cleanup()
+    // Offline, the check's own chunk can't load: the chooser says so rather than offering what can't be put on.
+    chooser(async () => {
+      throw new Error("Failed to load chunk")
+    })
+    expect(await screen.findByText("Background effects couldn't load. Check your connection, then try again.")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Light blur" }).hasAttribute("disabled")).toBe(true)
+  })
+
+  it("offers the backgrounds once its surface's check finds they can run here", async () => {
+    const ask = vi.fn(async () => null)
+    chooser(ask)
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole("radio", { name: "Light blur" }).hasAttribute("disabled")).toBe(false)
   })
 })

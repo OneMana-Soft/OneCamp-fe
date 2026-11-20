@@ -12,6 +12,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { relativeTime } from "@/lib/utils/relativeTime"
+import { clockTime, dayAndTime } from "@/lib/utils/date/clock"
 
 import { SYNC, syncUrl, type SyncProvider } from "@/lib/calendar/syncProviders"
 export { SYNC, syncUrl, type SyncProvider }
@@ -28,6 +29,13 @@ export interface CalendarSync {
   last_synced_at?: string
   /** The admin has set the provider's app up, so people can connect it. */
   available?: boolean
+  /**
+   * gcal-18: while the sync is on (synced) and its last pass in step is over
+   * half an hour old, since when; null or left out otherwise.
+   */
+  stale_since?: string | null
+  /** Why the provider couldn't be read, as a class, never its own words; left out when it could. */
+  read_error?: "unreachable" | "rate_limited" | "provider_error"
 }
 
 /** Starts the move; answers where it stands. */
@@ -36,10 +44,32 @@ export async function moveFrom(provider: SyncProvider): Promise<CalendarSync> {
   return res.data.data as CalendarSync
 }
 
+const WHY = { unreachable: " hasn't answered since ", rate_limited: " asked us to slow down · last in step ", provider_error: " had a problem on its side · last in step " }
+
+/**
+ * A sync still on that its provider can't be read for (gcal-18: down, timing
+ * out or slowing us down since the server's stale_since, over half an hour),
+ * in one calm sentence for each class with the time it was last in step (its
+ * day too once that isn't today): "Google hasn't answered since 2:05 PM",
+ * "Outlook asked us to slow down · last in step 2:05 PM"; "" while it's in
+ * step (one failed read is not news) or isn't on. The Calendars panel says it
+ * (syncWords), and the closed Calendars button (useSyncNote). Pure.
+ */
+export function staleWords(provider: SyncProvider, s: CalendarSync | undefined, now = Date.now()): string {
+  const d = s?.state === "synced" && s.stale_since ? new Date(s.stale_since) : undefined
+  if (!d || isNaN(+d)) return ""
+  const name = SYNC[provider].name
+  const at = d.toDateString() === new Date(now).toDateString() ? clockTime(d) : dayAndTime(d)
+  const why = s?.read_error && WHY[s.read_error]
+  return why ? name + why + at : `Not in step with ${name} since ${at}`
+}
+
 /**
  * What the Calendars panel says of it: "Moving from Google · 45%", "In step
  * with Outlook · 2m ago", "Google stopped answering" (the action beside it,
  * Connect Google again, says what to do). Pure.
+ *
+ * A sync still on that its provider can't be read for says so (staleWords).
  */
 export function syncWords(provider: SyncProvider, s: CalendarSync | undefined, now: number = Date.now()): string {
   const name = SYNC[provider].name
@@ -47,6 +77,8 @@ export function syncWords(provider: SyncProvider, s: CalendarSync | undefined, n
   if (s.state === "moving") return `Moving from ${name} · ${s.progress}%`
   if (s.state === "failed") return s.error || `The move from ${name} didn't finish.`
   if (s.state === "broken") return `${name} stopped answering`
+  const stale = staleWords(provider, s, now)
+  if (stale) return stale
   const when = s.last_synced_at ? relativeTime(s.last_synced_at, now) : ""
   return when ? `In step with ${name} · ${when}` : `In step with ${name}`
 }

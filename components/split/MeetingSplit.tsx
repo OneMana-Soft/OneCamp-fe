@@ -24,7 +24,9 @@ import { cn } from "@/lib/utils/helpers/cn"
  * child of the same group, so the conversation coming and going, or moving to
  * the call's other side (CSS order), never remounts the call, which would
  * hang it up. Focusing the conversation alone hides the call, still running.
- * `enabled` is split view's own switch.
+ * `enabled` is split view's own switch. Drawn instead of the shell, it is the
+ * page's one main, around the call and its conversation as the shell's frame
+ * is around a page and its views, so a hidden call never hides it.
  */
 export function MeetingSplit({ pathname, enabled, children }: { pathname: string; enabled: boolean; children: ReactNode }) {
   const panes = useSelector((s: RootState) => selectSplit(s).panes)
@@ -37,7 +39,7 @@ export function MeetingSplit({ pathname, enabled, children }: { pathname: string
   const row = viewRow(panes, order)
   const left = !!pane && row.indexOf(index) < row.indexOf(MAIN)
   return (
-    <>
+    <main id="main-content" className="h-dvh w-full">
     <ResizablePanelGroup id="meet-panels" direction="horizontal" data-split-row="" className="app-frame h-dvh w-full">
       <ResizablePanel
         id="meet-call"
@@ -71,6 +73,6 @@ export function MeetingSplit({ pathname, enabled, children }: { pathname: string
       )}
     </ResizablePanelGroup>
     {pane && focused === null && <SplitArrange shown={left ? `${paneKey(pane)},${MAIN_KEY}` : `${MAIN_KEY},${paneKey(pane)}`} />}
-    </>
+    </main>
   )
 }

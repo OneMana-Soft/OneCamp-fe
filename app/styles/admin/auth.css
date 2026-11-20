@@ -846,7 +846,7 @@
   }
   .welcome-card[data-leaving] { animation: welcome-out 180ms var(--ease-out) both; }
   .welcome-stack { display: flex; }
-  .welcome-stack > * + * { margin-left: -6px; }
+  .welcome-stack > :where(:not(:first-child)) { margin-left: -6px; }
   .welcome-stack > * { box-shadow: 0 0 0 2px var(--raised); }
 
   /* ── The keyboard tip (E7) ────────────────────────────────────────────── */

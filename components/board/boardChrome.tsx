@@ -20,63 +20,10 @@ import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
 import { docSaveState } from "@/components/docEditor/saveRule"
 import type { SessionStatus } from "@/lib/collabSession"
 import { movingByHand } from "@/lib/board/scene"
-import { cn } from "@/lib/utils/helpers/cn"
+import { ChromeCluster, ClusterButton } from "@/components/board/chromeCluster"
 
-/** One floating cluster: 40 px, pop, e3, r12, 4 px padding. */
-export function ChromeCluster({
-  label,
-  className,
-  children,
-}: {
-  label: string
-  className?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div
-      role="toolbar"
-      aria-label={label}
-      data-board-chrome=""
-      className={cn(
-        "content-float pointer-events-auto flex h-10 items-center gap-0.5 rounded-xl bg-pop p-1 text-ink shadow-e3 [animation-delay:120ms]",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
-}
-
-/** A 32 px icon button in a cluster: ink-3 at rest, ink on hover. */
-export const ClusterButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active?: boolean }
->(function ClusterButton({ label, active, className, children, type = "button", ...rest }, ref) {
-  return (
-    <button
-      ref={ref}
-      type={type}
-      aria-label={label}
-      title={label}
-      aria-pressed={active === undefined ? undefined : active}
-      className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-3 outline-none transition-colors",
-        "hover:bg-hover hover:text-ink active:bg-press focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
-        "[&_svg]:size-4",
-        active && "bg-brand-muted text-brand-text hover:bg-brand-muted hover:text-brand-text",
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
-  )
-})
-
-/** The divider between a cluster's groups. */
-export function ClusterDivider() {
-  return <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-line-2" />
-}
+// The clusters themselves (components/board/chromeCluster), from here as before.
+export { ChromeCluster, ClusterButton, ClusterDivider } from "@/components/board/chromeCluster"
 
 /**
  * The board's name, renamed in place: a button that reads like the title,
@@ -149,6 +96,7 @@ export function BoardTitleCluster({
   backHref,
   title,
   editable,
+  commenter = false,
   onRename,
   saveState,
   menu,
@@ -157,6 +105,8 @@ export function BoardTitleCluster({
   backHref: string
   title: string
   editable: boolean
+  /** May comment (miro-32): a board they can't edit says Can comment, not View only. */
+  commenter?: boolean
   onRename: (title: string) => void
   saveState: SaveState
   /** The "More" menu: the trigger is passed this cluster's button. */
@@ -177,7 +127,7 @@ export function BoardTitleCluster({
       <BoardName title={title} editable={editable} onRename={onRename} />
       {!editable ? (
         <span className="tag mx-1 bg-hover text-ink-2" data-view-only="">
-          View only
+          {commenter ? "Can comment" : "View only"}
         </span>
       ) : null}
       {label}

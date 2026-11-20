@@ -1,23 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { Suspense } from "react"
 
 const BOOKING = { title: "Intro call with Sam", owner_name: "Sam Rivera", start: "2026-10-14T05:30:00Z", end: "2026-10-14T06:00:00Z", cancelled: false, slug: "sam-rivera" }
-const { getBooking, cancelBooking } = vi.hoisted(() => ({ getBooking: vi.fn(), cancelBooking: vi.fn() }))
-vi.mock("@/services/bookingService", () => ({ getBooking, cancelBooking }))
+const { getBooking, cancelBooking, rescheduleBooking, getBookingPage } = vi.hoisted(() => ({
+  getBooking: vi.fn(),
+  cancelBooking: vi.fn(),
+  rescheduleBooking: vi.fn(),
+  getBookingPage: vi.fn(),
+}))
+vi.mock("@/services/bookingService", () => ({ getBooking, cancelBooking, rescheduleBooking, getBookingPage }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "Asia/Kolkata" }))
 vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null, madeWithHref: () => "" }))
 
 import ManageBooking from "./page"
 
 const answer = (extra: Record<string, unknown> = {}) => ({ ok: true, data: { ...BOOKING, ...extra } })
+// The page's free times (10:00 and 10:30 IST on Thursday 15 October): the
+// same answer for the first fortnight and for each half of the month.
+const SLOTS = [
+  { start: "2026-10-15T04:30:00Z", end: "2026-10-15T05:00:00Z" },
+  { start: "2026-10-15T05:00:00Z", end: "2026-10-15T05:30:00Z" },
+]
+const PAGE = { slug: "sam-rivera", title: "Intro call", description: "", duration_minutes: 30, owner_name: "Sam Rivera", owner_tz: "UTC", slots: SLOTS, bookable_until: "2026-11-10T00:00:00Z" }
 beforeEach(() => {
   getBooking.mockResolvedValue(answer())
+  getBookingPage.mockResolvedValue({ ok: true, data: PAGE })
+  URL.createObjectURL = vi.fn(() => "blob:x")
+  URL.revokeObjectURL = vi.fn()
 })
 afterEach(() => {
   cleanup()
   getBooking.mockReset()
   cancelBooking.mockReset()
+  rescheduleBooking.mockReset()
+  getBookingPage.mockReset()
   vi.useRealTimers()
 })
 const at = new Date("2026-10-13T08:00:00Z")
@@ -116,3 +133,119 @@ describe("too many requests", () => {
   })
 })
 
+
+// gcal-7: a guest moves their booking from its link, to one of the page's own
+// free times, picked on the same month and times as booking it.
+describe("changing the time", () => {
+  const MOVED = { start: SLOTS[1].start, end: SLOTS[1].end }
+  const ticket = () => document.querySelector("[data-ticket]")!.textContent!
+  async function pick() {
+    await show()
+    fireEvent.click(await screen.findByRole("button", { name: "Change time" }, { timeout: 5000 }))
+    const day = await waitFor(() => {
+      const d = document.querySelector('[data-day="2026-10-15"][data-available]') as HTMLButtonElement | null
+      if (!d) throw new Error("no open day yet")
+      return d
+    })
+    fireEvent.click(day)
+    fireEvent.click(screen.getByRole("button", { name: /^10:30/ }))
+  }
+  async function move() {
+    await pick()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Move here/ })))
+    await act(async () => {})
+  }
+
+  it("opens the page's own times on the page, in the guest's zone, without an overlay", async () => {
+    await pick()
+    expect(getBookingPage.mock.calls[0][0]).toBe("sam-rivera")
+    expect(screen.getByRole("region", { name: "Pick a day" })).toBeTruthy()
+    expect(document.querySelector("[role=dialog]")).toBeNull()
+  })
+
+  it("lets the guest keep their time: Keep this time closes the times and brings back Change time and Cancel booking", async () => {
+    await pick()
+    fireEvent.click(screen.getByRole("button", { name: "Keep this time" }))
+    expect(screen.queryByRole("region", { name: "Change time" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Change time" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeTruthy()
+    expect(rescheduleBooking).not.toHaveBeenCalled()
+    expect(ticket()).toContain("11:30")
+  })
+
+  it("moves it to the picked time, and shows the new time, who was told and its calendar file", async () => {
+    rescheduleBooking.mockResolvedValue(answer({ ...MOVED, owner_told: true, booking_id: "b-1" }))
+    await move()
+    expect(rescheduleBooking).toHaveBeenCalledWith("t", SLOTS[1].start)
+    expect(ticket()).toContain("10:30")
+    expect(ticket()).not.toContain("11:30")
+    expect(document.querySelector("[data-moved-line]")?.textContent).toBe("Sam has been told.")
+    expect(screen.getByRole("link", { name: "Add to calendar (.ics)" })).toBeTruthy()
+    expect(screen.queryByRole("region", { name: "Pick a day" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeTruthy()
+  })
+
+  it("says the owner was told only when they were", async () => {
+    rescheduleBooking.mockResolvedValue(answer({ ...MOVED, owner_told: false }))
+    await move()
+    expect(ticket()).toContain("10:30")
+    expect(document.body.textContent).not.toMatch(/has been told/)
+  })
+
+  it("shows the server's words on too many moves, closes the times and still offers cancelling", async () => {
+    const msg = "This booking has been moved too often today. Try again tomorrow."
+    rescheduleBooking.mockResolvedValue({ ok: false, status: 429, msg, retryAfter: 3600 })
+    await move()
+    expect(screen.getByRole("alert").textContent).toBe(msg)
+    expect(ticket()).toContain("11:00")
+    expect(screen.queryByRole("region", { name: "Pick a day" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel booking" }))
+    expect(screen.getByText("Cancel this meeting?")).toBeTruthy()
+  })
+
+  it("shows why a time was refused, and asks the page's times again", async () => {
+    rescheduleBooking.mockResolvedValue({ ok: false, status: 409, msg: "That time was just taken." })
+    await pick()
+    const asked = getBookingPage.mock.calls.length
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Move here/ })))
+    await act(async () => {})
+    expect(screen.getByRole("alert").textContent).toBe("That time was just taken.")
+    expect(ticket()).toContain("11:00")
+    expect(screen.getByRole("region", { name: "Pick a day" })).toBeTruthy()
+    await waitFor(() => expect(getBookingPage.mock.calls.length).toBeGreaterThan(asked), { timeout: 4000 })
+  })
+
+  it("keeps the old time when nothing answers", async () => {
+    rescheduleBooking.mockResolvedValue({ ok: false, status: 0, msg: "Couldn't reach the server. Check your connection and try again." })
+    await move()
+    expect(screen.getByRole("alert").textContent).toBe("Couldn't move it. Check your connection and try again.")
+    expect(ticket()).toContain("11:00")
+    expect(ticket()).not.toContain("10:30")
+  })
+
+  it("keeps the old time when the server fails", async () => {
+    rescheduleBooking.mockResolvedValue({ ok: false, status: 502, msg: "Bad gateway" })
+    await move()
+    expect(screen.getByRole("alert").textContent).toBe("Couldn't move it. Check your connection and try again.")
+    expect(ticket()).toContain("11:00")
+  })
+
+  it("offers no change on a page that is off, or a cancelled booking", async () => {
+    getBooking.mockResolvedValue(answer({ page_live: false }))
+    await show()
+    expect(await screen.findByRole("button", { name: "Cancel booking" }, { timeout: 5000 })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Change time" })).toBeNull()
+    cleanup()
+    getBooking.mockResolvedValue(answer({ cancelled: true, page_live: true }))
+    await show()
+    await screen.findByText("This meeting is cancelled.", undefined, { timeout: 5000 })
+    expect(screen.queryByRole("button", { name: "Change time" })).toBeNull()
+  })
+
+  it("says so on a day with no free times left", async () => {
+    getBookingPage.mockResolvedValue({ ok: true, data: { ...PAGE, slots: [] } })
+    await show()
+    fireEvent.click(await screen.findByRole("button", { name: "Change time" }, { timeout: 5000 }))
+    expect(await screen.findByText(/No free times in October/, undefined, { timeout: 5000 })).toBeTruthy()
+  })
+})

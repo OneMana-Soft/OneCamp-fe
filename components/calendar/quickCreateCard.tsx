@@ -24,7 +24,7 @@ import { projectHue } from "@/lib/projectHue";
 import { OWN_HUE } from "@/components/calendar/calendarTones";
 import { cn } from "@/lib/utils/helpers/cn";
 import { displayNameOf } from "@/lib/personName";
-import { parseEventText, type ParsedEvent } from "@/lib/calendar/parseEventText";
+import { parseEventText, parsedRange, type ParsedEvent } from "@/lib/calendar/parseEventText";
 import { foldName, matchName, type GuestCandidate, type NameMatch } from "@/lib/calendar/guestMatch";
 import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import type { CalendarEventTask, CreateEventPayload } from "@/types/calendar";
@@ -126,11 +126,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
     const b = base.current;
     if (!b || !draft || b.allDay) return;
     if (!parsed.date && parsed.startMinutes === undefined && parsed.durationMinutes === undefined) return;
-    const day = parsed.date ?? b.start;
-    const minutes = parsed.startMinutes ?? b.start.getHours() * 60 + b.start.getMinutes();
-    const len = parsed.durationMinutes ?? Math.round((b.end.getTime() - b.start.getTime()) / 60000);
-    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(minutes / 60), minutes % 60);
-    const end = new Date(start.getTime() + len * 60000);
+    const { start, end } = parsedRange(parsed, b.start, Math.round((b.end.getTime() - b.start.getTime()) / 60000));
     if (start.getTime() !== draft.start.getTime() || end.getTime() !== draft.end.getTime()) onDraftChange({ start, end });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed.date?.getTime(), parsed.startMinutes, parsed.durationMinutes]);

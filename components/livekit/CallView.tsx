@@ -19,7 +19,8 @@ import { peopleInCall, peopleOfSession } from "@/components/livekit/callState"
 import { useCallSession } from "@/components/livekit/useCallSession"
 import { useCallChat } from "@/components/livekit/callChat"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
-import { useClientConfig } from "@/hooks/useClientConfig"
+import { FEATURE_AI, useClientConfig, useFeature } from "@/hooks/useClientConfig"
+import { useWorkspaceAdmin } from "@/hooks/useMyId"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { callRefOf } from "@/services/callService"
@@ -73,6 +74,8 @@ function usePlace(kind: CallKind, id: string, selfId?: string): { place?: string
 export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKind; id: string; onLeave: () => void; embedded?: boolean }) {
   const call = CALLS[kind]
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // A background made from words, through the workspace's model (meet-09): offered to a member where AI is on.
+  const madeBackgrounds = useFeature(FEATURE_AI)
   const { place, isAdmin, live } = usePlace(kind, id, self.data?.data.user_uuid)
   const transcriptionConfig = useTranscriptionConfig()
   const life = useMemberCallLifecycle(
@@ -123,6 +126,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
           companion={companion}
           username={displayNameOf(self.data?.data) || ""}
           hueId={self.data?.data.user_uuid}
+          madeBackgrounds={madeBackgrounds}
           place={place}
           live={!!active}
           inCall={peopleInCall(peopleOfSession(read)) ?? (kind === "channel" && active === false ? [] : undefined)}
@@ -166,6 +170,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
 
 /** The workspace's transcription settings, for a member's call (VideoConference's transcriptionConfig). */
 export function useTranscriptionConfig() {
-  const c = useClientConfig() as ReturnType<typeof useClientConfig> & { transcription_where?: string; transcription_language?: string }
-  return { mode: c.transcription_mode, where: c.transcription_where, language: c.transcription_language }
+  const c = useClientConfig() as ReturnType<typeof useClientConfig> & { transcription_where?: string; transcription_language?: string; transcription_off_reason?: string }
+  const admin = useWorkspaceAdmin()
+  return { mode: c.transcription_mode, where: c.transcription_where, language: c.transcription_language, offReason: c.transcription_off_reason, admin }
 }

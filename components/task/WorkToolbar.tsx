@@ -32,7 +32,8 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import axiosInstance from "@/lib/axiosInstance"
-import { Filter, Plus, Rocket, Search, SlidersHorizontal, Users } from "@/lib/icons"
+import { Filter, Plus, Rocket, Search, SlidersHorizontal, Timer, Users } from "@/lib/icons"
+import { useSlaView } from "@/hooks/useSlaView"
 import { cycleFilter } from "@/lib/tasks/cycles"
 import type { Grouping } from "@/lib/tasks/grouping"
 import { DUE_WEEK } from "@/lib/tasks/listAddress"
@@ -156,6 +157,17 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
   const inRelease = valuesOf("task_release")
   if (projectId && inRelease.length)
     chips.push({ id: "task_release", facet: "Release", words: <ReleaseParts.View fallback="…" render={(m) => <m.ReleaseWords projectId={projectId} http={axiosInstance} chosen={inRelease} />} /> })
+  // A project's SLAs (linear-24), read when asked: a guest's 403, SLAs off or a failed read take an SLA filter and sort out (V-1011).
+  const inSla = valuesOf("task_sla")
+  const slaSorted = state.sorting.some((s) => s.id === "task_sla")
+  const sla = useSlaView(projectId, filterOpen || inSla.length > 0 || slaSorted)
+  React.useEffect(() => {
+    if (!sla.refused || !(inSla.length || slaSorted)) return
+    table.setColumnFilters((prev) => prev.filter((f) => f.id !== "task_sla"))
+    table.setSorting((prev) => prev.filter((s) => s.id !== "task_sla"))
+  }, [sla.refused, inSla.length, slaSorted, table])
+  if (projectId && inSla.length && !sla.refused)
+    chips.push({ id: "task_sla", facet: "SLA", words: <SlaParts.View fallback="…" render={(m) => <m.SlaWords chosen={inSla} />} /> })
   const who = valuesOf("task_assignee_name")
   if (who.length) chips.push({ id: "task_assignee_name", facet: "Assignee", words: who.map((u) => displayNameOf(people2.find((p) => p.uid === u)) || "someone").join(", ") })
   const proj = valuesOf("task_project_name")
@@ -285,6 +297,11 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
               ))}
             </FacetSub>
           )}
+          {projectId && sla.shows && (
+            <FacetSub label="SLA" glyph={<Timer className="size-3.5 text-ink-3" />}>
+              <SlaParts.View fallback={null} render={(m) => <m.SlaFacet chosen={inSla} onToggle={(id) => toggle("task_sla", id)} />} />
+            </FacetSub>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -368,6 +385,7 @@ export { WorkSegmented }
 // only the button (app/firstLoad.test.ts).
 const Display = lazyView(() => import("@/components/task/displayMenu"))
 const ReleaseParts = lazyView(() => import("@/components/task/releaseFacet"))
+const SlaParts = lazyView(() => import("@/components/task/slaFacet"))
 /** Starts loading Display's body, as its button does on pointer or focus. */
 export const warmDisplay = () => Display.warm()
 

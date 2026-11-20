@@ -4,12 +4,15 @@
  */
 import { browserTZ } from "@/lib/utils/timeZone"
 import { clockTime, dateTimeFormat, wallClock } from "@/lib/utils/date/clock"
+import type { Dates, Week } from "@/lib/calendar/workingHours"
 
 export interface WorkingHours {
   days: number[] // 0 Sunday … 6 Saturday
   start: string // "09:00"
   end: string
   tz: string
+  week?: Week
+  dates?: Dates
 }
 
 export interface Slot {
@@ -40,9 +43,7 @@ export function groupByDay<S extends Slot>(slots: S[], tz: string): { day: strin
 // A moment reads the same here as everywhere else in the app: the day in its
 // one written form (lib/utils/date/shortDate), "Tue 6 Oct", day before month;
 // the time on the reader's own clock (lib/utils/date/clock), "11:00 AM" or
-// "11:00". The days were left to the browser's locale, so the booking page
-// said "Mon, Oct 12" in an American browser beside an app that writes
-// "12 Oct". The zone is still the viewer's.
+// "11:00". The zone is still the viewer's.
 
 /** "11:00 AM" or "11:00", in a zone. */
 export const formatTime = (iso: string, tz: string) => clockTime(iso, { timeZone: tz })

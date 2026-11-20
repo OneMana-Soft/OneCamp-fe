@@ -79,6 +79,8 @@ type Menus = typeof import("@/components/table/TableMenus")
 const SKELETON_ROWS = 9
 const NO_SHUT: string[][] = []
 const switchers = lazyChunk(() => import("@/components/table/tablePalette"))
+// Where a linked call opens (GET /calls/{id}): a chunk asked for on a call chip's click.
+const callPlaces = lazyChunk(() => import("@/services/callPlaceService"))
 
 
 function useNarrow(): boolean {
@@ -171,6 +173,10 @@ export default function TableDetailPage() {
     if (madeByAi) void MadeByAiPart.prefetch()
   }, [madeByAi])
   const { toast } = useToast()
+  const openCall = React.useCallback(
+    (id: string) => void callPlaces.use(() => toast({ tone: "error", title: "Couldn't open the call" })).then((m) => m?.openCall(id, router.push)),
+    [router, toast],
+  )
 
   // The view is in the address (?view=board), so a reload or a shared link
   // opens the same one; replaceState, not a navigation.
@@ -1095,6 +1101,7 @@ export default function TableDetailPage() {
                 }}
                 onHide={(id) => changeDisplay({ hidden: [...display.hidden, id] })}
                 onOpenRow={openFromGrid}
+                openCall={openCall}
                 compact={narrow}
                 empty={
                   noRows ? (
@@ -1218,6 +1225,7 @@ export default function TableDetailPage() {
               onClose={closeRecord}
               onChange={reload}
               focusThread={openThread}
+              openCall={openCall}
             />
           )}
         />

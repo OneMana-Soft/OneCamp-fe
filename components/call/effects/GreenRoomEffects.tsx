@@ -16,7 +16,9 @@ import { WandSparkles } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { CALL_SURFACE } from "@/components/livekit/callSurface"
 import { DockButton } from "@/components/livekit/DockButton"
-import EffectsChooser from "./EffectsChooser"
+import { chooser as chooserPart } from "./chooserPart"
+import { PICKER_CONTROLS } from "./pickerControls"
+import { useEffectsFoot, type EffectsFoot } from "./effectsFoot"
 import { useGreenRoomEffects } from "./useGreenRoomEffects"
 
 const TITLE = "Backgrounds and sound"
@@ -26,12 +28,15 @@ const TITLE = "Backgrounds and sound"
  * has come; `onOpen` hears the chooser open (the green room asks again for a
  * client that didn't come).
  */
-export default function GreenRoomEffects({ preview, onOpen }: { preview: LocalTrack | undefined; onOpen?: () => void }) {
+/** `made`: a scene may be made from words here (a member, the workspace's AI on: PreJoin). */
+export default function GreenRoomEffects({ preview, onOpen, made = false }: { preview: LocalTrack | undefined; onOpen?: () => void; made?: boolean }) {
   const effects = useGreenRoomEffects(preview)
   const [open, setOpen] = useState(false)
   useEffect(() => {
     if (open) onOpen?.()
   }, [open, onOpen])
+  // The chooser's chunk, asked for as the green room's controls draw, so it is in when Backgrounds and sound opens.
+  useEffect(() => void chooserPart.warm(made), [made])
   const { isMobile } = useMedia()
   // A sheet on a phone, held either way (components/ui/overlayMode); the
   // layout's width picks its columns.
@@ -48,15 +53,17 @@ export default function GreenRoomEffects({ preview, onOpen }: { preview: LocalTr
       data-effects-entry=""
     />
   )
-  const chooser = (columns: 3 | 4) => <EffectsChooser control={effects} problem={effects.problem} columns={columns} />
+  // On the sheet, a background made from words keeps its actions in the sheet's pinned footer.
+  const { foot, footer } = useEffectsFoot()
+  const chooser = (columns: 3 | 4, pinned?: EffectsFoot) => <chooserPart.Part control={effects} controls={PICKER_CONTROLS} problem={effects.problem} columns={columns} made={made} foot={pinned} />
 
   if (sheet) {
     return (
       <>
         {button}
         <Drawer open={open} onOpenChange={setOpen} detent="large">
-          <DrawerContent className={cn(CALL_SURFACE, "bg-[#131416] text-foreground")} header={<DrawerTitle className="text-heading">{TITLE}</DrawerTitle>}>
-            <div className="px-4 pb-4">{chooser(isMobile ? 3 : 4)}</div>
+          <DrawerContent className={cn(CALL_SURFACE, "bg-[#131416] text-foreground")} header={<DrawerTitle className="text-heading">{TITLE}</DrawerTitle>} footer={footer ?? undefined}>
+            <div className="px-4 pb-4">{chooser(isMobile ? 3 : 4, foot)}</div>
           </DrawerContent>
         </Drawer>
       </>

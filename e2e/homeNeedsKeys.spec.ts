@@ -9,8 +9,11 @@ import { AI_ON, AI_READS, SAM, SHOT_THEMES, expectEveryCallAnswered, mqttConfig,
 // before once the last has gone, and to the all-clear line when none is left.
 // Undo (⌥T and Enter, or a tap) brings the row back holding the focus.
 // On a phone, a tap on a row's own button finishes it as before, and no ring
-// is drawn. With SHOTS_DIR set, the row Undo returned and the next row after E
-// are saved at 1280, and the list after a tap at 390, light and dark.
+// is drawn. An agent's row gives its words the whole width there, and Dismiss
+// and Approve a line of their own (V-939); a computer keeps them beside the
+// words. With SHOTS_DIR set, the row Undo returned and the next row after E
+// are saved at 1280, the list after a tap at 390, and the list with its agent
+// rows cropped at 1280 and 390, light and dark.
 
 const NOW = new Date()
 const daysAgo = (n: number) => new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - n, 9)
@@ -64,6 +67,15 @@ const stillOrbits = (page: Page) =>
   page.evaluate(() => document.getAnimations().forEach((a) => a instanceof CSSAnimation && a.animationName.startsWith("hub-orbit") && a.finish()))
 
 const rowOf = (page: Page, title: string) => page.locator("[data-needs-me] [data-needs-kind]").filter({ hasText: title })
+
+/** With SHOTS_DIR set, "What needs me now" alone, cropped to the section, at this width. */
+async function sectionShot(page: Page, name: string, theme: string) {
+  const dir = process.env.SHOTS_DIR
+  if (!dir) return
+  const section = page.locator("[data-needs-me]")
+  await section.evaluate((el) => el.scrollIntoView({ block: "center" }))
+  await section.screenshot({ path: `${dir}/${name}-${page.viewportSize()?.width}-${theme}.png` })
+}
 
 for (const theme of SHOT_THEMES) {
   test.describe(`what needs me, keyboard at 1280, ${theme}`, () => {
@@ -124,6 +136,26 @@ for (const theme of SHOT_THEMES) {
     })
   })
 
+  test.describe(`what needs me, an agent's row at 1280, ${theme}`, () => {
+    test.use({ viewport: { width: 1280, height: 900 }, colorScheme: theme })
+    test.setTimeout(180_000)
+
+    // V-939 changed the phone only: a computer keeps Dismiss and Approve beside the words.
+    test("keeps an agent's Dismiss and Approve beside its words", async ({ page }, testInfo) => {
+      await openHome(page, testInfo)
+      await expect(rowOf(page, A2.title)).toBeVisible({ timeout: 60_000 })
+      await sectionShot(page, "needs-agent-rows", theme)
+      for (const title of [A1.title, A2.title]) {
+        const row = rowOf(page, title)
+        const second = (await row.locator("[data-hub-second]").boundingBox())!
+        const approve = (await row.getByRole("button", { name: "Approve" }).boundingBox())!
+        expect(approve.y, `${title}: Approve beside the words`).toBeLessThan(second.y + second.height)
+        expect(approve.x, `${title}: Approve right of the words`).toBeGreaterThan(second.x + second.width)
+      }
+      await expectEveryCallAnswered(page)
+    })
+  })
+
   test.describe(`what needs me, touch at 390, ${theme}`, () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme })
     test.setTimeout(180_000)
@@ -144,6 +176,37 @@ for (const theme of SHOT_THEMES) {
       await row.getByRole("button", { name: "Done" }).tap()
       await expect(row).toHaveCount(0)
       await reviewShot(page, "needs-keys-touch", theme)
+      await expectEveryCallAnswered(page)
+    })
+
+    // V-939: Dismiss and Approve beside an agent's words left them ~170px:
+    // the title cut early and "in Q4 launch · acts for you" broke into stacks.
+    test("an agent's row gives its words the whole width, and its actions a line of their own", async ({ page }, testInfo) => {
+      await openHome(page, testInfo)
+      await expect(rowOf(page, A2.title)).toBeVisible({ timeout: 60_000 })
+      await sectionShot(page, "needs-agent-rows", theme)
+      for (const title of [A1.title, A2.title]) {
+        const row = rowOf(page, title)
+        const box = (await row.boundingBox())!
+        const words = (await row.locator("[data-hub-title]").boundingBox())!
+        const second = (await row.locator("[data-hub-second]").boundingBox())!
+        const lineHeight = await row.locator("[data-hub-second]").evaluate((el) => parseFloat(getComputedStyle(el).lineHeight))
+        const dismiss = (await row.getByRole("button", { name: "Dismiss" }).boundingBox())!
+        const approve = (await row.getByRole("button", { name: "Approve" }).boundingBox())!
+        const right = box.x + box.width
+        expect(right - (words.x + words.width), `${title}: the title runs to the row's edge`).toBeLessThanOrEqual(20)
+        expect(right - (second.x + second.width), `${title}: the meta runs to the row's edge`).toBeLessThanOrEqual(20)
+        expect(second.height, `${title}: the meta is one line`).toBeLessThan(lineHeight * 1.5)
+        expect(dismiss.y, `${title}: Dismiss under the meta`).toBeGreaterThanOrEqual(second.y + second.height - 0.5)
+        expect(approve.y, `${title}: Approve under the meta`).toBeGreaterThanOrEqual(second.y + second.height - 0.5)
+        expect(right - (approve.x + approve.width), `${title}: the actions sit at the right`).toBeLessThanOrEqual(20)
+        // Their 44px reaches meet and never cover each other (app/phone.css F3b).
+        expect(approve.x - (dismiss.x + dismiss.width), `${title}: a touch apart`).toBeGreaterThanOrEqual(44 - dismiss.height - 0.5)
+      }
+      // The actions still act from their own line: Approve, and the row leaves.
+      await rowOf(page, A1.title).getByRole("button", { name: "Approve" }).tap()
+      await expect(rowOf(page, A1.title)).toHaveCount(0)
+      await expect(rowOf(page, A2.title)).toBeVisible()
       await expectEveryCallAnswered(page)
     })
   })

@@ -116,6 +116,7 @@ export function RecordPanel({
   onClose,
   onChange,
   focusThread,
+  openCall,
 }: {
   tableId: string
   tableName: string
@@ -139,6 +140,7 @@ export function RecordPanel({
   onChange: () => void
   /** A thread on the row a link named, which its comments open at. */
   focusThread?: string | null
+  openCall?: CellContext["openCall"]
 }) {
   const confirm = useConfirm()
   const offerUndo = useUndoToast(onChange)
@@ -162,7 +164,10 @@ export function RecordPanel({
   // Its values as the grid's cells show them, an edit still saving included.
   const rowEdits = row ? commit.edits.get(row.id) : undefined
   const values = React.useMemo(() => (row ? shownValues(row, rowEdits) : {}), [row, rowEdits])
-  const ctx = React.useMemo<CellContext>(() => ({ options: optionIndexOf(fields), tinted: tintedFields(fields), rowHeight: "medium", panel: true, tableId }), [fields, tableId])
+  const ctx = React.useMemo<CellContext>(
+    () => ({ options: optionIndexOf(fields), tinted: tintedFields(fields), rowHeight: "medium", panel: true, tableId, openCall }),
+    [fields, tableId, openCall],
+  )
   const panelRef = React.useRef<HTMLDivElement>(null)
   // A cell a new comment goes on, and each cell's count of open comments.
   const [commentOn, setCommentOn] = React.useState<string | null>(null)
@@ -282,8 +287,11 @@ export function RecordPanel({
         {rest.map((f) => {
           const Glyph = fieldKind(f.type).glyph
           return (
-            <div key={f.id} className="grid min-h-9 grid-cols-[148px_minmax(0,1fr)] items-start gap-2 max-sm:grid-cols-1 max-sm:gap-0.5">
-              <dt className="group/field flex h-9 items-center gap-1.5 text-ui-sm text-ink-3">
+            // A field's row is the group its controls show on, as a grid's row is its cells' (V-957): under
+            // the pointer anywhere on the field, or with the focus in it, the cell's "+" (a link, a person,
+            // files), its hints and the field's comment button show.
+            <div key={f.id} className="group grid min-h-9 grid-cols-[148px_minmax(0,1fr)] items-start gap-2 max-sm:grid-cols-1 max-sm:gap-0.5">
+              <dt className="flex h-9 items-center gap-1.5 text-ui-sm text-ink-3">
                 <Glyph className="size-3.5 shrink-0" aria-hidden />
                 <span className="truncate">{f.name}</span>
                 <CellCommentButton field={f} count={cellCounts[f.id] ?? 0} onClick={() => setCommentOn(f.id)} />
@@ -425,9 +433,10 @@ export function RecordPanel({
 }
 
 /**
- * A field's comment button in the record: shown on hover and focus (always on
- * a touch screen), and kept in view with its count while its cell has open
- * comments. It starts a comment on that cell in the comments below.
+ * A field's comment button in the record: shown on its field's hover and
+ * focus (always on a touch screen), and kept in view with its count while its
+ * cell has open comments; hidden, it takes no click (a press there is the
+ * field's). It starts a comment on that cell in the comments below.
  */
 function CellCommentButton({ field, count, onClick }: { field: TableField; count: number; onClick: () => void }) {
   const label = count > 0 ? `Comment on ${field.name}, ${count} ${count === 1 ? "comment" : "comments"}` : `Comment on ${field.name}`
@@ -441,7 +450,7 @@ function CellCommentButton({ field, count, onClick }: { field: TableField; count
       data-cell-comments={count || undefined}
       className={cn(
         "ml-auto flex h-6 shrink-0 items-center gap-0.5 rounded-md px-1 text-meta text-ink-3 transition-[opacity,color,background-color] duration-[140ms] ease-out hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
-        count > 0 ? "opacity-100" : "opacity-0 group-hover/field:opacity-100 group-focus-within/field:opacity-100 [@media(hover:none)]:opacity-100",
+        count > 0 ? "opacity-100" : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
       )}
     >
       <MessageSquare className="size-3.5" aria-hidden="true" />

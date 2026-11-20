@@ -366,7 +366,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
         </aside>
 
         {/* Preview */}
-        <main className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* Export toolbar */}
           <div className="flex h-12 shrink-0 items-center justify-end gap-2 border-b px-4">
             <Button variant="outline" size="sm" onClick={handleCopy} disabled={!html} className="gap-1.5">
@@ -442,7 +442,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
               </div>
             )}
           </div>
-        </main>
+        </div>
       </div>
     </div>,
     document.body,

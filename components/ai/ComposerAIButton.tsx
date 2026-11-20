@@ -28,7 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useModKey } from "@/hooks/useModKey"
 import { useDocAI, DocAIAction } from "@/services/aiService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
-import { Sparkles, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics/motifs"
 import { withAI } from "@/components/common/withFeature"
 
@@ -148,7 +148,7 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
                 aria-label="Write with AI"
                 className={"h-8 w-8 text-muted-foreground hover:text-foreground " + (className || "")}
               >
-                <Sparkles className="h-4 w-4" />
+                <Spark size={16} className="text-agent" />
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>

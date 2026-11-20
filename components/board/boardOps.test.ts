@@ -135,11 +135,34 @@ describe("the board's tools on the scene", () => {
     const s = boardScene(note("a"))
     const container = document.createElement("div")
     const keys: string[] = []
-    container.addEventListener("keydown", (e) => keys.push((e as KeyboardEvent).key))
+    // Excalidraw opens the words on that Enter.
+    container.addEventListener("keydown", (e) => {
+      keys.push((e as KeyboardEvent).key)
+      s.typing(s.byId("a-text")!)
+    })
     selectAndEdit(s.api, ["a"], container)
     expect(s.writes.at(-1)?.appState?.selectedElementIds).toEqual({ a: true })
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(500)
     expect(keys).toEqual(["Enter"])
+  })
+
+  // CR-421 F5: on a slow or busy device the selection lands later than any fixed wait, so the Enter waits for it, and
+  // goes again (three at most) while the words stay shut.
+  it("the Enter waits for Excalidraw to have the selection, and tries again while the words stay shut", () => {
+    vi.useFakeTimers()
+    const s = boardScene(note("a"))
+    let landed = false
+    const real = s.api as { getAppState(): Record<string, unknown> }
+    const api = { ...real, getAppState: () => (landed ? real.getAppState() : { ...real.getAppState(), selectedElementIds: {} }) }
+    const container = document.createElement("div")
+    const keys: string[] = []
+    container.addEventListener("keydown", (e) => keys.push((e as KeyboardEvent).key))
+    selectAndEdit(api as never, ["a"], container)
+    vi.advanceTimersByTime(300)
+    expect(keys).toEqual([])
+    landed = true
+    vi.advanceTimersByTime(1000)
+    expect(keys).toEqual(["Enter", "Enter", "Enter"])
   })
 
   it("find the middle of the view in the scene", () => {

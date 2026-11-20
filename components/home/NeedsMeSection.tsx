@@ -372,7 +372,7 @@ export function NeedsMeSection({
     if (item.kind === "agent") {
       // Always visible, not only on hover: consequential and rare.
       return (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1" data-touch-group="24">
           <Button variant="ghost" size="xs" disabled={!!b} onClick={() => dismiss(item)}>
             {b === "dismiss" ? <Loader2 className="animate-spin" /> : null}
             Dismiss
@@ -453,6 +453,7 @@ export function NeedsMeSection({
                     // A row keeps its words: a title and a second line of two lines each,
                     // not one (a mention's "#engineering", a task's whole name on a phone).
                     clamp
+                    data-meta-below={item.kind === "agent" ? "" : undefined}
                     tabIndex={0}
                     onKeyDown={keys(item)}
                     data-needs-kind={item.kind}

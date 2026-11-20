@@ -5,6 +5,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 // lib/chunkRecovery doesn't reload the page, a part whose code can't come is
 // nothing and the page carries on. React.lazy threw to the page's error
 // screen, and kept the failure, so its Try again couldn't bring the page back.
+// The page names a call's conversation from the sidebar (zoom-13): an empty one here.
+vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: (pick: (s: unknown) => unknown) => pick({ users: { userSidebar: {} } }) }))
 vi.mock("@/components/search/queryFilters", () => {
   throw new Error("Loading chunk components/search/queryFilters failed")
 })

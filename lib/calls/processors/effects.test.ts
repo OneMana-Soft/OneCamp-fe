@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { BACKDROP_IDS, NO_EFFECTS, cameraOn, lookOf, readBackground, readEffects, readNoise, readTouchUp, sameBackground, sameLook, writeEffects, type CallEffects } from "./effects"
 import { BACKDROPS, TOUCH_UPS, backgroundName } from "./effectsCopy"
-import { BACKDROP_INKS, paintBackdrop, type Paint2D } from "./backdrops"
+import { BACKDROP_INKS, BUILT_IN, EXTRAS, paintBackdrop, paintScene, sceneFromRecipe, type Paint2D, type Scene } from "./backdrops"
 import { coverCrop } from "./picture"
 import { FRAME_BUDGET_MS, STRAIN_QUIET_MS, lighter, watchStrain } from "./strain"
 import { captureFor } from "./noise"
@@ -31,6 +31,20 @@ describe("a background and a noise level, read from anywhere", () => {
     expect(sameBackground({ kind: "blur", strength: "light" }, { kind: "blur", strength: "light" })).toBe(true)
     expect(sameBackground({ kind: "blur", strength: "light" }, { kind: "blur", strength: "strong" })).toBe(false)
     expect(sameBackground({ kind: "backdrop", id: "sun" }, { kind: "backdrop", id: "sky" })).toBe(false)
+  })
+
+  it("reads a scene made from words, names it, and counts a newly kept picture or scene as a new choice", () => {
+    expect(readBackground({ kind: "scene" })).toEqual({ kind: "scene" })
+    expect(readBackground({ kind: "scene", at: 1731130000000, words: "a forest" })).toEqual({ kind: "scene", at: 1731130000000 })
+    expect(readBackground({ kind: "picture", at: "soon" })).toEqual({ kind: "picture" })
+    expect(backgroundName({ kind: "scene" })).toBe("Your scene")
+    // "Use this" on another scene, or another picture of one's own, while that slot is chosen: the camera must take the new one.
+    expect(sameBackground({ kind: "scene", at: 1 }, { kind: "scene", at: 2 })).toBe(false)
+    expect(sameBackground({ kind: "picture", at: 1 }, { kind: "picture" })).toBe(false)
+    expect(sameBackground({ kind: "scene", at: 1 }, { kind: "scene", at: 1 })).toBe(true)
+    expect(sameBackground({ kind: "scene" }, { kind: "picture" })).toBe(false)
+    writeEffects({ ...NO_EFFECTS, background: { kind: "scene", at: 5 } })
+    expect(readEffects().background).toEqual({ kind: "scene", at: 5 })
   })
 
   it("is remembered on this device, and starts with none where it can't be", () => {
@@ -206,6 +220,79 @@ describe("the backdrops, drawn in the camp palette", () => {
       expect(g.calls).toContain("fillRect(0,0,1280,720)")
       expect(g.globalAlpha, id).toBe(1)
     }
+  })
+})
+
+// meet-09's generated backgrounds: the six built-ins are scenes (data) one
+// painter draws, and the workspace's model writes a recipe (a palette, one of
+// those layouts, a few extras) that this browser builds a scene from.
+describe("a scene, painted by the one painter", () => {
+  const RECIPE = { palette: ["#0B1D3A", "#1E3A6B", "#2A4B7C", "#14284F", "#F4E3B1"], layout: "moss", extras: [] as string[] }
+  /** The colours a drawing used, as #RRGGBB (a glow's fading stop ends in 00). */
+  const inksOf = (g: { colours: string[] }) => new Set(g.colours.map((c) => c.toUpperCase().slice(0, 7)))
+  const painted = (scene: Scene) => {
+    const g = fakePaint()
+    paintScene(scene, g)
+    return g
+  }
+
+  it("draws each built-in from its scene: its own hues, five colours at most, the whole frame, and the drawing left as found", () => {
+    for (const id of BACKDROP_IDS) {
+      const scene = BUILT_IN[id]
+      expect(scene.palette.length, id).toBeLessThanOrEqual(5)
+      for (const c of scene.palette) expect(c, id).toMatch(/^#[0-9A-F]{6}$/)
+      const g = painted(scene)
+      const hue = BACKDROP_INKS[id]
+      expect([hue.base, hue.deep, hue.tint].some((c) => inksOf(g).has(c.toUpperCase())), id).toBe(true)
+      expect(g.calls, id).toContain("fillRect(0,0,1280,720)")
+      expect(g.globalAlpha, id).toBe(1)
+      // The backdrop is its scene, drawn by the same painter.
+      const b = fakePaint()
+      paintBackdrop(id, b)
+      expect(b.calls, id).toEqual(g.calls)
+      expect(b.colours, id).toEqual(g.colours)
+    }
+  })
+
+  it("builds a recipe on its layout's composition, in the recipe's colours only", () => {
+    const scene = sceneFromRecipe(RECIPE)
+    expect(scene.palette).toEqual(RECIPE.palette)
+    expect(scene.shapes).toEqual(BUILT_IN.moss.shapes)
+    const inks = inksOf(painted(scene))
+    expect([...inks].sort()).toEqual([...RECIPE.palette].sort())
+    for (const own of BUILT_IN.moss.palette) if (!RECIPE.palette.includes(own)) expect(inks.has(own), own).toBe(false)
+  })
+
+  it("fills the colours a recipe left out, or that aren't #RRGGBB, from its layout's own", () => {
+    const scene = sceneFromRecipe({ palette: ["#0b1d3a", "red", "#FFF"], layout: "lake", extras: [] })
+    expect(scene.palette).toEqual(["#0B1D3A", ...BUILT_IN.lake.palette.slice(1)])
+  })
+
+  it("falls back to the first built-in for a layout it doesn't know", () => {
+    for (const layout of ["space", "", undefined, 7]) {
+      expect(sceneFromRecipe({ palette: RECIPE.palette, layout, extras: [] } as never).shapes, String(layout)).toEqual(BUILT_IN[BACKDROP_IDS[0]].shapes)
+    }
+  })
+
+  it("adds the extras' shapes in the recipe's light: each once, three at most, unknown ones dropped, mist in front of the land", () => {
+    const plain = sceneFromRecipe({ ...RECIPE, layout: "sun" })
+    const night = sceneFromRecipe({ ...RECIPE, layout: "sun", extras: ["stars", "moon", "stars", "lasers", "mist", "sun"] })
+    // The sky first, the stars and moon behind the land, the mist in front of it; "sun" came fourth, so it isn't there.
+    expect(night.shapes).toEqual([plain.shapes[0], ...EXTRAS.stars, ...EXTRAS.moon, ...plain.shapes.slice(1), ...EXTRAS.mist])
+    for (const extra of Object.keys(EXTRAS) as (keyof typeof EXTRAS)[]) {
+      expect(EXTRAS[extra].length, extra).toBeGreaterThan(0)
+      for (const s of EXTRAS[extra]) expect(s.ink, extra).toBe(4)
+    }
+    // They draw: more paths than the layout alone, in the recipe's light.
+    const g = painted(night)
+    expect(g.calls.filter((c) => c === "beginPath").length).toBeGreaterThan(painted(plain).calls.filter((c) => c === "beginPath").length)
+    expect(inksOf(g).has(RECIPE.palette[4])).toBe(true)
+  })
+
+  it("draws nothing for a shape it doesn't know or a colour the palette hasn't got", () => {
+    const g = painted({ palette: ["#FFFFFF"], shapes: [{ kind: "image" } as never, { kind: "glow", ink: 3, x: 0.5, y: 0.5, r: 100, alpha: 1 }] })
+    expect(g.calls).toEqual([])
+    expect(g.globalAlpha).toBe(1)
   })
 })
 

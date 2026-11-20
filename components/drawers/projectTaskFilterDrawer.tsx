@@ -33,6 +33,8 @@ import { useProjectTypes } from "@/hooks/useProjectTypes"
 import { useReleaseList } from "@/components/task/releaseFacet"
 import axiosInstance from "@/lib/axiosInstance"
 import { TASK_RELEASE, releaseFilterOptions } from "@/lib/work/releaseFilter"
+import { useSlaView } from "@/hooks/useSlaView"
+import { SLA_CHOICES, SLA_SORT, TASK_SLA } from "@/lib/work/slaFilter"
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
 import { ProjectsGet } from "@/services/endpoints/projects";
@@ -44,7 +46,7 @@ import type { RootState } from "@/store/store"
 
 // Define sort field enum. task_rank is Manual: the project's one order, the
 // board's too (L-1), which the list keeps as no sort at all.
-const sortFieldEnum = z.enum(["task_rank", "task_start_date", "task_due_date", "task_created_date"])
+const sortFieldEnum = z.enum(["task_rank", "task_start_date", "task_due_date", "task_created_date", "task_sla"])
 const MANUAL = { id: "task_rank" as const, desc: false }
 
 // Define the schema using Zod
@@ -58,6 +60,7 @@ const filterSchema = z.object({
     assignee: z.array(z.string()).optional(),
     type: z.array(z.string()).optional(),
     release: z.array(z.string()).optional(),
+    sla: z.array(z.string()).optional(),
 })
 
 type FilterFormValues = z.infer<typeof filterSchema>
@@ -78,6 +81,9 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     const { cycles } = useProjectCycles(drawerOpenState ? projectId : undefined)
     // Its releases (jira-04), read while the drawer is open; "none" is No release.
     const { releases } = useReleaseList(projectId, axiosInstance, drawerOpenState)
+    // Its SLAs (linear-24), offered only to a reader of their state with them on: a guest's GET /sla is a 403 (V-1011).
+    const sla = useSlaView(projectId, drawerOpenState)
+    const noSla = <T extends { id: string }>(xs: T[]) => (sla.shows ? xs : xs.filter((x) => x.id !== TASK_SLA))
     const dispatch = useDispatch()
     const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId])
     // The list as its applied sort and filters show it, as a CSV file (the
@@ -97,6 +103,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             const assignee = valuesOf("task_assignee_name")
             const type = valuesOf("task_work_type")
             const release = valuesOf(TASK_RELEASE)
+            const slaChosen = valuesOf(TASK_SLA)
             
             const sortArr = taskFiltersAndSorts?.sort || []
             const sort = sortArr.length > 0 ? sortArr[0] : MANUAL
@@ -108,6 +115,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                 assignee,
                 type,
                 release,
+                sla: slaChosen,
             })
         }
     }, [drawerOpenState, taskFiltersAndSorts])
@@ -126,6 +134,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             status: [],
             type: [],
             release: [],
+            sla: [],
         },
     })
 
@@ -140,12 +149,13 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
         { id: "priority", label: "Priority" },
         { id: "type", label: "Type" },
         { id: "release", label: "Release" },
+        ...(sla.shows ? [{ id: "sla", label: "SLA" }] : []),
         { id: "status", label: "Status" },
         { id: "assignee", label: "Assignee" },
     ]
 
     // As the computer's Display menu has it: the order tasks are dragged into, then the dates.
-    const sortOptions = [{ ...MANUAL, label: "Manual" }, ...DATE_SORTS]
+    const sortOptions = [{ ...MANUAL, label: "Manual" }, ...DATE_SORTS, ...(sla.shows ? [SLA_SORT] : [])]
 
 
 
@@ -157,13 +167,14 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             ...(data.assignee?.length ? [{ id: "task_assignee_name", value: data.assignee }] : []),
             ...(data.type?.length ? [{ id: "task_work_type", value: data.type }] : []),
             ...(data.release?.length ? [{ id: TASK_RELEASE, value: data.release }] : []),
+            ...(sla.shows && data.sla?.length ? [{ id: TASK_SLA, value: data.sla }] : []),
             // The cycle is picked in its own tab; keep it.
             ...(taskFiltersAndSorts?.filters ?? []).filter((f) => f.id === "task_cycle"),
         ]
 
 
         // Manual is no sort: the list asks for the project's order (lib/tasks/manualSort).
-        const sort = data.sort.id === MANUAL.id ? [] : [data.sort as sortInterface]
+        const sort = data.sort.id === MANUAL.id || (data.sort.id === TASK_SLA && !sla.shows) ? [] : [data.sort as sortInterface]
         dispatch(updateProjectSortingAndFiltering({projectId, filters, sort}))
 
         setOpenState(false)
@@ -181,6 +192,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             assignee: [],
             type: [],
             release: [],
+            sla: [],
         })
         dispatch(updateProjectSortingAndFiltering({ projectId, filters: [], sort: [] }))
         setOpenState(false)
@@ -216,7 +228,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                     withColumns={false}
                     current={{ filters: taskFiltersAndSorts?.filters ?? [], sort: taskFiltersAndSorts?.sort ?? [] }}
                     apply={(v) => {
-                        dispatch(updateProjectSortingAndFiltering({ projectId, filters: v.filters as filterInterface[], sort: v.sort as sortInterface[] }))
+                        dispatch(updateProjectSortingAndFiltering({ projectId, filters: noSla(v.filters as filterInterface[]), sort: noSla(v.sort as sortInterface[]) }))
                         setOpenState(false)
                     }}
                 />
@@ -255,7 +267,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             )
         }
 
-        const fieldName = activeTab as "priority" | "status" | "assignee" | "type" | "release"
+        const fieldName = activeTab as "priority" | "status" | "assignee" | "type" | "release" | "sla"
 
         if (activeTab === "assignee") {
             return (
@@ -293,6 +305,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             status: statusOpts.map((o) => ({ id: o.value, label: o.label })),
             type: types.map((t) => ({ id: t.id, label: t.name })),
             release: releaseFilterOptions(releases),
+            sla: SLA_CHOICES.map((c) => ({ id: c.key, label: c.label })),
         }
 
         const currentOptions = optionsMap[activeTab as keyof typeof optionsMap] || []

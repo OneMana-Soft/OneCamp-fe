@@ -39,7 +39,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }))
 // The dock's Chat follows split view (callChat.test); these pages test the call itself.
 vi.mock("@/components/livekit/callChat", () => ({ useCallChat: () => ({}) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
-vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ transcription_mode: "frontend", transcription_language: "de-DE" }) }))
+vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => false, useClientConfig: () => ({ transcription_mode: "frontend", transcription_language: "de-DE" }) }))
 const joinInstantMeeting = vi.fn()
 const createInstantMeetingAs = vi.fn()
 vi.mock("@/services/callService", async (orig) => ({
@@ -206,7 +206,7 @@ describe("CALL-BUG-23: a call that never connected says so, with Try again", () 
     render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
     await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
-    expect(conference.transcriptionConfig).toEqual({ mode: "frontend", where: undefined, language: "de-DE" })
+    expect(conference.transcriptionConfig).toEqual({ mode: "frontend", where: undefined, language: "de-DE", offReason: undefined, admin: false })
   })
 })
 

@@ -116,6 +116,19 @@ describe("grouping", () => {
     render(<GlanceLine loading={g.loading} failed={g.failed} counts={g.counts} unnamed={g.unnamed} />)
     expect(document.querySelector("[data-glance]")!.textContent).toBe("1 task due today · 1 commitment overdue")
   })
+
+  // V-939: on a phone an agent's request kept Dismiss and Approve beside its
+  // words, and "in Q4 launch · acts for you" broke into two cramped stacks.
+  it("gives an agent's request its actions' own line on a phone, and its meta one line that cuts the place", () => {
+    const { container } = render(<NeedsMeSection items={[agent, task("1")]} />)
+    expect(container.querySelector('[data-needs-kind="agent"]')?.hasAttribute("data-meta-below")).toBe(true)
+    expect(container.querySelector('[data-needs-kind="due"]')?.hasAttribute("data-meta-below")).toBe(false)
+    const place = screen.getByText("in Q4 launch")
+    expect(place.className).toContain("truncate")
+    expect(place.parentElement?.className).toContain("whitespace-nowrap")
+    // Under a finger, Dismiss and Approve stand a touch apart.
+    expect(screen.getByRole("button", { name: "Approve" }).parentElement?.getAttribute("data-touch-group")).toBe("24")
+  })
 })
 
 describe("acting in place", () => {

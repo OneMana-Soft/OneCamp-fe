@@ -3,6 +3,7 @@ import { expect, test, type Browser, type BrowserContextOptions } from "@playwri
 // collaboration server. Nothing leaves the machine.
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, frame, note, ordered } from "../scripts/fluidity/fakeBoard.mjs"
+import { boardRoom } from "./boxes"
 
 // Frames (miro-11): a frame starts at a size (16:9, A4, phone…) from the Frame tool beside the tools on a computer,
 // and from the Frames panel's Add a frame on a phone (a sheet: a phone has no tool bar of ours); and a frame lays out
@@ -379,7 +380,8 @@ for (const device of ["computer", "phone"] as const) {
     await b.page.waitForTimeout(1_200)
     if (device === "phone") {
       // The Frames sheet's A4 goes beside the note and the board goes to it, by the camera the board keeps once it
-      // settles (DESIGN-BUILD-129 F1): across the width, its name and top edge below Excalidraw's tool row, its middle
+      // settles (DESIGN-BUILD-129 F1): across the width, its name and top edge below the board's top bar (boardRoom; the
+      // tool row is at the foot since design-22 4), its middle
       // above the Facilitation bar. The fit is Excalidraw's own over the whole canvas, so the bars at the foot still
       // cover the frame's last part, as every board "bring into view" on a phone does (V-826).
       const kept = () => b.page.evaluate((k) => localStorage.getItem(k), `onecamp:board:viewport:${BOARD}`)
@@ -389,10 +391,10 @@ for (const device of ["computer", "phone"] as const) {
       const f = b.frames().find((g) => g.id === first.id)!
       const left = canvas.x + (f.x + cam.scrollX) * cam.zoom
       const top = canvas.y + (f.y + cam.scrollY) * cam.zoom
-      const row = (await b.page.locator(".App-toolbar").first().boundingBox())!
+      const room = await boardRoom(b.page)
       const bar = (await b.page.getByRole("toolbar", { name: "Facilitation" }).boundingBox())!
       expect([left >= 0, left + f.width * cam.zoom <= 390]).toEqual([true, true])
-      expect([top >= row.y + row.height, top + (f.height * cam.zoom) / 2 <= bar.y]).toEqual([true, true])
+      expect([top >= room.top, top + (f.height * cam.zoom) / 2 <= bar.y]).toEqual([true, true])
       const dir = process.env.SHOTS_DIR
       if (dir) {
         await b.page.screenshot({ path: `${dir}/frames-size-phone-light.png` })

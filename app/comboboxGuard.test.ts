@@ -26,7 +26,9 @@ const BASELINE: Record<string, number> = {
   "components/dialog/createProjectDialog.tsx": 1,
   "components/goals/GoalPage.tsx": 1,
   "components/project/ProjectsWorkload.tsx": 1,
-  "components/task/BulkTaskBar.tsx": 3,
+  // OptionList and PriorityList moved out of BulkTaskBar as they were (linear-21 H3: triage sets a priority with it): the same three roots.
+  "components/task/BulkTaskBar.tsx": 2,
+  "components/task/OptionList.tsx": 1,
   "components/task/fieldFilterMenu.tsx": 1,
   "components/task/StatusMenu.tsx": 2,
   "components/task/taskCreateForm.tsx": 2,

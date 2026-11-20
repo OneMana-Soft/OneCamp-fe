@@ -182,6 +182,8 @@ test("at 390 by touch, the field-in-sight code comes in the record's own chunk, 
   await expect(city).toBeFocused()
   await openKeyboard(page, "resize")
   await expect.poll(() => sightOf(city), { message: "the field being edited, over the resize keyboard" }).toBe("in sight")
+  // The chunk route goes before the page closes (holdChunk's done()): a chunk still on its way can't fail the test.
+  await page.context().unrouteAll({ behavior: "ignoreErrors" })
   await sam.close()
 })
 
@@ -324,5 +326,50 @@ test("at 1280 by mouse and keys, the record stays the side panel and steps by J 
   await expect(page.getByRole("dialog", { name: "Line 1, a row of Deals" })).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(page.locator(RECORD)).toHaveCount(0)
+  await sam.close()
+})
+
+test("V-1042 at 390 by touch: the record's comment box rests with no editor; a tap brings it in with the caret, a comment typed at once lands, and the next row's rests again", async ({ browser }, testInfo) => {
+  // The record makes its comment box's editor when the box is asked for (CommentComposer's waitForUse): a sheet opened,
+  // stepped through and closed makes none. The line keeps the focus (a phone's keyboard) while the editor comes in, and
+  // hands it what was typed and the caret.
+  const { sam, page } = await cityRecord(browser, testInfo)
+  const record = page.getByRole("dialog", { name: "Line 2, a row of Deals" })
+  const box = record.locator("[data-row-comment-box]")
+  const line = box.getByRole("textbox", { name: "Comment on this row" })
+  await expect(line).toHaveCount(1)
+  await expect(box.locator(".ProseMirror"), "no editor at rest").toHaveCount(0)
+  await line.scrollIntoViewIfNeeded()
+  await line.tap()
+  await page.keyboard.type("Booked for Friday")
+  await expect(box.locator(".ProseMirror"), "the tap: the editor, the caret in it").toBeFocused()
+  await expect(box.locator(".ProseMirror")).toHaveText("Booked for Friday")
+  await expect(box.getByRole("textbox", { name: "Comment on this row" }), "one box by its name").toHaveCount(1)
+  await record.getByRole("button", { name: "Next row (J)" }).tap()
+  const next = page.getByRole("dialog", { name: "Line 3, a row of Deals" })
+  await expect(next).toBeVisible()
+  await expect(next.locator("[data-row-comment-box]").getByRole("textbox", { name: "Comment on this row" })).toHaveCount(1)
+  await expect(next.locator("[data-row-comment-box] .ProseMirror"), "the next row's box: no editor").toHaveCount(0)
+  await sam.close()
+})
+
+test("V-1225 at 390 by touch: the record's comment box shows @ beside send at rest, and a tap on it starts a mention with the keyboard's caret in the editor", async ({ browser }, testInfo) => {
+  // MAIN's ruling: every composer with an editor looks the same at rest. The tap focuses the resting line in the tap
+  // (a phone's keyboard comes up as for a tap on the line), the editor comes in with the caret, and the mention starts.
+  const { sam, page } = await cityRecord(browser, testInfo)
+  const record = page.getByRole("dialog", { name: "Line 2, a row of Deals" })
+  const box = record.locator("[data-row-comment-box]")
+  const at = box.getByRole("button", { name: "Mention someone" })
+  await expect(box.locator(".ProseMirror"), "no editor at rest").toHaveCount(0)
+  await at.scrollIntoViewIfNeeded()
+  await expect(at, "@ at rest").toBeVisible()
+  await at.tap()
+  const editor = box.locator(".ProseMirror")
+  await expect(editor, "the tap: the editor, the caret in it").toBeFocused()
+  await expect(editor).toHaveText("@")
+  // The list names people by their username.
+  await expect(page.getByRole("listbox", { name: /^Mention/ }).getByRole("option", { name: /priya/i })).toBeVisible({ timeout: 15_000 })
+  await page.keyboard.type("pri")
+  await expect(editor).toHaveText("@pri")
   await sam.close()
 })

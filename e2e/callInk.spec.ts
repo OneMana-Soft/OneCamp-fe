@@ -85,13 +85,8 @@ async function barIsClear(page: Page, tile: Locator, tools: Locator, touch: bool
     await expect(page.getByRole("tooltip"), "no tooltip lies over the bar").toHaveCount(0)
   }
   const t = (await tile.boundingBox())!
-  const bar = (await tools.boundingBox())!
-  const pin = tile.getByRole("button", { name: /^(Pin to the stage|Unpin)$/ })
-  if ((await pin.count()) > 0 && (await pin.isVisible())) {
-    const q = (await pin.boundingBox())!
-    const apart = q.x >= bar.x + bar.width || q.x + q.width <= bar.x || q.y >= bar.y + bar.height || q.y + q.height <= bar.y
-    expect(apart, `the pin (${Math.round(q.x)},${Math.round(q.y)}) stays off the bar (${Math.round(bar.x)}..${Math.round(bar.x + bar.width)})`).toBe(true)
-  }
+  // While you draw the pin steps aside for the bar: StageTile's targeted :has() rule, never group-has- (V-924).
+  await expect(tile.getByRole("button", { name: /^(Pin to the stage|Unpin)$/ }), "the pin steps aside while you draw").toBeHidden()
   // The bar is one row at every size: at 390 its fifth button once dropped alone under the first (V-216).
   const tops: number[] = []
   for (const b of await tools.getByRole("button").all()) tops.push(Math.round((await b.boundingBox())!.y))
@@ -128,6 +123,9 @@ for (const [label, viewport, touch] of [
       await expect(share, "Priya's screen is on the stage").toBeVisible({ timeout: 30_000 })
       const annotate = share.getByRole("button", { name: "Annotate Priya Shah's screen" })
       await expect(annotate, "her screen offers Annotate").toBeVisible({ timeout: 30_000 })
+      // The tile has its pin until you draw (barIsClear: hidden while you do; back once the pen is down).
+      const pin = share.getByRole("button", { name: /^(Pin to the stage|Unpin)$/ })
+      await expect(pin, "her tile has its pin").toBeVisible()
       await press(annotate)
       const tools = share.getByRole("toolbar", { name: "Drawing" })
       await expect(tools.getByRole("button", { name: "Pen" })).toHaveAttribute("aria-pressed", "true")
@@ -175,6 +173,7 @@ for (const [label, viewport, touch] of [
       await page.keyboard.press("Escape")
       await expect(annotate).toBeVisible()
       await expect(tools.getByRole("button", { name: "Stop drawing" })).toHaveCount(0)
+      await expect(pin, "the pin is back once the pen is down").toBeVisible()
     })
 
     test("people whose names share a hue draw in their own colours, each their tile's (V-190)", async ({ page }, testInfo) => {

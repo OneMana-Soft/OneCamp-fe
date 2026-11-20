@@ -47,6 +47,7 @@ const ERRORS: Record<string, string> = {
 }
 
 const NEW_AGENT = ""
+const inlineLink = "font-medium text-foreground underline underline-offset-2"
 
 /** How long "Connected" shows, dots turned moss, before the client takes over. */
 export const CONNECTED_PAUSE_MS = 900
@@ -269,6 +270,10 @@ export function ConnectAuthorize() {
 
   const { view } = phase
   const closed = !view.surface_enabled
+  // Where this person can take it back: Admin is an admin's alone (ADMIN-13).
+  const [takeBack, place, placeHref] = view.is_admin
+    ? ["Pause or revoke", "Admin › Agent inventory", "/app/admin?tab=ai-models#ai-models-inventory"] as const
+    : ["Disconnect", "Settings › Your AI assistants", "/app/settings/assistants"] as const
   const toggle = (scope: string, on: boolean) =>
     setScopes((cur) => (on ? [...cur, scope] : cur.filter((s) => s !== scope)))
   const options = [
@@ -303,8 +308,12 @@ export function ConnectAuthorize() {
           <p className="flex items-start gap-2 pt-2 auth-hint">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
-              You&apos;ll return to <span className="font-medium text-foreground">{view.redirect_host}</span>. Pause or
-              revoke it any time in Admin › Agent inventory.
+              You&apos;ll return to <span className="font-medium text-foreground">{view.redirect_host}</span>. {takeBack} it
+              any time in{" "}
+              <Link className={inlineLink} href={placeHref}>
+                {place}
+              </Link>
+              .
             </span>
           </p>
         </div>
@@ -320,7 +329,7 @@ export function ConnectAuthorize() {
             {view.is_admin ? (
               <>
                 Outside agents are turned off here. Turn them on in{" "}
-                <Link className="font-medium text-foreground underline underline-offset-2" href="/app/admin?tab=ai-models#ai-models-mcp">
+                <Link className={inlineLink} href="/app/admin?tab=ai-models#ai-models-mcp">
                   Admin, AI &amp; agents
                 </Link>
                 , then come back to this tab.

@@ -20,7 +20,7 @@ import { ArrowDown, ArrowUp, Download, Ellipsis, Pencil, Trash2 } from "@/lib/ic
 import { CSV_KINDS, lastWeeks, metricText, MEASURES, widgetTitle, type MetricData, type Widget, type WidgetData } from "@/lib/dashboards"
 import type { GoalSummary } from "@/lib/goals"
 import { displayNameOf } from "@/lib/personName"
-import { effortLabel, effortUnit, SLICE_BY, sliceName, slicesBy } from "@/lib/reportInsights"
+import { effortLabel, effortUnit, sliceChoices, sliceName, slicesBy } from "@/lib/reportInsights"
 import {
   flowChart,
   openOf,
@@ -155,7 +155,9 @@ function Breakdown({ data }: { data: BreakdownData }) {
   const rows = rowsOf(data)
   const effort = !!data.slices && data.measure === "effort"
   const done = rows.some((r) => r.done !== undefined)
-  if (rows.length === 0) return <p className="py-4 text-sm text-ink-2">Nothing open or done to count.</p>
+  // By SLA, the server sends nothing for a project whose SLA state its viewer doesn't read (SLAs off, a guest).
+  if (rows.length === 0)
+    return <p className="py-4 text-sm text-ink-2">{data.by === "sla" ? "No SLA state to count: no project here has SLAs on." : "Nothing open or done to count."}</p>
   const head = (label: string, w: string) => (
     <th scope="col" className={cn(w, "pb-1.5 text-right font-[510]")}>
       {label}
@@ -167,7 +169,7 @@ function Breakdown({ data }: { data: BreakdownData }) {
         <thead className="text-left text-ink-3">
           <tr>
             <th scope="col" className="pb-1.5 font-[510]">
-              {data.field?.name ?? SLICE_BY.find((s) => s.by === data.by)?.label ?? "Name"}
+              {data.field?.name ?? sliceChoices(data).find((s) => s.by === data.by)?.label ?? "Name"}
             </th>
             {head(effort ? "Effort open" : "Open", effort ? "w-24" : "w-14")}
             {!effort && head("Overdue", "w-16")}

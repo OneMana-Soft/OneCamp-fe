@@ -1,5 +1,6 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 const createGuestLink = vi.fn()
 const turnOffGuestLink = vi.fn()
@@ -9,9 +10,12 @@ vi.mock("@/services/guestService", () => ({
   resourceGuestLinksKey: () => "links",
   turnOffGuestLink: (...args: unknown[]) => turnOffGuestLink(...args),
 }))
-const live = vi.hoisted(() => ({ links: undefined as unknown }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: live.links, mutate: vi.fn() }) }))
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+vi.mock("@/services/guestBoardLinks", () => ({ changeGuestLink: (...args: unknown[]) => changeGuestLink(...args) }))
+const changeGuestLink = vi.fn()
+pinTestClock()
+const live = vi.hoisted(() => ({ links: undefined as unknown, mutate: (() => {}) as (...a: unknown[]) => unknown, toast: (() => {}) as (...a: unknown[]) => unknown }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: live.links, mutate: live.mutate }) }))
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: live.toast }) }))
 type ConfirmOpts = { title: string; description: string; confirmText?: string; destructive?: boolean; onConfirm: () => void }
 const confirm = vi.fn<(o: ConfirmOpts) => void>()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
@@ -179,5 +183,167 @@ describe("a kind's own row beside its link, as the card's extra (a board's embed
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
     expect(screen.getByText("Copy it now: it won't be shown again.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Copy embed code" })).toBeNull()
+  })
+})
+
+// miro-33: a board's link has a role (view, comment, edit), an optional password and an end, and its
+// owner or a co-owner changes or turns off each live one. The server keeps the password; the card says set or not.
+describe("a board's links, with a role, a password and an end (miro-33)", () => {
+  const press = (el: Element) => fireEvent.keyDown(el, { key: "Enter" })
+  const items = async () => (await screen.findAllByRole("menuitem")).map((m) => m.textContent?.trim())
+  const waitForChange = () =>
+    waitFor(() => {
+      const row = document.querySelector<HTMLElement>("[data-link-change]")
+      if (!row) throw new Error("the link's change row hasn't come yet")
+      return row
+    })
+  const LINK = { id: "g1", capability: "comment", expires_at: "2099-01-01T00:00:00Z", created_at: "2026-11-13T00:00:00Z", mine: true, has_password: true }
+  afterEach(() => {
+    cleanup()
+    live.links = undefined
+    createGuestLink.mockReset()
+    changeGuestLink.mockReset()
+  })
+
+  it("offers view, comment and edit, and makes a comment link with a password", async () => {
+    createGuestLink.mockReset().mockResolvedValue({ token: "tok" })
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    press(screen.getByRole("button", { name: "Permission: Can view" }))
+    expect(await items()).toEqual(["Can view", "Can comment", "Can edit"])
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: "Can comment" })))
+    // The password is the board's own piece (boardLinkControls): it comes as its code does.
+    fireEvent.click(await screen.findByRole("button", { name: "Add a password" }))
+    fireEvent.change(screen.getByLabelText("Link password"), { target: { value: "abc" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
+    expect(createGuestLink).not.toHaveBeenCalled()
+    expect(screen.getByText("A password is 6 to 128 characters.")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Link password"), { target: { value: "open-sesame" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
+    expect(createGuestLink).toHaveBeenCalledWith("board", "b1", 24 * 30, "comment", false, "open-sesame")
+  })
+
+  it("says each live link's role and whether it has a password, never the password", () => {
+    live.links = { data: [LINK, { ...LINK, id: "g2", capability: "edit", has_password: false, expires_at: null }] }
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    expect(screen.getByText(/Can comment/, { selector: "[data-link-row] *" }).closest("[data-link-row]")?.textContent).toMatch(/Password set/)
+    expect(screen.getByText(/Can edit/, { selector: "[data-link-row] *" }).closest("[data-link-row]")?.textContent).toMatch(/No password/)
+  })
+
+  it("changes a link's role and sends only what changed", async () => {
+    live.links = { data: [LINK] }
+    changeGuestLink.mockResolvedValue({ ...LINK, capability: "edit" })
+    const mutate = vi.fn()
+    live.mutate = mutate
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    fireEvent.click(screen.getByRole("button", { name: "Change the “Can comment” link" }))
+    press(await screen.findByRole("button", { name: "Permission: Can comment" }))
+    await act(async () => fireEvent.click(await screen.findByRole("menuitem", { name: "Can edit" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save changes" })))
+    expect(changeGuestLink).toHaveBeenCalledWith("g1", { capability: "edit" })
+    expect(mutate).toHaveBeenCalled()
+  })
+
+  it("takes the password off, or sets a new one by the docs' rule", async () => {
+    live.links = { data: [LINK] }
+    changeGuestLink.mockResolvedValue({ ...LINK, has_password: false })
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    fireEvent.click(screen.getByRole("button", { name: "Change the “Can comment” link" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Remove the password" }))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save changes" })))
+    expect(changeGuestLink).toHaveBeenCalledWith("g1", { password: "" })
+  })
+
+  it("shows a lost race in the server's words, then reads the link again", async () => {
+    live.links = { data: [LINK] }
+    const said = "Someone changed this link just now. Look at it again, then make your change."
+    changeGuestLink.mockRejectedValue(Object.assign(new Error("Request failed with status code 409"), { isAxiosError: true, response: { status: 409, data: { msg: said } } }))
+    const mutate = vi.fn()
+    const toast = vi.fn()
+    live.mutate = mutate
+    live.toast = toast
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    fireEvent.click(screen.getByRole("button", { name: "Change the “Can comment” link" }))
+    const expiry = within(await waitForChange()).getByRole("button", { name: /^Link expires:/ })
+    press(expiry)
+    await act(async () => fireEvent.click(await screen.findByRole("menuitem", { name: "Does not expire" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save changes" })))
+    expect(changeGuestLink).toHaveBeenCalledWith("g1", { never_expires: true })
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: said }))
+    expect(mutate).toHaveBeenCalled()
+  })
+
+  it("asks for the password before Create link, on screen and in tab order: the action comes last", async () => {
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    const add = await screen.findByRole("button", { name: "Add a password" })
+    const create = screen.getByRole("button", { name: "Create link" })
+    expect(add.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(add)
+    expect(screen.getByLabelText("Link password").compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("takes a refused password's words away once the owner types again, making a link or changing one", async () => {
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    fireEvent.click(await screen.findByRole("button", { name: "Add a password" }))
+    fireEvent.change(screen.getByLabelText("Link password"), { target: { value: "abc" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create link" })))
+    expect(screen.getByRole("alert")).toHaveTextContent("A password is 6 to 128 characters.")
+    fireEvent.change(screen.getByLabelText("Link password"), { target: { value: "open-sesame" } })
+    expect(screen.queryByRole("alert")).toBeNull()
+    cleanup()
+
+    live.links = { data: [LINK] }
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    fireEvent.click(screen.getByRole("button", { name: "Change the “Can comment” link" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New password" }))
+    fireEvent.change(screen.getByLabelText("Link password"), { target: { value: "abc" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save changes" })))
+    expect(changeGuestLink).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert")).toHaveTextContent("A password is 6 to 128 characters.")
+    fireEvent.change(screen.getByLabelText("Link password"), { target: { value: "open-sesame" } })
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("draws a live link on two lines, its role and its controls, then its password, its end and whose, none cut short", () => {
+    live.links = { data: [LINK, { ...LINK, id: "g2", capability: "view", has_password: false, expires_at: null, mine: false }] }
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    const [first, second] = Array.from(document.querySelectorAll<HTMLElement>("[data-link-row]"))
+    const facts = (row: HTMLElement) => row.querySelector("[data-link-facts]")?.textContent
+    expect(facts(first)).toMatch(/^Password set · ends in .+ · yours$/)
+    expect(facts(second)).toBe("No password · doesn't expire")
+    expect(first.textContent).toMatch(/^Can comment/)
+    expect(first.querySelectorAll(".truncate")).toHaveLength(0)
+    expect(first.className).not.toMatch(/\bh-9\b/)
+  })
+
+  it("reaches 44px under a finger on every control the link's role, end and password add", async () => {
+    live.links = { data: [LINK] }
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    const reach = (el: Element) => expect(el.className, el.textContent ?? "").toMatch(/\bextend-touch-target\b/)
+    reach(screen.getByRole("button", { name: "Turn off" }))
+    reach(screen.getByRole("button", { name: "Change the “Can comment” link" }))
+    fireEvent.click(screen.getByRole("button", { name: "Change the “Can comment” link" }))
+    reach(await screen.findByRole("button", { name: "New password" }))
+    reach(screen.getByRole("button", { name: "Remove the password" }))
+    reach(screen.getByRole("button", { name: "Cancel" }))
+    reach(screen.getByRole("button", { name: "Save changes" }))
+    fireEvent.click(screen.getByRole("button", { name: "New password" }))
+    // An input draws no ::after, so the field's own box grows under a finger instead.
+    expect(screen.getByLabelText("Link password").className).toMatch(/\bpointer-coarse:h-11\b/)
+    cleanup()
+    live.links = undefined
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    reach(await screen.findByRole("button", { name: "Add a password" }))
+  })
+
+  it("keeps a doc's and a table's links as they were: no edit role, no password on the card", async () => {
+    render(<GuestLinkSection card resourceType="doc" resourceId="d1" canShare />)
+    await act(async () => fireEvent.click(screen.getByRole("switch", { name: "Anyone with the link" })))
+    expect(screen.queryByRole("button", { name: "Add a password" })).toBeNull()
+    press(screen.getByRole("button", { name: "Permission: Can view" }))
+    expect(await items()).toEqual(["Can view", "Can comment"])
   })
 })

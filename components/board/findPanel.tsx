@@ -27,7 +27,7 @@ import { BoardVeil } from "@/components/board/boardVeil"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { sceneToLocal } from "@/lib/board/viewport"
 import { boxAllInView, offsetsOf, roomAbove, viewBesidePanel } from "@/lib/board/panelView"
-import { PHONE_TOOL_ROW } from "@/components/board/excalidrawPart"
+import { boardTopFoot } from "@/components/board/presentFrame"
 import { FindIconButton } from "@/components/ui/findIconButton"
 import { useUndoToast } from "@/components/ui/undoToast"
 
@@ -148,8 +148,9 @@ export default function FindPanel({
     const s = api.getAppState()
     const panel = field.current?.closest<HTMLElement>("[data-board-find]")
     const edge = !panel ? undefined : sheet ? panel.offsetTop : panel.getBoundingClientRect().left
-    // On a phone the MobileMenu's tool row floats over the board's top, so what is open starts under it.
-    const below = sheet ? document.querySelector(PHONE_TOOL_ROW)?.getBoundingClientRect().bottom : undefined
+    // On a phone what is open starts under what floats over the board's top: its cluster, the tool row being at the
+    // foot (design-22 4, V-1110).
+    const below = sheet ? boardTopFoot() : undefined
     return viewBesidePanel({ ...s, zoom: s.zoom.value }, sheet, edge, below)
   }, [api, sheet])
   // To a match's target, in that view: on a phone the canvas above the sheet, which stays, to step and replace; on a
@@ -258,6 +259,7 @@ export default function FindPanel({
     ? () => (
         <div className="flex items-center gap-1" data-board-find-replace="">
           <input
+            data-find-field=""
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
             onKeyDown={(e) => keys(e, "replace")}
@@ -283,6 +285,7 @@ export default function FindPanel({
         <div className="flex items-center gap-1">
           <input
             ref={field}
+            data-find-field=""
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -304,7 +307,8 @@ export default function FindPanel({
             <SunDim aria-hidden="true" />
           </FindIconButton>
         </div>
-        <div className="flex h-7 items-center gap-1 pl-1">
+        {/* At least its 28px steps, and as tall as they grow under a finger (44px): a fixed height let them spill over the toggles above. */}
+        <div className="flex min-h-7 items-center gap-1 pl-1">
           <p className="flex-1 text-meta tabular-nums text-ink-3" aria-live="polite" data-board-find-count="">
             {count}
           </p>

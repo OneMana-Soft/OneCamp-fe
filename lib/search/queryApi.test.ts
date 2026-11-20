@@ -81,3 +81,19 @@ describe("what the page says about the text", () => {
     expect(queryNotes(undefined)).toEqual([])
   })
 })
+
+// zoom-13: the Calls chip asks the server for its transcript kind, and counts by it.
+describe("a call's lines", () => {
+  it("are the transcript kind, counted from the server's transcript total", () => {
+    expect(SCOPE_KINDS.calls).toEqual(["transcript"])
+    expect(querySearchRequest("ship", "calls", "best", null)).toMatchObject({ kinds: ["transcript"] })
+    expect(scopeTotals({ transcript: 4, doc: 1 })).toMatchObject({ calls: 4, docs: 1, all: 5 })
+  })
+
+  it("never show one the server marks deleted", async () => {
+    const said = (id: string, deleted?: number) => ({ type: "transcript", transcript: { transcript_id: id, transcript_text: "ship it", ...(deleted === undefined ? {} : { deleted_date: deleted }) } })
+    post.mockResolvedValue({ data: { data: { page: [said("live"), said("zero", 0), said("gone", 1_763_000_000)], totals: { transcript: 3 } } } })
+    const a = await querySearch({ q: "ship" })
+    expect(a.page.map((r) => r.transcript?.transcript_id)).toEqual(["live", "zero"])
+  })
+})

@@ -70,8 +70,10 @@ describe("call transcription settings", () => {
     await waitFor(() => expect(updateTranscriptionConfig).toHaveBeenCalledWith({ mode: "off" }))
   })
 
+  // With the bundled transcriber, Server keeps call audio here: nothing to
+  // acknowledge (zoom-09 C2), so the mode saves at once.
   it("changes between browser and server at once, and says the mode saves as you pick it", async () => {
-    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ stt_provider: "local" }))
     vi.mocked(updateTranscriptionConfig).mockResolvedValue(stored({ mode: "backend" }))
     render(<TranscriptionSettingsCard />)
     const group = await screen.findByRole("radiogroup", { name: "Mode" })
@@ -85,7 +87,7 @@ describe("call transcription settings", () => {
   // The card's own "Failed to update mode" replaced the server's reason.
   // Design v3 (admin §1.3): an instant row says it under its label, not in a toast.
   it("keeps the server's reason when the mode can't be changed", async () => {
-    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ stt_provider: "local" }))
     vi.mocked(updateTranscriptionConfig).mockRejectedValue({ response: { data: { msg: "The demo is shared." } } })
     render(<TranscriptionSettingsCard />)
     fireEvent.click(await screen.findByRole("radio", { name: "Server" }))
@@ -141,8 +143,9 @@ describe("call transcription settings", () => {
   // The speech-to-text block waited for a button at its foot with no sign
   // that anything was unsaved. Design v3: one card, so its footer holds Save
   // and the card rings while dirty (the dock is for multi-card forms).
+  // OpenAI already acknowledged (zoom-09 C2), so the footer's save isn't asked again.
   it("holds speech-to-text edits in the card until its footer saves them", async () => {
-    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend" }))
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend", where: "openai", acknowledged_where: "openai" }))
     vi.mocked(updateTranscriptionConfig).mockResolvedValue(stored({ mode: "backend", stt_model: "whisper-large" }))
     render(<TranscriptionSettingsCard />)
     const save = (await screen.findByRole("button", { name: "Save" })) as HTMLButtonElement

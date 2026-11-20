@@ -25,7 +25,6 @@ const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
   ["components/ai/AiScheduleDialog.tsx", "shrink-0 text-2xs text-muted-foreground opacity-0", "a check glyph on a slot row, which is the button"],
   ["components/ai/RescheduleDialog.tsx", "shrink-0 opacity-0 pointer-events-none transition-opacity", "a check glyph on a slot row, which is the button"],
   ["components/message/continuedGutter.tsx", "absolute right-0 top-0 whitespace-nowrap", "the time of a continued message, also in the row's title and a screen reader's text; a phone shows it in the action sheet (C08)"],
-  ["components/attachments/videoPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/fileUpload/AudioPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/project/timeline/TimelineBar.tsx", "cursor-crosshair", "the drag handle for a dependency, a pointer gesture"],
   ["components/project/ProjectsOverview.tsx", "opacity-0 group-hover/h:opacity-100", "a sort chevron on a column header, which is the button"],

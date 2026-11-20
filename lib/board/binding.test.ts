@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import * as Y from "yjs"
-import { CAPTURE, LOCAL_ORIGIN, applyShared, bumped, cloneElement, followShared, liveCount, mergeChanged, mergeShared, storeScene, type BoardElement } from "@/lib/board/binding"
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
+import { CAPTURE, LOCAL_ORIGIN, applyShared, bumped, cloneElement, followShared, liveCount, mergeChanged, mergeShared, storeScene, UNLAYERED, changedElements, guardOf, type BoardElement } from "@/lib/board/binding"
 
 type El = BoardElement & { type?: string; x?: number; points?: number[][]; index?: string; customData?: Record<string, unknown> }
 const el = (id: string, version: number, versionNonce = 1, more: Partial<El> = {}): El => ({ id, type: "rectangle", version, versionNonce, isDeleted: false, ...more })
@@ -125,7 +126,7 @@ describe("the scene written to the document", () => {
   it("writes what is new, newer, or changed at the same version, each as a copy", () => {
     const { held, shared } = documentOf(el("older", 1), el("tied", 2, 1), el("same", 3, 3))
     const scene = [el("new", 1), el("older", 2), el("tied", 2, 9), el("same", 3, 3)]
-    expect(storeScene(shared, scene)).toBe(3)
+    expect(storeScene(shared, scene, UNLAYERED)).toBe(3)
     expect([...held.keys()].sort()).toEqual(["new", "older", "same", "tied"])
     expect(held.get("older")).toMatchObject({ version: 2 })
     expect(held.get("tied")).toMatchObject({ versionNonce: 9 })
@@ -134,20 +135,20 @@ describe("the scene written to the document", () => {
 
   it("keeps an erase and an undo of it, whatever the versions say", () => {
     const { held, shared } = documentOf(el("erased", 4), el("back", 4, 1, { isDeleted: true }))
-    expect(storeScene(shared, [el("erased", 4, 1, { isDeleted: true }), el("back", 4)])).toBe(2)
+    expect(storeScene(shared, [el("erased", 4, 1, { isDeleted: true }), el("back", 4)], UNLAYERED)).toBe(2)
     expect(held.get("erased")?.isDeleted).toBe(true)
     expect(held.get("back")?.isDeleted).toBe(false)
   })
 
   it("never writes back a deleted element the document doesn't have", () => {
     const { held, shared } = documentOf()
-    expect(storeScene(shared, [el("pruned", 7, 1, { isDeleted: true })])).toBe(0)
+    expect(storeScene(shared, [el("pruned", 7, 1, { isDeleted: true })], UNLAYERED)).toBe(0)
     expect(held.size).toBe(0)
   })
 
   it("writes nothing when the document has the scene already (an echo)", () => {
     const { shared } = documentOf(el("a", 2, 4), el("b", 5, 1))
-    expect(storeScene(shared, [el("a", 2, 4), el("b", 4, 1)])).toBe(0)
+    expect(storeScene(shared, [el("a", 2, 4), el("b", 4, 1)], UNLAYERED)).toBe(0)
   })
 })
 
@@ -321,7 +322,39 @@ describe("a crafted element never reaches the scene (V-547)", () => {
   it("and this screen never writes one to the document", () => {
     const shared = new Map<string, El>()
     const doc = { get: (id: string) => shared.get(id), set: (id: string, v: El) => void shared.set(id, v) }
-    expect(storeScene(doc, [el("a", 1), ...crafted("x")])).toBe(1)
+    expect(storeScene(doc, [el("a", 1), ...crafted("x")], UNLAYERED)).toBe(1)
     expect([...shared.keys()]).toEqual(["a"])
+  })
+})
+
+// CR-401 F1, stand-ins that pin the guard's mutants (the reds are e2e/boardLayers.spec.ts, on Excalidraw's own store).
+describe("the layer guard on the store", () => {
+  const doc = (...els: BoardElement[]) => new Map(els.map((e) => [e.id, e]))
+  it("refuses a set-aside element's delete and hands the guard the document's live copy; a drawn one's delete stores", () => {
+    const shared = doc(el("hid", 3), el("drawn", 3))
+    const back: BoardElement[][] = []
+    const set = vi.fn()
+    const guard = { setAside: (e: BoardElement) => e.id === "hid", restore: (c: readonly BoardElement[]) => void back.push([...c]) }
+    expect(storeScene({ get: (id) => shared.get(id) as never, set }, [el("hid", 4, 1, { isDeleted: true }), el("drawn", 4, 1, { isDeleted: true })], guard)).toBe(1)
+    expect(set.mock.calls.map(([id]) => id)).toEqual(["drawn"])
+    expect(back).toEqual([[expect.objectContaining({ id: "hid", version: 3 })]])
+  })
+  it("stores a set-aside element's delete undone, and asks only about a live element going deleted", () => {
+    const asked = vi.fn(() => true)
+    const shared = doc(el("hid", 3, 1, { isDeleted: true }), el("moved", 3))
+    expect(changedElements({ get: (id) => shared.get(id) as never }, [el("hid", 4), el("moved", 4)], asked)).toEqual({ changed: [el("hid", 4), el("moved", 4)], refused: [] })
+    expect(asked).not.toHaveBeenCalled()
+  })
+  it("reads the guard a canvas's API carries, and none on one drawn without layers", () => {
+    const sceneGuard = { setAside: () => true, restore: () => {} }
+    expect(guardOf({ sceneGuard })).toBe(sceneGuard)
+    expect(guardOf(null)).toBe(UNLAYERED)
+  })
+  // CR-413 N1: a caller holding Excalidraw's raw API (no layers' guard) must not compile, so a store under hidden
+  // layers can't run unguarded by mistake. tsc checks this file: the directive fails it if the call compiles.
+  it("takes only an API the layers wrapped: the raw API does not compile", () => {
+    const raw = { updateScene: () => {}, getSceneElementsIncludingDeleted: () => [] } as unknown as ExcalidrawImperativeAPI
+    // @ts-expect-error the raw API carries no guard: hold the API layeredScene hands out (Guarded)
+    expect(guardOf(raw)).toBe(UNLAYERED)
   })
 })

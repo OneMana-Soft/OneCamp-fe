@@ -1,7 +1,6 @@
 "use client"
 
 import {useEffect, useMemo, useState} from "react";
-import { useLayoutOnce } from "@/components/task/useLayoutOnce";
 import {
     ColumnFiltersState,
     SortingState,
@@ -25,18 +24,10 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages";
 import { taskListQuery } from "@/lib/tasks/listQuery";
 import {UserInfoRawInterface} from "@/types/user";
-import {clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
-import {useDispatch, useSelector} from "react-redux";
-import type {RootState} from "@/store/store";
-import {TaskInfoInterface} from "@/types/task";
+import type { TaskInfoInterface } from "@/types/task";
 import { canEditTask } from "@/lib/work/access";
 import { NothingAssigned } from "@/components/myTask/nothingAssigned"
 import { statusOptions } from "@/lib/taskStatus"
-
-// No list in the store yet: one empty list, made once, so the table doesn't
-// render again on every change to the store (a new `[]` is never equal to
-// the last).
-const NO_TASKS: TaskInfoInterface[] = []
 
 const userTasksOf = (answer: UserInfoRawInterface) => answer.data?.user_tasks
 const ALL_PROPS: RowProp[] = ["project", "priority", "labels", "due", "estimate", "badges"]
@@ -55,17 +46,6 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
 export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void } = {}) => {
     const searchParams = useSearchParams();
     const toAddress = useTabInAddress();
-    const dispatch = useDispatch()
-
-    const [urlParam, setUrlParam] = useState('');
-
-    const taskListState = useSelector(
-        (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
-    )
-
-    // No pages to turn (work.md W14): "Show more" at the foot reads the next.
-    const pages = useTaskPages<UserInfoRawInterface>(urlParam ? GetEndpointUrl.GetUserTaskList + '?' + urlParam : '', userTasksOf);
-
 
     // <CHANGE> Initialize all states from URL parameters
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>
@@ -89,12 +69,14 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     const taskSearchString = useDebounce(globalFilter, 500);
 
 
-    // Reset taskListVisibleInfo once, on mount, so we don't render the
-    // previous surface's tasks (e.g. project tasks if user came from
-    // /app/project/[id]) while we wait for the new fetch.
-    // taskInfoSlice.taskListVisibleInfo is shared between myTaskTable and
-    // projectTaskTable. Once only: see useLayoutOnce.
-    useLayoutOnce("my-tasks", () => dispatch(clearTaskListVisibleInfo()))
+    const apiQueryString = useMemo(
+        () => taskListQuery({ sort: sorting, filters: columnFilters, search: taskSearchString, pageSize: TASK_PAGE }).toString(),
+        [sorting, columnFilters, taskSearchString],
+    );
+    // No pages to turn (work.md W14): "Show more" at the foot reads the next.
+    // The address from the first render, so a list opened again keeps its rows (useTaskPages).
+    const pages = useTaskPages<UserInfoRawInterface>("my-tasks", GetEndpointUrl.GetUserTaskList + '?' + apiQueryString, userTasksOf);
+    const taskListState = pages.tasks;
 
     const {columns} = useMyTaskColumn();
     const table = useReactTable({
@@ -114,15 +96,6 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
         getCoreRowModel: getCoreRowModel(),
     });
 
-    const apiQueryString = useMemo(
-        () => taskListQuery({ sort: sorting, filters: columnFilters, search: taskSearchString, pageSize: TASK_PAGE }).toString(),
-        [sorting, columnFilters, taskSearchString],
-    );
-
-    // <CHANGE> Effect to update API query string
-    useEffect(() => {
-        setUrlParam(apiQueryString);
-    }, [apiQueryString]);
 
     // The list's own keys go into the address a moment after they change, for
     // Back, a reload and a shared link, beside what the page put there (the
@@ -135,9 +108,8 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     }), 300), [sorting, columnFilters, columnVisibility, globalFilter, toAddress]);
 
     // The first rows reach the list through the store, an effect after the
-    // answer, and the request itself starts an effect after the first render.
-    // Until the rows are in, the skeleton stays.
-    const firstLoad = taskListState.length === 0 && (!urlParam || pages.loading || (pages.first?.data?.data.user_tasks?.length ?? 0) > 0);
+    // answer. Until the rows are in, the skeleton stays.
+    const firstLoad = taskListState.length === 0 && (pages.loading || (pages.first?.data?.data.user_tasks?.length ?? 0) > 0);
     const filtered = columnFilters.length > 0 || !!globalFilter;
     const failed = !!pages.first?.isError && taskListState.length === 0;
     const shown = useMemo(

@@ -159,7 +159,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
     // frame, a sheet inset from the window, the project's tile and a ring of
     // how far along it is, the latest update as the feature card, then the
     // board in the app's card anatomy.
-    <main data-guest-project="" className={`${HUE_CLASS[projectHue]} relative isolate flex min-h-dvh flex-col bg-frame`}>
+    <main id="main-content" data-guest-project="" className={`${HUE_CLASS[projectHue]} relative isolate flex min-h-dvh flex-col bg-frame`}>
       <div aria-hidden="true" data-project-band="" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[280px] [background:radial-gradient(640px_280px_at_120px_0px,color-mix(in_oklab,var(--hue)_10%,transparent),transparent)]" />
       {/* 1280px: the board's four 280px columns, their gaps and the sheet's
           padding are 1212px, and at 1120 the Done column was cut through its

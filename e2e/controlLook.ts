@@ -81,3 +81,48 @@ export async function busyPrimaryLook(control: Locator): Promise<{ brand: boolea
 
 /** The look busyPrimaryLook reads on a busy primary: full strength, spinning. */
 export const BUSY_LOOK = { brand: true, opacity: "1", busy: "true", spinning: true }
+
+/** A box as the page lays it out, in CSS px. */
+export interface Box {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Where a busy control's spinner draws (the layer's ::after, app/interaction.css)
+ * and the control's own border box, both read from Chromium's box model, as a
+ * pseudo-element has no getBoundingClientRect. Null when the control draws no
+ * ::after. Under a coarse pointer extend-touch-target makes the same ::after
+ * the control's reach (absolute, inset -0.5rem), and the spinner drew 8 px up
+ * and left of its button (EXPALL F1, 13 Nov 2026).
+ */
+export async function busySpinnerBox(control: Locator): Promise<{ spinner: Box; control: Box } | null> {
+  const page = control.page()
+  const mark = `busy-spinner-${Date.now()}`
+  await control.evaluate((el, m) => el.setAttribute("data-box-probe", m), mark)
+  const cdp = await page.context().newCDPSession(page)
+  try {
+    const { root } = await cdp.send("DOM.getDocument", { depth: 0 })
+    const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `[data-box-probe="${mark}"]` })
+    const { node } = await cdp.send("DOM.describeNode", { nodeId })
+    const after = node.pseudoElements?.find((p) => p.pseudoType === "after")
+    if (!after) return null
+    const border = async (at: { nodeId: number } | { backendNodeId: number }): Promise<Box> => {
+      const q = (await cdp.send("DOM.getBoxModel", at)).model.border
+      const xs = [q[0], q[2], q[4], q[6]]
+      const ys = [q[1], q[3], q[5], q[7]]
+      return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) }
+    }
+    return { spinner: await border({ backendNodeId: after.backendNodeId }), control: await border({ nodeId }) }
+  } finally {
+    await cdp.detach().catch(() => {})
+    await control.evaluate((el) => el.removeAttribute("data-box-probe")).catch(() => {})
+  }
+}
+
+/** Whether `inner` lies inside `outer`, read to half a pixel (a turning spinner's box is a float). */
+export function boxWithin(inner: Box, outer: Box, slack = 0.5): boolean {
+  return inner.x >= outer.x - slack && inner.y >= outer.y - slack && inner.x + inner.width <= outer.x + outer.width + slack && inner.y + inner.height <= outer.y + outer.height + slack
+}

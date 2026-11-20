@@ -4,7 +4,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CONTAINER, PHONE_FOOTER, TOOL_ROW, ZOOM_CLUSTER } from "./excalidrawPart"
-import { SLIDE_COVER, canvasInsets, holdFrame, presentFrame, type FrameCamera } from "./presentFrame"
+import { SLIDE_COVER, boardTopFoot, canvasInsets, holdFrame, presentFrame, type FrameCamera } from "./presentFrame"
 
 const frame = (id: string, width: number, height: number) => ({ id, type: "frame", x: 40, y: 80, width, height })
 const NONE = { top: 0, right: 0, bottom: 0, left: 0 }
@@ -342,5 +342,27 @@ describe("holdFrame", () => {
     await settle()
     t.tick()
     expect(t.scrollToContent).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe("boardTopFoot", () => {
+  const box = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 390, width: 390, height, x: 0, y: top }) as DOMRect
+  afterEach(() => document.body.replaceChildren())
+
+  it("is the foot of the board's top bar on the page, not of a tool row at the board's foot (V-1110)", () => {
+    document.body.innerHTML = `<div data-board-page=""><div data-board-top=""></div><div class="excalidraw"><div class="App-toolbar"></div></div></div>`
+    document.querySelector(CONTAINER)!.getBoundingClientRect = () => box(56, 788)
+    document.querySelector(TOOL_ROW)!.getBoundingClientRect = () => box(770, 44)
+    const bar = document.querySelector("[data-board-top]")!
+    bar.getBoundingClientRect = () => box(68, 48)
+    expect(boardTopFoot()).toBe(116)
+    bar.removeAttribute("data-board-top")
+    expect(boardTopFoot()).toBe(56)
+  })
+
+  it("is undefined off a board's screen", () => {
+    expect(boardTopFoot()).toBeUndefined()
+    document.body.innerHTML = `<div class="excalidraw"></div>`
+    expect(boardTopFoot()).toBeUndefined()
   })
 })

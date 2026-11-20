@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test"
 
+import { holdChunk } from "../holdChunk"
 import { SAM } from "../stubbedApp"
 import { PRIYA, TableServer } from "./tableServer"
 import { expectTouchSize } from "../touchTarget"
@@ -188,14 +189,7 @@ test("at 390 under a finger, a long text's sheet answers at once while the picke
   const page = await context.newPage()
   await server.attach(page, testInfo, SAM)
   // The pickers' chunk is held to the end: a computer's long-text box (data-long-text-editor) marks it.
-  let release: () => void = () => {}
-  const held = new Promise<void>((r) => (release = r))
-  await page.route("**/_next/static/chunks/**", async (route) => {
-    const response = await route.fetch()
-    const body = await response.text()
-    if (body.includes("data-long-text-editor")) await held
-    await route.fulfill({ response, body })
-  })
+  const pickers = await holdChunk(page, "data-long-text-editor")
   try {
     await page.goto(`/app/tables/${server.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
     const notes = page.getByRole("button", { name: "Notes: Venue opens at nine" })
@@ -207,7 +201,7 @@ test("at 390 under a finger, a long text's sheet answers at once while the picke
     await sheet.locator("[data-sheet-footer]").getByRole("button", { name: "Save" }).tap()
     await expect.poll(() => server.valuesOf(0).notes).toBe("Venue opens at ten")
   } finally {
-    release()
+    await pickers.done()
     await context.close()
   }
 })

@@ -36,7 +36,7 @@ const ALLOWED = new Set([
   // message (chat, three small sparks) and the first message in a new
   // conversation (chat).
   "components/board/boardFacilitation.tsx",
-  "components/booking/BookingFlow.tsx",
+  "components/booking/bookingConfirmation.tsx",
   "components/docEditor/docInput.tsx",
   "components/message/reactionPill.tsx",
   "lib/chat/celebrateFirst.ts",

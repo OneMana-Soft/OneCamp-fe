@@ -1,7 +1,7 @@
 export const getMediaDimensions = (
     file: File
 ): Promise<{ width: number; height: number; duration?: number }> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         if (file.type.startsWith('image/')) {
             const img = new Image();
             img.src = URL.createObjectURL(file);
@@ -16,7 +16,7 @@ export const getMediaDimensions = (
 
             img.onerror = () => {
                 URL.revokeObjectURL(img.src); // Clean up
-                reject(new Error('Failed to load image'));
+                resolve({ width: 0, height: 0 });
             };
         } else if (file.type.startsWith('video/')) {
             const video = document.createElement('video');
@@ -33,7 +33,7 @@ export const getMediaDimensions = (
 
             video.onerror = () => {
                 URL.revokeObjectURL(video.src); // Clean up
-                reject(new Error('Failed to load video'));
+                resolve({ width: 0, height: 0, duration: 0 });
             };
         } else {
             resolve({

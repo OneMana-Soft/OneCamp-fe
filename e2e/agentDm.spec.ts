@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page, type TestInfo } from "@playwright/test"
+import { holdChunk } from "./holdChunk"
 import { SHOT_THEMES, reviewShot, stubBackend } from "./stubbedApp"
 
 // V-126: a DM with an agent (a bot, by class) says the agent's role where a person's presence would be, and offers
@@ -93,22 +94,16 @@ for (const view of views) {
 // code comes, and left out when the code can't come. The chunk is the one script that draws data-phone-huddle.
 const HUDDLE_CODE = "data-phone-huddle"
 
-/** Holds the huddle's chunk once it is asked for, until `pass()` lets it come or `fail()` drops it as a lost connection does. */
+/**
+ * Holds the huddle's chunk once it is asked for (e2e/holdChunk), until `pass()` lets it come or `fail()` drops it as a
+ * lost connection does. `done()` lets it through and drops the route before the page closes.
+ */
 function huddleChunk() {
-  let settle: (how: "pass" | "fail") => void = () => {}
-  const settled = new Promise<"pass" | "fail">((r) => (settle = r))
-  let seen = false
+  let code: Awaited<ReturnType<typeof holdChunk>> | undefined
   const install = async (page: Page) => {
-    await page.route("**/_next/static/chunks/*.js", async (route) => {
-      const response = await route.fetch()
-      const body = await response.text()
-      if (!body.includes(HUDDLE_CODE)) return route.fulfill({ response, body })
-      seen = true
-      if ((await settled) === "fail") return route.abort("internetdisconnected")
-      return route.fulfill({ response, body })
-    })
+    code = await holdChunk(page, HUDDLE_CODE)
   }
-  return { install, pass: () => settle("pass"), fail: () => settle("fail"), seen: () => seen }
+  return { install, pass: () => code!.release(), fail: () => code!.fail(), seen: () => code?.asked() ?? false, done: () => code!.done() }
 }
 
 /** The 44px slot held for the huddle while its code comes (PhoneHuddleButton's placeholder). */
@@ -142,6 +137,7 @@ for (const theme of SHOT_THEMES) {
     for (let i = 0; i < 40 && !(await link.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab")
     await expect(link).toBeFocused()
     await reviewShot(page, "bar-huddle-focus", theme)
+    await chunk.done()
     await context.close()
   })
 
@@ -174,6 +170,7 @@ for (const theme of SHOT_THEMES) {
     await expect(page.getByRole("button", { name: "Chat options" })).toBeVisible()
     expect(await box(page, "Maya Chen, profile")).toEqual(before)
     await reviewShot(page, "bar-huddle-offline", theme)
+    await chunk.done()
     await context.close()
   })
 }

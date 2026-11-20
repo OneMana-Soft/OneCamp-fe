@@ -88,7 +88,7 @@ const InputGroupInput = React.forwardRef<HTMLInputElement, React.ComponentProps<
     className={cn(
       // w-full: an input's min-content is its size attribute's width.
       "h-full w-full min-w-0 flex-1 self-stretch rounded-[inherit] bg-transparent px-2.5 text-base text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed md:text-sm",
-      "group-has-[>[data-align=inline-start]]/input-group:ps-1.5 group-has-[>[data-align=inline-end]]/input-group:pe-1.5",
+      "[:where([data-slot=input-group]):has(>[data-align=inline-start])_&]:ps-1.5 [:where([data-slot=input-group]):has(>[data-align=inline-end])_&]:pe-1.5",
       "[&::-webkit-search-cancel-button]:appearance-none",
       className,
     )}

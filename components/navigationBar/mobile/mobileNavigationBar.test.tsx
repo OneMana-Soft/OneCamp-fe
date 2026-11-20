@@ -27,6 +27,22 @@ afterEach(() => {
 })
 
 describe("the phone shell", () => {
+  // V-941: Admin's admins-only guard had no main landmark on a phone, so
+  // landmark navigation and Skip to content found nothing there.
+  it("holds any page, a guard too, in its one main landmark, the skip link's target", () => {
+    pathname = "/app/admin"
+    const { container } = render(
+      <MobileNavigationBar>
+        <p>Only workspace admins can open Admin.</p>
+      </MobileNavigationBar>,
+    )
+    const main = screen.getByRole("main")
+    expect(main.id).toBe("main-content")
+    expect(main.hasAttribute("data-app-scroller")).toBe(true)
+    expect(main.textContent).toContain("Only workspace admins can open Admin.")
+    expect(container.querySelectorAll("main")).toHaveLength(1)
+  })
+
   it("puts notices above the page's scroller, so a full-height page fits under them", () => {
     render(
       <MobileNavigationBar banners={<div role="status">This demo is shared.</div>}>

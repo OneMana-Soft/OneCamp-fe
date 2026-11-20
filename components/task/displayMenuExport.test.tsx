@@ -6,6 +6,8 @@ import { DisplayMenuBody } from "@/components/task/displayMenu"
 
 vi.mock("@/hooks/useTaskViews", () => ({ useTaskViews: () => ({ views: [], save: vi.fn(), busy: false }) }))
 vi.mock("@/hooks/useProjectFields", () => ({ useProjectFields: () => ({ fields: [] }) }))
+// The project's SLA view (linear-24): SLAs off, so Display offers no SLA grouping or ordering.
+vi.mock("@/hooks/useSlaView", () => ({ useSlaView: () => ({ shows: false, refused: true }) }))
 
 afterEach(cleanup)
 

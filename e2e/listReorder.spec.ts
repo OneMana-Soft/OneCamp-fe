@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { SAM, stubBackend } from "./stubbedApp"
+import { toast } from "./toasts"
 
 // L-1, the owner: "why users can't rearrange tasks by dragging and dropping
 // in list ... Asana gives those options". A project's list is in the
@@ -86,6 +87,24 @@ async function openList(page: Page, testInfo: TestInfo, access: typeof ADMIN, se
 const order = (page: Page) => page.locator("[data-grouped-list] [data-task-id]").evaluateAll((els) => els.map((el) => el.getAttribute("data-task-id")))
 const rowOf = (page: Page, i: number) => page.locator(`[data-grouped-list] [data-task-id="${TASKS[i].task_uuid}"]`)
 
+/** The page's quiet moments are the test's: what waits for one (the drag's code, reorderSlot's useReorderLayer) comes at runIdle. */
+async function holdIdle(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __idle: IdleRequestCallback[] }
+    w.__idle = []
+    window.requestIdleCallback = (cb) => w.__idle.push(cb)
+    window.cancelIdleCallback = () => undefined
+  })
+}
+const runIdle = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __idle: IdleRequestCallback[] }).__idle.splice(0).forEach((cb) => cb({ didTimeout: false, timeRemaining: () => 50 })))
+
+/**
+ * The drag's layer is in: its DndContext's live region (dnd-kit draws it once mounted, after the
+ * layer has lent its grip to the rows), beside the list. A reader's rows show no other sign of it.
+ */
+const dragLayer = (page: Page) => page.locator('[data-grouped-list] ~ [id^="DndLiveRegion-"]')
+
 /**
  * Picks a row up by its grip and carries it onto row `onto`, its middle over
  * that row's: the row there and the ones past it make room under the lifted
@@ -140,18 +159,12 @@ test.describe("the list's drag to reorder (L-1)", () => {
     const server: Server = { moves: [], sorts: [], refuse: true }
     await openList(page, testInfo, ADMIN, server)
     await dragRow(page, 3, 0)
-    await expect(page.getByText("Only the project's admins can move its tasks.")).toBeVisible()
+    await expect(toast(page, "Only the project's admins can move its tasks.")).toBeVisible()
     await expect.poll(() => order(page)).toEqual(TASKS.map((t) => t.task_uuid))
   })
 
   test("its code comes beside the list: a row, the keys' focus and a “+” field's words stay as they were", async ({ page }, testInfo) => {
-    // The page's quiet moments are the test's: what waits for one (the drag's code) comes when it says.
-    await page.addInitScript(() => {
-      const w = window as unknown as { __idle: IdleRequestCallback[] }
-      w.__idle = []
-      window.requestIdleCallback = (cb) => w.__idle.push(cb)
-      window.cancelIdleCallback = () => undefined
-    })
+    await holdIdle(page)
     const server: Server = { moves: [], sorts: [], refuse: false }
     await openList(page, testInfo, ADMIN, server)
     await expect(page.locator("[data-reorder-grip]")).toHaveCount(0)
@@ -161,7 +174,7 @@ test.describe("the list's drag to reorder (L-1)", () => {
     const field = page.getByRole("textbox", { name: /^New task in / })
     await field.fill("Half a thought")
     await rowOf(page, 1).focus()
-    await page.evaluate(() => (window as unknown as { __idle: IdleRequestCallback[] }).__idle.splice(0).forEach((cb) => cb({ didTimeout: false, timeRemaining: () => 50 })))
+    await runIdle(page)
     await expect(page.locator("[data-reorder-grip]").first()).toBeAttached({ timeout: 15_000 })
     expect(await rowOf(page, 0).evaluate((el) => (el as HTMLElement & { kept?: boolean }).kept === true), "the same row").toBe(true)
     await expect(field).toHaveValue("Half a thought")
@@ -169,10 +182,14 @@ test.describe("the list's drag to reorder (L-1)", () => {
   })
 
   test("a reader who can't change tasks gets no grip", async ({ page }, testInfo) => {
+    await holdIdle(page)
     const server: Server = { moves: [], sorts: [], refuse: false }
     await openList(page, testInfo, MEMBER, server)
+    await expect(dragLayer(page)).toHaveCount(0)
     await rowOf(page, 0).hover()
-    await page.waitForTimeout(2000)
+    await runIdle(page)
+    // The drag's layer comes for a reader too: its rows are counted once it is in, not after a guessed wait.
+    await expect(dragLayer(page)).toHaveCount(1, { timeout: 15_000 })
     await expect(page.locator("[data-reorder-grip]")).toHaveCount(0)
   })
 })

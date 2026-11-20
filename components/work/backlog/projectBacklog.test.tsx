@@ -14,7 +14,8 @@ const mutate = vi.fn(async (next?: BacklogAnswer) => {
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: answer, isLoading: !answer, isError: undefined, mutate }) }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: [] }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
+const toast = vi.fn()
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 let mobile = false
 // The keys' store, as the backlog's KeyboardList makes it: the J burst reads its highlight.
 const made = vi.hoisted(() => ({ stores: [] as import("@/lib/listSelection").SelectionStore[] }))
@@ -38,6 +39,7 @@ const api = {
   saveSchedule: vi.fn(async () => {}),
   stopSchedule: vi.fn(async () => {}),
   setCycleCapacity: vi.fn(async () => {}),
+  setParallelCycles: vi.fn(async () => {}),
 }
 vi.mock("@/lib/work/backlog", async (orig) => ({
   ...(await orig<typeof import("@/lib/work/backlog")>()),
@@ -48,6 +50,7 @@ vi.mock("@/lib/work/backlog", async (orig) => ({
   saveSchedule: (...a: unknown[]) => api.saveSchedule(...(a as [])),
   stopSchedule: (...a: unknown[]) => api.stopSchedule(...(a as [])),
   setCycleCapacity: (...a: unknown[]) => api.setCycleCapacity(...(a as [])),
+  setParallelCycles: (...a: unknown[]) => api.setParallelCycles(...(a as [])),
 }))
 
 const { default: ProjectBacklog } = await import("@/components/work/backlog/ProjectBacklog")
@@ -62,6 +65,7 @@ beforeEach(() => {
   mobile = false
   mutate.mockClear()
   bulk.mockClear()
+  toast.mockClear()
   Object.values(api).forEach((f) => f.mockClear())
 })
 
@@ -329,6 +333,124 @@ describe("the backlog's cycle schedule", () => {
     expect(api.stopSchedule).not.toHaveBeenCalled()
     await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Stop" })))
     expect(api.stopSchedule).toHaveBeenCalledWith("p")
+  })
+})
+
+// jira-04 C: parallel cycles, opt-in per project. Its admins turn it on and
+// off on the line that says how the cycles run; a member reads it there when
+// it is on. Two running cycles each have their own Complete cycle, and the
+// one ending first keeps the tab's one orange action.
+describe("cycles side by side", () => {
+  const schedule = { weeks: 2, cooldown_weeks: 0, upcoming: 2, roll_over: true, add_started: false, starts_at: "2026-10-12T00:00:00Z" }
+  const sideBySide = () => {
+    const a = backlog({
+      cycles: [
+        { ...cycle("c4", 4, "current", [task("y", "Polish the docs")], 60), ends_at: "2026-10-30T00:00:00Z" },
+        cycle("c3", 3, "current", [task("a", "Write the launch post")], 600),
+        cycle("c5", 5, "upcoming", [], 0),
+      ] as BacklogData["cycles"],
+    })
+    a.data.parallel = true
+    return a
+  }
+
+  it("gives each running cycle its own Complete cycle, the one ending first orange", async () => {
+    answer = sideBySide()
+    const { container } = render(<ProjectBacklog projectId="p" />)
+    const first = within(container.querySelector<HTMLElement>("[data-container='c3']")!).getByRole("button", { name: "Complete cycle" })
+    const second = within(container.querySelector<HTMLElement>("[data-container='c4']")!).getByRole("button", { name: "Complete cycle" })
+    expect(first.className).not.toContain("bg-raised")
+    expect(second.className).toContain("bg-raised")
+    expect(screen.getByRole("button", { name: "Start cycle" }).className).toContain("bg-raised")
+    fireEvent.click(second)
+    const dialog = await screen.findByRole("dialog", { name: "Complete Cycle 4" })
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Complete cycle" })))
+    expect(api.completeCycle).toHaveBeenCalledWith("p", "c4", true)
+  })
+
+  it("puts the orange Complete on the one ending first, though its number is higher", () => {
+    answer = backlog({ cycles: [cycle("c3", 3, "current", [], 0), { ...cycle("c4", 4, "current", [], 0), ends_at: "2026-10-20T00:00:00Z" }] as BacklogData["cycles"] })
+    answer.data.parallel = true
+    const { container } = render(<ProjectBacklog projectId="p" />)
+    const complete = (id: string) => within(container.querySelector<HTMLElement>(`[data-container='${id}']`)!).getByRole("button", { name: "Complete cycle" })
+    expect(complete("c4").className).not.toContain("bg-raised")
+    expect(complete("c3").className).toContain("bg-raised")
+  })
+
+  it("keeps the orange Complete on a cycle past its end that isn't completed", () => {
+    answer = backlog({ cycles: [cycle("c2", 2, "ended", [], 0), cycle("c3", 3, "upcoming", [], 0)] as BacklogData["cycles"] })
+    const { container } = render(<ProjectBacklog projectId="p" />)
+    expect(within(container.querySelector<HTMLElement>("[data-container='c2']")!).getByRole("button", { name: "Complete cycle" }).className).not.toContain("bg-raised")
+    expect(screen.getByRole("button", { name: "Start cycle" }).className).toContain("bg-raised")
+  })
+
+  it("moves a running cycle's unfinished tasks to the cycle after both, never the other running one", async () => {
+    answer = backlog({
+      cycles: [
+        cycle("c3", 3, "current", [task("a", "Write the launch post")], 600),
+        { ...cycle("c4", 4, "current", [task("y", "Polish the docs")], 60), starts_at: "2026-10-14T00:00:00Z", ends_at: "2026-10-30T00:00:00Z" },
+        { ...cycle("c5", 5, "upcoming", [], 0), starts_at: "2026-10-26T00:00:00Z", ends_at: "2026-11-09T00:00:00Z" },
+      ] as BacklogData["cycles"],
+    })
+    answer.data.parallel = true
+    const { container } = render(<ProjectBacklog projectId="p" />)
+    fireEvent.click(within(container.querySelector<HTMLElement>("[data-container='c3']")!).getByRole("button", { name: "Complete cycle" }))
+    const dialog = await screen.findByRole("dialog", { name: "Complete Cycle 3" })
+    expect(within(dialog).getByRole("radio", { name: "To Cycle 5" })).toBeTruthy()
+    expect(within(dialog).queryByRole("radio", { name: "To Cycle 4" })).toBeNull()
+  })
+
+  it("lets an admin turn them on, and reads the backlog again", async () => {
+    answer = backlog()
+    render(<ProjectBacklog projectId="p" />)
+    const on = screen.getByRole("switch", { name: "Run cycles side by side" })
+    expect(on.getAttribute("aria-checked")).toBe("false")
+    await act(async () => fireEvent.click(on))
+    expect(api.setParallelCycles).toHaveBeenCalledWith("p", true)
+    expect(mutate).toHaveBeenCalled()
+  })
+
+  it("lets an admin turn them off, and says the server's words when it refuses", async () => {
+    answer = sideBySide()
+    const words = "Cycle 3 and Cycle 4 share days. Complete or delete one of them, then turn parallel cycles off."
+    api.setParallelCycles.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 400"), { isAxiosError: true, response: { status: 400, data: { msg: words } } }))
+    render(<ProjectBacklog projectId="p" />)
+    const off = screen.getByRole("switch", { name: "Run cycles side by side" })
+    expect(off.getAttribute("aria-checked")).toBe("true")
+    await act(async () => fireEvent.click(off))
+    expect(api.setParallelCycles).toHaveBeenCalledWith("p", false)
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: words, tone: "error" }))
+  })
+
+  it("holds the switch while a schedule runs them one after another, and the schedule while they run side by side", async () => {
+    answer = backlog()
+    answer.data.schedule = schedule
+    const { unmount } = render(<ProjectBacklog projectId="p" />)
+    const held = screen.getByRole("switch", { name: "Run cycles side by side" })
+    expect(held.getAttribute("aria-disabled")).toBe("true")
+    await act(async () => fireEvent.click(held))
+    expect(api.setParallelCycles).not.toHaveBeenCalled()
+    unmount()
+    answer = sideBySide()
+    render(<ProjectBacklog projectId="p" />)
+    const run = screen.getByRole("button", { name: "Run cycles automatically" })
+    expect(run.getAttribute("aria-disabled")).toBe("true")
+    fireEvent.click(run)
+    expect(screen.queryByRole("dialog", { name: "Run cycles automatically" })).toBeNull()
+  })
+
+  it("tells a member they run side by side, and offers no switch; nothing when they don't", () => {
+    answer = sideBySide()
+    answer.data.can_edit = false
+    const { container, unmount } = render(<ProjectBacklog projectId="p" />)
+    expect(container.querySelector("[data-parallel]")!.textContent).toBe("Cycles run side by side")
+    expect(screen.queryByRole("switch")).toBeNull()
+    expect(screen.queryByRole("button", { name: /cycle$/i })).toBeNull()
+    unmount()
+    answer = backlog()
+    answer.data.can_edit = false
+    const again = render(<ProjectBacklog projectId="p" />)
+    expect(again.container.querySelector("[data-parallel]")).toBeNull()
   })
 })
 

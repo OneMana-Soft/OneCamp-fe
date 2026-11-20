@@ -19,6 +19,9 @@ export const SLICE_BY: { by: SliceBy; label: string }[] = [
   { by: "estimate", label: "Estimate" },
 ]
 
+/** The way SLA slices work (linear-24): where each task's timer stands, sent only where the reader reads SLA state. */
+export const SLA_SLICE: { by: SliceBy; label: string } = { by: "sla", label: "SLA" }
+
 /** What the work with none is called, each way (a field's: None). */
 const NONE_NAME: Partial<Record<SliceBy, string>> = {
   project: "No project",
@@ -27,6 +30,7 @@ const NONE_NAME: Partial<Record<SliceBy, string>> = {
   labels: "No labels",
   cycle: "No cycle",
   estimate: "No estimate",
+  sla: "No SLA",
 }
 
 /** The steps time in status reports (business/Project/insights.go's steps), as the board names them. */
@@ -42,9 +46,13 @@ export function durationLabel(hours: number): string {
   return `${tenth(hours / 24)} d`
 }
 
-/** The ways to slice a report's work: the server's own, then each custom field it sliced by (B9-b1, L32). */
-export function sliceChoices(ins: Pick<Insights, "fields">): { by: SliceBy; label: string }[] {
-  return [...SLICE_BY, ...(ins.fields ?? []).map((f) => ({ by: f.by, label: f.name }))]
+/**
+ * The ways to slice a report's work: the server's own, SLA when it sent SLA slices (linear-24: only to members of
+ * projects with SLAs on, so a guest's or an SLAs-off report never offers it), then each custom field it sliced by (B9-b1, L32).
+ */
+export function sliceChoices(ins: Pick<Insights, "fields"> & { slices?: Pick<InsightSlice, "by">[] }): { by: SliceBy; label: string }[] {
+  const sla = (ins.slices ?? []).some((s) => s.by === "sla") ? [SLA_SLICE] : []
+  return [...SLICE_BY, ...sla, ...(ins.fields ?? []).map((f) => ({ by: f.by, label: f.name }))]
 }
 
 /** A slice's name: a project, person, priority, type, status, label, cycle, estimate or a field's value; the work with none named for what it lacks. */

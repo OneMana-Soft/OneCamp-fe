@@ -1,6 +1,6 @@
 /** The one player's routes for a conversation's call (the recordings list's and a board's calls'), which ask again who may. Pure. */
 
-import { GetEndpointUrl } from "@/services/endPoints"
+import { CallsRecordingGet } from "@/services/endpoints/calls.recordings"
 import type { ConversationCallRef } from "@/lib/calls/boardCall"
 import type { RecordingInfoInterface } from "@/types/recording"
 
@@ -13,10 +13,10 @@ const urlsOf = (media: string, transcript: string, id: string): PlayerUrls => ({
 
 /** Before the call's key; a DM's by the other person (yourself, in notes to self). */
 export function playerUrls(ref: ConversationCallRef, selfUUID?: string): PlayerUrls {
-  if (ref.kind === "channel") return urlsOf(GetEndpointUrl.GetChannelRecordingMedia, GetEndpointUrl.GetChannelRecordingTranscript, ref.id)
-  if (ref.kind === "group") return urlsOf(GetEndpointUrl.GetGrpChatRecordingMedia, GetEndpointUrl.GetGrpChatRecordingTranscript, ref.id)
+  if (ref.kind === "channel") return urlsOf(CallsRecordingGet.GetChannelRecordingMedia, CallsRecordingGet.GetChannelRecordingTranscript, ref.id)
+  if (ref.kind === "group") return urlsOf(CallsRecordingGet.GetGrpChatRecordingMedia, CallsRecordingGet.GetGrpChatRecordingTranscript, ref.id)
   const peer = ref.id.split(" ").find((id) => id && id !== selfUUID) || selfUUID || ""
-  return urlsOf(GetEndpointUrl.GetChatRecordingMedia, GetEndpointUrl.GetChatRecordingTranscript, peer)
+  return urlsOf(CallsRecordingGet.GetChatRecordingMedia, CallsRecordingGet.GetChatRecordingTranscript, peer)
 }
 
 /** A recording's conversation: a channel, a group (more than two people) or a DM. */

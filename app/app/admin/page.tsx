@@ -66,6 +66,9 @@ const ProjectPlanCard = dynamic(() => import("@/components/admin/ProjectPlanCard
 // The workspace's task templates (linear-09): a lazy chunk with no shared core, so it takes the page's client.
 const TaskTemplatesCard = dynamic(() => import("@/components/task/TaskTemplatesManager").then((m) => m.WorkspaceTaskTemplatesCard), { loading: AdminCardSkeleton })
 const CalendarPermissionsCard = dynamic(() => import("@/components/admin/CalendarPermissionsCard"), { loading: AdminCardSkeleton })
+// The Resource Directory (gcal-6): a lazy chunk with no shared core, so it takes the page's client.
+const RoomsCard = dynamic(() => import("@/components/admin/RoomsCard"), { loading: AdminCardSkeleton })
+const CalendarFeedsCard = dynamic(() => import("@/components/admin/CalendarFeedsCard"), { loading: AdminCardSkeleton })
 const DocPoliciesCard = dynamic(() => import("@/components/admin/DocPoliciesCard"), { loading: AdminCardSkeleton })
 const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
 const WorkflowsCard = dynamic(() => import("@/components/admin/WorkflowsCard"), { loading: AdminCardSkeleton })
@@ -204,8 +207,7 @@ const AdminPage = () => {
   if (phoneList) return <SettingsPhoneList />
 
   return (
-    <main
-      id="main-content"
+    <div
       className="flex flex-col h-full min-h-0 bg-background"
     >
       <Tabs
@@ -308,7 +310,11 @@ const AdminPage = () => {
                   <ProjectPlanCard plan={projectPlan} http={axiosInstance} />
                   <TaskTemplatesCard http={axiosInstance} />
                   <CalendarPermissionsCard />
+                  <CalendarFeedsCard />
                 </div>
+              </TabsContent>
+              <TabsContent value="rooms" className="mt-0">
+                <RoomsCard http={axiosInstance} />
               </TabsContent>
               {callsAvailable && (
               <TabsContent value="transcription" className="mt-0">
@@ -380,7 +386,7 @@ const AdminPage = () => {
           </AdminScrollContext.Provider>
         </div>
       </Tabs>
-    </main>
+    </div>
   )
 }
 

@@ -20,6 +20,9 @@ export default defineConfig({
   // V-138: every app import() is known to the tests' one code wait (lib/testing/lazyCode) while it's in flight.
   // Tests only: no app build reads this file.
   plugins: [react(), trackImportsPlugin({ setupFiles })],
+  // Tests never process CSS (test.css.include is empty), so Vite gets an empty PostCSS config
+  // instead of postcss.config.mjs, whose string plugin entries only Next's loader resolves.
+  css: { postcss: { plugins: [] } },
   test: {
     environment: "jsdom",
     setupFiles,

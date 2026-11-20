@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import * as React from "react"
 
 const pick = vi.fn()
-vi.mock("@/services/tableService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/tableService")>()),
+vi.mock("@/services/tableLinkPicks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/tableLinkPicks")>()),
   pickRows: (...args: unknown[]) => pick(...args),
 }))
 // Stable, as the real hook's is.

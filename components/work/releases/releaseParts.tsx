@@ -1,62 +1,13 @@
 "use client"
 
 // The Releases tab's parts that its list and its sheet share (./ProjectReleases,
-// where the why is): the read through the page's client, a release's state and
-// a stage's last word.
+// where the why is): the read through the page's client (lib/lazy/useKeptRead),
+// a release's state and a stage's last word.
 
-import * as React from "react"
 import { Server, Wrench } from "@/lib/icons"
 import { stageLine, stageTone, type Release, type ReleaseStage } from "@/lib/work/releases"
 
-// What was last read, by path, while the page lives.
-const kept = new Map<string, unknown>()
-
-/**
- * A read through the page's client: what was kept for its path at once, then
- * the server's; again when the window is shown again, and on again(). A read
- * that fails keeps what is on screen and says failed. keep() takes a write's
- * answer as the read's, with no read again.
- */
-export function useKeptRead<T>(path: string | null, load: () => Promise<T>) {
-  const [data, setData] = React.useState<T | undefined>(() => (path ? (kept.get(path) as T | undefined) : undefined))
-  const [failed, setFailed] = React.useState(false)
-  const [shown, setShown] = React.useState(path)
-  if (shown !== path) {
-    setShown(path)
-    setData(path ? (kept.get(path) as T | undefined) : undefined)
-    setFailed(false)
-  }
-  const again = React.useCallback(async () => {
-    if (!path) return
-    try {
-      const got = await load()
-      kept.set(path, got)
-      setData(got)
-      setFailed(false)
-    } catch {
-      setFailed(true)
-    }
-  }, [path, load])
-  const keep = React.useCallback(
-    (got: T) => {
-      if (path) kept.set(path, got)
-      setData(got)
-      setFailed(false)
-    },
-    [path],
-  )
-  React.useEffect(() => {
-    void again()
-    const onShow = () => document.visibilityState === "visible" && void again()
-    window.addEventListener("focus", onShow)
-    document.addEventListener("visibilitychange", onShow)
-    return () => {
-      window.removeEventListener("focus", onShow)
-      document.removeEventListener("visibilitychange", onShow)
-    }
-  }, [again])
-  return { data, failed, again, keep }
-}
+export { useKeptRead } from "@/lib/lazy/useKeptRead"
 
 /** Planned or Released, as a soft pill in its state's tint, so it reads apart from the pipeline's words beside it. */
 export function StatePill({ release }: { release: Pick<Release, "state"> }) {

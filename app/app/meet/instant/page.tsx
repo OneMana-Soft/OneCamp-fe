@@ -1,5 +1,6 @@
 "use client";
 
+import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig";
 import { displayNameOf } from "@/lib/personName"
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -27,6 +28,8 @@ export default function InstantMeetingPage() {
     const [startError, setStartError] = useState<string | undefined>();
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
+    // A background made from words, through the workspace's model (meet-09): offered to a member where AI is on.
+    const madeBackgrounds = useFeature(FEATURE_AI);
 
     const handlePreJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
         setStarting(true);
@@ -56,6 +59,7 @@ export default function InstantMeetingPage() {
                 onJoin={handlePreJoin}
                 username={displayNameOf(selfProfile.data?.data) || ""}
                 hueId={selfProfile.data?.data.user_uuid}
+                madeBackgrounds={madeBackgrounds}
                 joinLabel="Start meeting"
                 joining={starting}
                 joinError={startError}

@@ -22,7 +22,7 @@ import * as React from "react"
 import { MoreHorizontal } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
-import { useTouchReveal } from "@/hooks/useTouchReveal"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import type { ResolvePhase } from "@/lib/hub/motion"
 
 export type HubRowDensity = "compact" | "two-line" | "feed"
@@ -91,8 +91,6 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
     clamp,
     className,
     onClick,
-    onFocus,
-    onBlur,
     ...rest
   },
   ref,
@@ -100,10 +98,8 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
   const Tag = as as React.ElementType
   const interactive = Boolean(onClick || opens || as === "a" || as === "button" || rest.href)
   // A screen that can't hover reaches the toolbar through the row's Actions
-  // button (app/hub.css), as a message reaches its own: the one reveal
-  // (hooks/useTouchReveal), its host on the row and its toggle on Actions.
-  const reveal = useTouchReveal()
-  const host = tools ? reveal.hostProps : undefined
+  // drawer (HubRowActions), which presses the tools where they are.
+  const bar = React.useRef<HTMLSpanElement>(null)
   return (
     <Tag
       ref={ref}
@@ -114,24 +110,21 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
       data-selected={selected ? "true" : undefined}
       data-disabled={disabled ? "" : undefined}
       data-has-tools={tools ? "" : undefined}
-      data-reveal={tools ? "tap" : undefined}
-      data-revealed={host?.["data-revealed"]}
       data-unread={unread ? "" : undefined}
       data-resolve={resolve}
       data-flip-key={flipKey}
       aria-disabled={disabled || undefined}
-      onClick={onClick}
-      onFocus={(e: React.FocusEvent<HTMLElement>) => {
-        // Keyboard focus in the row shows its tools on a touch screen too, and
-        // keeps them while Tab walks through them.
-        host?.onFocus(e)
-        onFocus?.(e)
-      }}
-      onBlur={(e: React.FocusEvent<HTMLElement>) => {
-        // Gone from the row, and not into a tool's own menu or dialog.
-        host?.onBlur(e)
-        onBlur?.(e)
-      }}
+      onClick={
+        tools
+          ? (e: React.MouseEvent<HTMLElement>) => {
+              // Actions, and its drawer (a portal: outside the row's own
+              // elements), are never the row's tap, nor a link row's way on.
+              const at = e.target as Element
+              if (at.closest?.(".hub-row-more")) return e.preventDefault()
+              if (e.currentTarget.contains(at)) onClick?.(e)
+            }
+          : onClick
+      }
       className={cn("hub-row group/hubrow", resolve === "leaving" && "hub-resolve-out", className)}
       {...rest}
     >
@@ -172,27 +165,54 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
       </span>
       {meta !== undefined && meta !== null ? <span className="hub-row-meta">{meta}</span> : <span />}
       {cursor ? <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none absolute inset-0.5 rounded-md ring-cursor" /> : null}
+      {tools ? <HubRowActions bar={bar} /> : null}
       {tools ? (
-        // Shown only where nothing can hover (app/hub.css): the way to the
-        // tools under a finger. Never the row's own tap, which opens the row.
-        <button
-          type="button"
-          className="hub-row-more"
-          data-touch-target=""
-          aria-label="Actions"
-          {...reveal.toggleProps}
-        >
-          <MoreHorizontal aria-hidden />
-        </button>
-      ) : null}
-      {tools ? (
-        <span className="hub-row-tools" onClick={(e) => e.stopPropagation()}>
+        <span ref={bar} className="hub-row-tools" onClick={(e) => e.stopPropagation()}>
           {tools}
         </span>
       ) : null}
     </Tag>
   )
 })
+
+// The row's drawer (ui/hubRowDrawer), through the menu's own sheet chunk, as
+// selectSheet does for the Select: no copy of the menu here (app/firstLoad.test.ts).
+const Drawer = lazyPiece(() => import("@/components/ui/subStepHead").then((m) => ({ default: m.HubRowDrawer })), {
+  // Offline: the button stays, and asks again when pressed or online.
+  failed: ({ children, retry }) => React.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, { onClick: retry }),
+})
+
+function HubRowActions({ bar }: { bar: React.RefObject<HTMLSpanElement | null> }) {
+  // Actions' first press, a tap or a key: the drawer is drawn from then.
+  const [first, setFirst] = React.useState<"tap" | "key" | null>(null)
+  const [open, setOpen] = React.useState(true)
+  // Where Actions shows, its code comes ahead: a phone offline still opens it.
+  React.useEffect(() => {
+    if (window.matchMedia?.("(hover: none)").matches) Drawer.warm()
+  }, [])
+  const button = (
+    <button
+      type="button"
+      className="hub-row-more"
+      data-touch-target=""
+      aria-label="Actions"
+      aria-haspopup="menu"
+      // Or a key a menu's trigger opens on.
+      onClick={first ? undefined : () => setFirst("tap")}
+      onKeyDown={first ? undefined : (e) => void (["Enter", " ", "ArrowDown"].includes(e.key) && (e.preventDefault(), setFirst("key")))}
+    >
+      <MoreHorizontal aria-hidden />
+    </button>
+  )
+  if (!first) return button
+  return (
+    <React.Suspense fallback={button}>
+      <Drawer bar={bar} open={open} onOpenChange={setOpen} byKey={first === "key"}>
+        {button}
+      </Drawer>
+    </React.Suspense>
+  )
+}
 
 /** A 24px icon button for a HubRow's toolbar, with its name as the tooltip. */
 export function HubToolButton({

@@ -13,6 +13,14 @@
  * it holds, and a refusal puts the list back and says the server's reason on
  * the row, never a toast. The keyword read is the one the message list marks
  * from (hooks/useMyKeywords), so a change shows there at once.
+ *
+ * V-703: each save is a keepalive request sent the moment the change is made,
+ * so a reload or a closed tab straight after can't cut it off. A new word's
+ * chip says Saving until the server answers; one that didn't save stays beside
+ * the kept list as Not saved, and letting it go sends nothing. No later change
+ * sends it (CR-345): only Try again does, offered for a save that got no
+ * answer; a word the server refused (a 4xx) would be refused again, so it
+ * keeps the server's reason beside it and offers only letting it go.
  */
 
 import * as React from "react"
@@ -25,9 +33,10 @@ import {
   SettingsRowsSkeleton,
   SettingsSection,
 } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { reasonOf, useSaveStatus } from "@/components/ui/saveStatus"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { browserFetch } from "@/lib/http/browserFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { PERSONAL_ALERT_PATHS } from "@/hooks/useMyKeywords"
 import type { UserProfileInterface } from "@/types/user"
@@ -38,6 +47,28 @@ const MAX_KEYWORDS = 50
 const MAX_VIPS = 300
 
 type List<T> = { data: T[] | null }
+
+/** How a save ended: kept, or not, with the server's reason when it refused outright. */
+type SaveEnd = { held: boolean; refusal?: string }
+
+/**
+ * The server's reason when it refused the save outright: a 4xx, which the same
+ * list meets again. None for no answer, a 5xx, a timeout (408) or too many
+ * at once (429), where the same save may hold on Try again.
+ */
+function refusalOf(err: unknown): string | undefined {
+  const status = (err as { response?: { status?: number } } | undefined)?.response?.status
+  return status && status >= 400 && status < 500 && status !== 408 && status !== 429 ? reasonOf(err) : undefined
+}
+
+/** A word a save didn't keep; a refused one carries the server's reason. */
+type Unsaved = { word: string; refusal?: string }
+
+/**
+ * A save sent as a keepalive fetch, so a reload or a closed tab straight after
+ * can't cut it off (V-703); the API client's own refresh and errors still hold.
+ */
+const OUTLIVES_THE_PAGE = { ...OWN_ERRORS, adapter: browserFetch, fetchOptions: { keepalive: true } } as const
 
 /** The toast's words for a list that gained or lost one item: "Keyword added: launch". */
 function listWords<T>(noun: string, was: T[], next: T[], name: (t: T) => string, key: (t: T) => string = name): string {
@@ -72,20 +103,62 @@ export function KeywordsAndVipsCard() {
     bodyOf: (list: T[]) => B,
     run: ReturnType<typeof useSaveStatus>["run"],
     what: string,
-  ): Promise<boolean> => {
+  ): Promise<SaveEnd> => {
     const mutate = req.mutate as (d: List<T>, o: { revalidate: boolean }) => Promise<unknown>
     void mutate({ data: next }, { revalidate: false })
     let kept: T[] | undefined
+    let refusal: string | undefined
     const held = await run(
       async () => {
-        const res = await axiosInstance.put<List<T>>(path, bodyOf(next), OWN_ERRORS)
-        kept = res?.data?.data ?? undefined
+        try {
+          const res = await axiosInstance.put<List<T>>(path, bodyOf(next), OUTLIVES_THE_PAGE)
+          kept = res?.data?.data ?? undefined
+        } catch (err) {
+          refusal = refusalOf(err)
+          throw err
+        }
       },
       { what, undo: () => save(req, path, kept ?? next, was, bodyOf, run, what) },
     )
     void mutate({ data: held ? (kept ?? next) : was }, { revalidate: false })
-    return held
+    return { held, refusal }
   }
+
+  /** Words sent and not yet answered, and words a save didn't keep (beside the kept list until let go). */
+  const [kwSaving, setKwSaving] = React.useState<string[]>([])
+  const [kwUnsaved, setKwUnsaved] = React.useState<Unsaved[]>([])
+  const unsavedWords = kwUnsaved.map((u) => u.word)
+  const shownKeywords = keywords && [...keywords, ...unsavedWords.filter((k) => !keywords.includes(k))]
+  /** Sends the kept list with next's change; a word it adds that doesn't hold stays as Not saved. */
+  const sendKeywords = async (kept: string[], next: string[]) => {
+    const added = next.filter((k) => !kept.includes(k))
+    setKwSaving((s) => [...s, ...added])
+    const end = await save(kw, PERSONAL_ALERT_PATHS.keywords, kept, next, (l) => ({ keywords: l }), kwSave.run, listWords("Keyword", kept, next, (k) => k))
+    setKwSaving((s) => s.filter((k) => !added.includes(k)))
+    if (!end.held) setKwUnsaved((s) => [...s.filter((u) => !added.includes(u.word)), ...added.map((word) => ({ word, refusal: end.refusal }))])
+  }
+  /** A change to the shown list: its PUT leaves every Not saved word out, and they stay shown as Not saved. */
+  const changeKeywords = (shown: string[]) => {
+    if (!keywords) return
+    const next = shown.filter((k) => keywords.includes(k) || !unsavedWords.includes(k))
+    const stays = kwUnsaved.filter((u) => shown.includes(u.word))
+    setKwUnsaved(stays)
+    // Letting go of a word that never saved touches nothing on the server.
+    if (next.length === keywords.length && next.every((k) => keywords.includes(k))) {
+      if (stays.length === 0) kwSave.clear()
+      return
+    }
+    void sendKeywords(keywords, next)
+  }
+  /** Try again: the words that got no answer, sent with the kept list; a refused one stays as it is. */
+  const retryKeywords = () => {
+    if (!keywords) return
+    const again = kwUnsaved.filter((u) => !u.refusal).map((u) => u.word)
+    setKwUnsaved((s) => s.filter((u) => u.refusal))
+    void sendKeywords(keywords, [...keywords, ...again.filter((k) => !keywords.includes(k))])
+  }
+  // The server's reasons for the refused words, unless the row says them already.
+  const refusals = [...new Set(kwUnsaved.flatMap((u) => (u.refusal ? [u.refusal] : [])))].join(" ")
 
   const failed = kw.isError || vip.isError
   return (
@@ -116,13 +189,16 @@ export function KeywordsAndVipsCard() {
           >
             <KeywordsInput
               id="notify-keywords"
-              value={keywords}
+              value={shownKeywords ?? keywords}
               max={MAX_KEYWORDS}
+              minLength={2}
               maxLength={64}
               placeholder="Add a word or short phrase…"
-              onChange={(next) =>
-                void save(kw, PERSONAL_ALERT_PATHS.keywords, keywords, next, (l) => ({ keywords: l }), kwSave.run, listWords("Keyword", keywords, next, (k) => k))
-              }
+              saving={kwSaving}
+              unsaved={unsavedWords}
+              onRetry={kwUnsaved.some((u) => !u.refusal) ? retryKeywords : undefined}
+              unsavedWhy={refusals && refusals !== kwSave.status.error ? refusals : undefined}
+              onChange={changeKeywords}
             />
           </SettingRow>
           <SettingRow

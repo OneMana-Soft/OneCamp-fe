@@ -44,7 +44,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
     })
   }, [token, attempt])
 
-  if (state === "loading") return <main className="flex min-h-dvh w-full items-center justify-center bg-frame px-4"><Waiting /></main>
+  if (state === "loading") return <main id="main-content" className="flex min-h-dvh w-full items-center justify-center bg-frame px-4"><Waiting /></main>
   if (state === "failed") {
     return (
       <PublicGone
@@ -64,7 +64,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
   }
   const hue = formHue(form.title, token)
   return (
-    <main className={`${HUE_CLASS[hue]} relative isolate min-h-dvh bg-frame px-4 py-8 sm:py-14`}>
+    <main id="main-content" className={`${HUE_CLASS[hue]} relative isolate min-h-dvh bg-frame px-4 py-8 sm:py-14`}>
       <div aria-hidden="true" data-form-band="" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[260px] [background:radial-gradient(560px_240px_at_50%_0px,color-mix(in_oklab,var(--hue)_12%,transparent),transparent)]" />
       <FormPages form={form} hue={hue} token={token} prefill={prefill} onSend={async (answers, website, claim) => {
         const res = await sendForm(token, answers, website, claim)

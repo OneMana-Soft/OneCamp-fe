@@ -32,13 +32,15 @@ import { sceneSignature } from "@/lib/board/scene"
 import { useSceneReady } from "@/hooks/useSceneReady"
 import { findFromSearch, linkedFromSearch } from "@/lib/board/frames"
 import { frameDrawing, loadBoardViewport, saveBoardViewport } from "@/lib/board/camera"
-import { LOCAL_ORIGIN, applyShared, followShared, liveCount, type BoardElement, type SharedElements } from "@/lib/board/binding"
+import { LOCAL_ORIGIN, applyShared, followShared, guardOf, liveCount, type BoardElement, type SharedElements } from "@/lib/board/binding"
 import { NOTE_AUTHORS, storeWithMakers } from "@/lib/board/authors"
 import { privateNotesKey, usePrivateMode } from "@/lib/board/privateMode"
 import type { PrivateNotesHandle } from "@/components/board/privateNotesHost"
 import { useBoardPresence } from "@/components/board/boardPresence"
 import { BoardCursors } from "@/components/board/boardCursors"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
+// The pieces' loaders ride with the canvas (V-1083).
+import "@/components/board/boardLoaders"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import "@excalidraw/excalidraw/index.css"
 // Before Excalidraw loads: its faces come from this server, never esm.sh (V-94).
@@ -47,7 +49,10 @@ import "@/components/board/excalidrawTheme.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
+import type { DrawnApi } from "@/components/board/boardExcalidraw"
 import { saysWriteFailure } from "@/lib/http/writeSaid"
+// What the drawing shares with a parent, held here as by the other canvas: the drawing is cut once (V-1167).
+import "@/components/board/drawingShared"
 
 // Cards, live (boardCard).
 const MemberEmbedView = lazyPiece(() => import("@/components/board/boardCard").then((m) => ({ default: m.BoardEmbedView })))
@@ -149,7 +154,7 @@ function BoardCanvas({
   onEditCode,
 }: BoardCanvasProps) {
   const sheetMode = useSheetMode()
-  const apiRef = React.useRef<ExcalidrawImperativeAPI | null>(null)
+  const apiRef = React.useRef<DrawnApi | null>(null)
   // Marks for e2e and scripts/fluidity, written to the DOM (no render):
   // data-board-synced/-elements once the server's drawing is on, and
   // data-board-remote, how often the document has changed the scene.
@@ -159,7 +164,7 @@ function BoardCanvas({
     remoteMergesRef.current++
     if (wrapRef.current) wrapRef.current.dataset.boardRemote = String(remoteMergesRef.current)
   }, [])
-  const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
+  const [api, setApi] = React.useState<DrawnApi | null>(null)
   // The drawing and the camera wait for Excalidraw's own scene (useSceneReady).
   const sceneReady = useSceneReady(api)
   // Excalidraw module, loaded client-side so we can render a custom MainMenu
@@ -582,7 +587,7 @@ function BoardCanvas({
       // Only what changed is walked twice: a drag's frame stamps and writes its moved elements, not the board (miro-06).
       yDoc.transact(() => {
         const scene = sceneNow as readonly BoardElement[]
-        storeWithMakers(yAuthors, yElements as never, scene, who, privateRef.current?.writer(yElements as never, scene))
+        storeWithMakers(yAuthors, yElements as never, scene, who, guardOf(apiRef.current), privateRef.current?.writer(yElements as never, scene))
       }, LOCAL_ORIGIN)
 
       // Graceful size warning: count live (non-deleted) elements and warn once
@@ -614,7 +619,7 @@ function BoardCanvas({
   const handlePointerUpdate = useBoardPresence({ awareness: provider.awareness, user, publish: true })
 
   const handleApi = React.useCallback(
-    (instance: ExcalidrawImperativeAPI) => {
+    (instance: DrawnApi) => {
       apiRef.current = instance
       setApi(instance)
       onApiReady?.(instance)
@@ -625,6 +630,7 @@ function BoardCanvas({
   return (
     <div ref={wrapRef} className="relative h-full w-full" data-board-canvas="">
       <Excalidraw
+        doc={yDoc}
         sheetMode={sheetMode}
         embedView={MemberEmbedView}
         onEditCode={editable ? onEditCode : undefined}

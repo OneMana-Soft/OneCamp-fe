@@ -60,7 +60,7 @@ export function MobileNavigationBar({
     // Whether the page has moved off its top, for the top bar's hairline
     // (design v3, Ph1). A 1px sentinel at the top of the scroller, watched
     // against the scroller: no scroll listener, nothing on the scroll path.
-    const scrollerRef = useRef<HTMLDivElement>(null);
+    const scrollerRef = useRef<HTMLElement>(null);
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [scrolled, setScrolled] = useState(false);
     useEffect(() => {
@@ -140,11 +140,11 @@ export function MobileNavigationBar({
 
                 {/* overflow-x-hidden: overflow-y-auto alone makes x scroll too,
                     so a page drawn a few pixels too wide (the AI page was 406
-                    in 390) made the whole screen pan sideways under the thumb. */}
+                    in 390) made the whole screen pan sideways. */}
                 {/* data-large-passed: the page's own strip under a large title
                     stays clear over the glow until the title has gone up
                     under the bar (app/phone.css). */}
-                <div ref={scrollerRef} data-app-scroller="" data-glow={tabRoot || undefined} data-large-passed={largeTitle ? (largePassed ? "true" : "false") : undefined} className={cn(
+                <main id="main-content" ref={scrollerRef} data-app-scroller="" data-glow={tabRoot || undefined} data-large-passed={largeTitle ? (largePassed ? "true" : "false") : undefined} className={cn(
                     "flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
                     !noBottomBar && "pb-[var(--phone-scroll-end)]"
                 )}>
@@ -156,7 +156,7 @@ export function MobileNavigationBar({
                         </p>
                     )}
                     {children}
-                </div>
+                </main>
 
                 <MobileBottomNavigationBar />
             </div>

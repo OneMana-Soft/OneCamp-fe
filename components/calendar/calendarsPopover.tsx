@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { addDays, addMonths, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { ArrowDownToLine, ArrowUpDown, Check, ChevronLeft, ChevronRight, Ellipsis, Globe, Link2, Pin, PinOff, Plug, Plus } from "@/lib/icons";
+import { containerRow, emptyLine, type ContainerRow } from "@/lib/calendar/containerRow";
 import { dayCell } from "@/components/ui/dayCell";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,8 @@ import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { Progress } from "@/components/ui/progress";
 import { OutlookOff, OutlookUnloaded } from "@/components/calendar/outlookOff";
 import { SYNC, syncLine, syncNext, useCalendarSync, useConnectorLink, type SyncProvider } from "@/lib/calendar/calendarSync";
+// The closed Calendars button says a stale sync in the panel's words, from this chunk (useSyncNote, gcal-18).
+export { staleWords } from "@/lib/calendar/calendarSync";
 import { OutlookMark } from "@/components/ui/graphics/OutlookMark";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import type { UserProfileInterface } from "@/types/user";
@@ -43,7 +46,7 @@ import { LockLine } from "@/components/calendar/visibilityLine";
 import type { CalendarView as ShownView } from "@/components/calendar/calendarApp";
 import { refreshSubscription, subscriptionWords, unsubscribe, useSubscriptions } from "@/lib/calendar/subscriptions";
 import { useSWRConfig } from "swr";
-import { teammateCalendar } from "@/lib/calendar/otherCalendars";
+import { teammateCalendar, useShownCount } from "@/lib/calendar/otherCalendars";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import type { KeyedMutator } from "swr";
@@ -152,6 +155,8 @@ export interface CalendarRow {
   onOnly?: () => void;
   /** "Read-only in Google" (or Outlook): its provider lets OneCamp only read it (V-594), said atop its menu. */
   readOnly?: string;
+  /** A project's, a channel's or a team's own (gcal-14): its container, the level the server gives, and what fills it. */
+  container?: ContainerRow;
   menu?: ReactNode;
 }
 
@@ -187,8 +192,12 @@ export function ownRows(o: {
 
 /** A calendar's row (C04): a colour checkbox, the name, how many this week. */
 export function CalendarListRow({ row }: { row: CalendarRow }) {
+  // Nothing dated on a container's calendar this week: what fills it, under its name. A read that failed is
+  // its error, never an empty calendar (W5).
+  const hint = emptyLine(row.container, row.count, row.failed || !!row.warning);
+  const Mark = row.container?.icon ?? null;
   return (
-    <div className="group/row flex h-8 items-center gap-2.5 rounded-lg px-1.5 hover:bg-hover pointer-coarse:h-11" data-calendar-row={row.id}>
+    <div className={cn("group/row flex items-center gap-2.5 rounded-lg px-1.5 hover:bg-hover", hint ? "min-h-10 py-1" : "h-8 pointer-coarse:h-11")} data-calendar-row={row.id}>
       <button
         type="button"
         role="checkbox"
@@ -210,8 +219,10 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
       >
         {row.on ? <Check className="size-3 animate-spring" aria-hidden="true" /> : null}
       </button>
+      {Mark ? <Mark className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" data-container={row.container!.kind} /> : null}
       <button type="button" onClick={row.onToggle} className="min-w-0 flex-1 truncate rounded-sm text-left text-ui font-[450] text-ink">
         {row.name}
+        {hint ? <span className="block truncate text-meta font-normal text-ink-3" data-calendar-empty="">{hint}</span> : null}
       </button>
       {row.mark}
       {row.marks?.length ? (
@@ -230,7 +241,7 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
           Couldn&apos;t load
           <SaysLoadFailure />
         </span>
-      ) : row.count !== undefined ? (
+      ) : row.count !== undefined && !hint ? (
         <span className="text-meta tabular-nums text-ink-3 group-hover/row:hidden group-focus-within/row:hidden">{row.count} this week</span>
       ) : null}
       {row.onOnly || row.menu ? (
@@ -246,6 +257,16 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
               <>
                 <DropdownMenuLabel className="font-normal" data-calendar-read-only="">
                   <LockLine>{row.readOnly}</LockLine>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
+            {row.container ? (
+              // Its level and who it is shared with: a status the keys pass over, as the read-only line is.
+              <>
+                <DropdownMenuLabel className="grid gap-0.5 font-normal" data-calendar-container={row.container.kind}>
+                  <span className="text-ui-sm text-ink">{row.container.level}</span>
+                  <span className="text-meta text-ink-3">{row.container.line}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
               </>
@@ -306,9 +327,10 @@ export function CalendarsPanel({
   onDialog?: (open: (close: () => void) => ReactNode) => void;
   /** Calendars beside your own one (A6): yours an import made, projects', shared ones and teammates' laid over yours. */
   others?: OtherCalendars;
-  /** How many of a calendar's events are in the week shown. */
+  /** How many of a calendar's events are in the week shown; else the calendar's own count (useShownCount). */
   countOf?: (calendarId: string) => number;
 }) {
+  const shown = useShownCount();
   const post = usePost();
   const busy = post.isSubmitting;
   // Google's consent screen, through the connectors flow (CAL-BUG-8).
@@ -393,13 +415,14 @@ export function CalendarsPanel({
     name: c.name,
     hue: others?.hueOf(c),
     on: !others?.hidden.includes(c.id),
-    count: countOf?.(c.id),
+    count: (countOf ?? shown?.countOf)?.(c.id),
     // Only the calendars beside yours that were shown are in that read.
     failed: !!others?.error && !c.mine && !others.hidden.includes(c.id),
     onToggle: () => others?.toggle(c.id),
     onOnly: () => others?.only(c.id),
     // Moved from Google or Outlook, where it is see-only (V-594): no new event goes on it.
     readOnly: readOnlyIn(c) || undefined,
+    container: containerRow(c),
     warning: c.kind === "subscribed" ? subs.byCalendar.get(c.id)?.error : undefined,
     menu:
       c.kind === "subscribed" ? (

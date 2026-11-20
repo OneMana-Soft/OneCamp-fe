@@ -10,22 +10,22 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import { ZonePicker } from "@/components/ui/zonePicker"
 import { zoneLabel } from "@/lib/utils/zones"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { SpamTrap } from "@/components/common/SpamTrap"
 import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame"
 import { WorkspaceMark } from "@/components/guest/publicHeader"
 import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock, Mail } from "@/lib/icons"
-import { dayKey, googleCalendarUrl, icsFor, type Slot } from "@/lib/calendar/availability"
+import { AlertCircle, ArrowLeft, CalendarDays, Clock } from "@/lib/icons"
+import type { Slot } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
-import { randomUUID } from "@/lib/utils/randomUUID"
-import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
-import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
-import { clockTime, dateTimeFormat, readsTwelveHour } from "@/lib/utils/date/clock"
+import { bookSlot, type Booked, type PublicBookingPage } from "@/services/bookingService"
+import { retryingText } from "@/services/publicApi"
+import { readsTwelveHour } from "@/lib/utils/date/clock"
+import { bookLabel, shortDay, slotTime } from "@/components/booking/bookingTime"
+import { DayAndTimes, TimeZoneButton, useSlotPicker } from "@/components/booking/slotPicker"
+import { Confirmation } from "@/components/booking/bookingConfirmation"
 
 /**
  * The card's width at each step: pick a day, pick a time, the form, booked.
@@ -41,46 +41,7 @@ export const STEP_WIDTH: Record<1 | 2 | 3 | 4, string> = {
   4: "sm:max-w-[560px]",
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-const DAY_MS = 864e5
 
-// ----------------------------------------------------------------------------
-// Words for a moment, in the visitor's zone.
-// ----------------------------------------------------------------------------
-
-/** "10:30" (24 h) or "10:30 AM", in a zone: the visitor's own choice of clock (the 24-hour switch). */
-export function slotTime(iso: string, tz: string, h24: boolean): string {
-  return clockTime(iso, { timeZone: tz, hour12: !h24 })
-}
-
-/** A kept formatter in a zone (the app's one cache, lib/utils/date/clock): CAL-BUG-20. */
-const formatFor = (locale: string, tz: string, opts: Intl.DateTimeFormatOptions) => dateTimeFormat(locale, { timeZone: tz, ...opts })
-
-function parts(iso: string, tz: string, opts: Intl.DateTimeFormatOptions) {
-  const p = formatFor("en-GB", tz, opts).formatToParts(new Date(iso))
-  return (t: Intl.DateTimeFormatPartTypes) => p.find((x) => x.type === t)?.value ?? ""
-}
-
-/** "Thu 15 Oct", the day in the button. */
-export function shortDay(iso: string, tz: string): string {
-  const p = parts(iso, tz, { weekday: "short", day: "numeric", month: "short" })
-  return `${p("weekday")} ${p("day")} ${p("month")}`
-}
-
-/** "Thursday 15 October". */
-export function longDay(iso: string, tz: string): string {
-  const p = parts(iso, tz, { weekday: "long", day: "numeric", month: "long" })
-  return `${p("weekday")} ${p("day")} ${p("month")}`
-}
-
-/** The button's words: "Book Thu 15 Oct, 10:30". */
-export function bookLabel(slot: Slot, tz: string, h24: boolean): string {
-  return `Book ${shortDay(slot.start, tz)}, ${slotTime(slot.start, tz, h24)}`
-}
-
-// Zones as people know them live in lib/utils/zones (the Event Form picks from
-// them too); the booking pages read them from here as well.
-export { zoneLabel, zoneLabels } from "@/lib/utils/zones"
 
 /** Whether the window is at least `px` wide, following it as it changes. */
 function useMinWidth(px: number): boolean {
@@ -97,38 +58,68 @@ function useMinWidth(px: number): boolean {
   return on
 }
 
-/** The month a day key falls in: { y, m } with m from 0. */
-const monthOf = (key: string) => ({ y: Number(key.slice(0, 4)), m: Number(key.slice(5, 7)) - 1 })
-const monthKey = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, "0")}`
-const shiftMonth = (y: number, m: number, by: number) => {
-  const d = new Date(Date.UTC(y, m + by, 1))
-  return { y: d.getUTCFullYear(), m: d.getUTCMonth() }
+/** Under a foot bar, the room the pill (8px, 36px, 8px) and a two-line toast need. */
+const FOOT_ROOM = 120
+
+/**
+ * A phone's foot bar on a page with no tab bar (V-1111): the bar is the
+ * screen's foot, so the toasts and the offline pill stand on it (app/phone.css
+ * C9), not on the tab bar's floor, which only /app's tab bar moves. While the
+ * bar is drawn on a phone at the screen's foot (FOOT_ROOM: too little room
+ * under it for the pill or a toast), its top is published as
+ * --mobile-drawer-h and the floor points at it, as a doc's comment pages do
+ * (V-1105); both go with the bar. Higher up, in the page's flow, the pill
+ * keeps its place under the bar. A sticky bar moves as the page scrolls, so a
+ * scroll re-reads it.
+ * GuestBoardLink keeps the same publisher for its name form: each page's own
+ * file, so no shared module reaches a route.
+ */
+function usePhoneFoot(ref: React.RefObject<HTMLElement | null>, on = true) {
+  React.useLayoutEffect(() => {
+    const bar = ref.current
+    if (!bar || !on || !window.matchMedia?.("(max-width: 639px)").matches) return
+    const root = document.documentElement
+    let last = ""
+    const publish = () => {
+      const r = bar.getBoundingClientRect()
+      const h = r.top > 0 && r.top < window.innerHeight && window.innerHeight - r.bottom < FOOT_ROOM ? `${Math.round(window.innerHeight - r.top)}px` : ""
+      if (h === last) return
+      last = h
+      if (h) {
+        root.style.setProperty("--mobile-drawer-h", h)
+        root.style.setProperty("--phone-floor", "var(--mobile-drawer-h, env(safe-area-inset-bottom))")
+      } else {
+        root.style.removeProperty("--mobile-drawer-h")
+        root.style.removeProperty("--phone-floor")
+      }
+    }
+    publish()
+    const watch = typeof ResizeObserver !== "undefined" ? new ResizeObserver(publish) : null
+    watch?.observe(bar)
+    window.addEventListener("resize", publish)
+    window.addEventListener("scroll", publish, { capture: true, passive: true })
+    return () => {
+      watch?.disconnect()
+      window.removeEventListener("resize", publish)
+      window.removeEventListener("scroll", publish, { capture: true })
+      root.style.removeProperty("--mobile-drawer-h")
+      root.style.removeProperty("--phone-floor")
+    }
+  }, [ref, on])
 }
-const monthName = (y: number, m: number) => formatFor("en-GB", "UTC", { month: "long" }).format(new Date(Date.UTC(y, m, 1)))
+
 
 // ----------------------------------------------------------------------------
 // The flow.
 // ----------------------------------------------------------------------------
 
 export function BookingFlow({ slug }: { slug: string }) {
-  const [page, setPage] = React.useState<PublicBookingPage | null>(null)
-  const [state, setState] = React.useState<"loading" | "ready" | "missing" | "error">("loading")
-  const [slotsByStart, setSlotsByStart] = React.useState<Map<string, Slot>>(new Map())
-  const [loadedMonths, setLoadedMonths] = React.useState<Set<string>>(new Set())
   const [tz, setTz] = React.useState("UTC")
   const [h24, setH24] = React.useState(false)
-  const [month, setMonth] = React.useState<{ y: number; m: number } | null>(null)
-  const [monthDir, setMonthDir] = React.useState<1 | -1>(1)
-  const [day, setDay] = React.useState<string | null>(null)
-  const [split, setSplit] = React.useState<Slot | null>(null)
+  const picker = useSlotPicker(slug, tz)
+  const { page, state, trouble } = picker
   const [slot, setSlot] = React.useState<Slot | null>(null)
-  const [taken, setTaken] = React.useState<string | null>(null)
   const [booked, setBooked] = React.useState<Booked | null>(null)
-  // Too many requests from here (429), or no answer: the page says so and
-  // asks again when the server allows, never calling the page gone (CAL-BUG-14).
-  const [trouble, setTrouble] = React.useState<Exclude<PublicTrouble, "gone"> | null>(null)
-  const [monthTrouble, setMonthTrouble] = React.useState<Exclude<PublicTrouble, "gone"> | null>(null)
-  const [monthRetry, setMonthRetry] = React.useState(0)
   // One time zone picker, where the layout puts it: the aside on a computer,
   // under the month on a phone. Both used to mount, one hidden (CAL-BUG-20).
   const wide = useMinWidth(640)
@@ -140,116 +131,9 @@ export function BookingFlow({ slug }: { slug: string }) {
     setH24(!readsTwelveHour())
   }, [])
 
-  const merge = React.useCallback((slots: Slot[]) => {
-    setSlotsByStart((prev) => {
-      const next = new Map(prev)
-      for (const s of slots) next.set(s.start, s)
-      return next
-    })
-  }, [])
-
-  // The first answer: the page, and its first fortnight. Asked again, later
-  // each time and never before the server's Retry-After, while the server is
-  // busy or out of reach.
-  React.useEffect(() => {
-    let live = true
-    let failures = 0
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const attempt = async () => {
-      const now = new Date()
-      const res = await getBookingPage(slug, now, new Date(now.getTime() + 14 * DAY_MS))
-      if (!live) return
-      if (!res.ok) {
-        const t = publicTrouble(res.status)
-        if (t === "gone") {
-          setState(res.status === 404 ? "missing" : "error")
-          return
-        }
-        setTrouble(t)
-        timer = setTimeout(() => void attempt(), retryDelayMs(failures++, res.retryAfter))
-        return
-      }
-      setTrouble(null)
-      setPage(res.data)
-      merge(res.data.slots)
-      setState("ready")
-    }
-    void attempt()
-    return () => {
-      live = false
-      clearTimeout(timer)
-    }
-  }, [slug, merge])
-
   React.useEffect(() => {
     if (page) document.title = `${page.title} with ${page.owner_name}`
   }, [page])
-
-  const todayKey = dayKey(new Date(), tz)
-  const thisMonth = monthOf(todayKey)
-  const shown = month ?? thisMonth
-  const lastMonth = page ? monthOf(dayKey(page.bookable_until, tz)) : thisMonth
-
-  // Each visible month asks for its slots once, in two halves (the server
-  // answers up to 31 days a call).
-  const shownKey = monthKey(shown.y, shown.m)
-  React.useEffect(() => {
-    if (!page || loadedMonths.has(shownKey)) return
-    let live = true
-    let retryTimer: ReturnType<typeof setTimeout> | undefined
-    void (async () => {
-      const now = Date.now()
-      const start = Math.max(now, Date.UTC(shown.y, shown.m, 1) - DAY_MS)
-      const end = Math.min(Date.UTC(shown.y, shown.m + 1, 1) + DAY_MS, new Date(page.bookable_until).getTime())
-      if (end <= start) {
-        setLoadedMonths((s) => new Set(s).add(shownKey))
-        return
-      }
-      const mid = start + Math.ceil((end - start) / 2)
-      const answers = await Promise.all([
-        getBookingPage(slug, new Date(start), new Date(mid)),
-        getBookingPage(slug, new Date(mid), new Date(end)),
-      ])
-      if (!live) return
-      for (const a of answers) if (a.ok) merge(a.data.slots)
-      // A month whose answer didn't come isn't "no free times": it waits and asks again.
-      const failed = answers.find((a) => !a.ok && publicTrouble(a.status) !== "gone")
-      if (failed && !failed.ok) {
-        setMonthTrouble(publicTrouble(failed.status) as Exclude<PublicTrouble, "gone">)
-        retryTimer = setTimeout(() => setMonthRetry((n) => n + 1), retryDelayMs(monthRetry, failed.retryAfter))
-        return
-      }
-      setMonthTrouble(null)
-      setLoadedMonths((s) => new Set(s).add(shownKey))
-    })()
-    return () => {
-      live = false
-      clearTimeout(retryTimer)
-    }
-  }, [page, shownKey, shown.y, shown.m, slug, loadedMonths, merge, monthRetry])
-
-  const byDay = React.useMemo(() => {
-    const out = new Map<string, Slot[]>()
-    const now = Date.now()
-    for (const s of [...slotsByStart.values()].sort((a, b) => a.start.localeCompare(b.start))) {
-      if (new Date(s.start).getTime() < now) continue
-      const k = dayKey(s.start, tz)
-      const list = out.get(k)
-      if (list) list.push(s)
-      else out.set(k, [s])
-    }
-    return out
-  }, [slotsByStart, tz])
-
-  const refresh = React.useCallback(() => {
-    setSlotsByStart(new Map())
-    setLoadedMonths(new Set())
-  }, [])
-
-  const goMonth = (by: 1 | -1) => {
-    setMonthDir(by)
-    setMonth(shiftMonth(shown.y, shown.m, by))
-  }
 
   if (state === "missing") {
     return <PublicGone surface="booking" noun="booking page" detail="The link may be wrong, or its owner has turned it off." />
@@ -259,8 +143,7 @@ export function BookingFlow({ slug }: { slug: string }) {
   }
   if (state === "loading" || !page) return <BookingSkeleton label={trouble ? retryingText[trouble] : undefined} />
 
-  const step: 1 | 2 | 3 | 4 = booked ? 4 : slot ? 3 : day ? 2 : 1
-  const daySlots = day ? byDay.get(day) ?? [] : []
+  const step: 1 | 2 | 3 | 4 = booked ? 4 : slot ? 3 : picker.day ? 2 : 1
 
   return (
     <PublicFrame
@@ -295,53 +178,13 @@ export function BookingFlow({ slug }: { slug: string }) {
                 onBack={() => setSlot(null)}
                 onBooked={setBooked}
                 onTaken={(s) => {
-                  setTaken(s.start)
                   setSlot(null)
-                  setSplit(null)
-                  setTimeout(refresh, 1500)
+                  picker.markTaken(s.start)
                 }}
               />
             ) : (
-              <div className="flex min-w-0 flex-1 flex-col min-[1048px]:flex-row" data-day-and-times="">
-                <MonthGrid
-                  y={shown.y}
-                  m={shown.m}
-                  dir={monthDir}
-                  todayKey={todayKey}
-                  byDay={byDay}
-                  loading={!loadedMonths.has(shownKey)}
-                  selected={day}
-                  canPrev={shown.y * 12 + shown.m > thisMonth.y * 12 + thisMonth.m}
-                  canNext={shown.y * 12 + shown.m < lastMonth.y * 12 + lastMonth.m}
-                  onMonth={goMonth}
-                  onPick={(k) => {
-                    setDay(k)
-                    setSplit(null)
-                    setTaken(null)
-                  }}
-                  note={monthTrouble ? retryingText[monthTrouble] : undefined}
-                />
-                {/* On a phone the zone sits under the calendar. */}
-                {!wide ? (
-                  <div className="px-3 pb-2 sm:hidden">
-                    <TimeZoneButton tz={tz} onTz={setTz} h24={h24} onH24={setH24} className="max-w-full" />
-                  </div>
-                ) : null}
-                {day ? (
-                  <SlotColumn
-                    key={day}
-                    dayKey={day}
-                    slots={daySlots}
-                    tz={tz}
-                    h24={h24}
-                    onH24={setH24}
-                    split={split}
-                    taken={taken}
-                    onSplit={setSplit}
-                    onNext={(s) => setSlot(s)}
-                  />
-                ) : null}
-              </div>
+              // On a phone the zone sits under the calendar.
+              <DayAndTimes picker={picker} tz={tz} onTz={setTz} h24={h24} onH24={setH24} phoneZone={!wide} onNext={setSlot} />
             )}
           </div>
         )}
@@ -422,325 +265,7 @@ function HostAside({
   )
 }
 
-/** The zone, from the shared picker (components/ui/zonePicker), with a 24-hour switch under its list. */
-function TimeZoneButton({ tz, onTz, h24, onH24, className }: { tz: string; onTz: (tz: string) => void; h24: boolean; onH24: (v: boolean) => void; className?: string }) {
-  return (
-    <ZonePicker
-      tz={tz}
-      onTz={onTz}
-      className={className}
-      footer={
-        <label className="flex items-center justify-between border-t border-line px-3 py-2 text-ui-sm text-ink-2">
-          Use 24-hour time
-          <Switch checked={h24} onCheckedChange={onH24} aria-label="Use 24-hour time" />
-        </label>
-      }
-    />
-  )
-}
 
-// ----------------------------------------------------------------------------
-// K03. The month.
-// ----------------------------------------------------------------------------
-
-function MonthGrid({
-  y,
-  m,
-  dir,
-  todayKey,
-  byDay,
-  loading,
-  selected,
-  canPrev,
-  canNext,
-  onMonth,
-  onPick,
-  note,
-}: {
-  y: number
-  m: number
-  dir: 1 | -1
-  todayKey: string
-  byDay: Map<string, Slot[]>
-  loading: boolean
-  selected: string | null
-  canPrev: boolean
-  canNext: boolean
-  onMonth: (by: 1 | -1) => void
-  onPick: (key: string) => void
-  /** Why the month's times are still coming (busy, out of reach). */
-  note?: string
-}) {
-  const lead = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7
-  const count = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
-  const keys = Array.from({ length: count }, (_, i) => `${monthKey(y, m)}-${String(i + 1).padStart(2, "0")}`)
-  const available = keys.filter((k) => byDay.has(k))
-  // A day with fewer than four times left wears a sun dot, which says so under the month (PTC-51).
-  const fewLeft = !loading && available.some((k) => byDay.get(k)!.length < 4)
-  const gridRef = React.useRef<HTMLDivElement>(null)
-  const [focusKey, setFocusKey] = React.useState<string | null>(null)
-  const roving = (selected && available.includes(selected) ? selected : null) ?? focusKey ?? available[0] ?? null
-
-  const focus = (k: string) => {
-    setFocusKey(k)
-    requestAnimationFrame(() => gridRef.current?.querySelector<HTMLElement>(`[data-day="${k}"]`)?.focus())
-  }
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "PageUp" && canPrev) {
-      e.preventDefault()
-      onMonth(-1)
-      return
-    }
-    if (e.key === "PageDown" && canNext) {
-      e.preventDefault()
-      onMonth(1)
-      return
-    }
-    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 }[e.key]
-    if (!step || !roving) return
-    e.preventDefault()
-    // Only open days take focus: walk in the arrow's direction to the next one.
-    const at = keys.indexOf(roving)
-    for (let i = at + step; i >= 0 && i < keys.length; i += step) {
-      if (byDay.has(keys[i])) return focus(keys[i])
-    }
-    if (Math.abs(step) === 7) {
-      const ahead = step > 0 ? available.find((k) => k > roving) : [...available].reverse().find((k) => k < roving)
-      if (ahead) focus(ahead)
-    }
-  }
-
-  return (
-    <section className="min-w-0 px-5 pb-5 pt-2 sm:px-6 sm:pb-7 sm:pt-7 min-[1048px]:w-[480px] min-[1048px]:shrink-0" aria-label="Pick a day">
-      <div className="flex items-center justify-between">
-        <h2 className="text-heading font-semibold text-ink tabular-nums" aria-live="polite">
-          {monthName(y, m)} {y}
-        </h2>
-        {/* A touch group (app/phone.css F3b): under a finger the arrows stand
-            apart, or a tap on Previous's edge went to Next. */}
-        <div className="flex items-center gap-0.5" data-touch-group="">
-          <Button variant="ghost" size="icon" className="size-7" onClick={() => onMonth(-1)} disabled={!canPrev} aria-label="Previous month">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="size-7" onClick={() => onMonth(1)} disabled={!canNext} aria-label="Next month">
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="mt-4 grid grid-cols-7 gap-1" aria-hidden="true">
-        {WEEKDAYS.map((d) => (
-          <span key={d} className="text-center text-micro font-medium text-ink-3">
-            {d}
-          </span>
-        ))}
-      </div>
-      <div className="relative mt-2">
-        <div
-          key={`${y}-${m}`}
-          ref={gridRef}
-          role="grid"
-          aria-label={`${monthName(y, m)} ${y}`}
-          onKeyDown={onKeyDown}
-          className={cn("grid grid-cols-7 gap-1", dir > 0 ? "content-period-next" : "content-period-prev")}
-        >
-          {Array.from({ length: lead }).map((_, i) => (
-            <span key={`lead-${i}`} aria-hidden="true" />
-          ))}
-          {keys.map((k) => {
-            const slots = byDay.get(k)
-            const open = !!slots && !loading
-            const isToday = k === todayKey
-            const isSel = k === selected
-            const filling = open && slots!.length < 4
-            return (
-              <button
-                key={k}
-                type="button"
-                data-day={k}
-                data-available={open || undefined}
-                aria-disabled={!open || undefined}
-                aria-pressed={isSel || undefined}
-                aria-current={isToday ? "date" : undefined}
-                aria-label={`${formatFor("en-GB", "UTC", { weekday: "long", day: "numeric", month: "long" }).format(new Date(k + "T12:00:00Z"))}${open ? `, ${slots!.length} ${slots!.length === 1 ? "time" : "times"}` : ", no times"}`}
-                tabIndex={open && k === roving ? 0 : -1}
-                onClick={() => open && onPick(k)}
-                className={cn(
-                  "relative flex aspect-square min-h-10 w-full items-center justify-center rounded-[10px] text-heading tabular-nums outline-none",
-                  "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-sheet",
-                  loading && "animate-pulse bg-press",
-                  !loading && !open && "cursor-default font-normal text-ink-4",
-                  open && !isSel && "bg-sunken font-semibold text-ink ring-1 ring-inset ring-line transition-shadow hover:ring-[1.5px] hover:ring-brand",
-                  isSel && "content-pop-in bg-brand font-semibold text-brand-foreground shadow-e1",
-                )}
-              >
-                {Number(k.slice(8))}
-                {(isToday || filling) && !loading ? (
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "absolute bottom-[7px] left-1/2 size-[5px] -translate-x-1/2 rounded-[2.5px]",
-                      isSel ? "bg-brand-foreground" : filling ? "bg-[var(--camp-sun-a2)]" : "bg-ink-3",
-                    )}
-                  />
-                ) : null}
-              </button>
-            )
-          })}
-        </div>
-        {note ? (
-          <p role="status" className="mt-3 text-meta text-ink-3" data-month-note="">
-            {note}
-          </p>
-        ) : null}
-        {fewLeft ? (
-          <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-3" data-few-left="">
-            <span aria-hidden="true" className="size-[5px] rounded-[2.5px] bg-[var(--camp-sun-a2)]" />
-            Only a few times left
-          </p>
-        ) : null}
-        {!loading && available.length === 0 ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="content-pop-in pointer-events-auto inline-flex items-center gap-2 rounded-[18px] bg-raised py-1.5 pl-3.5 pr-1.5 text-ui-sm text-ink-2 shadow-e1">
-              No free times in {monthName(y, m)}
-              {canNext ? (
-                <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-ink" onClick={() => onMonth(1)}>
-                  Next month <ArrowRight className="size-3.5" aria-hidden="true" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </section>
-  )
-}
-
-// ----------------------------------------------------------------------------
-// K04. The times, with the confirm split.
-// ----------------------------------------------------------------------------
-
-function partOfDay(iso: string, tz: string): "Morning" | "Afternoon" | "Evening" {
-  const h = Number(parts(iso, tz, { hour: "numeric", hourCycle: "h23" })("hour"))
-  return h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening"
-}
-
-function SlotColumn({
-  dayKey: key,
-  slots,
-  tz,
-  h24,
-  onH24,
-  split,
-  taken,
-  onSplit,
-  onNext,
-}: {
-  dayKey: string
-  slots: Slot[]
-  tz: string
-  h24: boolean
-  onH24: (v: boolean) => void
-  split: Slot | null
-  taken: string | null
-  onSplit: (s: Slot | null) => void
-  onNext: (s: Slot) => void
-}) {
-  const at = new Date(key + "T12:00:00Z")
-  const weekday = formatFor("en-GB", "UTC", { weekday: "long" }).format(at)
-  const monthWord = formatFor("en-GB", "UTC", { month: "long" }).format(at)
-  const grouped = slots.length > 8
-  let lastGroup = ""
-  const takenSlot = taken ? slots.find((s) => s.start === taken) : undefined
-  return (
-    <section className="content-slide-in flex min-w-0 flex-col border-line px-5 pb-6 pt-2 sm:border-t sm:px-6 sm:pb-7 sm:pt-6 min-[1048px]:w-[260px] min-[1048px]:shrink-0 min-[1048px]:border-l min-[1048px]:border-t-0 min-[1048px]:px-5 min-[1048px]:pt-7" aria-label="Pick a time" data-slot-column="">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-heading font-semibold text-ink">
-          {weekday} {Number(key.slice(8))} <span className="text-ui-sm font-normal text-ink-3">{monthWord}</span>
-        </h2>
-        <div role="radiogroup" aria-label="Clock" className="inline-flex h-6 shrink-0 items-center rounded-md bg-sunken p-0.5 text-micro font-medium">
-          {(["12h", "24h"] as const).map((v) => {
-            const on = (v === "24h") === h24
-            return (
-              <button
-                key={v}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => onH24(v === "24h")}
-                data-touch-target=""
-                className={cn("h-5 rounded-[5px] px-1.5 tabular-nums transition-colors", on ? "bg-raised text-ink shadow-e1" : "text-ink-3 hover:text-ink")}
-              >
-                {v}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-      {takenSlot ? (
-        <p role="alert" className="mt-3 text-meta text-danger-ink">
-          Someone just booked {slotTime(takenSlot.start, tz, h24)}. Pick another time.
-        </p>
-      ) : null}
-      <div className="relative mt-4 min-h-0 flex-1">
-        <div className="max-h-[380px] overflow-y-auto pb-6 pt-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-24px),transparent)] max-[1047px]:max-h-none max-[1047px]:[mask-image:none]">
-          <ul className="grid gap-2 max-[1047px]:grid-cols-3">
-            {slots.map((s, i) => {
-              const group = grouped ? partOfDay(s.start, tz) : ""
-              const header = group && group !== lastGroup
-              lastGroup = group || lastGroup
-              const isSplit = split?.start === s.start
-              const isTaken = taken === s.start
-              const time = slotTime(s.start, tz, h24)
-              return (
-                <React.Fragment key={s.start}>
-                  {header ? <li className="pt-1 text-micro font-medium text-ink-3 max-[1047px]:col-span-3">{group}</li> : null}
-                  <li
-                    className={cn("content-rise flex h-10 gap-1.5 max-sm:h-11", isSplit && "max-[1047px]:col-span-3")}
-                    style={{ animationDelay: `${Math.min(i * 12, 150)}ms` }}
-                    data-slot={s.start}
-                  >
-                    {isSplit ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onSplit(null)}
-                          className="flex h-full basis-[45%] items-center justify-center rounded-lg bg-press text-ui font-medium text-ink-2 tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                          aria-label={`${time}, chosen`}
-                        >
-                          {time}
-                        </button>
-                        <Button
-                          autoFocus
-                          className="content-pop-in h-full basis-[55%] gap-1 [animation-delay:80ms]"
-                          onClick={() => onNext(s)}
-                          data-slot-next=""
-                        >
-                          Next <ArrowRight className="size-3.5" aria-hidden="true" />
-                        </Button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={isTaken}
-                        onClick={() => onSplit(s)}
-                        className={cn(
-                          "h-full w-full rounded-lg bg-raised text-ui font-medium text-ink tabular-nums shadow-e1 outline-none transition-shadow hover:ring-[1.5px] hover:ring-brand focus-visible:ring-2 focus-visible:ring-brand",
-                          isTaken && "pointer-events-none line-through opacity-45",
-                        )}
-                      >
-                        {time}
-                      </button>
-                    )}
-                  </li>
-                </React.Fragment>
-              )
-            })}
-          </ul>
-        </div>
-      </div>
-    </section>
-  )
-}
 
 // ----------------------------------------------------------------------------
 // K05. Who is booking.
@@ -767,6 +292,9 @@ function GuestForm({
   onBooked: (b: Booked) => void
   onTaken: (s: Slot) => void
 }) {
+  // The Book bar is a phone's foot (max-sm:sticky below): the toasts and the pill stand above it.
+  const foot = React.useRef<HTMLDivElement>(null)
+  usePhoneFoot(foot, !useMinWidth(640))
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [note, setNote] = React.useState("")
@@ -835,7 +363,7 @@ function GuestForm({
           </Button>
         </div>
       ) : null}
-      <div className="flex flex-col gap-2 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-5 max-sm:bg-sheet max-sm:px-5 max-sm:pb-[max(12px,env(safe-area-inset-bottom))] max-sm:pt-3 max-sm:shadow-e2">
+      <div ref={foot} className="flex flex-col gap-2 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-5 max-sm:bg-sheet max-sm:px-5 max-sm:pb-[max(12px,env(safe-area-inset-bottom))] max-sm:pt-3 max-sm:shadow-e2">
         <Button type="submit" busy={busy} className="h-10 w-full max-sm:h-12" data-book-button="">
           {bookLabel(slot, tz, h24)}
         </Button>
@@ -848,111 +376,6 @@ function GuestForm({
 // ----------------------------------------------------------------------------
 // K06. Booked.
 // ----------------------------------------------------------------------------
-
-function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: boolean }) {
-  const cancelUrl = typeof window === "undefined" ? "" : `${window.location.origin}/booking/${booked.cancel_token}`
-  const title = `${booked.title} with ${booked.owner_name}`
-  const first = (booked.owner_name || "").split(/\s+/)[0]
-  // The same event as the invite in the email (its UID is the booking's id),
-  // so a guest who adds both gets one. Never the cancel token: that cancels
-  // the booking, and a UID travels wherever the event goes.
-  const uid = React.useMemo(() => booked.booking_id || randomUUID(), [booked])
-  const ics = React.useMemo(() => {
-    // No cancel link in it: the link is the guest's credential, and a calendar
-    // event is forwarded and shared far more freely than this page or the
-    // email, which both show it (the server's invite leaves it out too).
-    const file = icsFor({ uid, title, start: booked.start, end: booked.end })
-    return URL.createObjectURL(new Blob([file], { type: "text/calendar" }))
-  }, [booked, uid, title])
-  React.useEffect(() => () => URL.revokeObjectURL(ics), [ics])
-
-  // The area's one public celebration: someone outside the workspace just did
-  // the thing. Once, from the check, never under reduced motion.
-  const check = React.useRef<SVGGElement>(null)
-  const fired = React.useRef(false)
-  React.useEffect(() => {
-    if (fired.current) return
-    fired.current = true
-    let live = true
-    // The burst's code comes when it is wanted: the page's rare happy end
-    // doesn't ride with every outsider's first screen.
-    const t = setTimeout(() => {
-      void import("@/lib/celebrate").then(({ celebrate, prefersReducedMotion }) => {
-        if (live && !prefersReducedMotion()) celebrate(check.current)
-      })
-    }, 420)
-    return () => {
-      live = false
-      clearTimeout(t)
-    }
-  }, [])
-
-  return (
-    <div className="flex flex-col items-center px-5 pb-8 pt-8 text-center sm:px-9 sm:pb-9 sm:pt-10" data-booked="">
-      <BookingSpot checkRef={check} owner={booked.owner_name} />
-      <h1 className="mt-4 text-title-2 text-ink">You&apos;re booked{first ? ` with ${first}` : ""}</h1>
-      <div className="mt-5 w-full rounded-xl bg-sunken p-4 text-left" data-ticket="">
-        <p className="text-heading font-semibold text-ink">{longDay(booked.start, tz)}</p>
-        <p className="mt-0.5 text-ui text-ink-2 tabular-nums">
-          {slotTime(booked.start, tz, h24)} – {slotTime(booked.end, tz, h24)} · {zoneLabel(tz)}
-        </p>
-        {booked.emailed ? (
-          <p className="mt-3 inline-flex items-center gap-2 text-ui-sm text-ink-2" data-emailed="">
-            <Mail className="size-3.5 text-ink-3" aria-hidden="true" /> We&apos;ve emailed you the invite
-          </p>
-        ) : null}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button asChild variant="secondary" size="sm">
-            <a href={ics} download="booking.ics">Add to calendar (.ics)</a>
-          </Button>
-          <Button asChild variant="secondary" size="sm">
-            <a href={googleCalendarUrl({ title, start: booked.start, end: booked.end, })} target="_blank" rel="noreferrer">
-              Google Calendar
-            </a>
-          </Button>
-        </div>
-      </div>
-      {/* The link only cancels: there is no changing a booking yet. It shows
-          whether or not the email went out (CAL-BUG-15). */}
-      <p className="mt-4 max-w-sm text-meta text-ink-3" data-cancel-link="">
-        {booked.emailed ? "To cancel, use the link in your email, or this one: " : "Keep this link to cancel: "}
-        <a className="break-all text-ink-2 underline underline-offset-2" href={cancelUrl}>
-          {cancelUrl}
-        </a>
-      </p>
-    </div>
-  )
-}
-
-/**
- * The confirmation's spot (96 px): a calendar sheet that rises, a moss check
- * that springs onto it, the host's and the visitor's dots sliding along a
- * dashed orbit, and a brand spark. Static under reduced motion (the global
- * rule stills the animations).
- */
-export function BookingSpot({ checkRef, owner }: { checkRef?: React.Ref<SVGGElement>; owner?: string }) {
-  return (
-    <svg viewBox="0 0 96 96" width={96} height={96} aria-hidden="true" data-booking-spot="" className="max-sm:size-20 overflow-visible">
-      <circle cx="48" cy="48" r="40" fill="none" stroke="var(--line-2)" strokeDasharray="2 4" />
-      <circle cx="48" cy="48" r="30" fill="var(--camp-moss-tint)" />
-      <g className="content-slide-in" style={{ animationDelay: "120ms", animationDuration: "400ms" }}>
-        <circle cx="8" cy="48" r="5" fill={`var(--camp-${owner ? "sky" : "dusk"}-a2)`} />
-        <circle cx="80" cy="25" r="5" fill="var(--camp-berry-a2)" />
-      </g>
-      <g className="content-rise" style={{ animationDuration: "320ms" }}>
-        <rect x="30" y="28" width="36" height="38" rx="6" fill="var(--raised)" style={{ filter: "drop-shadow(0 2px 4px rgb(16 18 26 / .12))" }} />
-        <rect x="30" y="28" width="36" height="9" rx="3" fill="var(--camp-sky-a2)" />
-        <rect x="36" y="43" width="18" height="3" rx="1.5" fill="var(--line-2)" />
-        <rect x="36" y="50" width="12" height="3" rx="1.5" fill="var(--line-2)" />
-      </g>
-      <g ref={checkRef} className="content-pop-in" style={{ animationDelay: "200ms", transformOrigin: "62px 62px", transformBox: "view-box" }}>
-        <circle cx="62" cy="62" r="9" fill="var(--camp-moss-a2)" stroke="var(--sheet)" strokeWidth="2" />
-        <path d="M58 62.2l2.8 2.8 5.2-5.4" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </g>
-      <path className="content-pop-in" style={{ animationDelay: "320ms", transformOrigin: "74px 15px", transformBox: "view-box" }} d="M74 10Q74.6 14.4 79 15Q74.6 15.6 74 20Q73.4 15.6 69 15Q73.4 14.4 74 10Z" fill="var(--brand)" />
-    </svg>
-  )
-}
 
 // ----------------------------------------------------------------------------
 // While it loads.

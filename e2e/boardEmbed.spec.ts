@@ -70,7 +70,7 @@ async function seesTheBoard(page: Page) {
   await expect(frame.locator('[data-guest-board][data-board-elements="5"]')).toBeAttached({ timeout: 30_000 })
   await expect(frame.locator(".excalidraw canvas").first()).toBeVisible()
   await expect(frame.locator(".excalidraw.excalidraw--view-mode")).toBeAttached()
-  await expect(frame.getByText("Read only")).toBeVisible()
+  await expect(frame.getByText("Can view")).toBeVisible()
   await expect(frame.getByRole("button", { name: /React|raise your hand/ })).toHaveCount(0)
   // The way to the whole board is the link's own page, in a tab of its own.
   const open = frame.getByRole("link", { name: /^Open/ })
