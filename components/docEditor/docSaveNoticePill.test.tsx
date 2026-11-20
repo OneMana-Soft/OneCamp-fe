@@ -18,7 +18,8 @@ import { Toaster } from "@/components/ui/toaster"
 // the screen's foot, so the pill showed under the notice (DESIGN-BUILD-29 M1).
 // The notice says what the pill would, so while it shows the pill steps aside
 // on a phone. A wide screen keeps both: the pill bottom-left, toasts
-// bottom-right.
+// bottom-right. While it says the work waits offline it is the page's one
+// voice (V-695; focus mode and a board draw no doc pill): the pill gives way.
 describe("the save notice and the app's connection pill", () => {
   const source = { provider: null, live: true } as DocSaveSource
   const view = (notice = true) => (
@@ -36,6 +37,7 @@ describe("the save notice and the app's connection pill", () => {
   }
   const classes = () => pill().className.split(/\s+/)
   const asideOnAPhone = () => classes().includes("max-sm:hidden")
+  const speaks = () => document.querySelector("[data-connection-pill][aria-live]")
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
@@ -48,7 +50,7 @@ describe("the save notice and the app's connection pill", () => {
     vi.restoreAllMocks()
   })
 
-  it("steps aside on a phone while the notice says the changes wait, and comes back when it ends", () => {
+  it("gives way while the notice says the changes wait offline, the page's one voice, and speaks again when it ends", () => {
     const { rerender } = render(view())
     expect(pill().textContent).toContain("You're offline")
     expect(asideOnAPhone()).toBe(false)
@@ -57,14 +59,13 @@ describe("the save notice and the app's connection pill", () => {
     rerender(view())
     act(() => void vi.advanceTimersByTime(2_000))
     expect(screen.getByText("Offline. Changes are kept and will sync")).toBeTruthy()
-    expect(asideOnAPhone()).toBe(true)
-    // Only on a phone: on a wide screen the two sit apart, and both show.
-    expect(classes()).not.toContain("hidden")
+    expect(speaks()).toBeNull()
 
-    // Nothing waits any more: the notice ends, and the pill has its place back.
+    // Nothing waits any more: the notice ends, and the pill has its place and its voice back.
     read("offline", 0)
     rerender(view())
     expect(asideOnAPhone()).toBe(false)
+    expect(pill().getAttribute("aria-live")).toBe("polite")
   })
 
   it("stays aside through the notice's last word, until its toast closes", () => {
@@ -72,7 +73,7 @@ describe("the save notice and the app's connection pill", () => {
     read("offline", 1)
     rerender(view())
     act(() => void vi.advanceTimersByTime(2_000))
-    expect(asideOnAPhone()).toBe(true)
+    expect(speaks()).toBeNull()
 
     // Back and stored: "Saved" goes by itself after 4 s, and holds the place while it shows.
     read("saved", 0, new Date())
@@ -97,7 +98,7 @@ describe("the save notice and the app's connection pill", () => {
     read("offline", 1)
     rerender(view())
     act(() => void vi.advanceTimersByTime(2_000))
-    expect(asideOnAPhone()).toBe(true)
+    expect(speaks()).toBeNull()
     rerender(view(false))
     expect(asideOnAPhone()).toBe(false)
   })

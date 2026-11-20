@@ -75,11 +75,14 @@ for (const theme of ["light", "dark"] as const) {
         const phone = use.viewport.width < 640
         const row = page.locator("[data-later-row]").filter({ hasText: "Launch checklist" })
         await expect(row).toBeVisible({ timeout: 90_000 })
-        // Under a finger the row's tools come through its Actions.
-        if (phone) await row.getByRole("button", { name: "Actions" }).tap()
-        else await row.hover()
-        const bookmark = row.getByRole("button", { name: "Saved for later" })
-        await (phone ? bookmark.tap() : bookmark.click())
+        // Under a finger the row's tools are the rows of the drawer its Actions opens.
+        if (phone) {
+          await row.getByRole("button", { name: "Actions" }).tap()
+          await page.getByRole("menuitem", { name: "Saved for later", exact: true }).tap()
+        } else {
+          await row.hover()
+          await row.getByRole("button", { name: "Saved for later" }).click()
+        }
         const pick = page.getByRole("menuitem", { name: /Pick a date and time/ })
         await (phone ? pick.tap() : pick.click())
 

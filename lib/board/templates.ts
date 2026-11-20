@@ -281,3 +281,12 @@ export function centreAt(sk: Skeleton[], cx: number, cy: number): Skeleton[] {
   const dx = cx - (b.x + b.width / 2), dy = cy - (b.y + b.height / 2)
   return sk.map((s) => (s.type === "frame" ? s : { ...s, x: s.x + dx, y: s.y + dy }))
 }
+
+/**
+ * A template's background, locked as it lands (miro-03): its frames, the areas its notes sit in, so a drag over the
+ * board moves the notes and never the board's shape. Notes, words and arrows stay free; any editor unlocks a frame
+ * (Excalidraw's Unlock). Built-in and team templates both land through it. Pure.
+ */
+export function lockedBackground<T extends { type?: string; locked?: boolean }>(elements: T[]): T[] {
+  return elements.map((el) => (el.type === "frame" && !el.locked ? { ...el, locked: true } : el))
+}

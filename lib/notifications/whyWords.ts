@@ -27,9 +27,12 @@ export interface WhyDecision {
   to?: Delivery[]
   held?: Delivery[]
   hold_till?: string
+  /** A4 H4: the push that waits while they're in OneCamp, and until when. */
+  waiting?: Delivery[]
+  wait_till?: string
 }
 
-/** One delivery as it stands now: sent, held (until hold_until), dropped (held, then its message deleted) or retracted (sent, then deleted). */
+/** One delivery as it stands now: sent, held or waiting (until hold_until), dropped (held or waiting, then never sent) or retracted (sent, then deleted). */
 export interface DeliveryState {
   delivery: Delivery
   state: string
@@ -166,6 +169,10 @@ export function stepWords(s: WhyStep, place: string, holdTill?: string): { words
       if (v === "broadcast_in_thread") return { words: "@here and @channel don't notify inside a thread.", tone: "off" }
       if (v === "thread_setting") return { words: "Your thread setting kept it quiet.", tone: "off" }
       return { words: "Your notification level for this place kept it quiet.", tone: "off" }
+    case "wait":
+      // A4 H4: the push waited while they were in OneCamp (the decision's wait_till).
+      if (v === "in_onecamp") return { words: `You were in OneCamp, so your push waited${holdTill ? ` until ${clockWords(holdTill)}` : ""}.`, tone: "held" }
+      return { words: `${words(s.step)}: ${v.replace(/_/g, " ")}.`, tone: "held" }
     case "hold":
       if (v === "not_held") return { words: "Nothing held it back.", tone: "ok" }
       if (v === "nothing_to_hold") return { words: "Nothing to hold: it only went where it can't interrupt you.", tone: "ok" }
@@ -178,13 +185,17 @@ export function stepWords(s: WhyStep, place: string, holdTill?: string): { words
 }
 
 /** A delivery's state now: "Sent 6:31 AM", "Held until 7:00 AM", … */
-export function deliveryStateWords(d: DeliveryState): { words: string; tone: Tone } {
+export function deliveryStateWords(d: DeliveryState, waited = false): { words: string; tone: Tone } {
   switch (d.state) {
     case "sent":
       return { words: d.at ? `Sent ${clockWords(d.at)}` : "Sent", tone: "ok" }
     case "held":
       return { words: d.hold_until ? `Held until ${clockWords(d.hold_until)}` : "Held", tone: "held" }
+    case "waiting":
+      return { words: d.hold_until ? `Waiting until ${clockWords(d.hold_until)}, while you're in OneCamp` : "Waiting, while you're in OneCamp", tone: "held" }
     case "dropped":
+      // A push that waited (the decision's waiting) is dropped when it's read first, deleted or held.
+      if (waited) return { words: "Not sent: you read it first, or it was deleted or held", tone: "off" }
       return { words: "Not sent: the message was deleted while it was held", tone: "off" }
     case "retracted":
       return { words: "Taken back: the message was deleted", tone: "off" }

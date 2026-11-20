@@ -48,6 +48,8 @@ import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 import { useGridRange } from "@/components/table/gridRange"
 import type { GridWrites } from "@/components/table/rangeActions"
 import { Skeleton } from "@/components/ui/skeleton"
+// The live cells' loaders come with the grid (V-1049).
+import "@/components/table/cellLoaders"
 
 export { groupedNumber } from "@/components/table/cellFaces"
 
@@ -119,6 +121,7 @@ interface DataTableGridProps {
   onHide?: (fieldId: string) => void
   /** The expand icon in the gutter, or Space on a selected cell (named in from): opens the row's record panel. */
   onOpenRow?: (rowId: string, from?: { field: string }) => void
+  openCall?: CellContext["openCall"]
   /** Saving cells, when the page shares it with a record panel. */
   commit?: CellCommit
   /** A phone: the gutter and the frozen column share PHONE_LEAD px (the column caps at 140, or 128 beside a touch gutter of two controls). */
@@ -252,6 +255,7 @@ export function DataTableGrid({
   onFilter,
   onHide,
   onOpenRow,
+  openCall,
   commit: shared,
   compact,
   frozen = 1,
@@ -429,19 +433,19 @@ export function DataTableGrid({
   }, [])
   const onFocusIn = React.useCallback(
     (e: React.FocusEvent) => {
-      const td = (e.target as HTMLElement).closest<HTMLElement>("tbody td[data-kind]")
+      const t = e.target as HTMLElement
+      const td = t.closest<HTMLElement>("tbody td[data-kind]")
       ringCell.current = td
-      // The gutter and the frozen columns stay over the cells scrolled under
-      // them, and a browser brings a cell into view without counting them: a
-      // cell taking the focus there (a tap on the part that shows, or the
-      // keys) comes out beside them rather than half under.
+      // A browser brings a cell into view under the gutter and frozen columns:
+      // one focused there comes out beside them. Not a control a press focuses
+      // (a chip, "+2"): its release would miss it (V-1072).
       const frozen = scrollRef.current?.querySelector<HTMLElement>("thead th[data-frozen-edge]")
-      if (td && frozen && scrollRef.current && !td.hasAttribute("data-frozen")) {
+      if (td && frozen && scrollRef.current && !td.hasAttribute("data-frozen") && t.matches("[data-cell], :not(button, a), :focus-visible")) {
         const under = frozen.getBoundingClientRect().right - td.getBoundingClientRect().left
         if (under > 0) scrollRef.current.scrollLeft -= under
       }
       placeRing()
-      const at = (e.target as HTMLElement).closest<HTMLElement>("tbody tr[data-index]")?.dataset.index
+      const at = t.closest<HTMLElement>("tbody tr[data-index]")?.dataset.index
       const id = at === undefined ? undefined : latest.current.rows[Number(at)]?.id
       if (id) onRowFocus?.(id)
       rangeFocusIn(e.target)
@@ -790,8 +794,9 @@ export function DataTableGrid({
       onEditField: canManage ? (fieldId) => setMenu({ field: fieldId, page: settingsPageOf(fields.find((f) => f.id === fieldId)?.type) ?? "formula" }) : undefined,
       tableId,
       relationFaces: linkFaces,
+      openCall,
     }),
-    [fields, rowHeight, canManage, tableId, linkFaces],
+    [fields, rowHeight, canManage, tableId, linkFaces, openCall],
   )
 
   const anySelected = selected.size > 0

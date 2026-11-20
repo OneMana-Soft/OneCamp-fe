@@ -62,9 +62,15 @@ vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy
 
 import { RecordPanel } from "@/components/table/RecordPanel"
 import { TableEditProvider } from "@/lib/tables/tableEdit"
-import type { TableField, TableRow } from "@/services/tableService"
+import type { FieldType, TableField, TableRow } from "@/services/tableService"
 import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
 import { SCREENS, putOnScreen } from "@/lib/testing/screens"
+import { groupsWithout } from "@/lib/testing/hoverGroups"
+import { Provider } from "react-redux"
+import { configureStore } from "@reduxjs/toolkit"
+// The people and files cells are chunks of their own (gridCells): loaded with the file, before any test's clock runs.
+import "@/components/table/kindCells"
+import "@/components/table/FilesCell"
 
 /** The table's undo order as a write that only sends: the tests of the order hold their own. */
 const pass: UndoOrder["write"] = (_what, send) => send()
@@ -619,7 +625,9 @@ describe("on a phone the record is the Drawer", () => {
     try {
       const { sheet, stepTo } = phone("r1")
       const box = () => document.querySelector("[data-row-comment-box] .ProseMirror")
-      await waitFor(() => expect(box()).not.toBeNull())
+      // The box at rest (V-1042: its editor waits for the box to be asked for; a press brings it in with the caret).
+      const rest = () => document.querySelector("[data-row-comment-box] [contenteditable=true]")
+      await waitFor(() => expect(rest()).not.toBeNull())
       // The footer's Comment (the box has a Comment of its own, its send).
       fireEvent.click(within(sheet.querySelector<HTMLElement>("[data-sheet-footer]")!).getByRole("button", { name: "Comment" }))
       await waitFor(() => expect(document.activeElement).toBe(box()))
@@ -632,14 +640,14 @@ describe("on a phone the record is the Drawer", () => {
       stepTo("r2")
       await screen.findByRole("dialog", { name: "Banner, a row of Launch budget" })
       expect(body.scrollTop, "the next row opens at its top").toBe(0)
-      await waitFor(() => expect(box()).not.toBeNull())
+      await waitFor(() => expect(rest()).not.toBeNull())
       await act(() => new Promise((r) => setTimeout(r, 100)))
       expect(scrolls, "the next row's box scrolled to").toBe(0)
       expect(document.activeElement === box(), "the next row's box focused").toBe(false)
       // Back on the row pressed: its press went as the record left it.
       stepTo("r1")
       await screen.findByRole("dialog", { name: "Booth, a row of Launch budget" })
-      await waitFor(() => expect(box()).not.toBeNull())
+      await waitFor(() => expect(rest()).not.toBeNull())
       await act(() => new Promise((r) => setTimeout(r, 100)))
       expect(scrolls, "the row pressed, stepped back to: its box scrolled to").toBe(0)
       expect(document.activeElement === box(), "the row pressed, stepped back to: its box focused").toBe(false)
@@ -667,5 +675,71 @@ describe("on a phone the record is the Drawer", () => {
     expect(aside, "the panel beside the grid").not.toBeNull()
     expect(aside!.hasAttribute("data-v3-sheet")).toBe(false)
     expect(screen.getByRole("button", { name: "Copy a link to this row" })).toBeTruthy()
+  })
+})
+
+// V-957: a cell's "+" (a link, a person, files), its hints and a field's comment button show on their
+// row's hover. A grid's row is that group; a field's row in the record had none (its name was a group
+// of its own name), so a mouse never saw or reached "Add a link" there. Every group a control in the
+// record shows on is now one of its ancestors: the field's row.
+describe("a row's record, under the pointer", () => {
+  const kind = (id: string, name: string, type: FieldType, config: object = {}, position = 1): TableField => ({ id, table_id: "t", name, type, config: JSON.stringify(config), position })
+  const kinds: TableField[] = [
+    kind("item", "Item", "text", {}, 0),
+    kind("vendor", "Vendor", "relation", { relation_target: "any" }),
+    kind("owner", "Owner", "relation", { relation_target: "user" }),
+    kind("files", "Files", "attachment"),
+    kind("reviewers", "Reviewers", "people"),
+    kind("stage", "Stage", "select", { options: [{ id: "o_won", label: "Won" }] }),
+    kind("due", "Due", "date"),
+    kind("site", "Site", "url"),
+  ]
+  const values = { item: "Booth", vendor: [{ id: "d1", label: "Launch plan", type: "doc" }], files: [{ id: "f1", name: "Quote.pdf", size: 16, mime: "application/pdf" }], site: "https://example.com" }
+  // A files cell opens its viewer through the store: one to hand it, holding nothing.
+  const store = configureStore({ reducer: { none: (s: null = null) => s } })
+  const record = (canEdit: boolean) =>
+    render(
+      <Provider store={store}>
+        <TableEditProvider value={canEdit}>
+          <RecordPanel
+            tableId="t"
+            tableName="Launch budget"
+            fields={kinds}
+            rows={[{ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify(values) }]}
+            rowId="r1"
+            canManage={canEdit}
+            commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }}
+            onStep={vi.fn()}
+            onClose={vi.fn()}
+            onChange={vi.fn()}
+          />
+        </TableEditProvider>
+      </Provider>,
+    )
+  let off = () => {}
+  afterEach(() => off())
+
+  it("gives every control that shows on a hover the group it shows on, the field's row", async () => {
+    off = putOnScreen(SCREENS["a computer"])
+    record(true)
+    // The people and files cells: drawn once their chunks are in.
+    await screen.findByRole("button", { name: "Add files" })
+    await screen.findByRole("button", { name: "Reviewers: no one" })
+    for (const name of ["Add a link", "Add a person", "Comment on Vendor"]) expect(screen.getByRole("button", { name }), name).toBeTruthy()
+    expect(groupsWithout(document.body)).toEqual([])
+    // One group to a field: its name and its value are the one row the pointer shows them on.
+    const add = screen.getByRole("button", { name: "Add a link" })
+    expect(add.closest(".group"), "the + answers to its field's row").toBe(screen.getByRole("button", { name: "Comment on Vendor" }).closest(".group"))
+  })
+
+  it("offers a member who may only view no + on any field", async () => {
+    off = putOnScreen(SCREENS["a computer"])
+    record(false)
+    // Each cell drawn as itself, not its stand-in while its chunk comes.
+    await screen.findByRole("button", { name: "Quote.pdf" })
+    await screen.findByLabelText("Reviewers: no one")
+    expect(screen.getByText("Launch plan")).toBeTruthy()
+    for (const name of ["Add a link", "Add a person", "Add files"]) expect(screen.queryByRole("button", { name }), name).toBeNull()
+    expect(groupsWithout(document.body)).toEqual([])
   })
 })

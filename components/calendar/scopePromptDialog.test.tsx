@@ -15,6 +15,16 @@ describe("the scope prompt", () => {
     expect(screen.getByRole("heading", { name: "Change a repeating event" })).toBeTruthy()
   })
 
+  it("asks a rooms change without \"This event\", which a series' rooms can't take, with this and following picked", () => {
+    const done = vi.fn()
+    render(<ScopePrompt action="rooms" onDone={done} />)
+    expect(screen.getAllByRole("radio").map((c) => c.closest("div")?.textContent)).toEqual(["This and following events", "All events"])
+    expect(screen.getByRole("radio", { name: "This and following events" }).getAttribute("aria-checked")).toBe("true")
+    expect(screen.getByText("A series books its rooms for every event. Which events should this change?")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(done).toHaveBeenCalledWith("following")
+  })
+
   it("answers the scope picked", () => {
     const done = vi.fn()
     render(<ScopePrompt action="change" onDone={done} />)

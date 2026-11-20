@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
 
+import { importedCalls, lineOf, parseSource } from "@/lib/testing/importedCalls"
 import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
@@ -31,21 +32,10 @@ function ownBoundary(options: ts.Expression | undefined): boolean {
   })
 }
 
-/** Each next/dynamic call, under whatever name it's imported as, with no boundary of its own: "file:line". */
+/** Each next/dynamic call, under whatever name it's imported as (lib/testing/importedCalls), with no boundary of its own: "file:line". */
 function bareCalls(file: string, text: string): string[] {
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  const names = new Set<string>()
-  for (const s of sf.statements)
-    if (ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && s.moduleSpecifier.text === "next/dynamic" && s.importClause?.name) names.add(s.importClause.name.text)
-  if (names.size === 0) return []
-  const bare: string[] = []
-  const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && names.has(n.expression.text) && !ownBoundary(n.arguments[1]))
-      bare.push(`${file}:${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`)
-    ts.forEachChild(n, visit)
-  }
-  visit(sf)
-  return bare
+  const sf = parseSource(file, text)
+  return importedCalls(sf, "next/dynamic", "default").flatMap(({ call }) => (ownBoundary(call.arguments[1]) ? [] : [lineOf(sf, call)]))
 }
 
 describe("every next/dynamic call has a boundary of its own", () => {
@@ -57,11 +47,16 @@ describe("every next/dynamic call has a boundary of its own", () => {
   it("finds a bare call under any name, and passes one with a boundary of its own", () => {
     const text = [
       `import later from "next/dynamic"`,
+      `import { default as dyn } from "next/dynamic"`,
+      `import * as next from "next/dynamic"`,
       `const A = later(() => import("./a"))`,
       `const B = later(() => import("./b"), { ssr: false })`,
       `const C = later(() => import("./c"), { loading: () => null })`,
       `const D = later(() => import("./d"), { ssr: true })`,
+      `const E = dyn(loadE)`,
+      `const F = next.default(() => import("./f"), { ssr: false })`,
+      `const G = next.default(() => import("./g"))`,
     ].join("\n")
-    expect(bareCalls("x.tsx", text)).toEqual(["x.tsx:2", "x.tsx:5"])
+    expect(bareCalls("x.tsx", text)).toEqual(["x.tsx:4", "x.tsx:7", "x.tsx:8", "x.tsx:10"])
   })
 })

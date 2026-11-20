@@ -10,16 +10,21 @@ import { heldOnServer, holdStore } from "@/lib/holdStore"
  * it. Its own module, so a stand-in brings none of the pill's code.
  */
 
+type Place = ReturnType<typeof holdStore>
 const hosts = holdStore()
 const standIns = holdStore()
+const claims = holdStore()
+const yielding = holdStore()
+const useHold = (place: Place, active: boolean) => useEffect(() => (active ? place.hold() : undefined), [place, active])
+const useHeld = (place: Place): boolean => useSyncExternalStore(place.subscribe, place.held, heldOnServer)
 
 /** For a shell that draws the pill itself (FootPill): while it's mounted, the root's floating copy stands down. */
 export function useHostPill() {
-  useEffect(() => hosts.hold(), [])
+  useHold(hosts, true)
 }
 
 /** Whether a shell draws the pill now. */
-export const usePillHosted = (): boolean => useSyncExternalStore(hosts.subscribe, hosts.held, heldOnServer)
+export const usePillHosted = (): boolean => useHeld(hosts)
 
 /**
  * While `active`, the caller says what the pill would, where a phone draws it.
@@ -30,8 +35,24 @@ export const usePillHosted = (): boolean => useSyncExternalStore(hosts.subscribe
  * the toasts bottom-right.
  */
 export function useStandInForPill(active: boolean) {
-  useEffect(() => (active ? standIns.hold() : undefined), [active])
+  useHold(standIns, active)
 }
 
 /** Whether a notice stands in for the pill now. */
-export const usePillStoodIn = (): boolean => useSyncExternalStore(standIns.subscribe, standIns.held, heldOnServer)
+export const usePillStoodIn = (): boolean => useHeld(standIns)
+
+/**
+ * While `active`, the page says it's offline itself (V-695): the pill shows only what waits, quietly.
+ * One voice a page: a claim that `yields` (a save dot) speaks only while no other (a doc's pill) holds. Says if the caller speaks.
+ */
+export function useClaimOffline(active: boolean, { yields = false } = {}): boolean {
+  useHold(yields ? yielding : claims, active)
+  const outspoken = useHeld(claims)
+  return active && !(yields && outspoken)
+}
+
+/** Whether a page says it's offline itself now. */
+export function useOfflineClaimed(): boolean {
+  const outspoken = useHeld(claims)
+  return useHeld(yielding) || outspoken
+}

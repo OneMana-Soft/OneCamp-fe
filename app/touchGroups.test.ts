@@ -38,11 +38,29 @@ describe("small controls side by side", () => {
     const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
     const rule = css.slice(css.indexOf("F3b."))
     // The gap is --touch-gap, which a group's own space above can use too.
-    expect(rule).toMatch(/@media \(pointer: coarse\) \{\s*\[data-touch-group\] \{\s*--touch-gap: calc\(var\(--m-hit\) - 28px\);\s*gap: var\(--touch-gap\);/)
+    // A page header's actions row shares the rule (V-1025, below).
+    expect(rule).toMatch(/@media \(pointer: coarse\) \{\s*:is\(\[data-touch-group\], \[data-page-actions\]\) \{\s*--touch-gap: calc\(var\(--m-hit\) - 28px\);\s*gap: var\(--touch-gap\);/)
     for (const size of [32, 24, 20]) expect(rule).toMatch(new RegExp(`\\[data-touch-group="${size}"\\] \\{\\s*--touch-gap: calc\\(var\\(--m-hit\\) - ${size}px\\);`))
     // Unlayered (at the top level, where this file's layered rules are
     // indented), so it wins over the row's own gap utility.
-    expect(css).toMatch(/\n\/\* F3b\. [\s\S]*?\*\/\n@media \(pointer: coarse\) \{\n  \[data-touch-group\] \{/)
+    expect(css).toMatch(/\n\/\* F3b\. [\s\S]*?\*\/\n@media \(pointer: coarse\) \{\n  :is\(\[data-touch-group\], \[data-page-actions\]\) \{/)
+  })
+
+  // V-1025: a page header's actions row (PageHeader, SettingsPage and every
+  // page that draws its own header) is a touch group by the same rule, so a
+  // header needs no gap of its own. A mouse keeps the row's own gap: no
+  // stylesheet spaces the actions row outside a coarse pointer.
+  it("include a page header's actions, under a finger only", () => {
+    const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
+    expect(css).toMatch(/\n@media \(pointer: coarse\) \{\n  :is\(\[data-touch-group\], \[data-page-actions\]\) \{\s*--touch-gap: calc\(var\(--m-hit\) - 28px\);\s*gap: var\(--touch-gap\);/)
+    for (const name of readdirSync(join(ROOT, "app")).filter((n) => n.endsWith(".css"))) {
+      const sheet = readFileSync(join(ROOT, "app", name), "utf8")
+      for (const at of sheet.matchAll(/\[data-page-actions\]/g)) {
+        const before = sheet.slice(0, at.index)
+        const query = before.slice(before.lastIndexOf("\n@media"))
+        expect(query.startsWith("\n@media (pointer: coarse)") && !/\n\}/.test(query), `${name}: the actions row spaced outside a coarse pointer`).toBe(true)
+      }
+    }
   })
 })
 
@@ -74,6 +92,16 @@ describe("a crowded row", () => {
     expect(crowdedRows(row('className="flex gap-1.5"', either("Rename"), either("Delete")), "a.tsx")).toEqual(["a.tsx:1"])
     expect(crowdedRows(row('className="flex gap-1.5" data-touch-group=""', either("Rename"), either("Delete")), "a.tsx")).toEqual([])
     expect(crowdedRows(row('className="flex"', `<Button size={wide ? "lg" : "sm"}>Save</Button>`, `<Button size={wide ? "lg" : "sm"}>Send</Button>`), "a.tsx")).toEqual([])
+  })
+
+  // V-1025: the tables page's Export all tables shows on a condition, its
+  // arm in parentheses, and the guard read the parentheses as something
+  // between it and Trash.
+  it("sees a control in parentheses, and a page header's actions row is a group", () => {
+    const shown = `{count > 0 ? (${icon("Export all tables")}) : null}`
+    expect(crowdedRows(row('className="flex gap-3"', shown, icon("Trash")), "a.tsx")).toEqual(["a.tsx:1"])
+    expect(crowdedRows(row('className="flex gap-3"', `{open && (${icon("Close")})}`, icon("Trash")), "a.tsx")).toEqual(["a.tsx:1"])
+    expect(crowdedRows(row('data-page-actions="" className="flex gap-3"', shown, icon("Trash")), "a.tsx")).toEqual([])
   })
 
   it("is not text buttons, nor controls with something between them", () => {

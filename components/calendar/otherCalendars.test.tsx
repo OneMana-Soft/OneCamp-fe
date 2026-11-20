@@ -289,3 +289,89 @@ describe("your own rows' marks", () => {
     expect(rows.find((r) => r.id === "onecamp")?.hue).toBe("sun")
   })
 })
+
+// gcal-14 (W2, W5): a project's, a channel's and a team's calendar name their container and the
+// level the server gives; their sharing is the container's people, so they offer none; and one
+// with nothing dated this week says what will fill it.
+describe("a container's calendar in the panel", () => {
+  const containers = (p: Partial<OtherCalendars> = {}) =>
+    others({
+      mine: [],
+      people: [],
+      hidden: [],
+      calendars: [
+        { id: "c1", name: "Launch", kind: "project", container_kind: "project", container_id: "p-1", access: "edit" },
+        { id: "c5", name: "design", kind: "channel", container_kind: "channel", container_id: "ch-1", access: "view" },
+        { id: "c6", name: "Design team", kind: "team", container_kind: "team", container_id: "t-1", access: "edit" },
+      ],
+      ...p,
+    })
+
+  it.each([
+    ["c1", "Launch", "project", "Can edit", "Shared with the project's members", "Dated tasks and milestones show here"],
+    ["c5", "design", "channel", "View only", "Shared with the channel's members", "Tasks linked from its messages show here"],
+    ["c6", "Design team", "team", "Can edit", "Shared with the team's members", "Members' time off shows here"],
+  ])("%s names its %s, says the level and offers no sharing", async (id, name, kind, level, line, empty) => {
+    panel(containers())
+    const row = document.querySelector(`[data-calendar-row="${id}"]`) as HTMLElement
+    expect(row.querySelector(`[data-container="${kind}"]`)).toBeTruthy()
+    expect(row.textContent).toContain(empty)
+    openMenu(screen.getByRole("button", { name: `${name} options` }))
+    const menu = await screen.findByRole("menu")
+    expect(menu.textContent).toContain(level)
+    expect(menu.textContent).toContain(line)
+    expect(screen.queryByRole("menuitem", { name: "Share" })).toBeNull()
+  })
+
+  it("counts what it has this week instead, once something is dated", () => {
+    render(
+      <CalendarsPanel anchor={new Date(2026, 9, 15)} view="week" hasItems={() => false} onPick={vi.fn()} rows={[personal()]} onBookingPages={vi.fn()}
+        googleConnected={false} others={containers()} countOf={() => 2} />,
+    )
+    const row = document.querySelector('[data-calendar-row="c1"]') as HTMLElement
+    expect(row.textContent).toContain("2 this week")
+    expect(row.textContent).not.toContain("show here")
+  })
+
+  // W5: entries the server couldn't read from a source answer an error, never part of a calendar. Its row says
+  // Couldn't load, and never what would fill it: an error is never an empty calendar.
+  it("says Couldn't load, never what fills it, when its entries couldn't be read", () => {
+    panel(containers({ error: new Error("Request failed with status code 500") }))
+    for (const id of ["c1", "c5", "c6"]) {
+      const row = document.querySelector(`[data-calendar-row="${id}"]`) as HTMLElement
+      expect(row.textContent).toContain("Couldn't load")
+      expect(row.querySelector("[data-calendar-empty]")).toBeNull()
+      expect(row.textContent).not.toContain("this week")
+    }
+  })
+})
+
+// basecamp-05: a project's calendar opened from the project (?calendar=) is the
+// one calendar shown; the person turns the others back on from the panel.
+describe("a container's calendar opened from where it lives", () => {
+  it("shows only that calendar, once the list names it, and leaves the address", async () => {
+    const { default: OtherCalendarsLayer } = await import("./otherCalendarsLayer")
+    window.history.replaceState(null, "", "/app/calendar?calendar=c1")
+    window.localStorage.removeItem("onecamp:calendars-hidden")
+    const change = vi.fn()
+    const layer = () => <OtherCalendarsLayer from={new Date(2026, 9, 1)} to={new Date(2026, 10, 1)} own={[]} onChange={change} />
+    try {
+      const { rerender } = render(layer())
+      // Not before the list is read: the calendars it brings later would be left shown.
+      expect(window.location.search).toBe("?calendar=c1")
+      fetched.byUrl["/calendar/calendars"] = {
+        data: [
+          { id: "c1", name: "Launch", kind: "project", access: "view" },
+          { id: "c2", name: "Design", kind: "personal", access: "view" },
+        ],
+      }
+      rerender(layer())
+      await vi.waitFor(() => expect(window.location.search).toBe(""))
+      await vi.waitFor(() => expect([...((change.mock.lastCall?.[0] as { hidden: string[] }).hidden ?? [])].sort()).toEqual(["c2", "google", "onecamp", "tasks"]))
+    } finally {
+      delete fetched.byUrl["/calendar/calendars"]
+      window.localStorage.removeItem("onecamp:calendars-hidden")
+      window.history.replaceState(null, "", "/")
+    }
+  })
+})

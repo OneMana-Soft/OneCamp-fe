@@ -3,7 +3,6 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { readableFields } from "@/components/task/hiddenField"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useLayoutOnce } from "@/components/task/useLayoutOnce"
 import {
     type ColumnFiltersState,
     type SortingState,
@@ -40,9 +39,6 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages"
 import type { ProjectInfoRawInterface } from "@/types/project"
-import {useDispatch, useSelector} from "react-redux";
-import {clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
-import type {RootState} from "@/store/store";
 import type { TaskInfoInterface } from "@/types/task";
 import { accessOf, canEditTask } from "@/lib/work/access";
 import type { UserProfileInterface } from "@/types/user";
@@ -58,11 +54,7 @@ interface ProjectTaskTableProps {
 const ALL_PROPS: RowProp[] = ["priority", "labels", "due", "assignee", "estimate", "badges"]
 const DISPLAY_DEFAULTS = { grouping: "status" as const, props: PROJECT_PROPS, showCompleted: "all" as const }
 
-// No list in the store yet: one empty list, made once, so the table doesn't
-// render again on every change to the store (a new `[]` is never equal to
-// the last).
-const NO_TASKS: TaskInfoInterface[] = []
-const SORT_WORDS: Record<string, string> = { task_due_date: "due date", task_start_date: "start date", task_created_at: "date created" }
+const SORT_WORDS: Record<string, string> = { task_due_date: "due date", task_start_date: "start date", task_created_at: "date created", task_sla: "SLA" }
 
 const projectTasksOf = (answer: ProjectInfoRawInterface) => answer.data?.project_tasks
 
@@ -77,12 +69,6 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
 
 export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps) => {
     const searchParams = useSearchParams()
-    const dispatch = useDispatch()
-
-
-    const taskListState = useSelector(
-        (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
-    )
 
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>
         safeJsonParse(searchParams.get("visibility"), {}),
@@ -110,18 +96,11 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
 
     // No pages to turn (work.md W18): "Show more" at the foot reads the next.
     const pages = useTaskPages<ProjectInfoRawInterface>(
+        projectId,
         projectId && apiQueryString ? `${GetEndpointUrl.GetProjectTaskList}/${projectId}?${apiQueryString}` : "",
         projectTasksOf,
         inReaderZone(),
     )
-
-    // Reset taskListVisibleInfo once per project, so a previous project's
-    // tasks (or my-task entries) never show through while we wait for the
-    // new fetch. The slot is shared between myTaskTable and
-    // projectTaskTable in taskInfoSlice. Once, not on every layout effect
-    // run: a Suspense boundary showing this list again re-ran a plain one
-    // and emptied the list for good (useLayoutOnce).
-    useLayoutOnce(projectId, () => dispatch(clearTaskListVisibleInfo()))
 
     const toAddress = useTabInAddress()
     useEffect(() => addressLater(() => {
@@ -148,7 +127,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
         })
     }, [fields, fieldsLoading, fieldsFailed])
     const table = useReactTable({
-        data: taskListState,
+        data: pages.tasks,
         columns,
         state: {
             sorting,
@@ -172,16 +151,16 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, self?.user_uuid, project), [self, project])
     // The first rows reach the list through the store, an effect after the
     // answer: until they do, the skeleton stays (not a frame of "No tasks yet").
-    const firstLoad = taskListState.length === 0 && (pages.loading || (pages.first?.data?.data.project_tasks?.length ?? 0) > 0)
+    const firstLoad = pages.tasks.length === 0 && (pages.loading || (pages.first?.data?.data.project_tasks?.length ?? 0) > 0)
     const filtered = columnFilters.length > 0 || !!globalFilter
-    const failed = !!pages.first?.isError && taskListState.length === 0
+    const failed = !!pages.first?.isError && pages.tasks.length === 0
     const dueWeek = columnFilters.some((f) => f.id === DUE_WEEK)
     const shown = useMemo(() => {
-        let tasks = display.showCompleted === "all" ? taskListState : taskListState.filter((t) => keepsFinished(t, display.showCompleted))
+        let tasks = display.showCompleted === "all" ? pages.tasks : pages.tasks.filter((t) => keepsFinished(t, display.showCompleted))
         // Due this week has no server filter: it is the list's own.
         if (dueWeek) tasks = tasks.filter((t) => ["today", "week"].includes(whenOf(t)))
         return tasks
-    }, [taskListState, display.showCompleted, dueWeek])
+    }, [pages.tasks, display.showCompleted, dueWeek])
     const sortedBy: RowProp | undefined = sorting[0]?.id === "task_due_date" ? "due" : undefined
 
     const post = usePost()
@@ -217,7 +196,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     )
 
     return (
-        <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts}>
+        <KeyboardList tasks={pages.tasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts}>
             {pages.readers}
             <WorkToolbar
                 table={table}

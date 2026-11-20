@@ -93,14 +93,8 @@ export function timeLeft(t: BoardTimer, now: number): number {
   return Math.max(0, t.pausedLeftMs ?? t.endsAt - now)
 }
 
-/** "4:05", "0:09", "1:00:00". */
-export function formatClock(ms: number): string {
-  const s = Math.ceil(ms / 1000)
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = String(s % 60).padStart(2, "0")
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`
-}
+// A timer's clock, kept on its own so a call's moment reads it without this module (lib/format/clock).
+export { formatClock } from "@/lib/format/clock"
 
 /**
  * The compact facilitation bar's one priority (design review, 29 Oct): the steps by which its segments

@@ -67,6 +67,8 @@ export interface CellContext {
   tableId?: string
   /** A link cell's face at rest: a chunk of its own, for tables with link fields (DataTableGrid's RelationFaces); till it lands, the cell holds its place empty. */
   relationFaces?: typeof RelationFace | null
+  /** Opens a linked call (the tables page's); without it, a call's chip is its name. */
+  openCall?: (id: string) => void
 }
 
 export const CELL_PAD = "px-3"
@@ -639,7 +641,7 @@ export function restCell({ field, value, cellId, primary, readOnly, ctx }: Omit<
     return (
       <div data-cell={cellId} tabIndex={-1} data-rest={fixed ? undefined : ""} className={cn("h-full", FOCUS)}>
         {faces ? (
-          faces.relationMarkup({ refs, room: chipRoom(ctx, true), readOnly: fixed, people, add: fixed ? null : faces.relationAdd(refs, people) })
+          faces.relationMarkup({ refs, room: chipRoom(ctx, true), readOnly: fixed, people, openCall: ctx.openCall, add: fixed ? null : faces.relationAdd(refs, people) })
         ) : refs.length > 0 ? (
           // A linked cell never reads as unlinked while its chips' chunk comes (DB-29): a pill where they will be.
           <div className="flex h-full items-center px-3">

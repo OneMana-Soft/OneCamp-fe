@@ -25,7 +25,12 @@ const ChatView = dynamic(() => import("@/components/views/ChatView").then((m) =>
 const GroupChatView = dynamic(() => import("@/components/views/GroupChatView").then((m) => m.GroupChatView), { loading: Loading })
 const DocView = dynamic(() => import("@/components/views/DocView").then((m) => m.DocView), { loading: Loading })
 const ProjectView = dynamic(() => import("@/components/views/ProjectView").then((m) => m.ProjectView), { loading: Loading })
-const TaskInfoPanel = dynamic(() => import("@/components/rightPanel/taskInfoPanel"), { loading: Loading })
+// A task beside the page loads the right panel's task chunks (rightPanel's panelLoaders.task, which PreloadPanels
+// fetches ahead): the import is named outside dynamic(), so it is that same lazy group. Written inside dynamic(), it
+// is a next/dynamic entry, a group of its own whose ~300 small parts Turbopack re-pairs when the task panel changes
+// by a few bytes, and every module copy that costs ships twice (V-1172; scripts/fluidity/stable-pools.json).
+const loadTaskPanel = () => import("@/components/rightPanel/taskInfoPanel")
+const TaskInfoPanel = dynamic(loadTaskPanel, { loading: Loading })
 // The call (LiveKit) is the heaviest view; it loads only when a call is opened beside.
 const CallView = dynamic(() => import("@/components/livekit/CallView").then((m) => m.CallView), { loading: Loading })
 

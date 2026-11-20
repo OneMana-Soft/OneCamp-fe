@@ -80,6 +80,20 @@ describe("what the call says", () => {
     expect(said()).toEqual(["Gia Rossi is waiting to join", "2 people are waiting to join"])
   })
 
+  // V-948: with the call's transcript on and kept, its lines are filed under
+  // the recording: the screen reader hears that a transcript comes with it, as
+  // the notice says. Captions that keep nothing say what they always said.
+  it("a screen reader hears that a transcript comes with the recording while the call keeps one (V-948)", () => {
+    const { rerender } = renderHook((c: AnnouncedCall) => useCallAnnouncements(c), { initialProps: base })
+    rerender({ ...base, recording: true, recordingBy: "Maya Chen", captions: true, transcript: true })
+    vi.advanceTimersByTime(3_000)
+    expect(said()).toEqual(["Maya Chen started recording, with a transcript"])
+    rerender({ ...base, recording: false, captions: true, transcript: false })
+    rerender({ ...base, recording: true, recordingBy: "Maya Chen", captions: true, transcript: false })
+    vi.advanceTimersByTime(5_000)
+    expect(said()).toEqual(["Maya Chen started recording, with a transcript", "Recording stopped", "Maya Chen started recording"])
+  })
+
   // On purpose (UX-CALLS-H1): a recording's start was left to its pill, and
   // the pill's live region mounts with its words, which most screen readers
   // miss. Who started it is said now; a captions start is still its notice's.

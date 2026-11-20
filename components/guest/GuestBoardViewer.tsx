@@ -46,11 +46,13 @@
  */
 
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
+// The pieces' loaders ride with the canvas (V-1083).
+import "@/components/board/boardLoaders"
 import * as React from "react"
 import dynamic from "next/dynamic"
 import * as Y from "yjs"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
-import { LOCAL_ORIGIN, followShared, liveCount, storeScene, type BoardElement, type SharedElements } from "@/lib/board/binding"
+import { LOCAL_ORIGIN, followShared, guardOf, liveCount, storeScene, type BoardElement, type SharedElements } from "@/lib/board/binding"
 import { NOTE_AUTHORS, stampNewNotes } from "@/lib/board/authors"
 import { sceneSignature } from "@/lib/board/scene"
 import { useSceneReady } from "@/hooks/useSceneReady"
@@ -71,6 +73,10 @@ import "@excalidraw/excalidraw/index.css"
 import "@/lib/board/excalidrawAssets"
 import "@/components/board/excalidrawTheme.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
+import type { DrawnApi } from "@/components/board/boardExcalidraw"
+import type { HocuspocusProvider } from "@hocuspocus/provider"
+// What the drawing shares with a parent, held here as by the other canvas: the drawing is cut once (V-1167).
+import "@/components/board/drawingShared"
 
 // A guest's cards stay shut and read nothing; other sites are framed as for members (boardEmbeds).
 const GuestEmbedView = lazyPiece(() => import("@/components/board/boardEmbeds"))
@@ -125,12 +131,27 @@ interface GuestBoardViewerProps {
    * still see everyone's reactions rise and follow an editor presenting.
    */
   quiet?: boolean
+  /**
+   * A board link's guest (miro-33): its role (view looks; comment comments through the server;
+   * edit draws and comments), its password's unlock (?k= on the board's reads), and what the
+   * link's page puts on the board once it is up (its comments, for comment and edit). Who they
+   * are is `user`, as the server's token names them.
+   */
+  link?: { role: "view" | "comment" | "edit"; unlock?: string; side?: (board: GuestBoardSide) => React.ReactNode }
 }
+
+/**
+ * The board as a link's page sees it once it is up. The page draws its own
+ * pieces on it (a comment link's comments), so they load with that page alone:
+ * every other place that shows a board (a doc's embed, a call's stage) loads
+ * this viewer, and none of them carries a link's comments.
+ */
+export type GuestBoardSide = { provider: HocuspocusProvider; api: ExcalidrawImperativeAPI; user: { id: string; name: string }; editable: boolean }
 
 /** A share link's guest: no one to the board's people, so no cursor either way. */
 const NO_ONE = { id: "", name: "" }
 
-export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, canDraw = false, user, theme: given, opensAt, onApiReady, quiet = false }: GuestBoardViewerProps) {
+export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, canDraw = false, user, theme: given, opensAt, onApiReady, quiet = false, link }: GuestBoardViewerProps) {
   const followed = useBoardTheme()
   const theme = given ?? followed
   const sheetMode = useSheetMode()
@@ -141,16 +162,18 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
     username: user?.name ?? "Guest",
     userId: user?.id ?? "guest",
   })
-  const drawing = canDraw && !readOnly
+  const drawing = (canDraw || link?.role === "edit") && !readOnly
 
-  const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
+  const [api, setApi] = React.useState<DrawnApi | null>(null)
   // Cursors: a call's guest (one with a `user`) sees everyone's, and publishes
   // their own name and pointer only while drawing (main, 27 Oct).
-  const inCall = user !== undefined
+  // An edit link's guest (miro-33) shows theirs, as "Guest: <name>", and sees everyone's while drawing too.
+  const inCall = user !== undefined && !link
+  const seesCursors = inCall || (!!link && drawing)
   const onPointerUpdate = useBoardPresence({
-    awareness: inCall ? provider?.awareness : null,
+    awareness: seesCursors ? provider?.awareness : null,
     user: user ?? NO_ONE,
-    publish: inCall && drawing,
+    publish: seesCursors && drawing,
   })
   // A share link's guest follows an editor presenting and is brought by a bring; a call's guest follows the call's
   // slides (its stage's opensAt), so a presenter on the board never pulls the stage away.
@@ -215,8 +238,8 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
   const pictureURL = React.useMemo(
     () =>
       imageURL ??
-      (token ? (objectUuid: string) => `${backendBase}/guest/board-attachment/${encodeURIComponent(token)}/${encodeURIComponent(objectUuid)}` : null),
-    [imageURL, backendBase, token],
+      (token ? (objectUuid: string) => `${backendBase}/guest/board-attachment/${encodeURIComponent(token)}/${encodeURIComponent(objectUuid)}${link?.unlock ? `?k=${encodeURIComponent(link.unlock)}` : ""}` : null),
+    [imageURL, backendBase, token, link?.unlock],
   )
 
   // As on the member's canvas, nothing goes on before Excalidraw's own scene,
@@ -291,7 +314,7 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
     doc.transact(() => {
       const shared = doc.getMap<Record<string, unknown>>("elements")
       stampNewNotes(doc.getMap<unknown>(NOTE_AUTHORS), scene as never, shared, { id: user?.id ?? "", name: user?.name ?? "Guest" })
-      storeScene(shared as never, scene)
+      storeScene(shared as never, scene, guardOf(api))
     }, LOCAL_ORIGIN)
   }, [api, provider, user?.id, user?.name])
 
@@ -326,9 +349,10 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
     <div ref={wrapTo} className="relative h-full w-full" data-guest-board="">
       <Excalidraw
         guest
+        doc={provider?.document}
         sheetMode={sheetMode}
         embedView={GuestEmbedView}
-        excalidrawAPI={(a: ExcalidrawImperativeAPI) => setApi(a)}
+        excalidrawAPI={(a: DrawnApi) => setApi(a)}
         viewModeEnabled={!drawing}
         zenModeEnabled={!drawing}
         theme={theme}
@@ -337,7 +361,7 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
         UIOptions={{ canvasActions: { export: false, saveToActiveFile: false, loadScene: false, toggleTheme: false }, tools: { image: false } }}
       />
       {/* A share link's guest sees everyone's laser, and no one's cursor or name. */}
-      <BoardCursors api={api} awareness={provider.awareness} dark={theme === "dark"} cursors={inCall} />
+      <BoardCursors api={api} awareness={provider.awareness} dark={theme === "dark"} cursors={seesCursors} />
       <FollowFrame leader={presenter ? { id: presenter.userId, name: presenter.name } : null} said={followSaid} onStop={stopFollowing} held={held} />
       {api &&
         followedSlide &&
@@ -345,7 +369,7 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
           <SlidesFailed retry={retrySlide} />
         ) : (
           <React.Suspense fallback={null}>
-            <GuestSlides api={api} doc={provider.document} slide={followedSlide} outline={outline} onOutline={setOutline} polls={token ? { token } : undefined} />
+            <GuestSlides api={api} doc={provider.document} slide={followedSlide} outline={outline} onOutline={setOutline} polls={token ? { token, k: link?.unlock } : undefined} />
           </React.Suspense>
         ))}
       {control && (
@@ -353,6 +377,7 @@ export function GuestBoardViewer({ documentName, token, imageURL, tokenFetcher, 
           <GuestReact hereKey={hereKey} host={wrap} />
         </React.Suspense>
       )}
+      {api && link?.side ? <React.Suspense fallback={null}>{link.side({ provider, api, user: user ?? NO_ONE, editable: drawing })}</React.Suspense> : null}
       {rising}
     </div>
   )

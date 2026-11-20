@@ -20,12 +20,16 @@ export interface DepartedPerson {
   name: string
   left_at: string
   docs: number
+  /** Boards they made (miro-32): handed on with their docs. */
+  boards?: number
   links: number
 }
 
 export interface Moved {
   docs: number
+  boards?: number
   links: number
+  /** Docs and boards that couldn't move. */
   failed: number
 }
 

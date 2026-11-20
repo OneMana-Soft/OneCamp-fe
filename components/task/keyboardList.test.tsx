@@ -174,6 +174,36 @@ describe("a task list from the keyboard", () => {
     expect(store.getState().rightPanel.rightPanelState).toMatchObject({ isOpen: true, data: { taskUUID: "t2" } })
   })
 
+  // V-1054: the keys mark the list (lib/ui/listNav keysDrive) so a resting pointer's hover holds still while J
+  // scrolls; Enter, which moves no cursor, leaves it; the pointer's real move takes it off.
+  it("marks its list data-kbd-nav when J moves the cursor, and the pointer's real move takes the mark off", () => {
+    renderList()
+    const move = (x: number) =>
+      document.body.dispatchEvent(new ((window.PointerEvent ?? MouseEvent) as typeof MouseEvent)("pointermove", { bubbles: true, clientX: x, clientY: 40 }))
+    move(40)
+    press("Enter")
+    expect(document.querySelector("[data-kbd-nav]")).toBeNull()
+    press("j")
+    expect(row("Write the copy").closest("[data-kbd-nav]")).not.toBeNull()
+    move(40)
+    expect(document.querySelector("[data-kbd-nav]"), "a move to where the pointer was keeps it").not.toBeNull()
+    move(48)
+    expect(document.querySelector("[data-kbd-nav]")).toBeNull()
+  })
+
+  // V-1054 R1 (CR-340 #2): a list that goes while marked (J, then Enter or a g-shortcut away: no pointer event at all)
+  // is let go, so the keys' hold keeps no list that is gone.
+  it("lets go of its list when it unmounts while marked", () => {
+    renderList()
+    document.body.dispatchEvent(new ((window.PointerEvent ?? MouseEvent) as typeof MouseEvent)("pointermove", { bubbles: true, clientX: 40, clientY: 40 }))
+    press("j")
+    const marked = row("Write the copy").closest("[data-kbd-nav]")
+    expect(marked).not.toBeNull()
+    cleanup()
+    expect(marked!.isConnected).toBe(false)
+    expect(marked!.hasAttribute("data-kbd-nav"), "released at unmount").toBe(false)
+  })
+
   // STEP4 #8: the panel's previous and next open a task of the list with no
   // key reaching the list. The highlight goes with them, so J and K go on
   // from there, not from the row first opened, and one row reads as open.

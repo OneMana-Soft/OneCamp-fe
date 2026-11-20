@@ -427,7 +427,7 @@
   margin: 0;
 }
 
-.minimal-tiptap-editor .ProseMirror .callout-content > * + * {
+.minimal-tiptap-editor .ProseMirror .callout-content > :where(:not(:first-child)) {
   margin-top: 0.5rem;
 }
 
@@ -440,7 +440,7 @@
   margin: 0;
 }
 
-.minimal-tiptap-editor .ProseMirror .collapsible-content > * + * {
+.minimal-tiptap-editor .ProseMirror .collapsible-content > :where(:not(:first-child)) {
   margin-top: 0.5rem;
 }
 
@@ -762,7 +762,7 @@ html.block-dragging-copy * {
   flex: 1 1 0%;
   min-width: 0;
 }
-.doc-editor .ProseMirror :is([data-type="column"], .doc-column-body) > * + * {
+.doc-editor .ProseMirror :is([data-type="column"], .doc-column-body) > :where(:not(:first-child)) {
   margin-top: 12px;
 }
 .doc-editor .ProseMirror :is([data-type="column"], .doc-column-body) > p + p {

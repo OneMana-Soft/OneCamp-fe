@@ -105,9 +105,11 @@ describe("the list's grip", () => {
     await loaded(container)
     act(() => selection.highlight("a"))
     const cursor = row(container, "a").querySelector("[data-kbd-cursor]")!
-    expect(cursor.className).toMatch(/(^| )hidden( |$)/)
-    expect(cursor.className).toContain("group-focus-visible/row:block")
-    expect(cursor.className).toContain("group-has-[:focus-visible]/row:block")
+    expect(cursor.className).toMatch(/(^| )invisible( |$)/)
+    // Shown on a lit row with the keys' focus, its own or a control's in it, read through a child selector (globals.css kbd-lit),
+    // by visibility: a key's focus moves no box in or out of layout.
+    expect(cursor.parentElement).toBe(row(container, "a"))
+    expect(cursor.className).toContain("kbd-lit:visible")
   })
 
   it("is on the rows this person may change, and on no read-only row", async () => {
@@ -122,10 +124,13 @@ describe("the list's grip", () => {
     const { container } = renderList()
     await loaded(container)
     const cls = grips(container)[0].className
-    expect(cls).toMatch(/group-hover\/row:opacity-100/)
+    // On its row's hover (a [data-task-id] row, globals.css row-hover-in), held while the keys drive the list (V-1054).
+    expect(cls).toMatch(/row-hover-in:opacity-100/)
+    expect(cls).not.toMatch(/group-hover\/row:/)
     expect(cls).toMatch(/focus-visible:opacity-100/)
-    // With the keys' focus on its row, not a mouse's highlight.
-    expect(cls).toContain("group-focus-visible/row:opacity-100")
+    // With the keys' focus on its row (its own or a control's in it), not a mouse's highlight, read through a child selector (globals.css kbd).
+    expect(grips(container)[0].parentElement!.hasAttribute("data-task-id")).toBe(true)
+    expect(cls).toContain("kbd:opacity-100")
     expect(cls).not.toContain("group-data-[highlighted=true]")
     expect(cls).toMatch(/\[@media\(hover:none\)\]:opacity-100/)
     expect(grips(container)[0].hasAttribute("data-drag-handle")).toBe(true)

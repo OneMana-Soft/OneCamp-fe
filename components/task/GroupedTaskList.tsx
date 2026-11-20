@@ -12,6 +12,7 @@ import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import TaskTypeGlyph from "@/components/task/TypeGlyphOnDemand"
 import { LabelChip } from "@/components/ui/chip"
 import { DueLabel, dueDateOf } from "@/components/task/DueLabel"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import { TaskCheck, TaskTitle } from "@/components/task/TaskCheck"
 import { TaskKeyCell, keyWidth } from "@/components/task/TaskKeyCell"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
@@ -21,8 +22,10 @@ import { FieldValueView } from "@/components/task/fieldValue"
 import { alignsRight, type TaskField } from "@/lib/tasks/fields"
 import { PriorityMenu, StatusMenu, TaskAvatar } from "@/components/task/taskRowParts"
 import { useBulkTaskUpdate } from "@/hooks/useBulkTaskUpdate"
+import { useLatch } from "@/hooks/useLatch"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { isBusyPointer, useScrolling } from "@/lib/ui/scrollState"
+import { isStillArrival } from "@/lib/ui/stillArrival"
 import { ReorderGrip, ReorderHost, useReorderLayer, type ListReorder } from "@/components/task/reorderSlot"
 import type { GroupPlan } from "@/lib/ui/windowedRows"
 import { lazyPart } from "@/lib/lazy/lazyPart"
@@ -39,6 +42,8 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import type { RootState } from "@/store/store"
 import type { TaskInfoInterface } from "@/types/task"
 
+const SlaChip = lazyPiece(() => import("@/components/task/SlaChip"))
+
 /** What a row shows besides its check and title (work.md W11, Display's properties). */
 export type RowProp = "priority" | "labels" | "due" | "assignee" | "estimate" | "project" | "badges" | `field:${string}`
 export const PROJECT_PROPS: RowProp[] = ["priority", "labels", "due", "assignee", "badges"]
@@ -53,6 +58,13 @@ const NO_FIELDS: TaskField[] = []
 const WINDOW_ABOVE = 200
 /** Till the window's part plans (its code still coming), a long list draws a screen of its rows (40 px each, ROW_H) and pads for the rest. */
 const FIRST_ROWS = 30
+/**
+ * A list's first draw of more than a screen of rows but at most WINDOW_ABOVE: a screen (FIRST_ROWS, what the window
+ * first draws) at once, padded for the rest, which then fill a screen at a time, each its own transition after the last
+ * one's commit, so find-in-page still finds every row and no commit draws more than a screen. A project's first page
+ * drawn whole (about 200 rows) in one commit was a 300 ms task, and a screen then the rest in one transition 170 ms (fluid-19).
+ */
+const FILL_STEP = FIRST_ROWS
 
 /** A group's rows shown: an open group's first sixty, a finished one's newest five, all once "Show N more" is pressed. */
 const shownOf = (g: TaskGroup, more: Set<string>) => (more.has(g.key) ? g.tasks : g.tasks.slice(0, g.closed ? CLOSED_SHOWN : OPEN_SHOWN))
@@ -163,6 +175,21 @@ export function GroupedTaskList({
   const [plans, setPlans] = React.useState<Map<string, GroupPlan> | null>(null)
   // The opened task, kept drawn wherever the window is: read here for the window's part, which reads no store. A short list reads nothing.
   const openedId = useSelector((s: RootState) => (tasks.length > WINDOW_ABOVE && s.rightPanel.rightPanelState.isOpen ? (s.rightPanel.rightPanelState.data.taskUUID ?? null) : null))
+  // The rows shown in open groups, as the window counts them.
+  const shownRows = groups.reduce((n, g) => n + (collapsed.has(g.key) ? 0 : shownOf(g, more).length), 0)
+  // The list's first draw with rows: past a screen (and up to WINDOW_ABOVE, past which the window draws), a screen now
+  // and the rest FILL_STEP rows a transition, which a key or a tap goes before. Any other first draw is as ever (whole,
+  // or the window's). Only the first: once the fill is done, or the shown rows change under it (page two, a task made,
+  // a group opened), the list is whole for good, so a row drawn is never taken away again.
+  const [fill, setFill] = React.useState<{ rows: number; of: number } | null>(null)
+  const cuts = shownRows > FIRST_ROWS && shownRows <= WINDOW_ABOVE
+  const whole = useLatch(shownRows > 0 && (!cuts || (fill !== null && (fill.rows >= shownRows || fill.of !== shownRows))))
+  const filling = !whole && cuts
+  React.useEffect(() => {
+    if (!filling) return
+    const next = { rows: (fill?.rows ?? FIRST_ROWS) + FILL_STEP, of: fill?.of ?? shownRows }
+    React.startTransition(() => setFill(next))
+  }, [filling, fill, shownRows])
 
   React.useLayoutEffect(() => {
     if (!flipFrom.current) return
@@ -257,8 +284,9 @@ export function GroupedTaskList({
   const keyW = keyWidth(tasks)
   // Types without keys keep the slot (V-459).
   const typed = tasks.some((t) => t.task_work_type)
-  // Rows left to draw before the window plans: a screen's worth once more than WINDOW_ABOVE are shown, as the window counts them.
-  let room = !plans && groups.reduce((n, g) => n + (collapsed.has(g.key) ? 0 : shownOf(g, more).length), 0) > WINDOW_ABOVE ? FIRST_ROWS : Infinity
+  // Rows left to draw: before the window plans, a screen's worth once more than WINDOW_ABOVE are shown, as the window
+  // counts them; in a shorter list's first draw, the rows filled so far (filling, above).
+  let room = shownRows > WINDOW_ABOVE ? (plans ? Infinity : FIRST_ROWS) : filling ? (fill?.rows ?? FIRST_ROWS) : Infinity
   const list = (
     <div ref={box} data-grouped-list="" data-task-sequence="" aria-label="Tasks" className="group/list relative" style={keyW ? ({ "--key-w": `${keyW}ch` } as React.CSSProperties) : undefined}>
       {groups.map((g) => {
@@ -481,13 +509,14 @@ const TaskRow = React.memo(function TaskRow({
   const [pointed, setPointed] = React.useState(false)
   const [focused, setFocused] = React.useState<false | "row" | "box">(false)
   const live = pointed || !!focused
-  // Not while a scroll or a drag carries rows under the pointer; a move wakes it.
+  // Not while a scroll or a drag carries rows under the pointer, nor on an arrival the pointer did not move to (rows
+  // drawn or moved under a resting pointer: isStillArrival); a move wakes it.
   // Never a finger's: its enter comes with its tap, and the Checkbox would take
   // the place of the box the tap lands on (the slot's own click selects instead).
   // Nor while the list holds a selection: the empty box draws as the Checkbox then,
   // and a click that arrives with the pointer is the box's (the list's own click
   // writes the store, which draws a swap still waiting before the click is read).
-  const point = (e: React.PointerEvent) => e.pointerType !== "touch" && !isBusyPointer() && !store?.get().selected.size && setPointed(true)
+  const point = (e: React.PointerEvent) => e.pointerType !== "touch" && !isBusyPointer() && !isStillArrival(e) && !store?.get().selected.size && setPointed(true)
   const open = () => dispatch(openRightPanel({ taskUUID: task.task_uuid }))
   const Grip = React.useContext(ReorderGrip)
 
@@ -529,18 +558,18 @@ const TaskRow = React.memo(function TaskRow({
         // Drawn only near the screen: a list of thousands costs its visible rows (globals.css).
         "row-lazy",
         "group/row relative flex cursor-pointer items-center gap-2.5 border-b border-line pl-[18px] pr-4 outline-none transition-colors duration-[140ms]",
-        "hover:bg-hover active:bg-press",
+        "row-hover:bg-hover active:bg-press",
         selected && "bg-sel",
-        opened && "bg-[color-mix(in_oklab,var(--brand-muted)_75%,transparent)] hover:bg-[color-mix(in_oklab,var(--brand-muted)_75%,transparent)]",
+        opened && "bg-[color-mix(in_oklab,var(--brand-muted)_75%,transparent)] row-hover:bg-[color-mix(in_oklab,var(--brand-muted)_75%,transparent)]",
       )}
     >
       {/* The opened row's 2px brand edge, scaling in. */}
       {opened && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-brand [animation:work-grow-y_140ms_var(--ease-out)_both] [transform-origin:center]" />}
-      {/* The keyboard's cursor: an inset ring, clear of the hairlines, for the keys' focus only (a mouse's press highlights without it). */}
-      {!opened && <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none absolute inset-0.5 hidden rounded-md ring-cursor group-data-[highlighted]/row:group-focus-visible/row:block group-data-[highlighted]/row:group-has-[:focus-visible]/row:block" />}
+      {/* The keyboard's cursor: an inset ring, clear of the hairlines, for the keys' focus only (a mouse's press highlights without it). Shown by visibility, so a key's focus moves no box in or out of layout. */}
+      {!opened && <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none invisible absolute inset-0.5 rounded-md ring-cursor kbd-lit:visible" />}
       {Grip && <Grip task={task} editable={editable} />}
       <span
-        className={cn("flex w-4 shrink-0 justify-center transition-opacity duration-[140ms]", selected ? "opacity-100" : "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto group-data-[any-selected]/list:opacity-100 group-data-[any-selected]/list:pointer-events-auto")}
+        className={cn("flex w-4 shrink-0 justify-center transition-opacity duration-[140ms]", selected ? "opacity-100" : "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none row-hover-in:opacity-100 row-hover-in:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto group-data-[any-selected]/list:opacity-100 group-data-[any-selected]/list:pointer-events-auto")}
         data-row-select=""
         // While the list holds a selection, the empty box beside a row is a box to a finger too: a tap on it adds the row and opens nothing.
         onClick={(e) => {
@@ -567,7 +596,7 @@ const TaskRow = React.memo(function TaskRow({
             // Checkbox, which would take this box's place under the press and lose its click. Keys and a screen
             // reader's focus still hand on.
             onMouseDown={(e) => e.preventDefault()}
-            className="invisible relative size-4 rounded-[5px] transition-spring group-focus-visible/row:visible group-focus-visible/row:ring-[1.5px] group-focus-visible/row:ring-inset group-focus-visible/row:ring-faint-foreground after:absolute after:-inset-1 hover:ring-muted-foreground motion-safe:active:scale-[0.88] active:duration-[90ms] group-data-[any-selected]/list:visible group-data-[any-selected]/list:ring-[1.5px] group-data-[any-selected]/list:ring-inset group-data-[any-selected]/list:ring-faint-foreground"
+            className="invisible relative size-4 rounded-[5px] transition-spring kbd-box:visible kbd-box:ring-[1.5px] kbd-box:ring-inset kbd-box:ring-faint-foreground after:absolute after:-inset-1 hover:ring-muted-foreground motion-safe:active:scale-[0.88] active:duration-[90ms] group-data-[any-selected]/list:visible group-data-[any-selected]/list:ring-[1.5px] group-data-[any-selected]/list:ring-inset group-data-[any-selected]/list:ring-faint-foreground"
           />
         )}
       </span>
@@ -656,6 +685,11 @@ const RowCells = React.memo(function RowCells({ task, keyed, options, props, edi
             </span>
           )
         })}
+      {task.task_sla && (
+        <React.Suspense fallback={null}>
+          <SlaChip sla={task.task_sla} hidden={task.task_hidden} done={done} />
+        </React.Suspense>
+      )}
       {has("due") && (
         <span className="flex w-16 shrink-0 justify-end">
           {due && <DueLabel date={due} done={done} className={cn(sortedBy === "due" && !done && "text-foreground")} />}

@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotError } from "@/components/ui/graphics/spots"
 import { SpotShieldLock } from "@/components/auth/authSpots"
-import { loadFailure, useSaysLoadFailure, type LoadFailure } from "@/lib/http/loadFailure"
+import { failureWords, loadFailure, useSaysLoadFailure, type LoadFailure } from "@/lib/http/loadFailure"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** The way back from something that isn't on screen: a link, or a button (Close, in a panel). */
@@ -92,8 +92,8 @@ export function LoadFailureState({
       <div data-load-failure="no-access" className={cn(FRAME, className)}>
         <EmptyState
           illustration={<SpotShieldLock />}
-          title={`You can't see this ${noun}`}
-          description={noAccessDetail ?? "It hasn't been shared with you. Ask whoever sent you the link to give you access."}
+          title={failureWords("no-access", noun).title}
+          description={noAccessDetail ?? failureWords("no-access", noun).detail}
           headingLevel={headingLevel}
           action={requestAccess ?? way}
         />
@@ -104,8 +104,8 @@ export function LoadFailureState({
     <div data-load-failure="gone" className={cn(FRAME, className)}>
       <EmptyState
         illustration={<SpotError />}
-        title={`This ${noun} doesn't exist or was deleted`}
-        description={goneDetail ?? "The link may be old or mistyped."}
+        title={failureWords("gone", noun).title}
+        description={goneDetail ?? failureWords("gone", noun).detail}
         headingLevel={headingLevel}
         action={way}
       />

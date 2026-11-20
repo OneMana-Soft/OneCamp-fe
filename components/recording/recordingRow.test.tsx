@@ -9,7 +9,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetchOnlyOnce: () => ({ data: undefined }),
   useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: () => {} }),
 }))
-vi.mock("react-redux", async (actual) => ({ ...(await actual<typeof import("react-redux")>()), useDispatch: () => () => {} }))
+vi.mock("react-redux", async (actual) => ({ ...(await actual<typeof import("react-redux")>()), useDispatch: () => () => {}, useSelector: (pick: (s: unknown) => unknown) => pick({ ui: {} }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
 const { RecordingListRecording, callLength, recordingPlace, recordingHueKey } = await import("@/components/recording/recordingListRecording")
@@ -165,7 +165,7 @@ describe("the recordings page's header", () => {
   it("spans the sheet, the range on its right edge, over the lists' column", async () => {
     const { RecordingsView } = await import("@/components/recording/RecordingsView")
     const { container } = render(
-      <RecordingsView listUrl="/recordings" playerUrls={() => ({ media: "", transcript: "" })} subtitle="Calls recorded in your channels and conversations." />,
+      <RecordingsView listUrl="/recordings" subtitle="Calls recorded in your channels and conversations." />,
     )
     const [head, list] = Array.from(container.querySelectorAll("[data-recordings-view] > div"))
     expect(head.querySelector("header")).not.toBeNull()

@@ -1,8 +1,10 @@
 /**
  * Where the board's bars dock on a phone, from the bottom: the facilitation
- * bar (boardFacilitation) just above the canvas's footer and the board's own
- * buttons, and a selection's bar (the notes bar, a frame's bar) one bar above
- * it, so neither covers the other. Each bar is h-11 (2.75rem), with 0.5rem
+ * bar (boardFacilitation) one bar above the canvas's footer (the one bar of
+ * the tools and Undo; the band between stays canvas a finger reaches, V-868,
+ * since the board's own buttons moved to the top, design-22 4), and a
+ * selection's bar (the notes bar, a frame's bar) one bar above it, so neither
+ * covers the other. Each bar is h-11 (2.75rem), with 0.5rem
  * between. An editor always has the facilitation bar, and only an editor
  * gets a selection's bar. Each bar at the foot is marked data-phone-foot: the
  * board page publishes the highest one's top, and the app's toasts and notices

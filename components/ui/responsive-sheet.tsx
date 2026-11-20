@@ -63,3 +63,35 @@ export default function ResponsiveSheet({
     </Drawer>
   )
 }
+
+/**
+ * The same sheet, its title, footer and body drawn by its caller (a board
+ * comment's composer and thread, components/board/boardComments): the Drawer
+ * at the medium detent, closed by its grabber, the scrim or Escape. It lives in
+ * this chunk, not a module of its own, so a lazy piece that opens one (the
+ * guest board's comments, miro-33) takes the drawer from a chunk group that
+ * holds it already: a group of their own holding it gave the app layout's
+ * shell modules a group more, and Turbopack cut the layout into one chunk more
+ * on every /app route (WZ39K trace, 16 Nov).
+ */
+export function DrawnSheet({
+  title,
+  footer,
+  onClose,
+  children,
+  ...marks
+}: {
+  /** Its title's element, which the drawer names itself by (DrawerTitle asChild). */
+  title: React.ReactElement
+  footer?: React.ReactNode
+  onClose(): void
+  children: React.ReactNode
+} & { [mark: `data-${string}`]: string }) {
+  return (
+    <Drawer open onOpenChange={(open) => !open && onClose()} detent="medium">
+      <DrawerContent {...marks} header={<DrawerTitle asChild>{title}</DrawerTitle>} footer={footer}>
+        {children}
+      </DrawerContent>
+    </Drawer>
+  )
+}

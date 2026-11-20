@@ -1,7 +1,8 @@
 "use client"
 
 // The cycles switcher's body (CyclesButton): every cycle with its progress,
-// the current one as a card at the top, each with its burndown, Complete…
+// the current one as a card at the top (every one running, in a project that
+// runs cycles side by side: jira-04 C), each with its burndown, Complete…
 // and Delete, and the form that starts a new cycle. A chunk of its own
 // (app/firstLoad.test.ts): a project's first screen shows the Cycles chip,
 // and this loads as the pointer or the focus reaches it.
@@ -18,7 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { deletedTitle, offerUndo, restore } from "@/services/restoreService"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { cycleDates, cycleLabel, nextStart, percentDone, timeLeft, type Cycle } from "@/lib/tasks/cycles"
+import { carryTarget, cycleDates, cycleLabel, nextStart, percentDone, runningCycles, timeLeft, type Cycle } from "@/lib/tasks/cycles"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
 import { areaHue } from "@/lib/areas"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
@@ -45,8 +46,8 @@ export function CyclesSwitcher({
   onChart: (cycle: Cycle) => void
 }) {
   const { cycles, canEdit, isLoading } = useProjectCycles(projectId)
-  const current = cycles.find((c) => c.state === "current" && !c.completed_at)
-  const shown = [...cycles].filter((c) => c.id !== current?.id).sort((a, b) => b.number - a.number)
+  const running = runningCycles(cycles)
+  const shown = cycles.filter((c) => !running.includes(c)).sort((a, b) => b.number - a.number)
 
   if (making) return <NewCycle projectId={projectId} cycles={cycles} onDone={() => onMaking(false)} />
   return (
@@ -62,19 +63,22 @@ export function CyclesSwitcher({
         </div>
       ) : (
         <>
-          {current && (
+          {running.length > 0 && (
             <div data-current-cycle="" className="rounded-lg bg-raised p-1 shadow-e1">
-              <ul aria-label="Current cycle">
-                <CycleRow
-                  projectId={projectId}
-                  cycle={current}
-                  cycles={cycles}
-                  canEdit={canEdit}
-                  featured
-                  active={current.id === activeCycleId}
-                  onShow={() => onShow(current.id)}
-                  onChart={() => onChart(current)}
-                />
+              <ul aria-label={running.length > 1 ? "Current cycles" : "Current cycle"} className="grid gap-px">
+                {running.map((c) => (
+                  <CycleRow
+                    key={c.id}
+                    projectId={projectId}
+                    cycle={c}
+                    cycles={cycles}
+                    canEdit={canEdit}
+                    featured
+                    active={c.id === activeCycleId}
+                    onShow={() => onShow(c.id)}
+                    onChart={() => onChart(c)}
+                  />
+                ))}
               </ul>
             </div>
           )}
@@ -126,8 +130,8 @@ function CycleRow({
   onChart: () => void
 }) {
   const rowRef = React.useRef<HTMLLIElement>(null)
-  // The cycle the unfinished tasks would move to: the next one by number, or a new one.
-  const next = cycles.filter((c) => c.number > cycle.number && !c.completed_at).sort((a, b) => a.number - b.number)[0]
+  // The cycle the unfinished tasks would move to, or a new one.
+  const next = carryTarget(cycles, cycle)
   const { complete, remove, refresh, refreshTasks, http } = useProjectCycles(projectId)
   const { toast } = useToast()
   const [confirming, setConfirming] = React.useState(false)

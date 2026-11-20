@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 let fetched: { data?: unknown; isLoading: boolean } = { isLoading: false }
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ ...fetched, mutate: vi.fn() }) }))
@@ -14,6 +14,10 @@ vi.mock("@/lib/preferences/usePreference", () => ({ usePreferences: () => kept }
 
 import { BookingSettings, deletePageWords } from "./bookingSettings"
 import { sampleTimes } from "./bookingEditor"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+// The editor takes dates gone by off a page: today is the tests' own.
+pinTestClock()
 
 afterEach(() => {
   cleanup()
@@ -76,8 +80,11 @@ describe("the booking settings page", () => {
     kept = { zone: "Europe/Berlin", "calendar.working_hours": { "2": [{ start: "10:00", end: "12:00" }, { start: "13:00", end: "18:00" }], "4": [{ start: "10:00", end: "16:00" }] } }
     render(<BookingSettings />)
     fireEvent.click(screen.getByRole("button", { name: /New booking page/ }))
-    const pressed = within(await screen.findByRole("group", { name: "Days" })).getAllByRole("button").filter((b) => b.getAttribute("aria-pressed") === "true")
-    expect(pressed.map((b) => b.textContent)).toEqual(["Tue", "Thu"])
+    // The page's week is the person's own, ranges and all (gcal-7).
+    await screen.findByRole("complementary", { name: "Preview" })
+    const on = [...document.querySelectorAll("[data-hours-day]")].filter((d) => d.querySelector("[role=switch]")?.getAttribute("aria-checked") === "true")
+    expect(on.map((d) => d.getAttribute("data-hours-day"))).toEqual(["2", "4"])
+    expect(screen.getAllByLabelText(/Tuesday: from/)).toHaveLength(2)
     expect(screen.getByRole("complementary", { name: "Preview" }).textContent).toContain("10:00\u00a0AM")
     cleanup()
     kept = { zone: null, "calendar.working_hours": null }
@@ -125,3 +132,71 @@ describe("deleting a booking page", () => {
   })
 })
 
+
+// gcal-7: a page's own week, in the grid working hours use, and dates of its
+// own: a day off, or other hours. Dates gone by come off before the save.
+describe("a booking page's own week and dates", () => {
+  const LOAD = { timeout: 8000 }
+  const addDate = async (typed: string) => {
+    fireEvent.click(screen.getByRole("button", { name: "Add a date" }))
+    const box = await screen.findByLabelText("Type a date", {}, LOAD)
+    fireEvent.change(box, { target: { value: typed } })
+    fireEvent.keyDown(box, { key: "Enter" })
+  }
+
+  it("shows the page's week in the working hours grid, Monday first", async () => {
+    fetched = { isLoading: false, data: { data: [page] } }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByText("Intro call with Sam"))
+    await screen.findByRole("complementary", { name: "Preview" })
+    const grid = document.querySelector("[data-hours-week]") as HTMLElement
+    expect([...grid.querySelectorAll("[data-hours-day]")].map((d) => d.getAttribute("data-hours-day"))).toEqual(["1", "2", "3", "4", "5", "6", "0"])
+    expect(within(grid).getByRole("switch", { name: "Open on Saturdays" }).getAttribute("aria-checked")).toBe("false")
+    expect(screen.getByText("No dates of its own: every week runs as above.")).toBeTruthy()
+  })
+
+  it("saves the week, a date off and a date with other hours, without a date gone by", { timeout: 20000 }, async () => {
+    fetched = { isLoading: false, data: { data: [{ ...page, hours: { ...page.hours, dates: { "2020-11-03": [] } } }] } }
+    makeRequest.mockResolvedValue({ ...page })
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByText("Intro call with Sam"))
+    expect(await screen.findByText("We took off 3 Nov: it has gone by.")).toBeTruthy()
+    expect(document.querySelector('[data-hours-date="2020-11-03"]')).toBeNull()
+    fireEvent.click(screen.getByRole("switch", { name: "Open on Saturdays" }))
+    await addDate("2099-12-24")
+    await addDate("2099-12-25")
+    const off = document.querySelector('[data-hours-date="2099-12-25"]') as HTMLElement
+    expect(within(off).getByText("Day off")).toBeTruthy()
+    const other = document.querySelector('[data-hours-date="2099-12-24"]') as HTMLElement
+    fireEvent.click(within(other).getByRole("switch"))
+    expect(within(other).getAllByLabelText(/: from/)).toHaveLength(1)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(makeRequest).toHaveBeenCalled())
+    const { hours } = makeRequest.mock.calls[0][0].payload
+    expect(hours.dates).toEqual({ "2099-12-24": [{ start: "09:00", end: "17:00" }], "2099-12-25": [] })
+    expect(hours.week["6"]).toEqual([{ start: "09:00", end: "17:00" }])
+    expect(hours.days).toContain(6)
+  })
+
+  it("takes a date off the list with a target big enough for a thumb", { timeout: 20000 }, async () => {
+    fetched = { isLoading: false, data: { data: [{ ...page, hours: { ...page.hours, dates: { "2099-01-01": [] } } }] } }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByText("Intro call with Sam"))
+    const remove = await screen.findByRole("button", { name: /Remove Thu 1 Jan 2099/ })
+    expect(remove.className).toMatch(/size-11|h-11/)
+    fireEvent.click(remove)
+    expect(document.querySelector('[data-hours-date="2099-01-01"]')).toBeNull()
+  })
+
+  it("keeps the edits when a save fails, and says the server's words", async () => {
+    fetched = { isLoading: false, data: { data: [page] } }
+    makeRequest.mockRejectedValueOnce({ response: { status: 400, data: { msg: "2026-11-16 has gone by: take it off the page's dates." } } })
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByText("Intro call with Sam"))
+    fireEvent.change(await screen.findByLabelText("Title"), { target: { value: "Office hours" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect((await screen.findByRole("alert")).textContent).toBe("2026-11-16 has gone by: take it off the page's dates.")
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Office hours")
+    expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ quiet: true }))
+  })
+})

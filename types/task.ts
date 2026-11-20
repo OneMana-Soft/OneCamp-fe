@@ -6,6 +6,7 @@ import {CommentInfoInterface} from "@/types/comment";
 import type {FieldValues} from "@/lib/tasks/fields";
 import type {TaskAccess} from "@/lib/work/types";
 import type {DependencyFacets} from "@/lib/tasks/dependency";
+import type {TaskSla} from "@/lib/work/sla";
 
 /** A task on the other end of a dependency, as a task's panel reads it, with how the dependency works. */
 export interface DependencyTask extends DependencyFacets {
@@ -82,6 +83,8 @@ export interface TaskInfoInterface {
     /** Its open request for approval, on a board's read (a held move's target, or "" for an ask). */
     task_waiting?: TaskWaiting;
     task_hidden?: boolean;
+    /** Its SLA (linear-24), for the project's members with SLAs on; the server leaves it out otherwise. */
+    task_sla?: TaskSla;
 }
 
 /** A task's open request for approval, as a board reads it (business/Approvals MarkWaiting). */

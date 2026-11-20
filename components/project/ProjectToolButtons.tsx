@@ -12,16 +12,20 @@
 // ?tool=links, from the links on the project's home). Only
 // for someone it would open for; the parameter is dropped once used.
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Bell, Bookmark, CalendarClock, ClipboardList, Clock, Globe, Hash, Layers, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
+import { useContainerCalendar } from "@/lib/calendar/useContainerCalendar"
+import { Archive, Bell, Bookmark, Calendar, CalendarClock, ClipboardList, Clock, Globe, Hash, Layers, LayoutTemplate, Inbox, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Timer, Users, Workflow } from "@/lib/icons"
 import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
+import { useLatch } from "@/hooks/useLatch"
 import { useProjectLinks } from "@/hooks/useProjectLinks"
+import { useSlaView } from "@/hooks/useSlaView"
 import axiosInstance from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { useProjectCalls } from "@/hooks/useProjectCalls"
 import { app_project_path } from "@/types/paths"
 import {
   DropdownMenu,
@@ -48,7 +52,13 @@ const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFor
 const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog), { loading: () => null })
 const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog), { loading: () => null })
 const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog), { loading: () => null })
-const ProjectRulesDialog = dynamic(() => import("@/components/work/rules/ProjectRulesDialog"), { loading: () => null })
+// The rules, the SLAs and triage come from one module, one lazy group (projectRuleDialogs), through one loader that
+// the warm-up and the Triage tab call too: an import() of it inside a dynamic call and another outside rooted two
+// groups (app/slaLazy.test).
+export const loadRuleDialogs = () => import("@/components/project/projectRuleDialogs")
+const ProjectRulesDialog = dynamic(() => loadRuleDialogs().then((m) => m.ProjectRulesDialog), { loading: () => null })
+const ProjectSlaDialog = dynamic(() => loadRuleDialogs().then((m) => m.ProjectSlaDialog), { loading: () => null })
+const TriageSettings = dynamic(() => loadRuleDialogs().then((m) => m.TriageSettings), { loading: () => null })
 const ProjectAccessDialog = dynamic(() => import("@/components/project/ProjectAccessDialog").then((m) => m.ProjectAccessDialog), { loading: () => null })
 const ProjectKeyTypesDialog = dynamic(() => import("@/components/project/ProjectKeyTypesDialog").then((m) => m.ProjectKeyTypesDialog), { loading: () => null })
 const ProjectLinksDialog = dynamic(() => import("@/components/project/ProjectLinksDialog").then((m) => m.ProjectLinksDialog), { loading: () => null })
@@ -62,10 +72,11 @@ function warmTools() {
   void import("@/components/project/ProjectAccessDialog")
   void import("@/components/project/ProjectKeyTypesDialog")
   void import("@/components/project/ProjectLinksDialog")
+  void loadRuleDialogs()
 }
 const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
-type ToolKey = "time" | "rules" | "links" | "forms" | "share" | "template" | "access" | "keys" | "templates"
+type ToolKey = "time" | "rules" | "links" | "sla" | "forms" | "share" | "template" | "access" | "keys" | "templates" | "triage"
 export interface ProjectTool {
   key: ToolKey
   label: string
@@ -77,25 +88,34 @@ export interface ProjectTool {
  * The project's dialog tools, as data plus their dialogs: the phone draws them
  * as icon buttons (ProjectToolButtons), the desktop header lists them in its
  * "⋯" menu (ProjectActionsMenu). Either way the dialogs live outside the
- * trigger, so a menu closing does not take the dialog with it.
+ * trigger, so a menu closing does not take the dialog with it. `drawn`: shown
+ * at once, no menu; else `look` when someone is about to.
  */
-export function useProjectTools({ projectId, projectName, isAdmin, isMember }: { projectId: string; projectName?: string; isAdmin: boolean; isMember: boolean }) {
+export function useProjectTools({ projectId, projectName, isAdmin, isMember, drawn = false }: { projectId: string; projectName?: string; isAdmin: boolean; isMember: boolean; drawn?: boolean }) {
   const [open, setOpen] = useState<ToolKey | null>(null)
   const params = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
   const asked = params?.get("tool")
   const allowed = isAdmin || isMember
+  // SLAs (linear-24 W2): offered once the project's SLA settings came back, on or off; a guest's 403 offers none.
+  // Read once the tools are looked at or ?tool=sla asks, never on the page's first load (CR-346 F1).
+  const [pointed, setPointed] = useState(false)
+  const look = useCallback(() => setPointed(true), [])
+  const looked = useLatch(drawn || pointed || asked === "sla")
+  const sla = useSlaView(projectId, allowed && looked)
+  // What the lazy settings dialogs read and write through: their chunks import none of the shared core (app/slaLazy.test).
+  const calls = useProjectCalls(projectId)
   useEffect(() => {
     // Waits for the project's info: until it says who this is, it's nobody.
-    const opens = ((asked === "time" || asked === "rules" || asked === "links") && allowed) || (asked === "access" && isAdmin)
+    const opens = ((asked === "time" || asked === "rules" || asked === "links") && allowed) || (asked === "sla" && sla.read) || ((asked === "access" || asked === "triage") && isAdmin)
     if (!opens) return
     setOpen(asked as ToolKey)
     const rest = new URLSearchParams(params?.toString() ?? "")
     rest.delete("tool")
     const q = rest.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
-  }, [asked, allowed, isAdmin, params, pathname, router])
+  }, [asked, allowed, isAdmin, sla.read, params, pathname, router])
 
   const set = (which: ToolKey) => (o: boolean) => setOpen(o ? which : null)
   // The project's links (basecamp-16): the home's strip reads the same list, so it is asked for once.
@@ -111,11 +131,14 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
     tool("time", "Time logged on this project", Clock),
     tool("rules", "Rules that run work", Workflow),
     tool("links", "Links", Link2),
+    ...(sla.read ? [tool("sla", "SLAs", Timer)] : []),
     ...(isAdmin ? [
       tool("forms", "Intake forms", ClipboardList),
       tool("share", "Share with a client", Globe),
       tool("template", "Save as a template", LayoutTemplate),
       tool("access", "Who can change tasks", ShieldCheck),
+      // Triage (linear-21 H3): its admins switch it here, since the tab is drawn only while it is on.
+      tool("triage", "Triage", Inbox),
       tool("keys", "Key and types", Hash),
       tool("templates", "Task templates", Layers),
     ] : []),
@@ -128,16 +151,18 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
       {isAdmin && was("forms") && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
       {isAdmin && was("share") && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
       {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
-      {isAdmin && was("access") && <ProjectAccessDialog projectId={projectId} open={open === "access"} onOpenChange={set("access")} />}
+      {sla.read && was("sla") && <ProjectSlaDialog projectId={projectId} calls={calls} open={open === "sla"} onOpenChange={set("sla")} />}
+      {isAdmin && was("access") && <ProjectAccessDialog projectId={projectId} calls={calls} open={open === "access"} onOpenChange={set("access")} />}
+      {isAdmin && was("triage") && <TriageSettings projectId={projectId} calls={calls} open={open === "triage"} onOpenChange={set("triage")} />}
       {isAdmin && was("keys") && <ProjectKeyTypesDialog projectId={projectId} open={open === "keys"} onOpenChange={set("keys")} />}
       {open === "templates" && <TemplatesDialog http={axiosInstance} projectId={projectId} onClose={() => setOpen(null)} />}
     </>
   )
-  return { allowed, tools, dialogs }
+  return { allowed, tools, dialogs, look }
 }
 
 export function ProjectToolButtons(props: { projectId: string; projectName?: string; isAdmin: boolean; isMember: boolean }) {
-  const { allowed, tools, dialogs } = useProjectTools(props)
+  const { allowed, tools, dialogs } = useProjectTools({ ...props, drawn: true })
   if (!allowed) return null
   return (
     <>
@@ -204,8 +229,11 @@ export function ProjectActionsMenu({
 }) {
   const manage = access?.manage ?? isAdmin
   const people = access?.manage_people ?? isAdmin
+  const calendar = useContainerCalendar("project", projectId)
   const archives = access?.archive ?? isAdmin
-  const { allowed, tools: allTools, dialogs } = useProjectTools({ projectId, projectName, isAdmin: manage, isMember })
+  const { allowed, tools: allTools, dialogs, look } = useProjectTools({ projectId, projectName, isAdmin: manage, isMember })
+  // The SLAs entry waits for the SLA settings: asked as a pointer or the focus comes (code warmed too), or it opens.
+  const warm = () => (warmTools(), look())
   const tools = allowed ? allTools : []
   // Archive from the project itself (PTC-13); it was only on the team's page
   // and the phone's long press. An archived project leaves the person's
@@ -255,9 +283,9 @@ export function ProjectActionsMenu({
       {(rest.length > 0 || manage || people || archives || mine || !!extra?.length || !!notifications) && (<>
       {/* Not modal: an item opens a dialog, and a modal menu closing over it
           can leave the page unclickable. */}
-      <DropdownMenu modal={false}>
+      <DropdownMenu modal={false} onOpenChange={(o) => o && look()}>
         <DropdownMenuTrigger asChild>
-          <Button size="icon-sm" variant="ghost" aria-label="Project actions" title="Project actions" onPointerEnter={warmTools} onFocus={warmTools}>
+          <Button size="icon-sm" variant="ghost" aria-label="Project actions" title="Project actions" onPointerEnter={warm} onFocus={warm}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -268,6 +296,10 @@ export function ProjectActionsMenu({
               {label}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuItem onSelect={() => void calendar.open()} disabled={calendar.busy}>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            Project calendar
+          </DropdownMenuItem>
           {(manage || people) && onRename && onMembers && (
             <>
               {rest.length > 0 && <DropdownMenuSeparator />}

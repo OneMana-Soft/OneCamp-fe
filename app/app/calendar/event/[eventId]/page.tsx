@@ -57,9 +57,9 @@ export default function MobileEventPage() {
 
     return (
         <div className="flex flex-col h-full bg-background">
-            <main className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
                 <EventInfoPanel eventUUID={eventId} onClose={handleClose} editRequest={editing ? 1 : undefined} />
-            </main>
+            </div>
         </div>
     );
 }

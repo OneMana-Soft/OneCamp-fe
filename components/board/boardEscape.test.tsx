@@ -18,6 +18,12 @@ import type { AppState } from "@excalidraw/excalidraw/types"
 
 const root = realpathSync(path.dirname(path.dirname(path.dirname(createRequire(import.meta.url).resolve("@excalidraw/excalidraw")))))
 
+// The patch writes this line into each build's index.js next to its rule. A node_modules installed without the patch
+// (an older install copied in, as an archive copy's may be) fails on it first, by the patch's name, and not on an idle
+// Escape below as if finalize had drifted.
+const PATCH = "patches/@excalidraw__excalidraw@0.18.1.patch"
+const PATCHED = "OneCamp (miro-28)"
+
 type KeyTest = (event: Pick<KeyboardEvent, "key">, appState: AppState) => boolean
 
 const propName = (p: ts.ObjectLiteralElementLike) => (ts.isPropertyAssignment(p) && ts.isIdentifier(p.name) ? p.name.text : undefined)
@@ -25,7 +31,13 @@ const propName = (p: ts.ObjectLiteralElementLike) => (ts.isPropertyAssignment(p)
 /** finalize's keyTest as one build of the installed package runs it: the last `<finalize>.keyTest = …` at the module's
  *  top level, else the keyTest in finalize's own object (the action manager reads it from that object on each key). */
 function finalizeKeyTest(build: "dev" | "prod"): KeyTest {
-  const src = readFileSync(path.join(root, "dist", build, "index.js"), "utf8")
+  const index = path.join(root, "dist", build, "index.js")
+  const src = readFileSync(index, "utf8")
+  expect(
+    src.includes(PATCHED),
+    `Excalidraw's ${build} build (${index}) is installed without the repo's ${PATCH} (no "${PATCHED}" line): this ` +
+      "node_modules came from another install. Reinstall it from the lockfile: pnpm install --frozen-lockfile",
+  ).toBe(true)
   const file = ts.createSourceFile("index.js", src, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS)
   let action: string | undefined
   let rule: ts.Expression | undefined

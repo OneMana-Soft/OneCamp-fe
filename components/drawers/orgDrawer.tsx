@@ -23,6 +23,10 @@ import { PhoneMark } from "@/components/navigationBar/mobile/phoneMark"
 import { destinationHue } from "@/lib/destinationHue"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
 import { useSheetHandoff } from "@/components/drawers/sheetHandoff"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+
+// The plan and its seats, for admins (SHELL-15): the menu's row, as a sheet row.
+const PlanSheetRow = lazyPart(() => import("@/components/navigationBar/planParts").then((m) => m.PlanSheetRow)).Part
 
 /**
  * Where "Help and docs" goes: the docs on the product's site
@@ -79,6 +83,7 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
                             {host && <p className="truncate text-2xs text-ink-3">{host}</p>}
                         </div>
                     </div>
+                    {selfProfile.data?.data.user_is_admin && <PlanSheetRow onGo={closeDrawer} />}
                     <DrawerItem
                         icon={ClipboardList}
                         label="Projects"

@@ -80,11 +80,27 @@ describe("showing a project's cycles in your calendar", () => {
     expect((screen.getByRole("button", { name: "Make a link" }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it("says the server's reason when the workspace turned links off", async () => {
-    feed({ live: false })
-    post.mockRejectedValue({ isAxiosError: true, response: { status: 400, data: { msg: "Your workspace has turned off links to calendars." } } })
+  // basecamp-05: the link's read says when the workspace has turned links off (links_allowed), and the shared
+  // link dialog says so plainly and offers nothing to make, before anything is pressed.
+  it("with links off for the workspace, says so plainly and offers no link to make, before anything is pressed", () => {
+    feed({ live: false, links_allowed: false })
+    render(<CycleFeedDialog projectId="p-1" onClose={() => {}} />)
+    expect(screen.getByText(/Links to other apps are off for this workspace/)).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Make a/ })).toBeNull()
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it("when links are turned off while it is open, a refused link reads the link again and says so", async () => {
+    feed({ live: false, links_allowed: true })
+    post.mockRejectedValue({ isAxiosError: true, response: { status: 400, data: { msg: "Bad request" } } })
+    answers.mutate.mockImplementation(async () => {
+      feed({ live: false, links_allowed: false })
+      return { data: { live: false, links_allowed: false } }
+    })
     render(<CycleFeedDialog projectId="p-1" onClose={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: "Make a link" }))
-    expect((await screen.findByRole("alert")).textContent).toMatch(/turned off links to calendars|couldn't be made/)
+    expect(await screen.findByText(/Links to other apps are off for this workspace/)).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Make a/ })).toBeNull()
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 })

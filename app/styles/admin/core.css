@@ -63,7 +63,7 @@
     padding: 14px 16px;
   }
   .set-card > .set-row + .set-row::before,
-  .set-card > * + .set-row::before,
+  .set-card > .set-row:where(:not(:first-child))::before,
   .set-rows > .set-row + .set-row::before {
     content: "";
     position: absolute;

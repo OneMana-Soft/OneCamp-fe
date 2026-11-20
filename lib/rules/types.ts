@@ -14,6 +14,8 @@ export type RuleTrigger =
   | "task_overdue"
   | "form_submitted"
   | "approval_decided"
+  /** Work comes to wait in the project's triage (linear-21 H2, business/Workflow arrival.go). */
+  | "task_arrived"
 
 export type RuleActionType =
   | "set_status"
@@ -26,9 +28,11 @@ export type RuleActionType =
   | "reply"
   | "create_task"
   | "ask_agent"
+  /** Accept arriving work into a status, or decline it with a reason (task_arrived rules only). */
+  | "triage"
 
-export type AssignHow = "person" | "round_robin" | "least_loaded" | "creator" | "actor" | "nobody"
-export type NotifyWhom = "assignee" | "creator" | "actor" | "people"
+export type AssignHow = "person" | "round_robin" | "least_loaded" | "creator" | "actor" | "nobody" | "on_duty"
+export type NotifyWhom = "assignee" | "creator" | "actor" | "people" | "on_duty"
 export type Priority = "low" | "medium" | "high"
 export type WatchedField = "priority" | "due" | "tags" | "name"
 
@@ -45,9 +49,11 @@ export interface RuleAction {
   project_id?: string
   /** ask_agent: the AI teammate asked (its principal's user id); none asks OneCamp AI. */
   agent_id?: string
+  /** triage: accept (into status, or as it is when none) or decline (text is the reason the requester is told). */
+  decision?: "accept" | "decline"
 }
 
-export type ConditionField = "priority" | "status" | "assignee" | "tags" | "name" | "due" | "creator"
+export type ConditionField = "priority" | "status" | "assignee" | "tags" | "name" | "due" | "creator" | "source"
 export type ConditionOp =
   | "is"
   | "is_not"

@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useDispatch, useStore } from "react-redux"
+import { useDispatch, useSelector, useStore } from "react-redux"
+import { useSWRConfig } from "swr"
 
+import { useLayoutOnce } from "@/components/task/useLayoutOnce"
 import { useFetch } from "@/hooks/useFetch"
 import type { AxiosRequestConfig } from "axios"
 import { hasPageAfter, pagesToCome } from "@/lib/http/pageCount"
-import { createListForTaskInfo } from "@/store/slice/taskInfoSlice"
+import { clearTaskListVisibleInfo, createListForTaskInfo } from "@/store/slice/taskInfoSlice"
 import type { RootState } from "@/store/store"
 import type { TaskInfoInterface } from "@/types/task"
 
@@ -14,6 +16,9 @@ import type { TaskInfoInterface } from "@/types/task"
 export const TASK_PAGE = 500
 
 type Read<A> = { data?: A; isLoading: boolean; isError: unknown; mutate: () => Promise<unknown> }
+
+const NO_TASKS: TaskInfoInterface[] = []
+const firstPageIn = new WeakMap<object, { address: string; read: Read<unknown>; list: unknown }>()
 
 /** The pages' tasks in order, each once. A `fresh` page gives its answer's; the rest keep the list's, with what reached it since. */
 export function joinPages(rows: TaskInfoInterface[][], fresh: (page: number) => boolean, listed: readonly TaskInfoInterface[]) {
@@ -40,12 +45,18 @@ function PageReader<A>({ address, index, onRead, requestConfig }: { address: str
  * A task table's tasks into the shared list, a page at a time: one more per
  * "Show more" while the last pageCount has one after it. Another `address`
  * (path and query, with pageSize) starts again. `tasksOf` must be stable.
+ * Once per `scope`, the shared list is kept if its first page left it and SWR still has
+ * that answer, else emptied.
  */
 /** requestConfig: how each page is asked (a project's, in the reader's zone: lib/tasks/readerZone). */
-export function useTaskPages<A extends { pageCount?: number }>(address: string, tasksOf: (answer: A) => TaskInfoInterface[] | undefined, requestConfig?: AxiosRequestConfig) {
+export function useTaskPages<A extends { pageCount?: number }>(scope: string, address: string, tasksOf: (answer: A) => TaskInfoInterface[] | undefined, requestConfig?: AxiosRequestConfig) {
   const dispatch = useDispatch()
   const store = useStore<RootState>()
-  const [state, setState] = useState({ address, wanted: 0, reads: [] as (Read<A> | undefined)[] })
+  const slot = useSelector((s: RootState) => s.TaskInfo.taskListVisibleInfo || NO_TASKS)
+  const { cache } = useSWRConfig()
+  const held = firstPageIn.get(store)
+  const mine = held?.address === address && held.list === slot && cache.get(`${address}&pageIndex=0`)?.data === held.read.data
+  const [state, setState] = useState({ address, wanted: 0, reads: (mine ? [held.read] : []) as (Read<A> | undefined)[] })
   let pages = state
   if (state.address !== address) setState((pages = { address, wanted: 0, reads: [] }))
 
@@ -62,8 +73,13 @@ export function useTaskPages<A extends { pageCount?: number }>(address: string, 
     [],
   )
 
+  const took = useRef("")
+  useLayoutOnce(scope, () => {
+    took.current = scope
+    if (!mine) dispatch(clearTaskListVisibleInfo())
+  })
   // Once per changed answer; `built` holds the answers last put in.
-  const built = useRef({ address, answers: [] as A[] })
+  const built = useRef({ address, answers: state.reads.map((r) => r!.data!) })
   useEffect(() => {
     if (state.address !== address) return
     const answers: A[] = []
@@ -72,7 +88,9 @@ export function useTaskPages<A extends { pageCount?: number }>(address: string, 
     if (!answers.length || (answers.length === was.length && answers.every((a, i) => a === was[i]))) return
     built.current = { address, answers }
     const now = store.getState().TaskInfo.taskListVisibleInfo ?? []
-    dispatch(createListForTaskInfo({ tasksInfo: joinPages(answers.map((a) => tasksOf(a) ?? []), (i) => answers[i] !== was[i], now) }))
+    const tasksInfo = joinPages(answers.map((a) => tasksOf(a) ?? []), (i) => answers[i] !== was[i], now)
+    if (answers.length === 1) firstPageIn.set(store, { address, read: state.reads[0]!, list: tasksInfo })
+    dispatch(createListForTaskInfo({ tasksInfo }))
   }, [state, address, store, dispatch, tasksOf])
 
   const first = pages.reads[0]
@@ -93,6 +111,7 @@ export function useTaskPages<A extends { pageCount?: number }>(address: string, 
   }, [failed, last])
 
   return {
+    tasks: took.current === scope || mine ? slot : NO_TASKS,
     /** Render under the table; they draw nothing. */
     readers: address ? Array.from({ length: pages.wanted + 1 }, (_, i) => <PageReader<A> key={i} address={address} index={i} onRead={onRead} requestConfig={requestConfig} />) : null,
     first,

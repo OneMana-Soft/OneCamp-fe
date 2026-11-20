@@ -18,11 +18,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Building2, Check, ChevronDown, Clock, Globe, Link, Lock, ShieldCheck, Users, X } from "@/lib/icons"
+import { Building2, Check, ChevronDown, Clock, Globe, Link, Lock, ShieldCheck, Users, X, type LucideIcon } from "@/lib/icons"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { ACCESS_LEVEL_LABEL } from "@/lib/docAccess"
+import { saidHere } from "@/lib/http/saidHere"
 import type { AccessLevel } from "@/types/docAccess"
 import type { UserProfileDataInterface } from "@/types/user"
 import { MenuCheck } from "@/components/ui/menuCheck"
@@ -213,7 +214,7 @@ export function AccessCard({
         <div className="min-w-0 flex-1">
           {options && onChange && !disabled ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex max-w-full items-start gap-1 rounded-sm text-left text-ui font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <DropdownMenuTrigger data-touch-target="" className="inline-flex max-w-full items-start gap-1 rounded-sm text-left text-ui font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand">
                 <span className="line-clamp-2 text-pretty">{label}</span>
                 <ChevronDown className="mt-[3px] size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
               </DropdownMenuTrigger>
@@ -243,9 +244,20 @@ export function AccessCard({
 
 /**
  * Copy link: a secondary sm button with the link icon; it says "Copied" with
- * a moss check for 1.5 s, the icon swapping on the spring.
+ * a moss check for 1.5 s, the icon swapping on the spring. A secret that must
+ * not read as a page to share passes its own icon (a key).
  */
-export function CopyLinkButton({ href, label = "Copy link", className }: { href?: string; label?: string; className?: string }) {
+export function CopyLinkButton({
+  href,
+  label = "Copy link",
+  className,
+  icon: Icon = Link,
+}: {
+  href?: string
+  label?: string
+  className?: string
+  icon?: LucideIcon
+}) {
   const [copied, setCopied] = React.useState(false)
   return (
     <Button
@@ -261,7 +273,7 @@ export function CopyLinkButton({ href, label = "Copy link", className }: { href?
       {copied ? (
         <Check key="ok" className="content-pop-in size-3.5 text-[var(--camp-moss-ink)]" aria-hidden="true" />
       ) : (
-        <Link key="link" className="size-3.5" aria-hidden="true" />
+        <Icon key="link" className="size-3.5" aria-hidden="true" />
       )}
       {copied ? "Copied" : label}
     </Button>
@@ -339,8 +351,9 @@ export function ShareTokenInvite({
     try {
       await onInvite(picked, role)
       setPicked([])
-    } catch {
-      setError("Couldn't invite them. Try again.")
+    } catch (e) {
+      // A refusal in the server's words (an editor's invite past their own level, say).
+      setError(saidHere(e, "Couldn't invite them. Try again."))
     } finally {
       setBusy(false)
     }
@@ -399,7 +412,7 @@ export function ShareTokenInvite({
             aria-expanded={shown.length > 0}
             aria-controls={listId}
             aria-activedescendant={shown[active] ? `${listId}-${shown[active].user_uuid}` : undefined}
-            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 @max-[420px]:basis-full max-sm:text-base"
+            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 @max-[420px]:basis-full max-sm:text-base pointer-coarse:h-11"
           />
           {roles.length > 1 && (
           <DropdownMenu>
@@ -769,7 +782,7 @@ export function InviteRow({
             aria-expanded={options.length > 0}
             aria-controls={listId}
             aria-activedescendant={options[active] ? `${listId}-${options[active].id}` : undefined}
-            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 @max-[420px]:basis-full max-sm:text-base"
+            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 @max-[420px]:basis-full max-sm:text-base pointer-coarse:h-11"
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

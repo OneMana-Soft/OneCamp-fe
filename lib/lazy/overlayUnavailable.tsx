@@ -4,17 +4,16 @@ import { useEffect } from "react"
 import { toast } from "@/hooks/use-toast"
 import { useStableCallback } from "@/hooks/useStableCallback"
 
-/**
- * An overlay (a dialog, a sheet) whose code couldn't come as it opened:
- * lazyPart's failed part for one. It says so in a toast and closes, so the
- * button that opened it is free again, and the next open fetches the code
- * again. Once each time it's drawn: a parent that redraws with a new onClose
- * doesn't say it twice.
- */
+// One toast per overlay (DB-151): a repeat failure replaces it; its code coming (overlayCame) takes it down.
+const said = new Map<string, { dismiss(): void }>()
+export const overlayCame = (title: string) => said.get(title)?.dismiss()
+
+/** A lazy overlay whose code couldn't come as it opened: it says so, once per draw, and closes, freeing its opener. */
 export function OverlayUnavailable({ title, onClose }: { title: string; onClose: () => void }) {
   const close = useStableCallback(onClose)
   useEffect(() => {
-    toast({ title, description: "Check your connection, then try again.", variant: "destructive" })
+    overlayCame(title)
+    said.set(title, toast({ title, description: "Check your connection, then try again.", variant: "destructive" }))
     close()
   }, [title, close])
   return null

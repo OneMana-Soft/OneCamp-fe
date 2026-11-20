@@ -3,7 +3,8 @@
 import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import { useCallback, useLayoutEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
-import { Calendar as CalendarIcon, Ellipsis, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
+import { Calendar as CalendarIcon, CircleCheck, Ellipsis, Flag, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
+import Link from "next/link";
 import { Popover, PopoverAnchor } from "@/components/ui/popover";
 import { anchorTo } from "@/components/ui/anchor";
 import { BesideBlockContent } from "@/components/ui/besideBlock";
@@ -119,10 +120,11 @@ function cardInfo(event: CalendarEventInterface, now: Date, selfId: string | und
   const google = event.event_uuid.startsWith("gcal-");
   const guests = eventGuests(event, selfId);
   // Yours when you made it (or nobody is named: the calendar's own copy).
-  const mine = !event.event_created_by || (!!selfId && event.event_created_by.user_uuid === selfId);
+  // An entry its calendar fills itself with (gcal-14) is nobody's to change here: its source is.
+  const mine = !event.event_source && (!event.event_created_by || (!!selfId && event.event_created_by.user_uuid === selfId));
   const asks = asksAnswer(event, guests, selfId, when.tone === "ended");
   // On a calendar you subscribe to (B8): yours to see, changed only where it's published.
-  const readOnly = !!event.event_read_only;
+  const readOnly = !!event.event_read_only || !!event.event_source;
   // Its own time, where it keeps a zone you aren't in (calendar head 6).
   const ownZone = ownZoneLine(event, start, end, browserTZ());
   return { start, end, allDay, when, ownZone, link, call, join: joinOffer(link, start, end, now), google, notes: plainNotes(event.event_description), guests, mine, asks, readOnly };
@@ -165,8 +167,8 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull, onOpenTa
     return (
       <Drawer open={!!event} onOpenChange={close} detent="medium">
         {shown && info ? (
-          // A card that asks "Going?" keeps it at the sheet's foot: that edge never fades (app/interaction.css, V-619).
-          <DrawerContent aria-describedby={undefined} data-event-card="" data-event-sheet="" data-pinned-foot={info.asks ? "" : undefined} onInteractOutside={stayBehindConfirm}>
+          // Every card keeps its footer (Going?, Open details, the source's link) at the sheet's foot: that edge never fades (app/interaction.css, V-619).
+          <DrawerContent aria-describedby={undefined} data-event-card="" data-event-sheet="" data-pinned-foot="" onInteractOutside={stayBehindConfirm}>
             <EventCard event={shown} info={info} phone onClose={onClose} onOpenFull={onOpenFull} onOpenTask={onOpenTask} onAnswer={onAnswer} mutateEvents={mutateEvents} />
           </DrawerContent>
         ) : null}
@@ -257,6 +259,15 @@ function EventCard({
   const callChoice = eventCallChoice(event, { mayChange: info.mine && !info.readOnly, google: info.google, ended: info.when.tone === "ended" });
   const callActions = useEventCallActions(event.event_uuid, () => mutateEvents?.());
   const organiser = event.event_created_by;
+  // Filled in from the work (gcal-14): the card opens its source, a task beside the calendar as the calendar opens one.
+  const src = event.event_source;
+  const openSource = (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (src?.kind === "task" && onOpenTask && !wantsNewTab(e)) {
+      e.preventDefault();
+      onOpenTask(src.id);
+    }
+    onClose();
+  };
   // On the sheet, vaul's Title gives the heading its id: an id left undefined
   // here would take it away.
   const title = (
@@ -274,6 +285,10 @@ function EventCard({
           <StatusGlyph status={taskGlyphStatus(event.event_task?.task_status)} size={12} className="mt-1 shrink-0" />
         ) : kind === "away" ? (
           <Plane className="mt-1 size-3 shrink-0 text-ink-3" aria-hidden="true" />
+        ) : src?.kind === "milestone" ? (
+          <Flag className="mt-1 size-3 shrink-0 text-ink-2" aria-hidden="true" />
+        ) : src?.kind === "task" ? (
+          <CircleCheck className="mt-1 size-3 shrink-0 text-ink-2" aria-hidden="true" />
         ) : (
           <span aria-hidden="true" data-own-hue={mark.own} style={mark.style} className={cn(mark.className, "mt-1 size-3 shrink-0 rounded-[3px] bg-hue")} />
         )}
@@ -286,7 +301,7 @@ function EventCard({
               <Pencil />
             </Button>
           ) : null}
-          <MenuOnDemand
+          {src ? null : <MenuOnDemand
             menu={(own) => (
               <DropdownMenuContent {...own} align="end" className="w-44">
                 <DropdownMenuItem onSelect={() => onOpenFull(event.event_uuid)}>Open</DropdownMenuItem>
@@ -300,7 +315,7 @@ function EventCard({
             <Button variant="ghost" size="icon-sm" aria-label="More">
               <Ellipsis />
             </Button>
-          </MenuOnDemand>
+          </MenuOnDemand>}
           <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
             <X />
           </Button>
@@ -390,6 +405,13 @@ function EventCard({
             </dd>
           </div>
         ) : null}
+        {src ? (
+          <div className="flex min-h-7 min-w-0 items-center gap-2.5" data-card-source={src.kind}>
+            <dt className="sr-only">From</dt>
+            <span aria-hidden="true" className="size-4 shrink-0" />
+            <dd className="min-w-0 truncate text-ui-sm text-ink-2">{src.from} · filled in for you, read only</dd>
+          </div>
+        ) : null}
         <div className="flex min-h-7 items-center gap-2.5">
           <dt className="sr-only">Calendar</dt>
           <CalendarIcon className="size-4 shrink-0 text-ink-3" aria-hidden="true" />
@@ -424,10 +446,18 @@ function EventCard({
           <GoingControl answer={info.guests.mine} onAnswer={(a) => onAnswer(event, a)} touch={phone} />
         </div>
       ) : (
-        <div className="flex items-center justify-end gap-1 border-t border-line px-3 py-2" data-card-footer="">
-          <Button variant="ghost" size="xs" onClick={() => onOpenFull(event.event_uuid)}>
-            Open details
-          </Button>
+        <div className={cn("flex items-center justify-end gap-1 border-t border-line px-3 py-2", phone && "sticky bottom-0 bg-pop")} data-card-footer="">
+          {src ? (
+            <Button asChild variant="ghost" size="xs">
+              <Link href={src.href} onClick={openSource} data-card-source-link="">
+                {src.open}
+              </Link>
+            </Button>
+          ) : (
+            <Button variant="ghost" size="xs" onClick={() => onOpenFull(event.event_uuid)}>
+              Open details
+            </Button>
+          )}
         </div>
       )}
     </>

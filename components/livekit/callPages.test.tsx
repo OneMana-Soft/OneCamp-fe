@@ -206,7 +206,7 @@ describe("CALL-BUG-23: a call that never connected says so, with Try again", () 
     render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
     await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
-    expect(conference.transcriptionConfig).toEqual({ mode: "frontend", where: undefined, language: "de-DE" })
+    expect(conference.transcriptionConfig).toEqual({ mode: "frontend", where: undefined, language: "de-DE", offReason: undefined, admin: false })
   })
 })
 

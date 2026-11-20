@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { LAYERED_SCRIM, footIsGutter, scrimOverLayerBelow, scrollsInItsBody, topScrimFill } from "./sheetLayout"
-import { reviewShot, stubBackend, withStatus } from "./stubbedApp"
+import { SAM, reviewShot, stubBackend, withStatus } from "./stubbedApp"
 import { BUSY_LOOK, FIELD_LOOK, busyPrimaryLook, disabledPrimaryLook } from "./controlLook"
 import { animationsSettled } from "./settled"
 import { expectTouchSize } from "./touchTarget"
@@ -19,8 +19,15 @@ const CALENDARS = [
   { id: "cal-launch", name: "Launch", kind: "project", container_kind: "project", container_id: "p-launch", access: "edit" },
 ]
 
-/** What the server answers for Personal's link: none yet, a live one, or a failed read. */
-type Feed = "none" | "live" | "fails"
+const ASHA = { user_uuid: "u-asha", user_name: "Asha Rao", user_full_name: "Asha Rao", user_profile_object_key: "" }
+/** The link to everything you can see, which a workspace admin stopped (basecamp-05). */
+const STOPPED = { live: false, most: "full", stopped_by: ASHA, stopped_at: new Date(2026, 9, 19, 16).toISOString() }
+
+/**
+ * What the server answers for Personal's link: none yet, a live one, a failed
+ * read, or a live one in a workspace that has turned links off (links_allowed).
+ */
+type Feed = "none" | "live" | "fails" | "off"
 
 /** `made`: the link is made when it settles (a slow server), at once without it. */
 /** Answers the test holds back until it lets them go: the link's read, and its stop. */
@@ -32,15 +39,11 @@ interface Held {
 async function open(page: Page, testInfo: TestInfo, feed: Feed = "none", made?: Promise<void>, held: Held = {}) {
   const puts: unknown[] = []
   await page.clock.setFixedTime(NOW)
-  await stubBackend(page, testInfo, {
-    "/event/getEvents": { msg: "ok", data: [] },
-    "/integration/google-calendar/status": { msg: "ok", data: { isConnected: false } },
-    "/user/assignedTaskList": { msg: "ok", data: { user_tasks: [] } },
-    "/event/bookingPages": { msg: "ok", data: [] },
-    "/calendar/calendars/events": { msg: "ok", data: [], truncated: false },
-    "/calendar/calendars/cal-me/feed": async (_url: URL, request: Request) => {
+  // A calendar's own link: Personal's, or a project's (basecamp-05 head 3), answered alike;
+  // each link made is kept with the path it was made on.
+  const calendarFeed = async (url: URL, request: Request) => {
       if (request.method() === "PUT") {
-        puts.push(request.postDataJSON())
+        puts.push({ path: url.pathname, ...request.postDataJSON() })
         await made
         return { msg: "ok", data: { live: true, url: "https://api.onecamp.example/public/calendar/7rKq2mX9vN4pL8sT1wY6zB3cF5hJ0dG.ics", scope: "full", most: "full", created_at: NOW.toISOString() } }
       }
@@ -50,8 +53,28 @@ async function open(page: Page, testInfo: TestInfo, feed: Feed = "none", made?: 
       }
       if (feed === "fails") return withStatus(500, { msg: "internal error" })
       await held.read
-      return { msg: "ok", data: feed === "live" ? { live: true, scope: "busy", most: "full", created_at: new Date(2026, 9, 18, 9).toISOString() } : { live: false, most: "full" } }
-    },
+      return {
+        msg: "ok",
+        data:
+          feed === "none"
+            ? { live: false, most: "full" }
+            : { live: true, scope: "busy", most: "full", created_at: new Date(2026, 9, 18, 9).toISOString(), ...(feed === "off" ? { links_allowed: false } : {}) },
+      }
+    }
+  await stubBackend(page, testInfo, {
+    "/event/getEvents": { msg: "ok", data: [] },
+    "/integration/google-calendar/status": { msg: "ok", data: { isConnected: false } },
+    "/user/assignedTaskList": { msg: "ok", data: { user_tasks: [] } },
+    "/event/bookingPages": { msg: "ok", data: [] },
+    "/calendar/calendars/events": { msg: "ok", data: [], truncated: false },
+    "/calendar/calendars/cal-me/feed": calendarFeed,
+    "/calendar/calendars/cal-launch/feed": calendarFeed,
+    // basecamp-05: the link to everything you can see; an admin stopped the last one.
+    "/calendar/calendars/workspace/feed": (_url: URL, request: Request) =>
+      request.method() === "PUT"
+        ? (puts.push({ workspace: true, ...request.postDataJSON() }),
+          { msg: "ok", data: { live: true, url: "https://api.onecamp.example/public/calendar/Qe8rT2yU5iO9pA3sD6fG1hJ4kL7zX0cV.ics", scope: "full", most: "full", created_at: NOW.toISOString() } })
+        : { msg: "ok", data: STOPPED },
     "/calendar/calendars": { msg: "ok", data: CALENDARS },
   })
   await page.goto("/app/calendar?date=2026-10-21&view=week", { waitUntil: "domcontentloaded", timeout: 120_000 })
@@ -96,7 +119,7 @@ for (const theme of ["light", "dark"] as const) {
       // Out of the box the link shows only when it's busy; everything is a choice.
       await expect(dialog.getByRole("radio", { name: "When it's busy" })).toHaveAttribute("aria-checked", "true")
       await shot(page, "b8-feed-open", theme)
-      await dialog.getByRole("radio", { name: "Everything" }).click()
+      await dialog.getByRole("radio", { name: "Everything", exact: true }).click()
       await dialog.getByRole("button", { name: "Make a link" }).click()
       await expect.poll(() => JSON.stringify(puts)).toContain('"scope":"full"')
       await expect(dialog.getByRole("textbox", { name: "The calendar's link" })).toHaveValue(/\/public\/calendar\/.+\.ics$/)
@@ -237,6 +260,200 @@ for (const theme of ["light", "dark"] as const) {
       })
       expectTouchSize(reach, "Close under a finger")
       await shot(page, "b8-feed-phone", theme)
+    })
+  })
+}
+
+// basecamp-05: one link to everything you can see, on the same dialog, which
+// says who stopped the last one; and Settings > Permissions lists every
+// member's link for an admin (never its address), each with Stop. At 1280 and
+// on a phone (a sheet, its actions on its foot), in both themes.
+const FEEDS = [
+  { id: "f1", person: ASHA, target: "workspace", scope: "full", created_at: new Date(2026, 9, 20, 9).toISOString(), last_read_at: new Date(2026, 9, 21, 9).toISOString() },
+  { id: "f2", person: { ...ASHA, user_uuid: "u-jonas", user_name: "Jonas Berg", user_full_name: "Jonas Berg" }, target: "calendar", calendar: { id: "cal-launch", kind: "project", name: "Launch" }, scope: "busy", created_at: new Date(2026, 9, 2, 9).toISOString() },
+]
+
+for (const theme of ["light", "dark"] as const) {
+  for (const phone of [false, true]) {
+    test.describe(`calendar links for everything ${phone ? "on a phone" : "at 1280"}, ${theme}`, () => {
+      test.use(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme } : { viewport: { width: 1280, height: 900 }, colorScheme: theme })
+
+      test("the link to everything you can see says who stopped the last one, and makes a new one", async ({ page }, testInfo) => {
+        test.setTimeout(420_000)
+        const puts = await open(page, testInfo)
+        const dialog = await feedDialog(page, phone)
+        await dialog.getByRole("radio", { name: "Everything you can see" }).click()
+        await expect(dialog.getByRole("heading", { name: "Show everything you can see in another app" })).toBeVisible()
+        await expect(dialog.getByText("Asha Rao stopped this link on 19 Oct.", { exact: false })).toBeVisible()
+        if (phone) {
+          await expect(dialog).toHaveAttribute("data-v3-sheet", "")
+          await animationsSettled(dialog)
+          await footIsGutter(dialog, "the link to everything's sheet")
+          expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+        }
+        await shot(page, "bc05-everything-stopped", theme)
+        await dialog.getByRole("radio", { name: "Everything", exact: true }).click()
+        await dialog.getByRole("button", { name: "Make a link" }).click()
+        await expect.poll(() => JSON.stringify(puts)).toContain('"workspace":true,"scope":"full"')
+        await expect(dialog.getByRole("textbox", { name: "The link to everything you can see" })).toHaveValue(/\/public\/calendar\/.+\.ics$/)
+        await shot(page, "bc05-everything-made", theme)
+      })
+
+      test("an admin sees every member's calendar link, never its address, and stops one", async ({ page }, testInfo) => {
+        test.setTimeout(420_000)
+        const stopped: string[] = []
+        const policy = (key: string) => ({ key, kind: "bool", label: "", help: "", value: true, default: true, is_set: false })
+        await page.clock.setFixedTime(NOW)
+        await stubBackend(page, testInfo, {
+          "/user/profile": { msg: "ok", data: { ...SAM, user_is_admin: true } },
+          // The Calendars switches above the card read their policies, so the frame shows them, not a failed read.
+          "/admin/policies": { msg: "ok", data: [policy("calendar.freebusy.members"), policy("calendar.feeds.allowed")] },
+          "/admin/calendar/feeds": (url: URL, request: Request) =>
+            request.method() === "DELETE" ? (stopped.push(url.pathname), { msg: "ok" }) : { msg: "ok", data: { feeds: FEEDS, more: false } },
+        })
+        await page.goto("/app/admin?tab=permissions", { waitUntil: "domcontentloaded", timeout: 120_000 })
+        const card = page.locator("#permissions-calendar-links")
+        const asha = card.locator("[data-calendar-feed='f1']")
+        await expect(asha).toContainText("All calendars · Everything · Made yesterday · Last read 1h ago", { timeout: 120_000 })
+        await expect(card.locator("[data-calendar-feed='f2']")).toContainText("Launch · When it's busy · Made 2 Oct · Never read")
+        expect(await card.textContent()).not.toMatch(/https?:|\.ics/)
+        // On a phone the frame shows the first row itself, with Stop on its own line
+        // under the name (CR-326 F4), not the top of Permissions.
+        await (phone ? asha : card).scrollIntoViewIfNeeded()
+        await expect(asha).toBeInViewport()
+        if (phone) {
+          const named = await asha.getByText("Asha Rao", { exact: true }).boundingBox()
+          const stopAt = await asha.getByRole("button", { name: "Stop Asha Rao's link" }).boundingBox()
+          expect(stopAt!.y, "Stop sits on its own line under the name").toBeGreaterThanOrEqual(named!.y + named!.height)
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(phone ? 390 : 1280)
+        await reviewShot(page, "bc05-admin-links", theme)
+        await asha.getByRole("button", { name: "Stop Asha Rao's link" }).click()
+        const confirm = page.getByRole("alertdialog", { name: "Stop Asha Rao's link?" })
+        await expect(confirm).toBeVisible()
+        if (phone) {
+          await animationsSettled(confirm)
+          await footIsGutter(confirm, "Stop Asha Rao's link?")
+        }
+        await reviewShot(page, "bc05-admin-stop", theme)
+        await confirm.getByRole("button", { name: "Stop link" }).click()
+        await expect(asha).toHaveCount(0)
+        expect(stopped).toEqual(["/admin/calendar/feeds/f1"])
+        await expect(page.locator(".toast-root").filter({ hasText: "Asha Rao's link is stopped" })).toBeVisible()
+      })
+      // Feeds are bearer links: a workspace admin turns every one off with one switch (calendar.feeds.allowed).
+      test("an admin turns every calendar link off with one switch beside the links", async ({ page }, testInfo) => {
+        test.setTimeout(420_000)
+        const saved: unknown[] = []
+        const policy = (key: string, value: boolean) => ({ key, kind: "bool", label: "", help: "", value, default: true, is_set: !value })
+        let allowed = true
+        await page.clock.setFixedTime(NOW)
+        await stubBackend(page, testInfo, {
+          "/user/profile": { msg: "ok", data: { ...SAM, user_is_admin: true } },
+          "/admin/calendar/feeds": { msg: "ok", data: { feeds: FEEDS, more: false } },
+          "/admin/policies": (url: URL, request: Request) => {
+            if (request.method() !== "PUT") return { msg: "ok", data: [policy("calendar.freebusy.members", true), policy("calendar.feeds.allowed", allowed)] }
+            saved.push([url.pathname, request.postDataJSON()])
+            allowed = (request.postDataJSON() as { value: boolean }).value
+            return { msg: "ok", data: policy("calendar.feeds.allowed", allowed) }
+          },
+        })
+        await page.goto("/app/admin?tab=permissions", { waitUntil: "domcontentloaded", timeout: 120_000 })
+        const sw = page.getByRole("switch", { name: /Members can show a calendar in another app/ })
+        await expect(sw).toHaveAttribute("aria-checked", "true", { timeout: 120_000 })
+        await expect(page.locator("#permissions-calendar-links")).toBeVisible()
+        await sw.scrollIntoViewIfNeeded()
+        // What Off does comes first, and all of it fits SwitchRow's two lines (CR-326 F2).
+        const said = page.locator(`[id="${await sw.getAttribute("aria-describedby")}"]`)
+        await expect(said).toHaveText("Off stops every link at once. On, members make their own secret links.")
+        expect(await said.evaluate((el) => el.scrollHeight <= el.clientHeight + 1), "the switch's words are not cut off").toBe(true)
+        // The whole row turns it, so the row is what a finger reaches.
+        if (phone) expectTouchSize((await sw.locator("xpath=ancestor::*[contains(@class,'set-row')][1]").boundingBox())?.height, "the links switch's row under a finger")
+        await sw.click()
+        await expect(sw).toHaveAttribute("aria-checked", "false")
+        expect(saved).toEqual([["/admin/policies/calendar.feeds.allowed", { value: false }]])
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(phone ? 390 : 1280)
+        await reviewShot(page, "bc05-links-switch-off", theme)
+      })
+      test("with links off, a member's dialog says so and offers nothing to make or copy, before anything is pressed", async ({ page }, testInfo) => {
+        test.setTimeout(420_000)
+        // The link's read says the workspace has turned links off: the dialog says so as it opens.
+        const puts = await open(page, testInfo, "off")
+        const dialog = await feedDialog(page, phone)
+        await expect(dialog.getByText("Links to other apps are off for this workspace", { exact: false })).toBeVisible()
+        await expect(dialog.getByRole("button", { name: /Make a/ })).toHaveCount(0)
+        await expect(dialog.getByRole("radio")).toHaveCount(0)
+        await expect(dialog.getByRole("button", { name: "Copy" })).toHaveCount(0)
+        await expect(dialog.getByRole("button", { name: "Stop the link" })).toBeVisible()
+        if (phone) {
+          await expect(dialog).toHaveAttribute("data-v3-sheet", "")
+          await animationsSettled(dialog)
+          await footIsGutter(dialog, "the links-off sheet")
+          expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+        }
+        await shot(page, "bc05-links-off", theme)
+        await dialog.getByRole("button", { name: "Done" }).click()
+        await expect(dialog).toHaveCount(0)
+        expect(puts).toEqual([])
+      })
+    })
+  }
+}
+
+// basecamp-05 head 3: a phone makes a link to a project's calendar from beside its row in the
+// calendar options, in the same dialog as the computer's row menu: made and copied; a live one stopped.
+for (const theme of ["light", "dark"] as const) {
+  test.describe(`a project's calendar in another app on a phone, ${theme}`, () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme })
+    test("makes and copies its link from beside its row", async ({ page }, testInfo) => {
+      test.setTimeout(420_000)
+      const puts = await open(page, testInfo)
+      await page.getByRole("button", { name: "Calendar options" }).click({ timeout: 60_000 })
+      const entry = page.getByRole("button", { name: "Show Launch in another app" })
+      const box = await entry.boundingBox()
+      expectTouchSize(Math.min(box?.width ?? 0, box?.height ?? 0), "Show Launch in another app under a finger")
+      await shot(page, "h3-project-row", theme)
+      await entry.click()
+      const dialog = page.locator("[data-feed-dialog]")
+      await expect(dialog.getByText("Show \u201cLaunch\u201d in another app")).toBeVisible()
+      await dialog.getByRole("button", { name: "Make a link" }).click()
+      await expect.poll(() => puts.length).toBe(1)
+      // Made on Launch's calendar, not Personal's.
+      expect(puts[0]).toMatchObject({ path: expect.stringMatching(/\/calendar\/calendars\/cal-launch\/feed$/) })
+      const link = dialog.getByRole("textbox", { name: "The calendar's link" })
+      await expect(link).toHaveValue(/\/public\/calendar\/.+\.ics$/)
+      await dialog.getByRole("button", { name: /^Copy/ }).click()
+      // The Copied button (it reads Copied for 1.5 s) sits whole inside the sheet: the box
+      // that clips the sheet's body hides what runs past its content edge, so the sheet
+      // never scrolls and only the button's own edge shows it.
+      const copied = dialog.getByRole("button", { name: "Copied" })
+      await expect(copied).toBeVisible()
+      const fit = await copied.evaluate((b) => {
+        let box = b.parentElement
+        while (box && getComputedStyle(box).overflowX === "visible") box = box.parentElement
+        const s = box && getComputedStyle(box)
+        const edge = box && s ? box.getBoundingClientRect().right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight) : window.innerWidth
+        return { right: Math.round(b.getBoundingClientRect().right), edge: Math.round(edge) }
+      })
+      expect(fit.right).toBeLessThanOrEqual(fit.edge)
+      await shot(page, "h3-project-made", theme)
+      // Nothing on the sheet is wider than the phone.
+      const wide = await dialog.evaluate((d) => d.scrollWidth - d.clientWidth)
+      expect(wide).toBeLessThanOrEqual(0)
+      // A link just made is shown once, with Done: it's stopped from the dialog when it's opened again.
+      await dialog.getByRole("button", { name: "Done" }).click()
+      await expect(dialog).toHaveCount(0)
+    })
+    test("stops a live link from beside its row", async ({ page }, testInfo) => {
+      test.setTimeout(420_000)
+      const puts = await open(page, testInfo, "live")
+      await page.getByRole("button", { name: "Calendar options" }).click({ timeout: 60_000 })
+      await page.getByRole("button", { name: "Show Launch in another app" }).click()
+      const dialog = page.locator("[data-feed-dialog]")
+      await dialog.getByRole("button", { name: "Stop the link" }).click()
+      await expect(dialog.getByRole("button", { name: "Make a link" })).toBeVisible()
+      expect(puts).toEqual([])
+      await shot(page, "h3-project-stopped", theme)
     })
   })
 }

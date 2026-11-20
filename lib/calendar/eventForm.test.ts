@@ -15,6 +15,8 @@ import {
   nextHour,
   patchChanges,
   problemNow,
+  roomsKey,
+  roomSpan,
   remindersChanged,
   whenOf,
   withAllDay,
@@ -386,5 +388,27 @@ describe("a refused calendar", () => {
     // A save stopped by the form itself says the form's problem as it stands, as before.
     expect(problemNow({ ...v, title: "" }, { field: "title", message: "Give it a title" })).toEqual({ field: "title", message: "Give it a title" })
     expect(problemNow(v, { field: "title", message: "Give it a title" })).toBeNull()
+  })
+})
+
+// gcal-6: a room refusal holds while the same rooms stay chosen for the same
+// slot; another room, or another time, puts it right until the next save.
+describe("a refused room", () => {
+  const ATLAS = { id: "r-atlas", name: "Atlas", building: "", floor: "", capacity: 8, features: [] }
+  it("is said while the same rooms stay chosen for the same slot, and goes when either moves", () => {
+    const v = { ...newEventValues("Europe/London", NOW), title: "Crit", rooms: [ATLAS] }
+    const refused = { field: "rooms" as const, message: "Atlas is booked on 2026-10-21.", taken: true, rooms: roomsKey(v) }
+    expect(problemNow(v, refused)).toEqual(refused)
+    expect(problemNow({ ...v, rooms: [] }, refused)).toBeNull()
+    const later = (ms: number) => new Date(ms + 60 * 60_000)
+    expect(problemNow({ ...v, start: later(v.start.getTime()), end: later(v.end.getTime()) }, refused)).toBeNull()
+    expect(problemNow({ ...v, allDay: true, startDate: "2026-10-22", lastDate: "2026-10-22" }, refused)).toBeNull()
+  })
+
+  it("books whole days on the event's own clock, the end the midnight after the last day", () => {
+    const v = { ...newEventValues("Pacific/Kiritimati", NOW), allDay: true, startDate: "2026-10-20", lastDate: "2026-10-21" }
+    expect(roomSpan(v)).toEqual({ start: new Date("2026-10-19T10:00:00Z"), end: new Date("2026-10-21T10:00:00Z") })
+    const t = newEventValues("Europe/London", NOW)
+    expect(roomSpan(t)).toEqual({ start: t.start, end: t.end })
   })
 })

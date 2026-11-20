@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { useState } from "react"
 import { useReturnFocus } from "@/components/ui/returnFocus"
 import { watchInputModality } from "@/lib/ui/inputModality"
-import { OWN_ERRORS } from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Provider } from "react-redux"
 
 // A channel's details are one sheet on a computer (design v3 chat, C49): About,
@@ -54,7 +54,8 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: () => undefined, useBotKindMap: () => ({}) }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/app/channel/c1" }))
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPush }), usePathname: () => "/app/channel/c1" }))
 vi.mock("@/components/member/channelAITeammates", () => ({ default: () => null }))
 vi.mock("@/components/member/channelAIBudget", () => ({ default: () => null }))
 vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => <p>Guest link</p> }))
@@ -390,5 +391,38 @@ describe("a channel's details's close focus (V-829)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(store.getState().ui.channelDetails.isOpen).toBe(false)
     await waitFor(() => expect(document.activeElement).toBe(opener))
+  })
+})
+
+// V-1043: "Open channel calendar" went to the calendar and left this sheet
+// open over it. It closes as the calendar opens, and stays open when the
+// calendar can't be opened, so its person sees why and can try again.
+describe("a channel's details on its way to the channel's calendar (V-1043)", () => {
+  it("closes as Open channel calendar opens the calendar, and stays when it can't", async () => {
+    routerPush.mockReset()
+    const post = vi.spyOn(axiosInstance, "post")
+    const onOpenChange = vi.fn()
+    try {
+      render(
+        <Provider store={store}>
+          <TooltipProvider>
+            <ChannelDetailsSheet channelId="c1" open onOpenChange={onOpenChange} />
+          </TooltipProvider>
+        </Provider>,
+      )
+      const opener = screen.getByRole("button", { name: "Open channel calendar" })
+      post.mockRejectedValueOnce({ response: { status: 404, data: { msg: "Not found" } } })
+      fireEvent.click(opener)
+      await waitFor(() => expect(toasted).toHaveBeenCalledWith(expect.objectContaining({ title: "This channel's calendar isn't available." })))
+      expect(onOpenChange).not.toHaveBeenCalled()
+      expect(routerPush).not.toHaveBeenCalled()
+      post.mockResolvedValueOnce({ data: { data: { id: "cal-9" } } })
+      fireEvent.click(opener)
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/app/calendar?calendar=cal-9"))
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    } finally {
+      post.mockRestore()
+      routerPush.mockReset()
+    }
   })
 })

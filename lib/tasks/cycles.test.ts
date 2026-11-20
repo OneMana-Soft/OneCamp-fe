@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
-import { cycleDates, cycleLabel, nextStart, openCycles, percentDone, type Cycle } from "./cycles"
+import { carryTarget, cycleDates, cycleLabel, nextStart, openCycles, percentDone, runningCycles, type Cycle } from "./cycles"
 import { burndownChart, burndownUnits, loadNote, paceNote, velocityChart, type Burndown, type Velocity } from "./cycleBurndown"
 
 // Today is pinned (app/testClock.test.ts): a day in this year is written without its year, and these are 2026's.
@@ -24,6 +24,47 @@ describe("cycles", () => {
     const list = [c(1, "current", "2026-10-05T00:00:00", "2026-10-19T00:00:00")]
     expect(nextStart(list, new Date(2026, 9, 6))).toBe("2026-10-19")
     expect(nextStart([], new Date(2026, 9, 6))).toBe("2026-10-06")
+  })
+  // jira-04 C: a project that runs cycles side by side has two or more running at once.
+  it("lists the running cycles, the one ending first first, and with ended ones those past their end not yet completed", () => {
+    const list = [
+      c(4, "current", "2026-10-12", "2026-10-26"),
+      c(1, "completed", "2026-09-21", "2026-10-05"),
+      c(3, "current", "2026-10-05", "2026-10-19"),
+      c(5, "upcoming", "2026-10-26", "2026-11-09"),
+      c(2, "ended", "2026-09-28", "2026-10-12"),
+      { ...c(6, "current", "2026-10-05", "2026-10-19"), completed_at: "2026-10-10T00:00:00Z" },
+    ]
+    expect(runningCycles(list).map((x) => x.number)).toEqual([3, 4])
+    expect(runningCycles(list, true).map((x) => x.number)).toEqual([2, 3, 4])
+    expect(runningCycles([])).toEqual([])
+    // Two side by side are both offered to a task, ahead of the rest.
+    expect(openCycles(list).map((x) => x.number)).toEqual([3, 4, 2, 5])
+  })
+  it("lists the running cycles by when they end, not by their number", () => {
+    const list = [c(3, "current", "2026-10-05", "2026-10-26"), c(5, "current", "2026-10-08", "2026-10-17"), c(4, "ended", "2026-10-01", "2026-10-14")]
+    expect(runningCycles(list).map((x) => x.number)).toEqual([5, 3])
+    expect(runningCycles(list, true).map((x) => x.number)).toEqual([4, 5, 3])
+  })
+  // Completing a cycle carries its unfinished tasks to the first open cycle
+  // after it that shares no days with it, never one running beside it; with
+  // none, the server makes a new one. The server's rule is the same (nextCycle).
+  it("carries a cycle's unfinished tasks past the cycles that share its days, else to a new one", () => {
+    const web = c(3, "current", "2026-10-05", "2026-10-19")
+    const app = c(4, "current", "2026-10-12", "2026-10-26")
+    const next = c(5, "upcoming", "2026-10-19", "2026-11-02")
+    expect(carryTarget([app, next, web], web)?.number).toBe(5)
+    // One after another, back to back: simply the next.
+    expect(carryTarget([web, next], web)?.number).toBe(5)
+    expect(carryTarget([web, { ...next, completed_at: "2026-10-20T00:00:00Z" }], web)).toBeUndefined()
+    expect(carryTarget([web, app, next], app)).toBeUndefined()
+    expect(carryTarget([web], web)).toBeUndefined()
+  })
+  it("carries to the first of the cycles planned after it, not a later one", () => {
+    const one = c(1, "current", "2026-10-05", "2026-10-19")
+    const two = c(2, "upcoming", "2026-10-19", "2026-11-02")
+    const three = c(3, "upcoming", "2026-11-02", "2026-11-16")
+    expect(carryTarget([three, one, two], one)?.number).toBe(2)
   })
   it("counts progress", () => {
     expect(percentDone({ total: 4, done: 1 })).toBe(25)

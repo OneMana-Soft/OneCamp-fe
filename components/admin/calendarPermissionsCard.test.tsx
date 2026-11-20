@@ -7,6 +7,8 @@ import type { PolicyInfo } from "@/services/workAccessService"
 // an admin turns it off.
 
 const freeBusy = (value: boolean): PolicyInfo => ({ key: "calendar.freebusy.members", kind: "bool", label: "", help: "", value, default: true, is_set: false })
+// basecamp-05: links that show a calendar in another app, on unless an admin turns every one off.
+const feedsAllowed = (value: boolean): PolicyInfo => ({ key: "calendar.feeds.allowed", kind: "bool", label: "", help: "", value, default: true, is_set: true })
 let policies: PolicyInfo[] | undefined
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: policies ? { data: policies } : undefined, isError: false, mutate: vi.fn() }),
@@ -64,6 +66,19 @@ describe("the workspace's calendar permissions", () => {
       await offer.action!.props.onClick()
     })
     expect(put).toHaveBeenLastCalledWith("/admin/policies/calendar.freebusy.members", { value: true }, { suppressErrorToast: true })
+  })
+
+  it("shows whether members can show a calendar in another app, and turns every link on or off as it is switched", async () => {
+    policies = [freeBusy(true), feedsAllowed(false)]
+    put.mockResolvedValue({ data: { data: feedsAllowed(true) } })
+    render(<CalendarPermissionsCard />)
+    const sw = screen.getByRole("switch", { name: /Members can show a calendar in another app/ })
+    expect(sw.getAttribute("aria-checked")).toBe("false")
+    expect(screen.getByRole("switch", { name: /Members see when others are busy/ }).getAttribute("aria-checked")).toBe("true")
+    fireEvent.click(sw)
+    await waitFor(() => expect(put).toHaveBeenCalledWith("/admin/policies/calendar.feeds.allowed", { value: true }, { suppressErrorToast: true }))
+    expect(put).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(toast.mock.calls.some(([t]) => t.title === "Members can show a calendar in another app: On")).toBe(true))
   })
 
   it("says it couldn't read the setting rather than guess it", () => {

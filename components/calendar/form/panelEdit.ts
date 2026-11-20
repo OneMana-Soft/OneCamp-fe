@@ -7,5 +7,5 @@
  */
 export { EventForm } from "@/components/calendar/form/eventForm"
 export { EventExtra } from "@/components/calendar/eventExtra"
-export { eventValues, formProblem, listedValues, ownReminders, whenOf } from "@/lib/calendar/eventForm"
+export { eventValues, formProblem, listedValues, ownReminders, roomsKey, whenOf } from "@/lib/calendar/eventForm"
 export { saveEventChange, saveLegacyChange } from "@/components/calendar/form/saveEvent"

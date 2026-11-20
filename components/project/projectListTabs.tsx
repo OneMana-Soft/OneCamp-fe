@@ -33,6 +33,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useTabInAddress } from "@/components/task/keptTabs"
 import { app_task_path } from "@/types/paths"
 import { ReleasesTab } from "@/components/work/releases/ReleasesTab"
+import { TriageTab } from "@/components/work/triage/TriageTab"
+import { triageShown } from "@/lib/work/triage"
 
 /**
  * Mobile project detail tab bar: the Tasks list, the Board (one column per
@@ -41,7 +43,7 @@ import { ReleasesTab } from "@/components/work/releases/ReleasesTab"
  * `SectionTabs` primitive (Notion-style underline) so the look matches
  * channel / chat / activity tabs.
  */
-type Tab = "task" | "board" | "backlog" | "timeline" | "releases" | "updates" | "attachment" | "docs"
+type Tab = "task" | "board" | "backlog" | "timeline" | "releases" | "updates" | "attachment" | "docs" | "triage"
 
 // ?tab= names the desktop's tabs (list, kanban, attachments) or the phone's
 // own; a link to a project's board opens its board on a phone too. The
@@ -58,8 +60,9 @@ const FROM_ADDRESS: Record<string, Tab> = {
     attachments: "attachment",
     attachment: "attachment",
     docs: "docs",
+    triage: "triage",
 }
-const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", backlog: "backlog", timeline: "timeline", releases: "releases", updates: "updates", attachment: "attachments", docs: "docs" }
+const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", backlog: "backlog", timeline: "timeline", releases: "releases", updates: "updates", attachment: "attachments", docs: "docs", triage: "triage" }
 
 export function ProjectListTabs({ projectId }: { projectId: string }) {
     const params = useSearchParams()
@@ -78,6 +81,12 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
     // Its Notifications: a level chosen, not cycled (hooks/useNotificationLevel).
     const notification = useProjectNotification(projectId, info?.notification_type)
     const access = accessOf(info)
+    // Its triage, from the info already read (project_triage): the queue itself is read only in its tab.
+    const triage = triageShown(info?.project_triage)
+    const infoRead = !!info
+    useEffect(() => {
+        if (selectedTab === "triage" && infoRead && !triage.on) setSelectedTab("task")
+    }, [selectedTab, infoRead, triage.on])
     const extra: ProjectMenuExtra[] = [
         ...(access.manage
             ? [{ key: "rename", label: "Edit project name", Icon: Pencil, onSelect: () => dispatch(openUI({ key: "editProjectName", data: { projectUUID: projectId } })) }]
@@ -121,6 +130,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 { value: "updates", label: "Updates" },
                 { value: "attachment", label: "Attachments" },
                 { value: "docs", label: "Docs & Files" },
+                ...(triage.on ? [{ value: "triage", label: "Triage", count: triage.count }] : []),
             ]}
             value={selectedTab}
             onValueChange={(v) => setSelectedTab(v as Tab)}
@@ -159,6 +169,11 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             <SectionTabsContent value="docs" className="flex-1 min-h-0 overflow-y-auto">
                 <SpaceDocs space={`project:${projectId}` as const} name={info?.project_name} />
             </SectionTabsContent>
+            {triage.on && (
+                <SectionTabsContent value="triage" className="flex-1 min-h-0 flex flex-col">
+                    <TriageTab projectId={projectId} canManage={access.manage} />
+                </SectionTabsContent>
+            )}
         </SectionTabs>
         </div>
     )

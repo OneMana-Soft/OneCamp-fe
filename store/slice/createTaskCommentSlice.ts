@@ -252,7 +252,8 @@ export const createTaskCommentSlice = createSlice({
                     // New server comment — add it
                     state.taskComments[taskId].push(incoming);
                 } else if (!existing.comment_added_locally) {
-                    // Existing non-local comment — update in place (reactions, text, etc.)
+                    // Existing non-local comment — update in place (reactions, text, etc.) if it differs (V-1099)
+                    if (JSON.stringify(existing) === JSON.stringify(incoming)) continue;
                     const idx = state.taskComments[taskId].findIndex(c => c.comment_uuid === incoming.comment_uuid);
                     if (idx !== -1) {
                         state.taskComments[taskId][idx] = incoming;

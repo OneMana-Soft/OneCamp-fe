@@ -66,9 +66,9 @@ export function PublicGone({
   )
   if (!frame) {
     return (
-      <main id="main-content" data-public-gone="" className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-4 py-16">
+      <div data-public-gone="" className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-4 py-16">
         {body}
-      </main>
+      </div>
     )
   }
   return (

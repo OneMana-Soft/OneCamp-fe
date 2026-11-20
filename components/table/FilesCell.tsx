@@ -61,8 +61,7 @@ function FileName({ name }: { name: string }) {
 
 // The chip of a relation cell's links: one chip language for the grid. It
 // takes the room its name needs, up to the cell's width.
-const CHIP = "group/chip inline-flex h-[22px] min-w-0 max-w-full shrink-0 items-center gap-1 rounded-md bg-raised pl-1.5 pr-1.5 text-meta font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
-const REMOVE = "-mr-0.5 hidden size-4 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:bg-hover hover:text-ink group-hover/chip:inline-flex focus-visible:inline-flex [@media(hover:none)]:inline-flex"
+const CHIP = "group/chip relative inline-flex h-[22px] min-w-0 max-w-full shrink-0 items-center gap-1 rounded-md bg-raised pl-1.5 pr-1.5 text-meta font-medium text-ink shadow-e1 transition-shadow hover:shadow-e2"
 
 export function FilesCell({
   value,
@@ -130,7 +129,7 @@ export function FilesCell({
   return (
     <div ref={line} className={cn("relative flex h-full min-h-8 items-center gap-1 px-3", room.wrap ? "flex-wrap content-center py-1" : "overflow-hidden")}>
       {files.slice(0, shown).map((f) => (
-        <span key={f.id} data-file-chip="" data-fit-item="" className={CHIP} style={chipWidth}>
+        <span key={f.id} data-file-chip="" data-chip={canWrite ? "x" : ""} data-fit-item="" className={CHIP} style={chipWidth}>
           <FileTypeIcon name={f.name} fileType={f.mime} size={14} />
           <button
             type="button"
@@ -143,7 +142,7 @@ export function FilesCell({
             <FileName name={f.name} />
           </button>
           {canWrite && (
-            <button type="button" onClick={() => remove(f)} className={REMOVE} title="Remove" aria-label={`Remove ${f.name}`}>
+            <button type="button" onClick={() => remove(f)} className="chip-x" data-touch-target="" title="Remove" aria-label={`Remove ${f.name}`}>
               <X className="size-3" />
             </button>
           )}
@@ -171,14 +170,14 @@ export function FilesCell({
           <PopoverContent align="start" sideOffset={2} className="content-float w-72 rounded-xl p-1 shadow-e3">
             <ul className="max-h-72 overflow-y-auto" data-files-list="">
               {files.map((f) => (
-                <li key={f.id} className="group/chip flex h-9 items-center gap-2 rounded-md px-2 hover:bg-hover">
+                <li key={f.id} className="group/chip flex h-9 items-center gap-2 rounded-md px-2 hover:bg-hover pointer-coarse:h-11">
                   <FileTypeIcon name={f.name} fileType={f.mime} size={16} />
                   <button type="button" onClick={() => open(f)} aria-label={f.name} className="flex min-w-0 flex-1 text-left text-ui-sm text-ink">
                     <FileName name={f.name} />
                   </button>
                   {f.size ? <span className="shrink-0 text-meta tabular-nums text-ink-3">{formatFileSizeForAttachment(f.size)}</span> : null}
                   {canWrite && (
-                    <button type="button" onClick={() => remove(f)} className={REMOVE} title="Remove" aria-label={`Remove ${f.name}`}>
+                    <button type="button" onClick={() => remove(f)} className="chip-x" data-touch-target="" title="Remove" aria-label={`Remove ${f.name}`}>
                       <X className="size-3" />
                     </button>
                   )}

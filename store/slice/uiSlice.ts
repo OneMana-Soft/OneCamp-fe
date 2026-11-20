@@ -2,20 +2,9 @@ import type { AttachmentSource } from "@/lib/addOns/core";
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AttachmentMediaReq } from "@/types/attachment";
 import type { TaskDraft, TaskSource } from "@/lib/task/messageToTask";
+import type { RecordingPlayerInterface } from "@/types/recordingPlayer";
 
 // Re-using types from fragmented slices
-interface RecordingPlayerInterface {
-  egressId: string;
-  mediaGetUrl: string;
-  transcriptGetUrl: string;
-  fileSize: number;
-  fileName: string;
-  recordedAt: string;
-  mediaPath?: string;
-  // Where an event's call's words are read, a page at a time (its own transcript route, head C2).
-  transcriptPath?: string;
-  home?: "event";
-}
 
 interface SingleUIState<T = any> {
   isOpen: boolean;

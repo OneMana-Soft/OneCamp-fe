@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type FC } from "react"
 
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toast(t) }))
@@ -103,6 +103,55 @@ describe("a dialog fetched when it first opens", () => {
     // Closed, so the next open asks for the code again.
     await act(async () => screen.getByRole("button", { name: "Add to calendar" }).click())
     expect(load).toHaveBeenCalledTimes(2)
+    warn.mockRestore()
+  })
+})
+
+/** A screen that opens a dialog made outside it, as the app's own confirm is made once for every page. */
+function Opener({ Lazy }: { Lazy: FC<{ open: boolean; onOpenChange: (open: boolean) => void }> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <main>
+      <button type="button" onClick={() => setOpen(true)}>
+        Table
+      </button>
+      <Lazy open={open} onOpenChange={setOpen} />
+    </main>
+  )
+}
+
+describe("a dialog warmed before its first open", () => {
+  it("fetches its code once however often it's warmed, so the first open draws it at once", async () => {
+    const load = vi.fn(() => Promise.resolve(Picker))
+    const Lazy = lazyDialog(load, "the table picker")
+    Lazy.warm()
+    Lazy.warm()
+    expect(load).toHaveBeenCalledTimes(1)
+    await act(async () => {})
+
+    render(<Opener Lazy={Lazy} />)
+    act(() => screen.getByRole("button", { name: "Table" }).click())
+    // No wait: the code is already in.
+    expect(screen.getByRole("dialog").textContent).toBe("Insert a table")
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  it("says nothing when a warm fails, and the next open asks for the code again and opens", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    let offline = true
+    const load = vi.fn(() => (offline ? Promise.reject(new Error("offline")) : Promise.resolve(Picker)))
+    const Lazy = lazyDialog(load, "the table picker")
+    // It resolves (false: not in), never rejects: an opener's pointer or focus calls it, and nothing catches (CR-311 m1a).
+    await act(() => expect(Lazy.warm()).resolves.toBe(false))
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(toast).not.toHaveBeenCalled()
+
+    offline = false
+    render(<Opener Lazy={Lazy} />)
+    await act(async () => screen.getByRole("button", { name: "Table" }).click())
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole("dialog").textContent).toBe("Insert a table")
+    expect(toast).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 })

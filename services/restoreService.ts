@@ -3,7 +3,7 @@
  * milestone, form (a table's too) or link (basecamp-16), a time entry, a
  * draft invoice, the workspace's plan status or label, or a release (P10-1b).
  */
-export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice" | "project_status" | "project_label" | "release"
+export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice" | "project_status" | "project_label" | "release" | "sla_rule"
 
 /**
  * Brings back what a delete took: POST /restore/{kind}/{id} on the caller's

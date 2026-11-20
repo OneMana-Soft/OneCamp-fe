@@ -18,7 +18,7 @@ import { warmCollabToken } from "@/lib/collabToken";
 import { focusHandOff } from "@/lib/ui/focusHandOff";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
-import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo, Code, ShieldCheck, Star } from "@/lib/icons";
+import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo, Code, ShieldCheck, Network, Star } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { LoadFailureState } from "@/components/ui/load-failure-state";
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
@@ -50,7 +50,8 @@ import type BoardFacilitationPart from "@/components/board/boardFacilitation";
 import { lazyPart } from "@/lib/lazy/lazyPart";
 import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import { FacilitationFailed } from "@/components/board/facilitationDock";
-import BoardComments from "@/components/board/boardComments";
+import { MemberBoardComments } from "@/components/board/boardCommentWrites";
+import { boardRoles } from "@/lib/board/boardRoles";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import WithAddWorkReads from "@/components/board/addWorkReads";
@@ -63,6 +64,7 @@ import { NoBoardCallsYet } from "@/components/board/noBoardCalls";
 const TOOLS = [
   ["templates", "Templates", LayoutGrid],
   ["frames", "Frames", Layers],
+  ["mindMap", "Mind map", Network],
   ["addWork", "Add from OneCamp", ListTodo],
   ["code", "Code block", Code],
 ] as const;
@@ -119,15 +121,8 @@ export default function BoardPage() {
   const { makeRequest: deleteBoardRequest } = usePost();
   const { makeRequest: recordBoardView } = usePost();
 
-  const isOwner = React.useMemo(() => {
-    if (!boardInfo || !userProfile.data?.data) return false;
-    return boardInfo.board_created_by?.user_uuid === userProfile.data.data.user_uuid;
-  }, [boardInfo, userProfile.data?.data]);
-
-  const hasEditAccess = React.useMemo(() => {
-    if (!boardInfo || !userProfile.data?.data) return false;
-    return isOwner || boardInfo.board_edit_access > 0;
-  }, [boardInfo, userProfile.data?.data, isOwner]);
+  // Its owner deletes it; editors draw; a commenter comments (miro-32).
+  const { owner: isOwner, edit: hasEditAccess, comment: canComment } = boardRoles(boardInfo, userProfile.data?.data?.user_uuid);
 
   // Anyone who can open the board joins the live session; viewers are read-only.
   const collaborationConfig = React.useMemo(() => {
@@ -179,7 +174,7 @@ export default function BoardPage() {
   // sidebar expanded. Its tool row then runs along the canvas's top, so on a
   // computer the board's two clusters dock in a band above the canvas instead
   // of floating over the row's ends (V-75). A phone has the app's own title
-  // bar and the board's cluster low on the right.
+  // bar and the board's cluster at the top.
   const docked = useExcalidrawPhoneUI(wrap) && !isMobile;
 
   // A press in the chrome for one of the board's tools (lazy, the workbench).
@@ -343,6 +338,11 @@ export default function BoardPage() {
               <Search className="mr-2 size-4" />
               {hasEditAccess ? "Find and replace" : "Find on board"}
             </DropdownMenuItem>
+            {/* Named layers that show, hide, lock and reorder, for everyone on the board (miro-03). */}
+            <DropdownMenuItem onClick={handOff.to(() => run("layers"))}>
+              <Layers className="mr-2 size-4" />
+              Layers
+            </DropdownMenuItem>
             {/* Notes without the tags picked fade back, on this screen only (miro-07 5). */}
             <DropdownMenuItem onClick={handOff.to(() => run("tagFilter"))}>
               <Filter className="mr-2 size-4" />
@@ -460,11 +460,12 @@ export default function BoardPage() {
 
         {/* Pinned comments (everyone with access sees them; editors can add) */}
         {provider && excalApi && (
-          <BoardComments
+          <MemberBoardComments
             provider={provider}
             api={excalApi}
             boardId={boardId}
             editable={hasEditAccess}
+            commenter={canComment && !hasEditAccess}
             commentMode={commentMode}
             onCommentModeChange={setCommentMode}
             showResolved={showResolved}
@@ -488,6 +489,7 @@ export default function BoardPage() {
               backHref={app_board_path}
               title={title}
               editable={hasEditAccess}
+              commenter={canComment}
               onRename={(t) => {
                 setTitle(t);
                 saveTitle(t);
@@ -537,13 +539,15 @@ export default function BoardPage() {
                       <Icon />
                     </ClusterButton>
                   ))}
-                  <ClusterButton
-                    label={commentMode ? "Click the board to place a comment" : "Comment"}
-                    active={commentMode}
-                    onClick={() => setCommentMode((m) => !m)}
-                  >
-                    <MessageCircle />
-                  </ClusterButton>
+                </>
+              )}
+              {canComment && (
+                <ClusterButton label={commentMode ? "Click the board to place a comment" : "Comment"} active={commentMode} onClick={() => setCommentMode((m) => !m)}>
+                  <MessageCircle />
+                </ClusterButton>
+              )}
+              {hasEditAccess && (
+                <>
                   <ClusterDivider />
                   <Button size="sm" className="h-8 gap-1.5 px-3" onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}>
                     <Share2 className="size-3.5" />
@@ -561,26 +565,34 @@ export default function BoardPage() {
         <DocSaveNotice source={{ provider, live: true, collabStatus, synced, everSynced: synced }} thing="board" />
       )}
 
-      {/* Phone: one cluster above the canvas's footer (at the top it hid
-          Excalidraw's tools); the chip gives way to it (V-933). */}
+      {/* Phone: one cluster at the top, clear of the foot bar's tools and Undo
+          (design-22 4) and of the board's middle. Each button takes a 44 px
+          finger; the chip leads it, dropping under it where both don't fit
+          (V-933). */}
       {isMobile && (
-        <div className="pointer-events-none absolute inset-x-3 bottom-[5rem] z-20 flex items-center justify-end gap-2" data-board-phone-actions="" data-phone-foot="">
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex flex-wrap-reverse items-center justify-end gap-2" data-board-phone-actions="" data-board-top="">
           {labelChip(true)}
-          <ChromeCluster label="Board tools" className="h-11 rounded-[14px] [&_button]:size-9">
+          <ChromeCluster label="Board tools" className="h-12 gap-0 rounded-[14px] p-0.5 [&_button]:size-11">
             {hasEditAccess && (
               <>
                 <ClusterButton label="Add a note" onClick={() => run("note")}>
                   <Plus />
                 </ClusterButton>
-                <ClusterButton label="Add a comment" active={commentMode} onClick={() => setCommentMode((m) => !m)}>
-                  <MessageCircle />
-                </ClusterButton>
+              </>
+            )}
+            {canComment && (
+              <ClusterButton label="Add a comment" active={commentMode} onClick={() => setCommentMode((m) => !m)}>
+                <MessageCircle />
+              </ClusterButton>
+            )}
+            {hasEditAccess && (
+              <>
                 <ClusterButton label="Share board" onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}>
                   <Share2 />
                 </ClusterButton>
               </>
             )}
-            <React.Suspense fallback={<span aria-hidden="true" className="size-9 shrink-0" />}>
+            <React.Suspense fallback={<span aria-hidden="true" className="size-11 shrink-0" />}>
               <BoardReact hereKey={hereBus.key} />
             </React.Suspense>
             {callButton(true)}

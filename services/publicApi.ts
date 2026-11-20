@@ -19,7 +19,7 @@ export async function publicCall<T>(path: string, init?: RequestInit): Promise<P
       ok: false,
       status: res.status,
       msg: (body as { msg?: string }).msg || "Something went wrong. Try again.",
-      code: typeof (body as { code?: unknown }).code === "string" ? (body as { code: string }).code : undefined,
+      code: [(body as { code?: unknown }).code, (body as { status?: unknown }).status].find((c): c is string => typeof c === "string"),
       retryAfter: retryAfterSeconds(res.headers?.get?.("Retry-After") ?? null),
     }
   } catch {
@@ -60,7 +60,7 @@ export function sendFailedText(res: { status: number; msg: string }): string {
   }
 }
 
-/** A Retry-After header in seconds (it is either a number of seconds or a date), or undefined. Pure. */
+/** A Retry-After header (seconds or a date) in seconds, or undefined. Pure. */
 export function retryAfterSeconds(header: string | null, now = Date.now()): number | undefined {
   if (!header) return undefined
   const h = header.trim()

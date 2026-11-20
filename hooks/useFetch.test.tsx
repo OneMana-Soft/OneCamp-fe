@@ -97,3 +97,41 @@ describe("a read the server answers with a failure", () => {
     })
   }
 })
+
+// V-1099: when the newest answer was asked for (lastRequestStartedAt, the watermark useConversation pairs Redux
+// authority with) came as state, set as each read answered: every reader drew once more for every answer, and once
+// for a re-read that brought nothing new (a phone's whole task page each time). It comes with the answer instead.
+describe("when a read's answer was asked for", () => {
+  it("comes with the answer, and a re-read that brings the same answer draws nothing", async () => {
+    vi.spyOn(axiosInstance, "get").mockImplementation(() => Promise.resolve({ data: { msg: "ok" } }))
+    let draws = 0
+    const asked = Date.now()
+    const { result } = renderHook(
+      () => {
+        draws++
+        return useFetch<{ msg: string }>("/project/p1/forecast")
+      },
+      { wrapper: fresh },
+    )
+    await waitFor(() => expect(result.current.data).toEqual({ msg: "ok" }))
+    const first = result.current.lastRequestStartedAt
+    expect(first).toBeGreaterThanOrEqual(asked)
+    const settled = draws
+    const answer = result.current
+    // A minute on, as a refresh or a live topic's catch-up asks again.
+    vi.spyOn(Date, "now").mockReturnValue(asked + 60_000)
+    await act(async () => {
+      await result.current.mutate()
+    })
+    expect(draws - settled, "draws for a re-read with the same answer").toBe(0)
+    expect(result.current).toBe(answer)
+    // A new answer comes with the time it was asked for.
+    vi.mocked(axiosInstance.get).mockImplementation(() => Promise.resolve({ data: { msg: "changed" } }))
+    vi.spyOn(Date, "now").mockReturnValue(asked + 120_000)
+    await act(async () => {
+      await result.current.mutate()
+    })
+    expect(result.current.data).toEqual({ msg: "changed" })
+    expect(result.current.lastRequestStartedAt).toBe(asked + 120_000)
+  })
+})

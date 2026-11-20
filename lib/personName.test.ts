@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import {
   addressOrHandleOf,
@@ -12,6 +12,7 @@ import {
   pickPeople,
   secondaryNameOf,
 } from "@/lib/personName"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 describe("displayNameOf: the one name rule", () => {
   // The same cases as the backend's TestPersonDisplayName
@@ -167,24 +168,46 @@ describe("cmdk people lists", () => {
  * choose for themselves, some full name first and some display name first, so
  * one person was shown under two names. Bots (lib/utils/userDisplayName) are
  * the one exception.
+ *
+ * It reads the source from disk by the one walk (lib/testing/sourceFiles), so
+ * it runs the same in a copy with no .git (a `git archive` extract), and it
+ * matches in JS: git grep's ERE read the old `[^\n]` as "not a backslash and
+ * not n", so a choice with an n between the two names slipped past it.
  */
+const ROOTS = [
+  "app",
+  "components",
+  "context",
+  "e2e",
+  "hooks",
+  "lib",
+  "scripts",
+  "services",
+  "store",
+  "testdata",
+  "types",
+  "next.config.ts",
+  "playwright.config.ts",
+  "tailwind.config.ts",
+  "vitest.config.ts",
+  "vitest.setup.ts",
+]
+const CHOICE = /user_full_name\s*(\|\||\?\?).*user_name\b|\buser_name\s*(\|\||\?\?).*user_full_name/
+
 describe("guard: no ad-hoc choice between a member's names", () => {
+  const files = sourceFiles(ROOTS, /\.tsx?$/)
+
+  it("reads the source it guards", () => {
+    expect(files.length).toBeGreaterThan(1000)
+    expect(files).toContain("lib/personName.ts")
+  })
+
   it("leaves no `user_full_name || user_name` or `user_name || user_full_name` in the source", () => {
-    let out = ""
-    try {
-      out = execFileSync(
-        "git",
-        ["grep", "-nE", "user_full_name\\s*(\\|\\||\\?\\?)[^\\n]*user_name\\b|\\buser_name\\s*(\\|\\||\\?\\?)[^\\n]*user_full_name", "--", "*.ts", "*.tsx"],
-        { cwd: process.cwd(), encoding: "utf8" },
-      )
-    } catch (e) {
-      // git grep exits 1 when nothing matches.
-      if ((e as { status?: number }).status !== 1) throw e
-    }
-    const offenders = out
-      .split("\n")
-      .filter(Boolean)
-      .filter((l) => !/\.test\.tsx?:/.test(l))
+    const offenders = files.flatMap((f) =>
+      readFileSync(f, "utf8")
+        .split("\n")
+        .flatMap((line, i) => (CHOICE.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])),
+    )
     expect(offenders).toEqual([])
   })
 })

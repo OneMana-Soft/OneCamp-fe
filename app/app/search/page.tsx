@@ -15,6 +15,9 @@ import { searchResultKeys } from "@/lib/utils/helpers/search"
 import { cn } from "@/lib/utils/helpers/cn"
 import { WhoKnowsSlot } from "@/components/whoKnows/WhoKnowsSlot"
 import { moveListFocus } from "@/lib/search/listFocus"
+import { paletteTargets } from "@/lib/search/paletteMatch"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
 import { resultPath } from "@/lib/search/resultPath"
 import { groupResults, isScope, visibleScopes } from "@/lib/search/scopes"
 import type { QuerySort } from "@/lib/search/queryApi"
@@ -62,6 +65,16 @@ export default function SearchPage() {
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const selfUUID = selfProfile.data?.data?.user_uuid || ""
+    // A call's line names the channel or chat it was said in, by the names this person already sees in their sidebar.
+    const sidebar = useSelector((state: RootState) => state.users.userSidebar)
+    const places = useMemo(() => {
+        const names = new Map<string, string>()
+        for (const t of paletteTargets(sidebar, selfUUID)) {
+            if (t.kind === "channel") names.set(t.id, `#${t.label}`)
+            else if (t.kind === "chat") names.set(t.id, t.label)
+        }
+        return names
+    }, [sidebar, selfUUID])
 
     const initialScope = searchParams.get("in")
     const {
@@ -294,7 +307,8 @@ export default function SearchPage() {
                                     <ul>
                                         {g.rows.map((result) => {
                                             const href = resultPath(result, selfUUID) ?? undefined
-                                            return <SearchResultRow key={keys.get(result)} result={result} onOpen={handleResultClick} onPreview={handlePreview} href={href} />
+                                            const place = result.type === "transcript" ? places.get(result.transcript?.transcript_conv_id ?? "") : undefined
+                                            return <SearchResultRow key={keys.get(result)} result={result} onOpen={handleResultClick} onPreview={handlePreview} href={href} place={place} />
                                         })}
                                     </ul>
                                     {g.more ? (

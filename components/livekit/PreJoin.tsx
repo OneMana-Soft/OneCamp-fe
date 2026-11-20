@@ -16,9 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import dynamic from "next/dynamic";
-
-// Backgrounds and sound on the preview, a piece of its own: none of a call's
-// first load. Until it arrives, a still button keeps its place.
+// The preview's backgrounds and sound, a piece of its own.
 const GreenRoomEffects = dynamic(() => import("@/components/call/effects/GreenRoomEffects"), {
   ssr: false,
   loading: () => <span aria-hidden className="grid size-12 place-items-center rounded-[12px] bg-[#2A2B30] @3xl:size-11" />,

@@ -21,8 +21,12 @@ export type Background =
   | { kind: "none" }
   | { kind: "blur"; strength: "light" | "strong" }
   | { kind: "backdrop"; id: BackdropId }
-  /** A picture of their own, kept on this device only. */
-  | { kind: "picture" }
+  /**
+   * A picture of their own, or a scene made from their words (meet-09), kept
+   * on this device only (picture.ts). `at` is when it was kept, so a new one
+   * kept while it is chosen is a new choice the camera takes.
+   */
+  | { kind: "picture" | "scene"; at?: number }
 
 /**
  * How a microphone's sound is cleaned up.
@@ -64,10 +68,10 @@ const KNOWN_BACKDROPS = new Set<string>(BACKDROP_IDS)
 
 /** A background read from anywhere (storage, a message), or none. Pure. */
 export function readBackground(v: unknown): Background {
-  const b = v as { kind?: unknown; strength?: unknown; id?: unknown } | null
+  const b = v as { kind?: unknown; strength?: unknown; id?: unknown; at?: unknown } | null
   if (b?.kind === "blur" && (b.strength === "light" || b.strength === "strong")) return { kind: "blur", strength: b.strength }
   if (b?.kind === "backdrop" && typeof b.id === "string" && KNOWN_BACKDROPS.has(b.id)) return { kind: "backdrop", id: b.id as BackdropId }
-  if (b?.kind === "picture") return { kind: "picture" }
+  if (b?.kind === "picture" || b?.kind === "scene") return typeof b.at === "number" ? { kind: b.kind, at: b.at } : { kind: b.kind }
   return { kind: "none" }
 }
 
@@ -94,6 +98,7 @@ export function sameBackground(a: Background, b: Background): boolean {
   if (a.kind !== b.kind) return false
   if (a.kind === "blur" && b.kind === "blur") return a.strength === b.strength
   if (a.kind === "backdrop" && b.kind === "backdrop") return a.id === b.id
+  if ((a.kind === "picture" || a.kind === "scene") && (b.kind === "picture" || b.kind === "scene")) return a.at === b.at
   return true
 }
 

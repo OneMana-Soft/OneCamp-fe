@@ -35,5 +35,7 @@ export function backgroundName(b: Background): string {
       return BACKDROPS.find((d) => d.id === b.id)?.name ?? "Backdrop"
     case "picture":
       return "Your picture"
+    case "scene":
+      return "Your scene"
   }
 }

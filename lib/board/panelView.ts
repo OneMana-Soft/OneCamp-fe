@@ -40,7 +40,7 @@ export function roomAbove(el: { type: string }): number {
 export function viewBesidePanel<V extends BoardView>(v: V, sheet: boolean, edge?: number, below?: number): V {
   if (edge === undefined) return viewAboveSheet(v, sheet)
   if (!sheet) return { ...v, width: Math.max(0, Math.min(v.width, edge - v.offsetLeft)) }
-  // On a phone what is open starts under what floats over the board's top (below: the tool row's foot on the page), as
+  // On a phone what is open starts under what floats over the board's top (below: its foot on the page), as
   // a view of its own: its own top on the page, and the scroll that keeps every scene point where it is drawn.
   const top = Math.max(v.offsetTop, below ?? v.offsetTop)
   const open = Math.min(v.offsetTop + v.height, edge) - top

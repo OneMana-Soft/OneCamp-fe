@@ -282,7 +282,7 @@
     height: 22px;
     box-shadow: 0 0 0 2px var(--sheet);
   }
-  .people-stack > * + * {
+  .people-stack > :where(:not(:first-child)) {
     margin-left: -6px;
   }
 

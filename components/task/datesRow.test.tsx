@@ -24,6 +24,23 @@ describe("the Dates property", () => {
     expect(row.querySelectorAll("button").length).toBe(2)
   })
 
+  it("shows the task's SLA beside when it is due, and a restricted task's SLA not at all (linear-24 W2)", async () => {
+    const { default: SlaChip } = await import("@/components/task/SlaChip")
+    const sla = { state: "breached" as const }
+    const { container, rerender } = render(
+      <MediaQueryProvider>
+        <DatesProperty isAdmin done={false} onStart={() => {}} onDue={() => {}} sla={<SlaChip sla={sla} />} />
+      </MediaQueryProvider>,
+    )
+    expect(container.querySelector("[data-property=dates]")!.textContent).toContain("Breached")
+    rerender(
+      <MediaQueryProvider>
+        <DatesProperty isAdmin done={false} onStart={() => {}} onDue={() => {}} sla={<SlaChip sla={sla} hidden />} />
+      </MediaQueryProvider>,
+    )
+    expect(container.querySelector("[data-property=dates]")!.textContent).not.toContain("Breached")
+  })
+
   it("offers nothing to someone who can't change the dates: empty, it says None", () => {
     const { container } = render(
       <MediaQueryProvider>

@@ -23,6 +23,7 @@ function Player({ path }: { path: string }) {
       {p.videoProps.src ? <video data-testid="video" {...p.videoProps} /> : null}
       <button type="button" onClick={() => void p.seekTo(400)}>Jump</button>
       <span data-testid="failed">{String(p.playbackFailed)}</span>
+      <span data-testid="loadError">{String(p.loadError)}</span>
     </>
   )
 }
@@ -197,5 +198,147 @@ describe("meet-02 LIVE (DESIGN-BUILD-64's MUST 1): the player's stage is its pic
     expect(stageFit({ fullScreen: true, phone: false, words: true })).toBe("screen")
     expect(stageFit({ fullScreen: true, phone: false, words: false })).toBe("screen")
     expect(stageFit({ fullScreen: true, phone: true, words: false })).toBe("screen")
+  })
+})
+
+// zoom-13: a search hit's moment. The player starts there once the media can, and only then: never on a
+// later render or time update, so a person who moves on isn't pulled back.
+describe("a moment to start at", () => {
+  function PlayerAt({ at }: { at?: number }) {
+    const p = useRecordingPlayback("/ch/getRecordingURL/c1/EG_1", true, at)
+    return p.videoProps.src ? <video data-testid="video" {...p.videoProps} /> : null
+  }
+
+  it("seeks there once the media can play", async () => {
+    get.mockResolvedValueOnce(answer("https://minio/a?sig=1"))
+    render(<PlayerAt at={125.4} />)
+    const video = await screen.findByTestId("video")
+    const t = clock(video)
+    fireEvent.loadedMetadata(video)
+    expect(t.get()).toBe(125.4)
+    expect(play).toHaveBeenCalled()
+    t.set(130)
+    fireEvent.timeUpdate(video)
+    fireEvent.loadedMetadata(video)
+    expect(t.get()).toBe(130)
+  })
+
+  it("starts at the start with no moment", async () => {
+    get.mockResolvedValueOnce(answer("https://minio/a?sig=1"))
+    render(<PlayerAt />)
+    const video = await screen.findByTestId("video")
+    const t = clock(video)
+    fireEvent.loadedMetadata(video)
+    expect(t.get()).toBe(0)
+  })
+})
+
+// V-1075: a recording this person can't see (403), or one that is gone (404), is not a glitch. The stage says the
+// house's words for it (lib/http/loadFailure), as the transcript's side already does (CR-330 F2), and no Try again,
+// which can't fix it. Only a failure a retry can fix (a 5xx, a dropped connection) keeps Try again.
+describe("V-1075: the stage says a refused recording as the transcript does, with no Try again", () => {
+  const refused = (status: number) => Object.assign(new Error(`Request failed with status code ${status}`), { response: { status } })
+
+  it("tells which failure it was: no access, gone, or one a retry can fix", async () => {
+    for (const [error, kind] of [[refused(403), "no-access"], [refused(404), "gone"], [refused(500), "failed"], [new Error("Network Error"), "failed"]] as const) {
+      get.mockRejectedValueOnce(error)
+      render(<Player path="/ch/getRecordingURL/c1/EG_1" />)
+      await waitFor(() => expect(screen.getByTestId("loadError").textContent).toBe(kind))
+      cleanup()
+    }
+  })
+
+  it("says a recording this person can't see in the shared words, with no Try again", () => {
+    render(<RecordingStageMessage media={null} loadError="no-access" playbackFailed={false} onRetry={() => {}} />)
+    expect(screen.getByText("You can't see this call")).toBeInTheDocument()
+    expect(screen.getByText("It hasn't been shared with you. Ask whoever sent you the link to give you access.")).toBeInTheDocument()
+    expect(screen.getByRole("status").getAttribute("data-recording-state")).toBe("no-access")
+    expect(screen.queryByText("Couldn't load the recording")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+  })
+
+  it("says a recording that is gone in the shared words, with no Try again", () => {
+    render(<RecordingStageMessage media={null} loadError="gone" playbackFailed={false} onRetry={() => {}} />)
+    expect(screen.getByText("This call doesn't exist or was deleted")).toBeInTheDocument()
+    expect(screen.getByText("The link may be old or mistyped.")).toBeInTheDocument()
+    expect(screen.getByRole("status").getAttribute("data-recording-state")).toBe("gone")
+    expect(screen.queryByText("Couldn't load the recording")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+  })
+
+  it("keeps Try again for a failure a retry can fix", () => {
+    const onRetry = vi.fn()
+    render(<RecordingStageMessage media={null} loadError="failed" playbackFailed={false} onRetry={onRetry} />)
+    expect(screen.getByText("Couldn't load the recording")).toBeInTheDocument()
+    expect(screen.queryByText("You can't see this call")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(onRetry).toHaveBeenCalled()
+  })
+
+  // A refusal wins over a link that wouldn't play: Try again would only be refused again.
+  it("says a refusal over a link that wouldn't play", () => {
+    render(<RecordingStageMessage media={{ status: "ready", url: "u" }} loadError="no-access" playbackFailed onRetry={() => {}} />)
+    expect(screen.getByText("You can't see this call")).toBeInTheDocument()
+    expect(screen.queryByText("This recording can't be played")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+  })
+
+  function PlayerDialog() {
+    const data = { mediaPath: "/calendar/events/E1/call/artefacts/EG_1/recording", fileName: "Weekly design review recording" }
+    return (
+      <Provider store={configureStore({ reducer: { ui: (s = { recordingPlayer: { isOpen: true, data } }) => s } })}>
+        <RecordingPlayerDialog />
+      </Provider>
+    )
+  }
+
+  it("opens the player on the refusal, never on Couldn't load the recording", async () => {
+    get.mockRejectedValueOnce(refused(403))
+    render(<PlayerDialog />)
+    expect(await screen.findByText("You can't see this call")).toBeInTheDocument()
+    expect(screen.queryByText("Couldn't load the recording")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    expect(document.querySelector("video")).toBeNull()
+  })
+
+  // A fresh link refused mid-play (access taken away, or the recording deleted): the picture gives way to the words
+  // at once, rather than retrying a link that can't come back and then offering Try again.
+  it("says a fresh link's refusal mid-play, and drops the picture", async () => {
+    get.mockResolvedValueOnce(answer("https://minio/a?sig=1")).mockRejectedValueOnce(refused(404))
+    render(<PlayerDialog />)
+    const video = await waitFor(() => {
+      const v = document.querySelector("video")
+      if (!v) throw new Error("no video yet")
+      return v
+    })
+    await act(async () => fireEvent.error(video))
+    expect(await screen.findByText("This call doesn't exist or was deleted")).toBeInTheDocument()
+    expect(document.querySelector("video")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  // Fix 1: a shared moment link opened by someone it isn't shared with. Both reads follow the same membership rule,
+  // so both refuse: the stage says it once, with no Transcript panel beside it.
+  it("a call refused on both sides says it once", async () => {
+    get.mockImplementation(() => Promise.reject(refused(403)))
+    try {
+      const data = { mediaPath: "/ch/getRecordingURL/c1/EG_both", transcriptPath: "/ch/getRecordingTranscript/c1/EG_both", fileName: "Weekly design review recording" }
+      render(
+        <Provider store={configureStore({ reducer: { ui: (s = { recordingPlayer: { isOpen: true, data } }) => s } })}>
+          <RecordingPlayerDialog />
+        </Provider>,
+      )
+      await screen.findAllByText("You can't see this call")
+      // Both reads have answered, and what each said has been drawn.
+      await waitFor(() => expect(get).toHaveBeenCalledWith(expect.stringContaining("/ch/getRecordingTranscript/c1/EG_both"), expect.anything()))
+      await act(async () => new Promise((r) => setTimeout(r, 100)))
+      expect(screen.getAllByText("You can't see this call")).toHaveLength(1)
+      expect(screen.queryByText("Transcript")).toBeNull()
+      expect(document.querySelector("[data-transcript]")).toBeNull()
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    } finally {
+      get.mockReset()
+    }
   })
 })

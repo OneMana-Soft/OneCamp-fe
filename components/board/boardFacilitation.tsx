@@ -697,9 +697,11 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
           </React.Suspense>
         ))}
 
-      {/* Vote dots, anchored to each note's top-right corner. */}
+      {/* Vote dots, anchored to each note's top-right corner. A layer a finger
+          meets over the canvas (data-canvas-layer): it steps behind a phone's
+          style sheet while that is open (components/board/excalidrawTheme.css). */}
       {voting && view && (
-        <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-hidden={!!voting.closedAt}>
+        <div data-canvas-layer="" className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-hidden={!!voting.closedAt}>
           {notes.map((n) => {
             const pos = sceneToLocal(view, n.x + n.width, n.y)
             const mine = myVotes.includes(n.id)
@@ -723,6 +725,8 @@ export default function BoardFacilitation({ provider, api, user, editable, hereK
                 type="button"
                 style={{ left: pos.left, top: pos.top }}
                 onClick={() => vote([n.id])}
+                // A finger's 44 px around the 22 px chip (app/phone.css F3).
+                data-touch-target=""
                 aria-pressed={mine}
                 aria-label={`${mine ? "Take back your vote for" : "Vote for"} ${n.text}`}
                 title={mine ? "Take your vote back" : "Vote"}
@@ -817,6 +821,7 @@ const SegmentIcon = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttribut
       type={type}
       aria-label={label}
       title={label}
+      data-segment-icon=""
       className={cn(
         "inline-flex size-7 shrink-0 items-center justify-center rounded-[14px] text-ink-3 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:size-3.5",
         className,

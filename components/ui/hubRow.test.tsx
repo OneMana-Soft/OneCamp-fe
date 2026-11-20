@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { HubRow, HubRowSkeleton, HubToolButton } from "@/components/ui/hubRow"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { KindBadge, KIND_BADGE_TONE } from "@/components/ui/kindBadge"
 
 /** The HubRow (hub.md §1.2): one row anatomy for every hub list. */
@@ -48,6 +50,19 @@ describe("the HubRow", () => {
     expect(feed.className).toContain("max-sm:line-clamp-2")
     expect(feed.className).toContain("max-sm:whitespace-normal")
     expect(two.className).not.toContain("line-clamp")
+  })
+
+  // V-939: an agent's Dismiss and Approve beside its words left them ~170px
+  // on a phone. A caller whose meta holds actions opts in (data-meta-below);
+  // no other row moves. With no meta, row 2 is empty and 0px (no row gap).
+  it("puts a meta that holds actions on a line of its own under the content on a phone, and only when asked", () => {
+    const phone = CSS.slice(CSS.indexOf("@media (max-width: 639.98px) {\n    .hub-row[data-meta-below]"))
+    expect(phone).toMatch(/^@media \(max-width: 639\.98px\) \{\s*\.hub-row\[data-meta-below\] \{\s*grid-template-columns: 12px var\(--hub-lead\) minmax\(0, 1fr\);/)
+    expect(phone).toMatch(/\.hub-row\[data-meta-below\] > \.hub-row-meta \{\s*grid-area: 2 \/ 3;\s*justify-self: end;\s*margin-top: 8px;/)
+    // Actions, where a row has tools, stays on the first line.
+    expect(phone).toMatch(/\.hub-row\[data-meta-below\] > \.hub-row-more \{\s*grid-row: 1;/)
+    const { container } = render(<HubRow density="two-line" title="Ledger wants to file 2 expenses" meta={<button type="button">Approve</button>} data-meta-below="" />)
+    expect(container.querySelector("[data-hub-row][data-meta-below] > .hub-row-meta")).not.toBeNull()
   })
 
   it("has no dot at all in a list with no read state", () => {
@@ -107,87 +122,146 @@ describe("a row's tools where nothing can hover", () => {
     expect(screen.getByRole("button", { name: "Done" }).hasAttribute("data-touch-target")).toBe(true)
   })
 
-  it("shows the tools on a tapped Actions, or keyboard focus in the row, and never hides them from a finger again", () => {
-    const shown = touch().slice(touch().indexOf(".hub-row:is("))
-    expect(shown).toMatch(/^\.hub-row:is\(\[data-revealed\], :focus-visible, :has\(:focus-visible\)\) \.hub-row-tools \{\s*display: flex;\s*opacity: 1;\s*pointer-events: auto;/)
-    // Under a finger each tool is 44px across.
+  it("keeps the toolbar out of sight there, where Actions is, and never hides the meta for it", () => {
+    // No tray floats over the row (V-704): the tools stay laid out at the
+    // row's end, unseen and untouched, and the drawer presses them.
+    expect(touch()).toMatch(/\.hub-row-tools \{\s*visibility: hidden;/)
+    expect(CSS).not.toMatch(/data-revealed/)
+    expect(touch()).toMatch(/\.hub-row\[data-has-tools\]:focus-within \.hub-row-meta \{\s*opacity: 1;/)
+    // A finger that can hover (a touch laptop) still gets 44px tools.
     const coarse = CSS.slice(CSS.indexOf("@media (pointer: coarse)", CSS.indexOf(".hub-row-more {")))
     expect(coarse).toMatch(/\.hub-row-tools > :is\(a, button\) \{\s*min-width: var\(--m-hit\);\s*min-height: var\(--m-hit\);/)
   })
 
-  it("reveals on Actions without opening the row, and puts them away on a tap elsewhere or Escape", () => {
+  // V-704, D6: on a phone, Actions was a tray of two unworded icons. It is now
+  // the one drawer (the DropdownMenu, a sheet on a phone) for every HubRow,
+  // listing the row's own tools in their own words: no tool says anything new.
+  it("opens one drawer from Actions, each row worded from its tool's own label, and never opens the row", async () => {
     const opened = vi.fn()
-    const tree = (menu: boolean) => (
-      <>
-        <HubRow density="two-line" title="Launch notes" onClick={opened} tools={<HubToolButton label="Done">x</HubToolButton>} />
-        {menu && <div role="menu" data-testid="menu" />}
-        <p data-testid="away">elsewhere</p>
-      </>
+    const done = vi.fn()
+    render(
+      <HubRow
+        density="two-line"
+        title="Launch notes"
+        onClick={opened}
+        tools={
+          <>
+            <HubToolButton label="Mark done" shortcut="E" onClick={done}>
+              <svg data-glyph="check" />
+            </HubToolButton>
+            <a href="/app/later/1" aria-label="Open">
+              <svg />
+            </a>
+            <button type="button">Move back</button>
+            <HubToolButton label="Delete" disabled>
+              <svg />
+            </HubToolButton>
+          </>
+        }
+      />,
     )
-    const { container, rerender } = render(tree(true))
-    const row = container.querySelector("[data-hub-row]")!
     const more = screen.getByRole("button", { name: "Actions" })
-    expect(row.getAttribute("data-reveal")).toBe("tap")
-    expect(more.getAttribute("aria-expanded")).toBe("false")
-
+    expect(more.getAttribute("aria-haspopup")).toBe("menu")
     fireEvent.click(more)
-    expect(row.hasAttribute("data-revealed")).toBe(true)
-    expect(more.getAttribute("aria-expanded")).toBe("true")
     expect(opened).not.toHaveBeenCalled()
 
-    // A tap on a tool, or in a tool's own menu, keeps them out.
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Done" }))
-    fireEvent.pointerDown(screen.getByTestId("menu"))
-    expect(row.hasAttribute("data-revealed")).toBe(true)
+    fireEvent.keyDown(more, { key: "Enter" })
+    const menu = await screen.findByRole("menu")
+    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Mark done", "Open", "Move back", "Delete"])
+    expect(within(menu).getByRole("menuitem", { name: "Delete" }).getAttribute("aria-disabled")).toBe("true")
+    // Each row carries its tool's glyph.
+    expect(within(menu).getByRole("menuitem", { name: "Mark done" }).querySelector('[data-glyph="check"]')).not.toBeNull()
 
-    fireEvent.pointerDown(screen.getByTestId("away"))
-    expect(row.hasAttribute("data-revealed")).toBe(false)
-
-    fireEvent.click(more)
-    // A tool's menu open takes Escape first (one press, one thing, the
-    // innermost first: lib/keys/escape), and the tools stay out;
-    fireEvent.keyDown(document, { key: "Escape" })
-    expect(row.hasAttribute("data-revealed")).toBe(true)
-    // with the menu gone, the next Escape puts them away.
-    rerender(tree(false))
-    fireEvent.keyDown(document, { key: "Escape" })
-    expect(row.hasAttribute("data-revealed")).toBe(false)
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Mark done" }))
+    await waitFor(() => expect(done).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole("menu")).toBeNull()
+    expect(opened).not.toHaveBeenCalled()
   })
 
-  it("shows the tools for keyboard focus in the row, keeps them while Tab walks through, and not for a tap's focus", () => {
-    const { container } = render(
+  it("presses a tool that opens its own menu, so its menu opens from the drawer", async () => {
+    render(
+      <HubRow
+        density="two-line"
+        title="Launch notes"
+        tools={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label="Save for later">
+                <svg />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem>Tomorrow</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />,
+    )
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Save for later" }))
+    expect(await screen.findByRole("menuitem", { name: "Tomorrow" })).toBeInTheDocument()
+  })
+
+  it("presses the tool once the drawer has given the focus back, so a panel the tool opens keeps it", async () => {
+    render(
       <>
-        <HubRow density="two-line" title="Launch notes" tools={<HubToolButton label="Done">x</HubToolButton>} />
-        <div role="menu"><button>Tomorrow</button></div>
-        <button>Next</button>
+        <HubRow
+          density="two-line"
+          title="Launch notes"
+          tools={
+            <HubToolButton label="Why am I seeing this?" onClick={() => screen.getByTestId("panel").focus()}>
+              <svg />
+            </HubToolButton>
+          }
+        />
+        <div tabIndex={-1} data-testid="panel" />
       </>,
     )
-    const row = container.querySelector("[data-hub-row]")!
-    const done = screen.getByRole("button", { name: "Done" })
-    const real = Element.prototype.matches
-    let keyboard = false
-    const spy = vi.spyOn(Element.prototype, "matches").mockImplementation(function (this: Element, sel: string) {
-      return sel === ":focus-visible" ? keyboard && this === document.activeElement : real.call(this, sel)
-    })
-    try {
-      // A tap's focus (Android focuses what it taps) shows nothing.
-      act(() => done.focus())
-      expect(row.hasAttribute("data-revealed")).toBe(false)
-      act(() => done.blur())
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Why am I seeing this?" }))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("panel")))
+  })
 
-      keyboard = true
-      act(() => done.focus())
-      expect(row.hasAttribute("data-revealed")).toBe(true)
-      // Into a tool's own menu: the tools stay.
-      act(() => screen.getByRole("button", { name: "Tomorrow" }).focus())
-      expect(row.hasAttribute("data-revealed")).toBe(true)
-      act(() => done.focus())
-      // Out of the row: they go.
-      act(() => screen.getByRole("button", { name: "Next" }).focus())
-      expect(row.hasAttribute("data-revealed")).toBe(false)
-    } finally {
-      spy.mockRestore()
-    }
+  // CR-333 N2 (main, 14 Nov): a popover a tool opens from the drawer gives the focus back to the tool on close, as a
+  // trigger does; the tool is hidden there (visibility, app/hub.css) and can't hold it, so it fell to <body>.
+  it("gives the focus to Actions when a popover the drawer's tool opened closes, never to the hidden tool", async () => {
+    render(
+      <HubRow
+        density="two-line"
+        title="Launch notes"
+        tools={
+          <Popover>
+            <PopoverTrigger asChild>
+              <HubToolButton label="Why am I seeing this?" style={{ visibility: "hidden" }}>
+                <svg />
+              </HubToolButton>
+            </PopoverTrigger>
+            <PopoverContent>Because you were mentioned</PopoverContent>
+          </Popover>
+        }
+      />,
+    )
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Why am I seeing this?" }))
+    const words = await screen.findByText("Because you were mentioned")
+    fireEvent.keyDown(words, { key: "Escape" })
+    await waitFor(() => expect(screen.queryByText("Because you were mentioned")).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Actions" })))
+  })
+
+  it("lists what the row's tools are now: a tool that changed its words says its new ones", async () => {
+    const Row = ({ unread }: { unread: boolean }) => (
+      <HubRow density="two-line" title="Launch notes" tools={<HubToolButton label={unread ? "Mark read" : "Mark unread"}>x</HubToolButton>} />
+    )
+    const { rerender } = render(<Row unread />)
+    // Actions is a button until the drawer's code is in, then the drawer's own trigger: found anew each time.
+    const more = () => screen.getByRole("button", { name: "Actions" })
+    fireEvent.keyDown(more(), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Mark read" }))
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull())
+    rerender(<Row unread={false} />)
+    fireEvent.keyDown(more(), { key: "Enter" })
+    expect(await screen.findByRole("menuitem", { name: "Mark unread" })).toBeInTheDocument()
   })
 
   // SH-29, SH-30: a row that opens through its stretched title is a row of

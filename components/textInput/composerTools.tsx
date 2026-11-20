@@ -174,8 +174,18 @@ function MenuTile({ hue, agent, children }: { hue?: "berry" | "lake" | "moss" | 
 
 // ─── "@" (C38) ───────────────────────────────────────────────────────────
 
-/** Starts a mention at the cursor: the list opens as if "@" were typed. */
-export const MentionTool = React.memo(function MentionTool({ editor }: { editor: Editor }) {
+/** Starts a mention at the cursor: an "@" (after a space, where the cursor follows a word), and the list opens as if it were typed. */
+export function startMention(editor: Editor) {
+    const { from } = editor.state.selection
+    const before = from > 1 ? editor.state.doc.textBetween(from - 1, from) : ""
+    editor.chain().focus().insertContent(before && !/\s/.test(before) ? " @" : "@").run()
+}
+
+/**
+ * Starts a mention at the cursor: the list opens as if "@" were typed. Before the composer has made its editor (a
+ * comment box at rest, CommentComposer's waitForUse), `onRest` asks for the editor, to start the mention in it.
+ */
+export const MentionTool = React.memo(function MentionTool({ editor, onRest }: { editor: Editor | null; onRest?: () => void }) {
     return (
         <Button
             type="button"
@@ -185,11 +195,7 @@ export const MentionTool = React.memo(function MentionTool({ editor }: { editor:
             data-tip="Mention someone"
             className={cn(COMPOSER_TOOL, ACTION_TIP_ABOVE)}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-                const { from } = editor.state.selection
-                const before = from > 1 ? editor.state.doc.textBetween(from - 1, from) : ""
-                editor.chain().focus().insertContent(before && !/\s/.test(before) ? " @" : "@").run()
-            }}
+            onClick={() => (editor ? startMention(editor) : onRest?.())}
         >
             <AtSign aria-hidden="true" />
         </Button>

@@ -6,7 +6,15 @@
  * board's first screen. Pure, so every layout is tested.
  */
 
+import { STYLE_FONT } from "./notes"
 import { BOARD_TEMPLATES, GAP, STICKY, areas, arrow, columns, heading, quadrants, sticky, type BoardTemplate, type Skeleton } from "./templates"
+
+// The Mind map template is laid out by the one layout, from its one chunk (mindMapChunkGuard.test.ts): this library,
+// and the picker that loads it, wait for that chunk at their top, so every template's build stays synchronous.
+const { mindMapOf, relayout } = await import("./mindMap")
+
+/** A mind map skeleton as the layout reads it: a node with its size, a connector to be drawn between its ends. */
+type MapSkeleton = { id: string; type: string; x: number; y: number; width: number; height: number; customData?: Record<string, unknown> | null }
 
 const LIBRARY: BoardTemplate[] = [
   // ---- Retrospectives ------------------------------------------------------
@@ -156,23 +164,17 @@ const LIBRARY: BoardTemplate[] = [
     description: "A central idea, with branches round it.",
     category: "Brainstorming",
     keywords: "mindmap branches ideas tree",
+    // A real mind map (miro-15): tagged nodes and connectors, laid out by the one layout, so Tab, Enter and Fold work on it.
     build: (p) => {
-      const out: Skeleton[] = []
-      const centre = `${p}-centre`
-      out.push(sticky(centre, 0, 0, "The central idea", "purple", 240))
-      const r = 420
-      const cx = 120, cy = 120
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 - Math.PI / 2
-        const id = `${p}-branch${i}`
-        const bx = cx + Math.cos(a) * r - STICKY / 2
-        const by = cy + Math.sin(a) * r - STICKY / 2
-        out.push(sticky(id, bx, by, i === 0 ? "A branch" : "", (["blue", "green", "yellow", "red", "teal", "orange"] as const)[i]))
-        const sx = cx + Math.cos(a) * 125, sy = cy + Math.sin(a) * 125
-        const ex = cx + Math.cos(a) * (r - 120), ey = cy + Math.sin(a) * (r - 120)
-        out.push(arrow(`${p}-link${i}`, sx, sy, ex - sx, ey - sy, { start: centre, end: id }))
+      const map = `${p}-map`
+      const branches = ["A branch", "", "", "", "", ""]
+      const graph = {
+        nodes: [{ id: "centre", label: "The central idea", x: 0, y: 0 }, ...branches.map((label, i) => ({ id: `branch${i}`, label, x: 0, y: i }))],
+        edges: branches.map((_, i) => ({ from: "centre", to: `branch${i}` })),
       }
-      return out
+      const built = mindMapOf(graph, { id: (id) => `${p}-${id}`, map, dx: 0, font: STYLE_FONT.clean }) as unknown as MapSkeleton[]
+      const laid = new Map(relayout(built, map).map((e) => [e.id, e]))
+      return built.map((e) => (laid.get(e.id) ?? e) as unknown as Skeleton)
     },
   },
   {

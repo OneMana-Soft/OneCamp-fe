@@ -2,6 +2,7 @@ import { expect, test, type BrowserContextOptions, type Locator, type Page } fro
 import { countAsks, expectPicture, tracksGiven } from "./mediaWatch"
 import { reviewShot, SHOT_THEMES, stubBackend, untilStill } from "./stubbedApp"
 import { fakeCallServer, type FakePerson } from "./fakeCallServer"
+import { routeChunks } from "./holdChunk"
 
 // A green room's camera preview (29 Oct 2026). The camera and the microphone's
 // meter open as the room mounts, in one ask, and the picture shows at once:
@@ -43,27 +44,32 @@ async function shotInThemes(page: Page, name: string) {
  * LiveKit's client, held or refused as the test says, until `open`: `hold`
  * keeps its chunk back, `refuse` aborts every request for it (the page's own
  * chunk loader asks again before it gives up). `asked` counts the requests.
+ * Through the one fetch-safe chunk route (e2e/holdChunk's routeChunks); `done`
+ * opens it and drops the route before the page closes, as holdChunk's does.
  */
 async function liveKitGate(page: Page, mode: "hold" | "refuse") {
   let open!: () => void
   const opened = new Promise<void>((resolve) => (open = resolve))
   let shut = true
   let asked = 0
-  await page.route(/\/_next\/static\/chunks\/[^?]+\.js(\?.*)?$/, async (route) => {
-    const response = await route.fetch()
-    const body = await response.text()
-    if (!body.includes(LIVEKIT)) return route.fulfill({ response, body })
+  await routeChunks(page, async (body) => {
+    if (!body.includes(LIVEKIT)) return "through"
     asked += 1
-    if (mode === "refuse" && shut) return route.abort("failed")
+    if (mode === "refuse" && shut) return "refuse"
     if (mode === "hold") await opened
-    return route.fulfill({ response, body })
+    return "through"
   })
+  const release = () => {
+    shut = false
+    open()
+  }
   return {
-    open: () => {
-      shut = false
-      open()
-    },
+    open: release,
     asked: () => asked,
+    done: async () => {
+      release()
+      await page.unrouteAll({ behavior: "ignoreErrors" })
+    },
   }
 }
 
@@ -171,6 +177,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
     await expect.poll(async () => (await previewNow(page)).liveKit, { message: "LiveKit holds the camera", timeout: 30_000 }).toBe(true)
     expect(await previewNow(page)).toEqual({ framed: true, camera: held.camera, liveKit: true })
     expect(await asks()).toEqual(["audio+video"])
+    await liveKit.done()
     await context.close()
   })
 
@@ -231,6 +238,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
     expect(liveKit.asked()).toBeGreaterThan(before)
     expect(await previewNow(page)).toEqual({ framed: true, camera: refused.camera, liveKit: true })
     expect(await asks()).toEqual(["audio+video"])
+    await liveKit.done()
     await context.close()
   })
 
@@ -254,6 +262,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
     expect(liveKit.asked(), "Join asked for the client again").toBeGreaterThan(before)
     await expect(page.getByRole("toolbar", { name: "Call controls" }).getByRole("button", { name: "Leave call" })).toBeVisible({ timeout: 30_000 })
     await shotInThemes(page, "prejoin-client-failed-joined")
+    await liveKit.done()
     await context.close()
   })
 
@@ -280,6 +289,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
     await press(device, page.getByRole("button", { name: "Try again" }))
     await expectPicture(page)
     await expect(page.getByRole("button", { name: "Join now" })).toBeVisible()
+    await liveKit.done()
     await context.close()
   })
 
@@ -326,6 +336,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
         await expectPicture(page)
         await expect(preview.getByRole("status")).toHaveCount(0)
       }
+      await liveKit.done()
       await context.close()
     })
   }

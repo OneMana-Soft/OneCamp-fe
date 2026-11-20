@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
-import { SAM, stubBackend } from "./stubbedApp"
+import { SAM, stubBackend, type Answers } from "./stubbedApp"
 
 // Calendar A3: your time zone, the day your week starts and your working
 // hours in settings, saved as each changes; the week drawing them; Find a
@@ -19,7 +19,7 @@ const at = (day: number, h: number, m = 0) =>
 const NOW = at(21, 10)
 const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-0000000000a2", user_name: "Maya Chen", user_full_name: "Maya Chen" }
 
-async function open(page: Page, testInfo: TestInfo, path: string, prefs: Record<string, unknown>) {
+async function open(page: Page, testInfo: TestInfo, path: string, prefs: Record<string, unknown>, more: Answers = {}) {
   const puts: { key: string; value: unknown }[] = []
   await page.clock.setFixedTime(NOW)
   await stubBackend(page, testInfo, {
@@ -49,6 +49,7 @@ async function open(page: Page, testInfo: TestInfo, path: string, prefs: Record<
     "/integration/google-calendar/status": { msg: "ok", data: { isConnected: false } },
     "/user/assignedTaskList": { msg: "ok", data: { user_tasks: [] } },
     "/event/bookingPages": { msg: "ok", data: [] },
+    ...more,
   })
   page.on("response", (r) => {
     if (r.status() === 404) console.log(`UNSTUBBED ${r.request().method()} ${new URL(r.url()).pathname}`)
@@ -186,8 +187,11 @@ test.describe("the account's clock and booking hours at 1280", () => {
     test.setTimeout(180_000)
     await open(page, testInfo, "/app/calendar/booking", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": { "2": [{ start: "10:00", end: "12:00" }, { start: "13:00", end: "18:00" }], "4": [{ start: "10:00", end: "16:00" }] }, "calendar.default_length": 60 })
     await page.getByRole("button", { name: /New booking page/ }).click({ timeout: 60_000 })
-    const days = page.getByRole("group", { name: "Days" })
-    await expect(days.locator('[aria-pressed="true"]')).toHaveText(["Tue", "Thu"])
+    // The page's own week is your week, ranges and all (gcal-7).
+    const week = page.locator("[data-hours-week]")
+    await expect(week.locator('[data-hours-day]:has([role=switch][aria-checked="true"])')).toHaveCount(2)
+    await expect(week.getByRole("switch", { name: "Open on Tuesdays" })).toBeChecked()
+    await expect(week.getByRole("switch", { name: "Open on Thursdays" })).toBeChecked()
     await expect(page.locator("[data-booking-preview]")).toContainText("10:00")
     // The zone as people know it, never its database name ("Asia/Calcutta").
     await expect(page.locator("[data-booking-preview]")).not.toContainText(ZONE)
@@ -206,6 +210,14 @@ test.describe("working hours on a phone", () => {
     await section.locator("[data-hours-week]").scrollIntoViewIfNeeded()
     const width = await page.evaluate(() => document.documentElement.scrollWidth)
     expect(width).toBeLessThanOrEqual(390)
+    // Each range reads on one line, from -> until, under its day (CR-346 F6: the shared week editor).
+    for (const i of [0, 1]) {
+      const gap = async () => {
+        const [from, until] = await Promise.all([section.getByLabel("Monday: from").nth(i).boundingBox(), section.getByLabel("Monday: until").nth(i).boundingBox()])
+        return from && until ? Math.abs(from.y - until.y) : 99
+      }
+      await expect.poll(gap).toBeLessThan(2)
+    }
     await shot(page, "hours-set", "light")
   })
 })
@@ -240,6 +252,59 @@ for (const theme of ["light", "dark"] as const) {
       await zones.scrollIntoViewIfNeeded()
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
       await shot(page, "zones-settings", theme)
+    })
+  })
+}
+
+// gcal-7: a booking page's own week, in the grid working hours use, and dates
+// of its own. The server (94275cfcb) refuses a date gone by: the editor takes
+// it off first and says so.
+const BOOKING = {
+  id: "b1", slug: "intro", title: "Intro call", description: "", duration_minutes: 30, buffer_minutes: 10, min_notice_minutes: 240, max_days_ahead: 30, active: true,
+  hours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", tz: ZONE, dates: { "2026-10-20": [] } },
+}
+for (const [width, phone] of [[1280, false], [390, true]] as const) {
+  test.describe(`a booking page's own week and dates at ${width}`, () => {
+    test.use(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: "light" } : { viewport: { width: 1280, height: 900 }, colorScheme: "light" })
+    test("the week takes Saturday, a date goes in as a day off, and a date gone by comes off", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      const saved: { hours: { week?: Record<string, unknown>; dates?: Record<string, unknown>; days: number[] } }[] = []
+      // The week and day rows are the ones working hours and a project's SLA
+      // clock draw (weekHoursEditor.tsx): opening them crashes nothing.
+      const errors: string[] = []
+      page.on("pageerror", (e) => errors.push(`PAGEERROR ${e.message}`))
+      page.on("console", (m) => {
+        if (m.type() === "error") errors.push(`CONSOLE ${m.text()}`)
+      })
+      await open(page, testInfo, "/app/calendar/booking", { zone: ZONE, week_start: 1, clock: "auto" }, {
+        "/event/bookingPages": (_url: URL, request: Request) => {
+          if (request.method() !== "POST") return { msg: "ok", data: [BOOKING] }
+          saved.push(request.postDataJSON())
+          return { msg: "ok", data: BOOKING }
+        },
+      })
+      await page.getByText("Intro call", { exact: true }).first().click({ timeout: 60_000 })
+      await expect(page.getByText("We took off 20 Oct: it has gone by.")).toBeVisible({ timeout: 60_000 })
+      await page.locator("[data-hours-week]").getByRole("switch", { name: "Open on Saturdays" }).click()
+      await page.getByRole("button", { name: "Add a date" }).click()
+      const typed = page.getByLabel("Type a date")
+      await typed.fill("2026-12-25")
+      await typed.press("Enter")
+      const row = page.locator('[data-hours-date="2026-12-25"]')
+      await expect(row).toContainText("Day off")
+      await row.scrollIntoViewIfNeeded()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+      const remove = (await row.getByRole("button", { name: /^Remove/ }).boundingBox())!
+      if (phone) expect(Math.min(remove.width, remove.height)).toBeGreaterThanOrEqual(44)
+      await shot(page, "booking-dates", "light")
+      await expect(page.locator("[data-crash-state], [data-panel-error], [data-localized-error]")).toHaveCount(0)
+      for (const e of errors) console.log(`G7-CONSOLE ${width} ${e.slice(0, 300)}`)
+      expect(errors.filter((e) => !/net::ERR_|Failed to load resource/.test(e))).toEqual([])
+      await page.getByRole("button", { name: "Save", exact: true }).click()
+      await expect.poll(() => saved.length, { timeout: 30_000 }).toBe(1)
+      expect(saved[0].hours.dates).toEqual({ "2026-12-25": [] })
+      expect(saved[0].hours.week?.["6"]).toEqual([{ start: "09:00", end: "17:00" }])
+      expect(saved[0].hours.days).toContain(6)
     })
   })
 }

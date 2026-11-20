@@ -1,5 +1,5 @@
 import * as React from "react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react"
 import { configureStore } from "@reduxjs/toolkit"
 import { Provider } from "react-redux"
@@ -67,6 +67,17 @@ const thread = (id: string, over: Partial<ThreadView> = {}): ThreadView => ({
   ...over,
 })
 
+// Each commit of the row's comments with the editor on the page, seen IN the commit: a Profiler's onRender runs after
+// its tree's layout effects and before any passive one, so an effect a moment late has not run yet (V-1225 N1).
+const commits: { caretInEditor: boolean; text: string }[] = []
+const onCommit = () => {
+  const pm = document.querySelector("[data-row-comment-box] .ProseMirror") as (HTMLElement & { editor?: Editor }) | null
+  if (pm) commits.push({ caretInEditor: !!document.activeElement?.closest(".ProseMirror"), text: pm.editor?.getText() ?? "" })
+}
+beforeEach(() => {
+  commits.length = 0
+})
+
 function show(props: Partial<React.ComponentProps<typeof RowComments>> = {}) {
   const store = configureStore({ reducer: { threads: threadsSlice.reducer, users: userSlice.reducer } })
   const onTargetDone = vi.fn()
@@ -74,7 +85,9 @@ function show(props: Partial<React.ComponentProps<typeof RowComments>> = {}) {
   render(
     <Provider store={store}>
       <TooltipProvider>
-        <RowComments rowId="r1" fields={fields} target={null} onTargetDone={onTargetDone} onCellCounts={onCellCounts} {...props} />
+        <React.Profiler id="row-comments" onRender={onCommit}>
+          <RowComments rowId="r1" fields={fields} target={null} onTargetDone={onTargetDone} onCellCounts={onCellCounts} {...props} />
+        </React.Profiler>
       </TooltipProvider>
     </Provider>,
   )
@@ -90,7 +103,17 @@ async function editor(): Promise<Editor> {
   return ed!
 }
 
+// The row's box at rest: no editor yet, its line by its name (V-1042: the editor waits for the box to be asked for).
+const rested = () => waitFor(() => expect(screen.getByRole("textbox", { name: "Comment on this row" }).closest(".ProseMirror")).toBeNull())
+
 pinTestClock()
+beforeAll(() => {
+  // jsdom lays nothing out: ProseMirror measures ranges as it scrolls the caret into view (a box with text in it, focused).
+  if (!Range.prototype.getClientRects) {
+    Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] })
+    Range.prototype.getBoundingClientRect = () => new DOMRect()
+  }
+})
 beforeEach(() => vi.clearAllMocks())
 afterEach(() => cleanup())
 
@@ -102,6 +125,97 @@ describe("a row's comments", () => {
     expect(screen.getByRole("textbox", { name: "Comment on this row" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Attach files" })).toBeNull()
     expect(vi.mocked(api.listThreads).mock.calls[0][0]).toEqual({ kind: "table_row", uuid: "r1" })
+  })
+
+  // V-1042: an editor made for every record opened or stepped to (a phone sheet's open, Next row and close each paid
+  // for its making, its first state and its teardown) when most of them are only read: the box is the composer's
+  // resting card until it is asked for, and the editor comes in with the caret in it.
+  it("makes no editor until the box is asked for, and focus on the box brings it in with the caret", async () => {
+    vi.mocked(api.listThreads).mockResolvedValue([])
+    show()
+    await waitFor(() => expect(screen.getByText(/No comments yet/)).toBeTruthy())
+    expect(document.querySelector("[data-row-comment-box] .ProseMirror"), "no editor before the box is asked for").toBeNull()
+    act(() => screen.getByRole("textbox", { name: "Comment on this row" }).focus())
+    const ed = await editor()
+    await waitFor(() => expect(document.activeElement?.closest(".ProseMirror")).toBeTruthy())
+    expect(ed.isDestroyed).toBe(false)
+    expect(screen.getAllByRole("textbox", { name: "Comment on this row" })).toHaveLength(1)
+  })
+
+  // The editor comes in a moment after the box is asked for: a key typed on the resting line in that moment is the
+  // comment's first character, so the line hands it over as it goes (the line's node is gone from the page by then).
+  it("hands what was typed on the resting line to the editor as it comes in", async () => {
+    vi.mocked(api.listThreads).mockResolvedValue([])
+    show()
+    await waitFor(() => expect(screen.getByText(/No comments yet/)).toBeTruthy())
+    const line = screen.getByRole("textbox", { name: "Comment on this row" })
+    act(() => {
+      line.focus()
+      line.textContent = "h"
+    })
+    const ed = await editor()
+    await waitFor(() => expect(ed.getText()).toBe("h"))
+    // The caret is in the editor in the commit it comes in, with what was typed: no frame with the focus nowhere, for
+    // a key to be lost in. Seen in that commit, not after it, when an effect a moment late would have done the same.
+    expect(commits[0]).toEqual({ caretInEditor: true, text: "h" })
+    expect(document.activeElement?.closest(".ProseMirror")).toBeTruthy()
+  })
+
+  // The resting line keeps no wrap (white-space: nowrap), so a space typed on it can be a no-break one (U+00A0): the
+  // comment gets a plain space, as the editor would have made (V-1225 N2).
+  it("hands a no-break space typed on the resting line over as a plain one", async () => {
+    vi.mocked(api.listThreads).mockResolvedValue([])
+    show()
+    await waitFor(() => expect(screen.getByText(/No comments yet/)).toBeTruthy())
+    const line = screen.getByRole("textbox", { name: "Comment on this row" })
+    act(() => {
+      line.focus()
+      line.textContent = "hi there "
+    })
+    const ed = await editor()
+    await waitFor(() => expect(ed.getText()).toBe("hi there "))
+    expect(ed.getHTML()).not.toMatch(/ |&nbsp;/)
+  })
+
+  // MAIN ruling (V-1225 N3): every composer with an editor looks the same at rest, so the row's box shows @ beside send
+  // before its editor is made; a press of it makes the editor and starts a mention there, the caret after the "@".
+  it("shows @ beside send at rest, and a press of it brings the editor in with a mention started", async () => {
+    vi.mocked(api.listThreads).mockResolvedValue([])
+    show()
+    await rested()
+    const at = screen.getByRole("button", { name: "Mention someone" })
+    const send = screen.getByRole("button", { name: "Comment" })
+    expect(at.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING, "@ comes before send").toBeTruthy()
+    expect(document.querySelector("[data-row-comment-box] .ProseMirror"), "no editor for the @ alone").toBeNull()
+    fireEvent.mouseDown(at)
+    fireEvent.click(at)
+    const ed = await editor()
+    await waitFor(() => expect(ed.getText()).toBe("@"))
+    expect(ed.state.selection.from).toBe(ed.state.doc.content.size - 1)
+    expect(document.activeElement?.closest(".ProseMirror")).toBeTruthy()
+    expect(screen.getAllByRole("button", { name: "Mention someone" })).toHaveLength(1)
+  })
+
+  it('hands it over as typed: a "<" is a character, never the start of a tag', async () => {
+    vi.mocked(api.listThreads).mockResolvedValue([])
+    show()
+    await waitFor(() => expect(screen.getByText(/No comments yet/)).toBeTruthy())
+    const line = screen.getByRole("textbox", { name: "Comment on this row" })
+    act(() => {
+      line.focus()
+      line.textContent = "1<2 <b>ok</b>"
+    })
+    const ed = await editor()
+    await waitFor(() => expect(ed.getText()).toBe("1<2 <b>ok</b>"))
+  })
+
+  it("brings the editor in at once for a press of Comment, and for a cell's comment", async () => {
+    vi.mocked(api.listThreads).mockResolvedValue([])
+    show({ compose: 1 })
+    await editor()
+    cleanup()
+    show({ target: "status" })
+    await editor()
   })
 
   it("says an error is an error, and reads again on Try again", async () => {
@@ -179,7 +293,7 @@ describe("a row's comments", () => {
 
     it("brings its box into view and focus at each press, and neither as it mounts", async () => {
       const at = shown()
-      await editor()
+      await rested()
       await settled()
       expect(scrolls, "its box scrolled to as it mounted").toBe(0)
       expect(document.activeElement === box(), "no focus before a press").toBe(false)
@@ -197,7 +311,7 @@ describe("a row's comments", () => {
     // sheet and its Comment: a press made before they were in is theirs as they mount (CR-260).
     it("brings its box into view as it mounts with a press counted before it came in", async () => {
       const at = shown()
-      await editor()
+      await rested()
       at("r2", 1)
       await editor()
       await settled()
@@ -208,7 +322,7 @@ describe("a row's comments", () => {
 
     it("lets a cell chosen since take over the caret it took as it mounted with a press", async () => {
       const at = shown()
-      await editor()
+      await rested()
       at("r2", 1)
       await editor()
       await waitFor(() => expect(document.activeElement).toBe(box()))
@@ -216,7 +330,7 @@ describe("a row's comments", () => {
       await editor()
       // The cell let go of: the row's box is back, and takes no caret of its own.
       at("r2", 1)
-      await editor()
+      await rested()
       await settled()
       expect(document.activeElement === box(), "the row's box, back after a cell, took the caret").toBe(false)
     })

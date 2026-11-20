@@ -5,7 +5,7 @@
 // 12-column grid, and a phone shows it as one column in the same order.
 // Everything here is pure.
 
-import { durationLabel, effortLabel, SLICE_BY } from "@/lib/reportInsights"
+import { durationLabel, effortLabel, SLA_SLICE, SLICE_BY } from "@/lib/reportInsights"
 import type { Effort, SliceBy, Spread } from "@/lib/reports"
 import { app_dashboards_path } from "@/components/project/overviewViews"
 
@@ -107,8 +107,14 @@ export const MEASURES: readonly { value: MetricMeasure; label: string; unit: "co
   { value: "effort_done", label: "Effort done", unit: "effort" },
 ]
 
-/** The ways a breakdown splits work: every way the report slices it (a project's fields are the dialog's to add). */
-export const BREAKDOWNS: readonly { value: BreakdownBy; label: string }[] = SLICE_BY.map((s) => ({ value: s.by, label: `By ${s.label.toLowerCase()}` }))
+/**
+ * The ways a breakdown splits work: every way the report slices it, SLA too (V-1062: the server sends SLA slices only
+ * for projects whose SLA state the viewer reads); a project's fields are the dialog's to add. An initialism keeps its case.
+ */
+export const BREAKDOWNS: readonly { value: BreakdownBy; label: string }[] = [...SLICE_BY, SLA_SLICE].map((s) => ({
+  value: s.by,
+  label: `By ${s.label === s.label.toUpperCase() ? s.label : s.label.toLowerCase()}`,
+}))
 
 export const BREAKDOWN_MEASURES: readonly { value: BreakdownMeasure; label: string }[] = [
   { value: "count", label: "Count" },

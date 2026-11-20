@@ -43,6 +43,12 @@ describe("a board's chrome", () => {
     expect(screen.queryByRole("button", { name: /rename/ })).toBeNull()
   })
 
+  it("says Can comment for a commenter, who may comment but not edit (miro-32)", () => {
+    render(<BoardTitleCluster backHref="/app/board" title="Launch retro" editable={false} commenter onRename={() => {}} saveState="saved" menu={(t) => t} />)
+    expect(screen.queryByText("Can comment")).toBeTruthy()
+    expect(screen.queryByText("View only")).toBeNull()
+  })
+
   it("renames in place: Enter saves, Escape puts the name back", () => {
     const onRename = vi.fn()
     render(<BoardName title="Launch retro" editable onRename={onRename} />)

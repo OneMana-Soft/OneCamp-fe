@@ -16,13 +16,15 @@ import { takeBoardHandoff } from "@/lib/calls/boardHandoff";
 import { isLive, type GreenRoomTracks } from "./greenRoomHandOver";
 import { liveKitCamera, liveKitMic } from "./greenRoomLiveKit";
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo, type CSSProperties, type ComponentType, type MutableRefObject, type ReactNode } from "react";
-import { VideoControls, showCallFailure } from "./VideoControls";
+import { VideoControls, sayCallNote, showCallFailure } from "./VideoControls";
 import type { Knock } from "@/lib/calls/lobby";
 import type { InBreakout } from "@/lib/calls/breakouts";
 import { panelPeople } from "@/lib/calls/breakoutRooms";
 import { CallConnecting, CallReconnecting, CallStatusRow, CAPTIONS_BOTTOM, CaptionsOverlay, CaptionsPill, LockedPill, PlacePill, RecordingPill, TOP_ROW_END } from "./CallStage";
 import { CaptionsNotice } from "./CallNotice";
+import { captionsOffLabel, captionsOffSaid, captionsRefusal } from "./captionsOff";
 import { StageTile } from "./StageTile";
+import { CALL_PANEL_COVER } from "./callPanelClasses";
 import { captureTiles, flipTiles, type TileRects } from "./stageMotion";
 import { PLACE_FOCUS, STAGE_PLACE, StageFocus, StageGrid, StageMore, useContentBox } from "./StageGrid";
 import CallerRinging, { CallerRingPlace, RING_PLACE, useCallerRing } from "./CallerRinging";
@@ -40,7 +42,10 @@ import {
   type CallRemoval,
 } from "./callState";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
-import { RecordingNotice, recordingConfirm, sameRecording, seenAfter } from "./RecordingNotice";
+import { RecordingNotice, recordingWords, sameRecording, seenAfter } from "./RecordingNotice";
+import type { AskedNoticeProps } from "./AskedNotice";
+import { leaveAfter, recordConsent, type ConsentChoice } from "./callConsent";
+import type { CallHold } from "@/lib/calls/holds";
 import dynamic from "next/dynamic";
 
 // Backgrounds and sound, a piece of its own: the effects chosen on this device,
@@ -110,6 +115,10 @@ export interface CallTranscriptionConfig {
   mode?: "frontend" | "backend" | "off";
   where?: string;
   language?: string;
+  /** Why captions can't come on (zoom-09 C2): "" | transcription_disabled | transcriber_not_running. */
+  offReason?: string;
+  /** A workspace admin: only they are pointed at the card that starts the transcriber. */
+  admin?: boolean;
 }
 
 interface VideoConferenceProps {
@@ -130,6 +139,8 @@ interface VideoConferenceProps {
   // route) — so a guest never triggers a 401 → refresh → logout redirect. Guests
   // still see remote captions relayed over the LiveKit data channel.
   guest?: boolean;
+  /** The notice a guest answers first (zoom-09): the guest's page's LazyAskedNotice, so only that page builds it. */
+  asked?: ComponentType<AskedNoticeProps>;
   // In by a call's invite (calls HU13): a member, but nothing of the
   // conversation reaches them, so no assistant (it reads the conversation).
   inviteOnly?: boolean;
@@ -243,6 +254,7 @@ function Conference({
   toggleRecording,
   isAdmin,
   guest = false,
+  asked,
   inviteOnly = false,
   place,
   embedded = false,
@@ -399,6 +411,7 @@ function Conference({
               parentToggleRecording={toggleRecording}
               isAdmin={isAdmin}
               guest={guest}
+              asked={asked}
               inviteOnly={inviteOnly}
               place={place}
               initial={initial}
@@ -443,10 +456,17 @@ export interface PublishChoice {
   tracks?: GreenRoomTracks;
 }
 
-export function usePublishChoice(room: Room, connected: boolean, initial: PublishChoice) {
+/**
+ * asks: a guest's OK to a recording or captions notice is awaited (zoom-09):
+ * nothing of theirs is sent until they give it, and a start mid-call turns
+ * their microphone and camera off until they do, then back as they were
+ * (one still coming on goes off as it lands).
+ */
+export function usePublishChoice(room: Room, connected: boolean, initial: PublishChoice, asks = false) {
   const done = useRef(false);
+  const paused = useRef<{ mic: boolean; camera: boolean } | null>(null);
   useEffect(() => {
-    if (done.current || !connected) return;
+    if (done.current || !connected || asks) return;
     done.current = true;
     const lp = room.localParticipant;
     const runsIt = runsCall(partOf(lp.attributes).role);
@@ -456,11 +476,18 @@ export function usePublishChoice(room: Room, connected: boolean, initial: Publis
     // What the green room handed over and is still open is sent as it is
     // (greenRoomHandOver); otherwise the call opens its own, as before.
     const { camera, mic } = initial.tracks ?? {};
+    // A device asked for before a notice that asks and landing after it goes off as it lands, back after OK.
+    const offIfAsked = (device: "mic" | "camera", off: () => Promise<unknown>) => () => {
+      const held = paused.current;
+      if (!held || held[device]) return;
+      held[device] = true;
+      void off().catch(() => {});
+    };
     const sendMic = initial.audio && !micHeld && !joinMuted;
     const sendCamera = initial.video && !cameraHeld;
     if (sendMic) {
       const on = mic && isLive(mic.track) ? lp.publishTrack(liveKitMic(mic.track, mic.constraints), { source: Track.Source.Microphone }) : lp.setMicrophoneEnabled(true);
-      on.catch((e: unknown) => {
+      on.then(offIfAsked("mic", () => lp.setMicrophoneEnabled(false)), (e: unknown) => {
         mic?.track.stop();
         showCallFailure(callMediaFailure("microphone", e));
       });
@@ -472,7 +499,7 @@ export function usePublishChoice(room: Room, connected: boolean, initial: Publis
     if (sendCamera) {
       const handed = camera && isLive(camera.track) ? (camera.liveKit ?? liveKitCamera(camera.track, camera.constraints)) : undefined;
       const on = handed ? lp.publishTrack(handed, { source: Track.Source.Camera }) : lp.setCameraEnabled(true);
-      on.catch((e: unknown) => {
+      on.then(offIfAsked("camera", () => lp.setCameraEnabled(false)), (e: unknown) => {
         handed?.stop();
         showCallFailure(callMediaFailure("camera", e));
       });
@@ -480,7 +507,21 @@ export function usePublishChoice(room: Room, connected: boolean, initial: Publis
       camera?.liveKit?.stop();
       camera?.track.stop();
     }
-  }, [room, connected, initial]);
+  }, [room, connected, initial, asks]);
+  useEffect(() => {
+    if (!done.current || !connected) return;
+    const lp = room.localParticipant;
+    if (asks && !paused.current) {
+      paused.current = { mic: lp.isMicrophoneEnabled, camera: lp.isCameraEnabled };
+      if (paused.current.mic) void lp.setMicrophoneEnabled(false).catch(() => {});
+      if (paused.current.camera) void lp.setCameraEnabled(false).catch(() => {});
+    } else if (!asks && paused.current) {
+      const was = paused.current;
+      paused.current = null;
+      if (was.mic) lp.setMicrophoneEnabled(true).catch((e: unknown) => showCallFailure(callMediaFailure("microphone", e)));
+      if (was.camera) lp.setCameraEnabled(true).catch((e: unknown) => showCallFailure(callMediaFailure("camera", e)));
+    }
+  }, [room, connected, asks]);
 }
 
 /**
@@ -559,6 +600,7 @@ function MyVideoConference({
   parentToggleRecording,
   isAdmin,
   guest = false,
+  asked,
   inviteOnly = false,
   place,
   initial,
@@ -582,6 +624,7 @@ function MyVideoConference({
   parentToggleRecording?: (isRecording: boolean) => Promise<unknown> | void;
   isAdmin: boolean;
   guest?: boolean;
+  asked?: ComponentType<AskedNoticeProps>;
   inviteOnly?: boolean;
   place?: string;
   initial: PublishChoice;
@@ -663,7 +706,6 @@ function MyVideoConference({
   const reconnecting = connection === ConnectionState.Reconnecting;
   // A companion sends no microphone or camera, whatever the page handed in.
   const choice = useMemo(() => (companion ? { audio: false, video: false } : initial), [companion, initial]);
-  usePublishChoice(room, connection === ConnectionState.Connected, choice);
   usePresentOnly(room, connection === ConnectionState.Connected, companion ? screen : undefined, onDisconnect);
   useRemovalNotice(room, removalRef);
 
@@ -695,6 +737,9 @@ function MyVideoConference({
   const where = transcription.where ?? config.where ?? (config.mode === "frontend" ? "browser" : undefined);
   const browserCaptions = where === "browser";
   const keepsTranscript = transcription.on ? transcription.kept !== false : !room.name.startsWith("meet-");
+  // A recording comes with a transcript only while the call's is on and kept: the server files its lines under the
+  // recording as it runs (V-948). Read from the room, so a guest's screen knows it too.
+  const recordsTranscript = transcription.on && keepsTranscript;
   const recogniserActive = !guest && session !== null && seenSession === session && !notMe && browserCaptions;
   const showCaptions = transcription.on && !captionsHidden;
 
@@ -708,15 +753,14 @@ function MyVideoConference({
       } catch (e) {
         const code = apiErrorCode(e);
         throw new Error(
-          code === "transcription_disabled"
-            ? "Captions are turned off for this workspace. An admin can turn them on under Call transcription."
-            : code === "not_in_call"
+          captionsRefusal(code, !!config.admin) ??
+            (code === "not_in_call"
               ? NOT_CONNECTED_YET
-              : apiErrorMessage(e, "Captions didn't change. Try again."),
+              : apiErrorMessage(e, "Captions didn't change. Try again.")),
         );
       }
     },
-    [room],
+    [room, config.admin],
   );
   const onCaptions = () => {
     if (transcription.on) {
@@ -724,6 +768,19 @@ function MyVideoConference({
       return;
     }
     if (guest) return;
+    // Nothing to turn on while the transcriber is down: why, in one line, instead of a confirm that can only fail.
+    const off = captionsOffSaid(config.offReason, !!config.admin);
+    if (off) {
+      sayCallNote(
+        off.title,
+        off.link ? (
+          <a href={off.link.href} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+            {off.link.label}
+          </a>
+        ) : undefined,
+      );
+      return;
+    }
     // Deliberate: the person turning them on reads first what it means for
     // everyone, and where everyone's speech goes.
     confirm({
@@ -923,7 +980,7 @@ function MyVideoConference({
   // started it isn't (it came on while their start was answering). Stop asks nothing (CALLS-07).
   const askToRecord = () => {
       if (isRecording) return void toggleRecording();
-      confirm({ ...recordingConfirm(place), onConfirm: toggleRecording });
+      confirm({ ...recordingWords({ place, transcript: recordsTranscript }).confirm, onConfirm: toggleRecording });
   };
   // The server writes a recording in two steps, who started it and then its egress id: what was read or started
   // here before the id landed is carried over to it, and forgotten if the recording ends first (seenAfter).
@@ -992,7 +1049,7 @@ function MyVideoConference({
   // Who waits in the lobby, for whoever may let them in (CALLS-2).
   const knocks = me?.can.has("admit") ? lobby : undefined;
   // Each change said once to a screen reader: joins, leaves, hands, knocks, who started recording, a recording or captions stopping (meet-18).
-  useCallAnnouncements(useMemo(() => ({ people, knocks: knocks ?? NO_KNOCKS, recording: isRecording, recordingBy: recordingBy === "you" ? "You" : recordingBy, captions: transcription.on }), [people, knocks, isRecording, recordingBy, transcription.on]));
+  useCallAnnouncements(useMemo(() => ({ people, knocks: knocks ?? NO_KNOCKS, recording: isRecording, recordingBy: recordingBy === "you" ? "You" : recordingBy, captions: transcription.on, transcript: recordsTranscript }), [people, knocks, isRecording, recordingBy, transcription.on, recordsTranscript]));
   const knockBar = useKnockBar(knocks, peopleOpen);
   // The bar's height, which the stage gives up so the bar never covers a tile.
   const [knockBarHeight, setKnockBarHeight] = useState(0);
@@ -1007,6 +1064,28 @@ function MyVideoConference({
   // Your hand and feedback (CALLS-3a): a member through their session, a
   // guest through their own call token. The queue every screen draws.
   const asker = useMemo(() => (guest ? (callToken ? { callToken } : undefined) : sessionId ? { sessionId } : undefined), [guest, callToken, sessionId]);
+  // Each person's OK or Leave on a recording or captions notice is kept as theirs (zoom-09), of what the room shows
+  // as they answer. A member is told and goes on, and a record that fails says nothing. A guest answers first, one
+  // notice at a time, sending nothing until their OK is kept (OK busy while it's out; a quiet line and OK again if it
+  // isn't). Both are the notice's they answered (askedBy), so the next one to ask starts clean. A Leave is kept before
+  // the call is left, waiting 1.5 s at most.
+  const askedBy = !guest ? "" : recordingNoticeOpen ? `recording ${recordingKey}` : noticeOpen ? `captions ${session}` : "";
+  const [okAnswer, setOkAnswer] = useState<{ by: string; out: boolean }>();
+  const ok = okAnswer?.by === askedBy ? okAnswer : undefined;
+  const answer = (choice: ConsentChoice) => (asker ? recordConsent(asker, choice, room.metadata) : Promise.resolve(false));
+  const leaveNotice = () => leaveAfter(answer("left"), () => (onDisconnect ? onDisconnect() : void room.disconnect()));
+  const okNotice = (close: () => void) => {
+    if (!guest) return void (close(), answer("accepted"));
+    const by = askedBy;
+    setOkAnswer({ by, out: true });
+    void answer("accepted").then((kept) => {
+      setOkAnswer((now) => (now?.by !== by ? now : kept ? undefined : { by, out: false }));
+      if (kept) close();
+    });
+  };
+  const asksFirst = guest && (recordingNoticeOpen || noticeOpen);
+  usePublishChoice(room, connection === ConnectionState.Connected, choice, asksFirst);
+  const dockHeld = useMemo(() => (asksFirst ? new Set<CallHold>([...myHeld, "microphone", "camera"]) : myHeld), [asksFirst, myHeld]);
   // Breakout rooms: Join, pick, Back, and the server's word to move.
   const breakoutBar = (hidden: boolean) =>
     asker && !companion && (meta.breakouts || inRoom) ? (
@@ -1262,12 +1341,16 @@ function MyVideoConference({
             <div className="pointer-events-none absolute inset-x-3 top-12 z-30 flex flex-col items-center gap-2">
                 {reconnecting && <CallReconnecting inline />}
                 {recordingNoticeOpen && (
-                    <RecordingNotice by={meta.recording.by} onDismiss={() => setRecordingSeen({ key: recordingKey, mine: false })} onLeave={() => (onDisconnect ? onDisconnect() : void room.disconnect())} />
+                    <RecordingNotice place={place} by={meta.recording.by} transcript={recordsTranscript} asks={guest ? asked : undefined} failed={ok?.out === false} busy={ok?.out} onDismiss={() => okNotice(() => setRecordingSeen({ key: recordingKey, mine: false }))} onLeave={leaveNotice} />
                 )}
-                {noticeOpen && (
+                {noticeOpen && !(guest && recordingNoticeOpen) && (
                     <CaptionsNotice
                         transcription={transcription}
-                        onDismiss={() => setNoticeDismissed(session)}
+                        asks={guest ? asked : undefined}
+                        failed={ok?.out === false}
+                        busy={ok?.out}
+                        onLeave={leaveNotice}
+                        onDismiss={() => okNotice(() => setNoticeDismissed(session))}
                         captioningMe={captioningMe}
                         onToggleMe={toggleMe}
                     />
@@ -1324,7 +1407,7 @@ function MyVideoConference({
             {/* On a phone the chat covers the dock, as Meet's and Zoom's do, so its
                 field is the screen's footer: under the dock it couldn't be reached. */}
             {chatOpen && chatTarget && (
-                <div className="absolute inset-0 z-[calc(var(--z-fixed)+1)] @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                <div className={CALL_PANEL_COVER}>
                     <CallChatPanel
                         target={chatTarget}
                         onClose={() => setSide(null)}
@@ -1336,13 +1419,13 @@ function MyVideoConference({
 
             {/* Like the chat, it covers the dock on a phone: its ask box is the screen's footer. */}
             {activitiesOpen && asker && (
-                <div className="absolute inset-0 z-[calc(var(--z-fixed)+1)] @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                <div className={CALL_PANEL_COVER}>
                     <CallActivitiesPanel who={asker} room={room} onClose={() => setSide(null)} />
                 </div>
             )}
 
             {breakoutsOpen && runsBreakouts && (
-                <div className="absolute inset-0 z-[calc(var(--z-fixed)+1)] @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                <div className={CALL_PANEL_COVER}>
                     <CallBreakoutsPanel breakouts={meta.breakouts} people={breakoutPeople} onAct={hosting.act} onClose={() => setSide(null)} />
                 </div>
             )}
@@ -1367,6 +1450,7 @@ function MyVideoConference({
             onToggleCaptions={captionsAvailable ? onCaptions : undefined}
             showCaptions={showCaptions}
             captionsOff={!transcription.on}
+            captionsWhy={captionsOffLabel(config.offReason)}
             // AI-free edition: no handler, so VideoControls renders no AI button.
             // Same path guests already take.
             onToggleAI={undefined}
@@ -1395,7 +1479,8 @@ function MyVideoConference({
             activities={asker ? { open: activitiesOpen, onToggle: () => toggleSide("activities"), lit: activitiesLit } : undefined}
             breakouts={runsBreakouts ? { open: breakoutsOpen, onToggle: () => toggleSide("breakouts") } : undefined}
             onEndForAll={me?.can.has("end") ? hosting.endForEveryone : undefined}
-            held={myHeld}
+            held={dockHeld}
+            asking={asksFirst}
             board={
               boardRules?.present
                 ? {

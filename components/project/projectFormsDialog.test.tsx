@@ -26,10 +26,14 @@ const mutate = vi.fn()
 let readFailed = false
 // SWR keeps what a read brought through a failed refresh.
 let keptForms = false
+// The project's triage, as its info carries it (linear-21 H3): absent unless a test sets it.
+let triage: { on: boolean; waiting: number } | undefined
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) =>
     !url
       ? { data: undefined, isLoading: false, mutate }
+      : url.startsWith("/project/info/")
+      ? { data: { data: triage ? { project_triage: triage } : {} }, isLoading: false, mutate }
       : url === "/tables"
       ? { data: { data: tables }, isLoading: false, mutate }
       : url.startsWith("/tables/") && url.endsWith("/forms")
@@ -109,6 +113,18 @@ const saved = () => post.mock.calls.at(-1)![1] as ProjectForm
 const item = (f: ProjectForm, id: string) => f.fields.find((x) => x.id === id) as FormField
 
 describe("a project's forms", () => {
+  it("say in one line that a form's answers arrive in triage while the project has triage on (linear-21 H3 e)", async () => {
+    forms = [launch()]
+    triage = { on: true, waiting: 0 }
+    await open()
+    expect(screen.getByRole("dialog").textContent).toMatch(/answers arrive in Triage/)
+    cleanup()
+    triage = { on: false, waiting: 0 }
+    await open()
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/arrive in Triage/)
+    triage = undefined
+  })
+
   it("lists each with its questions, pages and answers", async () => {
     forms = [launch()]
     await open()

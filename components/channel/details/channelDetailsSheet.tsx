@@ -39,7 +39,8 @@ import { displayNameOf } from "@/lib/personName"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { app_channel_path } from "@/types/paths"
-import { Lock, Megaphone, X, Pencil } from "@/lib/icons"
+import { Calendar, Lock, Megaphone, X, Pencil } from "@/lib/icons"
+import { useContainerCalendar } from "@/lib/calendar/useContainerCalendar"
 import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
 import { focusDialogItself } from "@/components/ui/overlayFocus"
 import type { ReturnFocus } from "@/components/ui/returnFocus"
@@ -150,6 +151,8 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange, ...
     const [editingTopic, setEditingTopic] = useState(false)
     const [topic, setTopic] = useState("")
     const notification = useChannelNotification(channelId, info?.notification_type, name)
+    // The sheet closes as the channel's calendar opens (V-1043).
+    const calendar = useContainerCalendar("channel", channelId, () => onOpenChange(false))
 
     // Every setting goes through the one UpdateChannel call with the rest of
     // the channel as it is, so changing one never resets another. Each says
@@ -321,6 +324,10 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange, ...
                                     )}
                                 </Row>
                             )}
+                            {/* Its own calendar (gcal-14): the tasks its messages link to, and the events made on it. */}
+                            <Row icon={<Calendar />} label="Channel calendar" description="The tasks its messages link to, and events made on it.">
+                                <Button variant="ghost" size="sm" aria-label="Open channel calendar" busy={calendar.busy} onClick={() => void calendar.open()}>Open</Button>
+                            </Row>
                             {createdBy && (
                                 <Row label="Created by" description={`${createdBy}${info?.ch_created_at ? ` on ${shortDate(new Date(info.ch_created_at))}` : ""}`} />
                             )}

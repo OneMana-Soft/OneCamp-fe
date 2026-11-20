@@ -12,7 +12,7 @@ import { SAM, SHOT_THEMES, appOrigin, expectEveryCallAnswered, reviewShot, stubB
 // and the groups' headers, select-all by a Shift-click run over rows not drawn,
 // a drag carried past the window's edge, and the failed and empty reads.
 // With SHOTS_DIR set, the J head's look is shot for design review (DESIGN-BUILD-143, 12 Nov): the keys' highlight and
-// Tab's box, a row's menus on their first open, rows with marks beside rows with none, the board's faces, a phone's
+// Tab's grip and box, a row's menus on their first open, rows with marks beside rows with none, the board's faces, a phone's
 // tap, picker and failed read, and the empty project; each frame comes right after the lines that check what it shows.
 
 const P = "9e0a0000-0000-4000-8000-0000000000e2"
@@ -149,6 +149,13 @@ const places = (page: Page) =>
 /** Whether a row sits at the screen's middle, as a scroll's every stop should show one. */
 const rowAtMiddle = (page: Page) => page.evaluate(() => document.elementFromPoint(640, 500)?.closest("[data-task-id]") !== null)
 /**
+ * The rows' grips come with the drag's layer, a chunk of its own fetched once the page is idle (components/task/
+ * reorderSlot), which lends every row the reader may change its grip in one draw. On a busy machine it lands after the
+ * rows (V-1101: a grip read the moment row 59 came found none), so a grip's read, or a key that goes to one, waits for it.
+ */
+const gripsCame = (page: Page) =>
+  expect(page.locator("[data-grouped-list] [data-reorder-grip]").first(), "the drag's layer lent the rows their grips").toBeAttached({ timeout: 15_000 })
+/**
  * A group's 640 rows windowed: its first sixty, then Show 580 more. The press leaves the page where it was (at the
  * button, the sixtieth row: F1), so it then scrolls back to the list's top, where Task 0 is drawn again.
  */
@@ -218,8 +225,15 @@ test.describe("a long list on a computer", () => {
     await expect(row).toHaveAttribute("data-highlighted", "true")
     await expect(row).toBeInViewport()
     await expect(page.locator("[data-grouped-list] [data-task-id][data-highlighted]")).toHaveCount(1)
+    // The keys' marks, read from the row by its children (globals.css kbd-lit, kbd-box): the cursor and the light box
+    // on the keys' row, and on no other.
+    await expect(row.locator("[data-kbd-cursor]")).toBeVisible()
+    await expect(row.locator("[data-row-box]")).toBeVisible()
+    await expect(page.locator("[data-grouped-list] [data-kbd-cursor]:visible")).toHaveCount(1)
+    await expect(rowOf(page, 19).locator("[data-row-box]")).toBeHidden()
     // Tab goes through the row's controls in order: its grip (a project's list in its manual order), then its select
     // box; Shift+Tab from the next control lands back on the box.
+    await gripsCame(page)
     await page.keyboard.press("Tab")
     await expect(row.getByRole("button", { name: "Move Task 20" })).toBeFocused()
     await page.keyboard.press("Tab")
@@ -262,6 +276,116 @@ test.describe("a long list on a computer", () => {
     expect(await drawn(page)).toBeLessThan(90)
   })
 
+  // Rows the page moves under a resting pointer (fluid-19, 13 Nov). The browser's hover update sends pointerover and
+  // pointerenter where the pointer already was, with no pointermove. A J's scroll sends it in its own frame, before the
+  // scroll event, so the scroll settle (lib/ui/scrollState) covered it only when the J before was within 150 ms: the
+  // 20 J test above lit row 20 under the mouse resting where it clicked Show 1940 more (3 of 7 runs on fluid-19's
+  // tip), its Checkbox in place of the keys' box. A draw that moves rows has no scroll at all. Only a move lights a row.
+  test("rows the keys or a draw carry under a resting mouse stay unlit, and the mouse's move lights the row under it", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    await openList(page, testInfo, 60)
+    await expect(rowOf(page, 59)).toBeAttached({ timeout: 60_000 })
+    const lit = page.locator("[data-grouped-list] [data-task-id] [role=checkbox]:not([data-row-box])")
+    const sc = (await page.locator("[data-list-scroller]").first().boundingBox())!
+    const first = (await rowOf(page, 0).boundingBox())!
+    const x = Math.round(first.x + first.width / 2)
+    const y = Math.round(Math.min(sc.y + sc.height, 860) - 30)
+    const under = () =>
+      page.evaluate(([x, y]) => {
+        const r = document.elementFromPoint(x, y)?.closest("[data-task-id]")
+        return r ? { i: Number(r.getAttribute("data-task-id")!.slice(-11)), hover: r.matches(":hover") } : null
+      }, [x, y])
+    // The mouse comes to rest on a row near the screen's foot: its move lights that row.
+    await page.mouse.move(x, y)
+    const start = (await under())!
+    expect(start, "a row under the mouse").not.toBeNull()
+    await expect(rowOf(page, start.i).getByRole("checkbox", { name: `Select Task ${start.i}` })).toHaveCount(1)
+    await expect(lit).toHaveCount(1)
+    // The keys carry rows under it, a press a little slower than the scroll settle: each scroll's hover update comes
+    // with no scroll in the 150 ms before it.
+    await rowOf(page, 0).evaluate((r: HTMLElement) => r.focus())
+    for (let i = 0; i < start.i + 4; i++) {
+      await page.keyboard.press("j")
+      await page.waitForTimeout(250)
+    }
+    const carried = (await under())!
+    expect(carried.i, "the keys' scroll carried other rows under the mouse").toBeGreaterThan(start.i)
+    expect(carried.hover, "the browser moved its hover to the row now under the mouse").toBe(true)
+    await expect(lit, "no row lit by the keys' scroll under a resting mouse").toHaveCount(0)
+    await expect(rowOf(page, carried.i).locator("[data-row-box]")).toHaveCount(1)
+    // A draw moves the rows down two places under it, with no scroll (the scroller's anchoring off, so it holds still).
+    await rowOf(page, 0).evaluate((r) => {
+      r.closest<HTMLElement>("[data-list-scroller]")!.style.overflowAnchor = "none"
+      r.closest<HTMLElement>("[data-grouped-list]")!.style.paddingTop = "80px"
+    })
+    await page.waitForTimeout(300)
+    const drawnUnder = (await under())!
+    expect(drawnUnder.i, "the draw moved other rows under the mouse").toBe(carried.i - 2)
+    expect(drawnUnder.hover, "the browser moved its hover to the row now under the mouse").toBe(true)
+    await expect(lit, "no row lit by a draw under a resting mouse").toHaveCount(0)
+    // The mouse's own move, by a pixel, lights the row under it.
+    await page.mouse.move(x, y + 1)
+    await expect(rowOf(page, drawnUnder.i).getByRole("checkbox", { name: `Select Task ${drawnUnder.i}` })).toHaveCount(1)
+    await expect(lit).toHaveCount(1)
+  })
+
+  test("a row the keys carry under a resting mouse shows no hover, neither its tint nor its grip; a 2 px move brings both back at once", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    await openList(page, testInfo, 60)
+    await expect(rowOf(page, 59)).toBeAttached({ timeout: 60_000 })
+    await gripsCame(page)
+    const sc = (await page.locator("[data-list-scroller]").first().boundingBox())!
+    const first = (await rowOf(page, 0).boundingBox())!
+    const x = Math.round(first.x + first.width / 2)
+    // The mouse rests mid-list; the keys' cursor starts on the row at the list's foot, so each J scrolls a row.
+    const foot = Math.round(Math.min(sc.y + sc.height, 860) - 30)
+    const y = Math.round((sc.y + Math.min(sc.y + sc.height, 860)) / 2)
+    // The row at the mouse's place: which, whether hovered, its background and its grip's opacity, as the page styles them.
+    const under = (dy = 0) =>
+      page.evaluate(([x, y]) => {
+        const r = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-task-id]")
+        const grip = r?.querySelector("[data-reorder-grip]")
+        return r && grip ? { i: Number(r.getAttribute("data-task-id")!.slice(-11)), hover: r.matches(":hover"), bg: getComputedStyle(r).backgroundColor, grip: getComputedStyle(grip).opacity } : null
+      }, [x, y + dy])
+    // At rest, before the mouse comes: the row's own colour, its grip hidden.
+    const rest = (await under())!
+    expect(rest, "a row with a grip at the mouse's place").not.toBeNull()
+    expect(rest.grip).toBe("0")
+    // A real hover tints the row and shows its grip (past their 140 ms fade).
+    await page.mouse.move(x, y)
+    await page.waitForTimeout(300)
+    const hovered = (await under())!
+    expect(hovered.hover).toBe(true)
+    expect(hovered.bg, "a hovered row is tinted").not.toBe(rest.bg)
+    expect(hovered.grip).toBe("1")
+    // The keys' cursor on the row at the foot, then J x5: each J scrolls the list a row under the resting mouse.
+    const atFoot = await page.evaluate(([x, y]) => Number(document.elementFromPoint(x, y)!.closest("[data-task-id]")!.getAttribute("data-task-id")!.slice(-11)), [x, foot])
+    await rowOf(page, atFoot).evaluate((r: HTMLElement) => r.focus())
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press("j")
+      await page.waitForTimeout(250)
+    }
+    const carried = (await under())!
+    expect(carried.i, "the keys' scroll carried other rows under the mouse").toBeGreaterThan(hovered.i)
+    await expect(rowOf(page, carried.i), "the row under the mouse is not the keys' cursor").not.toHaveAttribute("data-highlighted", /.*/)
+    expect(carried.hover, "the browser moved its hover to the row now under the mouse").toBe(true)
+    expect(carried.bg, "the row the keys carried under a resting mouse keeps its rest colour").toBe(rest.bg)
+    expect(carried.grip, "and its grip stays hidden").toBe("0")
+    // The mouse's own move, by 2 px, brings the row's hover back at once.
+    await page.mouse.move(x, y + 2)
+    await expect.poll(async () => (await under(2))!.grip, { timeout: 1_000 }).toBe("1")
+    await expect.poll(async () => (await under(2))!.bg, { timeout: 1_000 }).toBe(hovered.bg)
+    // J again, then a click with no move: the press lands on the row under the mouse, as a click always does.
+    await page.keyboard.press("j")
+    await page.waitForTimeout(250)
+    const again = (await under(2))!
+    expect(again.grip).toBe("0")
+    await page.mouse.down()
+    await page.mouse.up()
+    await expect(rowOf(page, again.i)).toHaveAttribute("data-highlighted", /.*/)
+    await expect(page.locator("[data-kbd-nav]")).toHaveCount(0)
+  })
+
   test("J x3, X and J x2 paint the highlight with the picked row and its bar in view, and Tab then reaches the highlighted row's box", async ({ page }, testInfo) => {
     test.setTimeout(150_000)
     await page.emulateMedia({ colorScheme: "light" })
@@ -286,8 +410,12 @@ test.describe("a long list on a computer", () => {
     await settledFrame(page, "jkey-highlight", "light")
     // Tab, as the J path's: the row's grip (a project's list in its manual order), then its select box.
     await inTheme(page, "dark")
+    await gripsCame(page)
     await page.keyboard.press("Tab")
     await expect(row.getByRole("button", { name: "Move Task 5" })).toBeFocused()
+    // The grip's own ring, with the row's cursor still drawn for the keys' focus in it (globals.css kbd-lit).
+    await expect(row.locator("[data-kbd-cursor]")).toBeVisible()
+    await settledFrame(page, "jkey-grip", "dark")
     await page.keyboard.press("Tab")
     await expect(row.getByRole("checkbox", { name: "Select Task 5" })).toBeFocused()
     await expect(row).toHaveAttribute("data-highlighted", "true")
@@ -376,6 +504,70 @@ test.describe("a long list on a computer", () => {
     await expect(cardOf("Review pricing page copy").locator("[data-card-avatar]").getByText("S", { exact: true })).toBeVisible()
     await expect(page.locator("html")).toHaveClass(/(^|\s)dark(\s|$)/)
     await settledFrame(page, "board", "dark")
+  })
+
+  // V-1054 R1 (CR-340 #1): the board is on the keys' path too, so its card's lift and shadow (hover-lift) hold still
+  // for the keys like a row's hover does, and the mouse's own move brings them back.
+  test("the board: a card under a resting mouse drops its lift and shadow at J, and a 2 px move brings both back", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    const card = (i: number, name: string) => ({
+      ...task(i, "todo"),
+      task_uuid: `00000000-0000-4000-8000-5${String(i).padStart(11, "0")}`,
+      task_name: name,
+      task_assignee: SAM,
+      task_project: { project_uuid: BOARD, project_name: "Website relaunch", project_is_admin: true },
+    })
+    await openBoard(page, testInfo, "light", {
+      [`/project/taskListForKanban/${BOARD}`]: {
+        msg: "ok",
+        data: {
+          project_uuid: BOARD, project_name: "Website relaunch", project_is_admin: 1, project_is_member: 1, project_members: [SAM],
+          project_tasks_backlog: [],
+          project_tasks_todo: [card(0, "Draft launch email"), card(1, "Fix login redirect on Safari"), card(2, "Review pricing page copy")],
+          project_tasks_in_progress: [],
+          project_tasks_in_review: [],
+          project_tasks_done: [],
+          project_tasks_canceled: [],
+          project_tasks_done_count: 0,
+        },
+      },
+    })
+    const cardOf = (name: string) => page.locator("[data-board] [data-task-id]").filter({ hasText: name })
+    await expect(cardOf("Review pricing page copy")).toBeVisible({ timeout: 30_000 })
+    const box = (await cardOf("Review pricing page copy").boundingBox())!
+    const x = Math.round(box.x + box.width / 2)
+    const y = Math.round(box.y + box.height / 2)
+    // The card at the mouse's place: its name, whether hovered, its lift and its shadow's opacity, as the page styles them.
+    const under = (dy = 0) =>
+      page.evaluate(([x, y]) => {
+        const c = document.elementFromPoint(x, y)?.closest<HTMLElement>(".hover-lift")
+        return c ? { name: c.textContent ?? "", hover: c.matches(":hover"), lift: getComputedStyle(c).translate, shadow: getComputedStyle(c, "::after").opacity } : null
+      }, [x, y + dy])
+    const rest = (await under())!
+    expect(rest, "a lifting card at the mouse's place").not.toBeNull()
+    expect([rest.lift, rest.shadow]).toEqual(["none", "0"])
+    // A real hover lifts the card and shows its shadow (past their 140 ms ease).
+    await page.mouse.move(x, y)
+    await page.waitForTimeout(300)
+    const hovered = (await under())!
+    expect(hovered.hover).toBe(true)
+    expect(hovered.lift, "a hovered card lifts").not.toBe("none")
+    expect(hovered.shadow).toBe("1")
+    // The keys' cursor on the first card, then J: the keys drive the board, and the card under the resting mouse holds still.
+    await cardOf("Draft launch email").evaluate((c: HTMLElement) => ((c.matches("[tabindex]") ? c : c.querySelector<HTMLElement>("[tabindex]")) ?? c).focus())
+    await page.keyboard.press("j")
+    await expect(page.locator("[data-kbd-nav]"), "the keys marked the board").toHaveCount(1)
+    await page.waitForTimeout(300)
+    const held = (await under())!
+    expect(held.name).toContain("Review pricing page copy")
+    expect(held.hover, "the mouse still rests on the card").toBe(true)
+    expect(held.lift, "the card under the resting mouse drops its lift").toBe("none")
+    expect(held.shadow, "and its shadow").toBe("0")
+    // The mouse's own move, by 2 px, brings the lift and the shadow back.
+    await page.mouse.move(x, y + 2)
+    await expect.poll(async () => (await under(2))!.shadow, { timeout: 1_000 }).toBe("1")
+    await expect.poll(async () => (await under(2))!.lift, { timeout: 1_000 }).not.toBe("none")
+    await expect(page.locator("[data-kbd-nav]")).toHaveCount(0)
   })
 
   test("Show N more windows a group, every group keeps its header, and a hidden group gives its room to the next", async ({ page }, testInfo) => {
@@ -621,6 +813,32 @@ test.describe("a long list keeps the reader's place as it grows, by touch", () =
     expectPlaceKept(await pressShowMore(page, "Show 1940 more", "finger"))
     await expect(page.locator("[data-group='todo'] > [role=list]")).toHaveAttribute("data-rows", "2000", { timeout: 15_000 })
   })
+
+  // A finger never lights a row (GroupedTaskList's point): a tap leaves the pointer's place where it tapped, and the
+  // rows a draw then moves there get the browser's hover update with no touch and no move (fluid-19). None lights.
+  test("rows a draw moves under a finger's last tap stay unlit", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    await openList(page, testInfo, 60)
+    await expect(rowOf(page, 59)).toBeAttached({ timeout: 60_000 })
+    const lit = page.locator("[data-grouped-list] [data-task-id] [role=checkbox]:not([data-row-box])")
+    const row = (await rowOf(page, 4).boundingBox())!
+    const x = Math.round(row.x + row.width / 2)
+    const y = Math.round(row.y + row.height / 2)
+    // The tap opens the row's task; Escape, a key, closes it with no touch.
+    await page.touchscreen.tap(x, y)
+    await page.waitForTimeout(300)
+    await expect(lit, "the tap lit no row").toHaveCount(0)
+    await page.keyboard.press("Escape")
+    await page.waitForTimeout(300)
+    await rowOf(page, 0).evaluate((r) => {
+      r.closest<HTMLElement>("[data-list-scroller]")!.style.overflowAnchor = "none"
+      r.closest<HTMLElement>("[data-grouped-list]")!.style.paddingTop = "80px"
+    })
+    await page.waitForTimeout(300)
+    const under = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest("[data-task-id]")?.getAttribute("data-task-id") ?? null, [x, y])
+    expect(under, "the draw moved another row under the tap's place").toBe(task(2).task_uuid)
+    await expect(lit, "no row lit by a draw under the finger's last place").toHaveCount(0)
+  })
 })
 
 // The phone list (virtua, components/list/virtualInfiniteScroll) is left as it is: the port's 390 case tested a
@@ -672,6 +890,22 @@ test.describe("a long list on a phone", () => {
     expect(id, "a row under the finger").toBeTruthy()
     await page.touchscreen.tap(195, Math.round(ys[1]))
     await expect(page).toHaveURL(new RegExp(`/${id}(?:[?#]|$)`), { timeout: 10_000 })
+  })
+
+  test("a finger's tap on a row opens its task, and the keys' mark (data-kbd-nav) never comes by touch", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    await openList(page, testInfo, 60)
+    const row = page.locator("[data-phone-task-row]").nth(2)
+    await expect(row).toBeVisible({ timeout: 60_000 })
+    const rest = await row.evaluate((r) => getComputedStyle(r).backgroundColor)
+    const id = await row.getAttribute("data-task-id")
+    const box = (await row.boundingBox())!
+    await page.keyboard.press("j")
+    await expect(page.locator("[data-kbd-nav]")).toHaveCount(0)
+    expect(await row.evaluate((r) => getComputedStyle(r).backgroundColor), "no row tinted by a key on a phone").toBe(rest)
+    await page.touchscreen.tap(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2))
+    await expect(page).toHaveURL(new RegExp(`/${id}(?:[?#]|$)`), { timeout: 10_000 })
+    await expect(page.locator("[data-kbd-nav]")).toHaveCount(0)
   })
 
   test("rows with a lock, badges and a due date line up with rows that have none, on a phone", async ({ page }, testInfo) => {

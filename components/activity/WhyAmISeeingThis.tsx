@@ -12,6 +12,7 @@ import { NotifyGet } from "@/services/endpoints/inbox.notify"
 import type { WhyRecordPanel } from "@/components/notifications/NotifyWhyPanel"
 import type { WhyAnswer } from "@/lib/notifications/whyWords"
 import type { UnifiedActivityItem } from "@/types/activity"
+import type { CommentInfoInterface } from "@/types/comment"
 
 /**
  * An Inbox row's "Why am I seeing this?" (A4 H3), in the row's tools (on a
@@ -23,19 +24,29 @@ import type { UnifiedActivityItem } from "@/types/activity"
  * items only; another person's item answers "no record", as does none.
  */
 
-/** The chat message an Inbox item is about, as the router recorded it: a mention's post or chat message, a reaction's message; else none. */
+/**
+ * The chat message an Inbox item is about, as the router recorded it: a
+ * mention's post or chat message, a reply in a post's or a chat's thread (the
+ * router records it under the reply's own id, V-837) or a mention in one, a
+ * reaction's message; else none (a comment on a task, a doc or a board).
+ */
 export function whyMessageId(a: UnifiedActivityItem): string | null {
   if (a.activity_type === "MENTION" && a.mention) {
     const m = a.mention
     if (m.mention_post) return m.mention_post_uuid || m.mention_post.post_uuid || null
     if (m.mention_chat) return m.mention_chat_uuid || m.mention_chat.chat_uuid || null
+    if (m.mention_comment && inThread(m.mention_comment)) return m.mention_comment_uuid || m.mention_comment.comment_uuid || null
     return null
   }
+  if (a.activity_type === "COMMENT" && a.comment && inThread(a.comment)) return a.comment.comment_uuid || null
   if (a.activity_type === "REACTION" && a.reaction && !a.reaction.comment?.comment_uuid) {
     return a.reaction.post?.post_uuid || a.reaction.chat?.chat_uuid || null
   }
   return null
 }
+
+/** A reply in a post's or a chat message's thread: not a comment on a task, a doc or a board. */
+const inThread = (c: CommentInfoInterface) => Boolean(c.comment_post || c.comment_chat)
 
 /** The panel, from the notifications settings' one lazy chunk (main, 9 Nov): never on the Inbox's first load. */
 const Panel = lazyPart<React.ComponentProps<typeof WhyRecordPanel>>(

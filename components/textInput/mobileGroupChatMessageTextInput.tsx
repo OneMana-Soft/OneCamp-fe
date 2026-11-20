@@ -17,6 +17,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { CreateCommentResInterface, CreateUpdateCommentReqInterface } from "@/types/comment";
 import { clearChatCommentInputState, createChatComment, createOrUpdateChatCommentBody } from "@/store/slice/chatCommentSlice";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
+import { sendOnce, type WithSendId } from "@/lib/chat/sendOnce";
 import { updateGroupChatMessageReplyIncrement } from "@/store/slice/groupChatSlice";
 import { GroupChatCommentFileUpload } from "@/components/fileUpload/groupChatCommentFileUpload";
 
@@ -43,14 +44,16 @@ export const MobileGroupChatMessageTextInput = ({ grpId, chatMessageUUID }: { gr
         if(body.length==0) return
 
 
-        post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
+        // One reply however often it is sent (V-1088; the same rule as ThreadReplyBox).
+        sendOnce(chatMessageUUID, [body, files, false], (client_msg_id) => post.makeRequest<WithSendId<CreateUpdateCommentReqInterface>, CreateCommentResInterface>({
             apiEndpoint: PostEndpointUrl.CreateChatComment,
             payload: {
                 chat_id: chatMessageUUID,
                 comment_attachments: files,
                 comment_text_html: body,
+                client_msg_id,
             }
-        })
+        }))
             .then((res)=>{
 
                 if(res?.comment_id && selfProfile.data?.data) {
@@ -64,6 +67,9 @@ export const MobileGroupChatMessageTextInput = ({ grpId, chatMessageUUID }: { gr
                 dispatch(clearChatCommentInputState({threadId: chatMessageUUID, sent: files.map((f) => f.attachment_obj_key)}))
 
 
+            })
+            .catch(() => {
+                // Not sent, and usePost has said so: the words and their id stay for Send again.
             })
     }
 

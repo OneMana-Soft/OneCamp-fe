@@ -247,6 +247,19 @@ describe("the splash while the profile loads", () => {
     expect(appBootState()).toBe("leaving")
   })
 
+  // V-1013: the shell isn't drawn, so the error holds the page's one main.
+  it("puts the error in the page's one main landmark, the skip link's target", async () => {
+    firstPaint()
+    profile = { isLoading: false, isValidating: false, isError: new Error("Network Error"), data: undefined }
+    const view = page()
+    await act(async () => {})
+    expect(view.container.querySelectorAll("main")).toHaveLength(1)
+    const main = screen.getByRole("main")
+    expect(main.id).toBe("main-content")
+    expect(main.closest("[data-splash-error]")).not.toBeNull()
+    expect(main.querySelector("[data-spot-crash]")).not.toBeNull()
+  })
+
   // The splash went at once and the shell faded up from nothing over the
   // page's own colour, so the frame's glow vanished and the screen dipped to
   // white (in light) on the way in. The app is drawn whole at once now, and

@@ -11,6 +11,13 @@ let admin = true
 let caps: string[] = []
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_is_admin: admin } } }) }))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: (c: string) => caps.includes(c) }) }))
+const plan = vi.hoisted(() => ({ asked: [] as unknown[] }))
+vi.mock("@/hooks/usePlan", () => ({
+  usePlan: (o?: unknown) => {
+    plan.asked.push(o)
+    return { known: true, failed: false, plan: "free", used: 18, limit: 25, freePlan: true, upgradeUrl: "https://shop.example/buy" }
+  },
+}))
 let invite: { open: boolean; onOpenChange: (o: boolean) => void } | null = null
 vi.mock("@/components/invite/MemberInviteDialog", () => ({
   MemberInviteDialog: (p: { open: boolean; onOpenChange: (o: boolean) => void }) => {
@@ -26,6 +33,8 @@ afterEach(() => {
   cleanup()
   admin = true
   caps = []
+  plan.asked.length = 0
+  vi.restoreAllMocks()
 })
 
 describe("the workspace menu", () => {
@@ -73,5 +82,29 @@ describe("the workspace menu", () => {
     act(() => invite!.onOpenChange(false))
     expect(screen.queryByTestId("invite-dialog")).toBeNull()
     expect(document.querySelector("[data-phone-sheet]")).toBeNull()
+  })
+
+  // The plan and its seats sit where a phone's admin looks for the
+  // workspace's plan, as the menu's row does on a computer (SHELL-15): a
+  // 56 px sheet row that closes the sheet and opens the way past the limit.
+  // A member's sheet has no row and asks nothing.
+  it("gives an admin the plan row, and a member neither the row nor the read", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null)
+    const closed = vi.fn()
+    render(<OrgDrawer drawerOpenState={true} setOpenState={closed} />)
+    const row = await screen.findByRole("button", { name: "Plan: Free, 18 of 25 people. Remove the 25-person limit" })
+    expect(row.className.split(/\s+/)).toContain("min-h-14")
+    expect(row.textContent).toContain("Free · 18 of 25 people")
+    fireEvent.click(row)
+    expect(closed).toHaveBeenCalled()
+    expect(open).toHaveBeenCalledWith("https://shop.example/buy", "_blank", "noopener,noreferrer")
+    cleanup()
+
+    admin = false
+    plan.asked.length = 0
+    render(<OrgDrawer drawerOpenState={true} setOpenState={() => {}} />)
+    await screen.findByRole("button", { name: /^Projects/ })
+    expect(screen.queryByRole("button", { name: /^Plan:/ })).toBeNull()
+    expect(plan.asked).toEqual([])
   })
 })

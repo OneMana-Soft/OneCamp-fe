@@ -26,6 +26,7 @@ export function FindIconButton({
       type="button"
       aria-label={label}
       title={label}
+      data-find-icon=""
       aria-pressed={pressed}
       aria-expanded={expanded}
       disabled={disabled}

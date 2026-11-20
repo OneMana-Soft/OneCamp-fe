@@ -58,6 +58,7 @@ export const SCOPE_KINDS: Record<Exclude<SearchScope, "all">, string[]> = {
   people: ["person"],
   channels: ["channel", "team"],
   files: ["file"],
+  calls: ["transcript"],
 }
 
 /** The request for a page of a search: the chip's kinds, the order, the conversation, the reader's zone. */
@@ -75,7 +76,8 @@ export async function querySearch(req: QuerySearchRequest): Promise<QuerySearchA
   const res = await axiosInstance.post(QUERY_SEARCH_PATH, req, { suppressErrorToast: true })
   const d = res.data?.data ?? {}
   return {
-    page: d.page ?? [],
+    // A hit the server marks deleted is never shown (a call's line once its call is gone, before the index forgets it).
+    page: ((d.page ?? []) as SearchResult[]).filter((r) => !(Number((r as unknown as Record<string, { deleted_date?: unknown } | undefined>)[r.type]?.deleted_date) > 0)),
     totals: d.totals ?? {},
     total: typeof d.total === "number" ? d.total : 0,
     has_more: !!d.has_more,

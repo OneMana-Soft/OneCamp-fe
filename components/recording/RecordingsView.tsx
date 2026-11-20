@@ -1,13 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { useDispatch } from "react-redux"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useDispatch, useSelector } from "react-redux"
 import { DateRange } from "react-day-picker"
 import { subDays } from "date-fns"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
 import { useMedia } from "@/context/MediaQueryContext"
 import { openUI } from "@/store/slice/uiSlice"
+import type { RecordingPlayerInterface } from "@/types/recordingPlayer"
 import { DateRangeField } from "@/components/dateRangePicker/dateRangeField"
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,10 @@ import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { RecordingListRecording } from "@/components/recording/recordingListRecording"
 import type { RecordingInfoInterface, RecordingPaginationResRaw } from "@/types/recording"
 import { recordingFileName } from "@/lib/calls/recordingFileName"
+import { playerUrls, refOfRecording } from "@/lib/calls/playerUrls"
+import type { ConversationCallRef } from "@/lib/calls/boardCall"
+import type { CallMoment } from "@/lib/calls/callMoment"
+import { MomentLink } from "@/components/recording/useMomentLink"
 
 const PAGE_SIZE = 20
 
@@ -26,8 +31,12 @@ export interface RecordingsViewProps {
     listUrl: string
     /** Where the answer keeps its page (a channel's sits under channel_info). */
     pick?: (res: RecordingPaginationResRaw) => { recordings: RecordingInfoInterface[]; has_more: boolean } | undefined
-    /** The player's media and transcript addresses for one recording. */
-    playerUrls: (rec: RecordingInfoInterface) => { media: string; transcript: string }
+    /**
+     * The conversation these recordings are of (a channel's, a DM's by the other person, a group's): the player
+     * asks by its routes, and the page opens a call's moment from its address (zoom-13). None for the
+     * workspace's list, whose recordings each name their own.
+     */
+    call?: ConversationCallRef
     /** The line under the title: what these recordings are. */
     subtitle: string
     /** Removes one on the server; offered only when given. */
@@ -74,7 +83,7 @@ function SpotRecording() {
  * green tile, a centred 45vw list, a generic skeleton and an empty state in
  * the middle of the screen.
  */
-export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle, onDelete, currentUserId }: RecordingsViewProps) {
+export function RecordingsView({ listUrl, pick = fromData, call, subtitle, onDelete, currentUserId }: RecordingsViewProps) {
     const [range, setRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 30), to: new Date() })
     const [pageIndex, setPageIndex] = useState(0)
     const [all, setAll] = useState<RecordingInfoInterface[]>([])
@@ -106,22 +115,43 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
         if (!isLoading && hasMore) setPageIndex((p) => p + 1)
     }, [isLoading, hasMore])
 
-    const open = (rec: RecordingInfoInterface) => {
-        const { media, transcript } = playerUrls(rec)
+    const openedHere = useRef("")
+    // The one way the player opens here: a row's click, and a call's moment from the page's address (zoom-13).
+    const open = (egressId: string, { rec, startAtMs, media = true }: { rec?: RecordingInfoInterface; startAtMs?: number; media?: boolean } = {}) => {
+        const urls = call ? playerUrls(call, currentUserId) : rec ? playerUrls(refOfRecording(rec), currentUserId) : null
+        if (!urls) return
+        openedHere.current = egressId
         dispatch(
             openUI({
                 key: "recordingPlayer",
                 data: {
-                    egressId: rec.recording_egress_id,
-                    mediaGetUrl: media,
-                    transcriptGetUrl: transcript,
-                    fileSize: rec.recording_size,
-                    fileName: recordingFileName(rec.recording_stared_at),
-                    recordedAt: rec.recording_stared_at,
-                    status: rec.recording_status,
+                    egressId,
+                    // A call nobody recorded has its words only: no picture is asked for.
+                    mediaGetUrl: media ? urls.media : undefined,
+                    transcriptGetUrl: urls.transcript,
+                    fileSize: rec?.recording_size ?? 0,
+                    // No row yet (a link opens it before the list answers): the player names it from the transcript's answer.
+                    fileName: rec ? recordingFileName(rec.recording_stared_at) : "",
+                    recordedAt: rec?.recording_stared_at ?? "",
+                    status: media ? rec?.recording_status : "transcript_only",
+                    mayDelete: !!onDelete,
+                    ...(startAtMs === undefined ? {} : { startAtMs }),
                 },
             }),
         )
+    }
+    // A link opens the player before the place's rights answer (a channel's admin flag): the player this page
+    // opened takes the place's Delete as it comes, so its lines offer what that right gives (zoom-05).
+    const mayDelete = !!onDelete
+    const playing = useSelector((s: { ui: { recordingPlayer?: { isOpen: boolean; data: RecordingPlayerInterface | null } } }) => s.ui.recordingPlayer)
+    useEffect(() => {
+        const shown = playing?.data
+        if (!playing?.isOpen || !shown || shown.egressId !== openedHere.current || !!shown.mayDelete === mayDelete) return
+        dispatch(openUI({ key: "recordingPlayer", data: { ...shown, mayDelete } }))
+    }, [playing, mayDelete, dispatch])
+
+    const openMoment = (m: CallMoment) => {
+        open(m.recording, { rec: all.find((r) => r.recording_egress_id === m.recording), startAtMs: m.atMs, media: m.media })
     }
 
     const remove = onDelete
@@ -140,6 +170,7 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
 
     return (
         <div data-recordings-view="" className="flex h-full min-h-0 flex-col bg-background">
+            {call ? <MomentLink open={openMoment} /> : null}
             {/* The header spans the sheet, so the range sits on its right edge
                 as the Inbox's controls do; in the lists' 880px column it
                 floated two thirds of the way across (QA F-30). */}
@@ -168,7 +199,7 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                                             {group}
                                         </div>
                                     ) : null}
-                                    <RecordingListRecording recordingInfo={rec} currentUserId={currentUserId} onOpen={() => open(rec)} onDelete={remove} />
+                                    <RecordingListRecording recordingInfo={rec} currentUserId={currentUserId} onOpen={() => open(rec.recording_egress_id, { rec })} onDelete={remove} />
                                 </div>
                             )
                         }}

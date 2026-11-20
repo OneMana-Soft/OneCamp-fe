@@ -75,16 +75,17 @@ async function expectPanelShape(page: Page, phone: boolean) {
   expect(foot.y + foot.height, "its actions in view").toBeLessThanOrEqual(view.height + 1)
 }
 
-/** A row's tool: on a touch screen, behind the row's Actions. */
+/** A row's tool: on a touch screen, a row of the drawer the row's Actions opens. */
 async function rowTool(page: Page, row: ReturnType<Page["locator"]>, phone: boolean, name: string) {
-  const tool = row.getByRole("button", { name })
-  // A row whose tools are still out (its panel just closed, the focus back on the tool) needs no second Actions.
   if (phone) {
-    if (!(await tool.isVisible())) await row.getByRole("button", { name: "Actions" }).tap()
-  } else await row.hover()
+    await row.getByRole("button", { name: "Actions" }).tap()
+    await page.getByRole("menuitem", { name, exact: true }).tap()
+    return
+  }
+  const tool = row.getByRole("button", { name })
+  await row.hover()
   await expect(tool).toBeVisible()
-  if (phone) await tool.tap()
-  else await tool.click()
+  await tool.click()
 }
 
 for (const theme of SHOT_THEMES) {

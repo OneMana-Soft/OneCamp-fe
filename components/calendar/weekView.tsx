@@ -403,7 +403,7 @@ export const WeekView = memo(function WeekView({
         const end = parseISO(e.event_end_time);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
         pushTimedOrAllDay(
-          { uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away, event_hue: e.event_hue, calendar_hue: e.calendar_hue, event_task: e.event_task },
+          { uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away, event_hue: e.event_hue, calendar_hue: e.calendar_hue, event_task: e.event_task, event_source: e.event_source },
           start,
           end,
           !!e.event_all_day,

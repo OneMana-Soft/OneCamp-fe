@@ -61,7 +61,7 @@ export default function ChatLayout({
                     <ChatUserList chatId={chatId} />
                 </div>
             </aside>
-            <main className="flex-1 min-w-0 overflow-hidden">{children}</main>
+            <div className="flex-1 min-w-0 overflow-hidden">{children}</div>
         </div>
     )
 }

@@ -11,16 +11,19 @@
 // the current one, or set what it's planned against, from its header. Work
 // is counted in hours, or in points when the project estimates in them
 // (linear-05: lib/work/estimates), which its admins choose under Estimates.
+// Its admins may let cycles run side by side (jira-04 C): then each running
+// cycle has its own Complete cycle, and the one ending first is orange.
 
 import * as React from "react"
 import { useCallback, useMemo, useState } from "react"
-import { CalendarPlus, Repeat } from "lucide-react"
+import { CalendarPlus, Columns2, Repeat } from "lucide-react"
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type UniqueIdentifier } from "@dnd-kit/core"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Field } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { OverlayBody, OverlayFooter } from "@/components/ui/overlay"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { SHEET_FOOTER_ROW } from "@/components/ui/sheetRows"
@@ -38,7 +41,7 @@ import { useRowSelected } from "@/hooks/useListSelection"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useToast } from "@/hooks/use-toast"
 import { lazyDialog } from "@/lib/lazy/lazyDialog"
-import { cycleDates, cycleLabel, nextStart, percentDone } from "@/lib/tasks/cycles"
+import { carryTarget, cycleDates, cycleLabel, nextStart, percentDone, runningCycles } from "@/lib/tasks/cycles"
 import { busyWith } from "@/lib/ui/busyWith"
 import { DRAG_OVERLAY, useDndSetup, useDragState, type DragWords } from "@/lib/ui/dnd"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -57,6 +60,7 @@ import {
   saveSchedule,
   scheduleLine,
   setCycleCapacity,
+  setParallelCycles,
   setTaskCycle,
   startCycle,
   stopSchedule,
@@ -102,6 +106,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const schedule = read.data?.data.schedule
   const canEdit = !!read.data?.data.can_edit
   const canPlan = !!read.data?.data.can_plan
+  const parallel = !!read.data?.data.parallel
 
   const failed = useCallback(
     (title: string) => (e: unknown) => toast({ title, description: apiErrorMessage(e, "Nothing changed. Try again."), tone: "error" }),
@@ -197,13 +202,12 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   // A row names its points as the scale does, once the backlog counts them.
   const rowScale = measure.points ? data.scale ?? undefined : undefined
 
-  // The one orange action on the tab (spec F): complete the current cycle,
-  // or, with none running, start the next.
-  const current = data.cycles.find((c) => c.state === "current" || c.state === "ended")
-  const primary = current?.id ?? data.cycles.find((c) => c.state === "upcoming")?.id
+  // The one orange action on the tab (spec F): complete the current cycle
+  // (with cycles side by side, the one ending first), or, with none running,
+  // start the next.
+  const primary = runningCycles(data.cycles, true)[0]?.id ?? data.cycles.find((c) => c.state === "upcoming")?.id
   const open = (id: string) => dispatch(openRightPanel({ taskUUID: id }))
   const draggable = canPlan && !isMobile
-  const nextOf = (c: PlanCycle) => data.cycles.find((x) => x.number > c.number)
 
   return (
     <DndContext {...dnd} {...drag.handlers} onDragEnd={onDragEnd}>
@@ -214,6 +218,26 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
             <p data-schedule="" className="flex min-w-0 items-center gap-2 text-meta text-ink-2">
               <Repeat aria-hidden className="size-3.5 shrink-0 text-ink-3" />
               <span className="min-w-0">{scheduleLine(schedule)}</span>
+            </p>
+          ) : null}
+          {/* Cycles side by side (jira-04 C): its admins turn it on and off; a member reads it when it is on. */}
+          {canEdit ? (
+            <label className="flex min-h-9 cursor-pointer items-center gap-2 text-meta text-ink-2">
+              <Switch
+                aria-label="Run cycles side by side"
+                checked={parallel}
+                disabled={busy || !!schedule}
+                disabledReason={schedule ? "A schedule runs these cycles one after another. Stop it to run them side by side." : undefined}
+                onCheckedChange={(on) =>
+                  void act("parallel", on ? "Couldn't run the cycles side by side" : "Couldn't run the cycles one after another", () => setParallelCycles(projectId, on))
+                }
+              />
+              Run cycles side by side
+            </label>
+          ) : parallel ? (
+            <p data-parallel="" className="flex min-w-0 items-center gap-2 text-meta text-ink-2">
+              <Columns2 aria-hidden className="size-3.5 shrink-0 text-ink-3" />
+              Cycles run side by side
             </p>
           ) : null}
           <span className="flex-1" />
@@ -230,7 +254,13 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
               <Button size="sm" variant="ghost" onClick={() => setEstimating(true)}>
                 Estimates
               </Button>
-              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setScheduling(true)}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy || parallel}
+                disabledReason={parallel ? "These cycles run side by side, and a schedule runs them one after another. Turn side by side off to set one." : undefined}
+                onClick={() => setScheduling(true)}
+              >
                 {schedule ? "Change schedule" : "Run cycles automatically"}
               </Button>
             </>
@@ -317,7 +347,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
       {completing && (
         <CompleteCycleDialog
           cycle={completing}
-          next={nextOf(completing)}
+          next={carryTarget(data.cycles, completing)}
           onClose={() => setCompleting(null)}
           onComplete={(carry) => {
             const c = completing

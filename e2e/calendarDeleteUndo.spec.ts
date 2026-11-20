@@ -4,7 +4,7 @@ import { finger } from "./finger"
 import { animationsSettled } from "./settled"
 import { footIsGutter } from "./sheetLayout"
 import { CALENDAR_READS, SAM, SHOT_THEMES, logFailures, reviewShot, stubBackend, withStatus } from "./stubbedApp"
-import { expectFingerReach } from "./toasts"
+import { expectFingerReach, watchToastSlots } from "./toasts"
 
 // CAL-40 (UX-CALPLAN H1): a delete said "This can't be undone." though the
 // event goes to the calendar's Trash, offered no Undo, and never asked
@@ -130,6 +130,12 @@ async function open(page: Page, testInfo: TestInfo, view: "week" | "day", panel?
 }
 
 /** A finger held still on a block, then lifted: the block's menu, open. */
+/** With SHOTS_DIR set, six frames as fast as they come, for a strip of where a toast is drawn as it arrives (V-940). */
+async function frameStrip(page: Page, name: string, theme: string) {
+  const dir = process.env.SHOTS_DIR
+  if (dir) for (let i = 0; i < 6; i++) await page.screenshot({ path: `${dir}/${name}-${i}-390-${theme}.png` })
+}
+
 async function heldMenu(page: Page, block: Locator): Promise<Locator> {
   const b = (await block.boundingBox())!
   const touch = await finger(page)
@@ -347,18 +353,28 @@ for (const theme of SHOT_THEMES) {
       test.setTimeout(420_000)
       const { sent, block } = await open(page, testInfo, "day")
       const menu = await heldMenu(page, block(DENTIST))
+      const slots = await watchToastSlots(page)
       await menu.getByRole("menuitem", { name: "Delete" }).tap()
+      await frameStrip(page, "delete-undo-slot", theme)
       await expect.poll(() => sent.length).toBe(1)
       expect(sent[0].query).toBe("?scope=all")
       await expect(block(DENTIST)).toHaveCount(0)
       const deleted = toastOf(page, "Deleted “Dentist”")
       await expect(deleted).toBeVisible()
-      // The toast is said while the menu still leaves (220ms), and its mark keeps the toast under the top bar until
-      // then (html[data-float]); it lands at the foot after. It is read and tapped where it stays.
+      // V-940: the toast is said while the menu still leaves (220ms). It came in under the top bar, as over an open
+      // float, and jumped to the foot as the menu went. It comes in at the foot and stays there.
       await expect(menu).toHaveCount(0)
+      const undo = deleted.getByRole("button", { name: "Undo" })
+      await animationsSettled(undo, { message: "the toast has arrived" })
+      expect(await slots(), "where the toast was drawn, frame by frame from the tap on Delete").toEqual(["foot"])
       await reviewShot(page, "delete-undo-toast-phone", theme)
       // V-889: a finger takes Undo 9px past its 26px look. A tap 7px above it, on the card's padding before, undoes.
-      const look = await expectFingerReach(deleted.getByRole("button", { name: "Undo" }))
+      const look = await expectFingerReach(undo)
+      // V-917 (a): the same toast as one that stays (data-stays, toaster.tsx's mark of a toast with no timer). Its ×
+      // shows at rest with a 44px reach out and up, never over Undo's top-right edge or its reach.
+      await undo.evaluate((el) => el.closest(".toast-root")!.setAttribute("data-stays", ""))
+      await expectFingerReach(undo)
+      if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/delete-undo-stays-390-${theme}.png` })
       await page.touchscreen.tap(look.left + look.width / 2, look.top - 7)
       await expect.poll(() => sent.length).toBe(2)
       expect(sent[1].path).toBe(`/calendar/events/${DENTIST}/restore`)

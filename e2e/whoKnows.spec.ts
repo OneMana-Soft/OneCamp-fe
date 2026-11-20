@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
+import { holdChunk } from "./holdChunk"
 import { stubBackend, withStatus, type Answers } from "./stubbedApp"
 
 // Who knows (DG9) on the search page and in Settings › Profile, in a real
@@ -200,26 +201,20 @@ for (const theme of ["light", "dark"] as const) {
     })
 
     test("before the strip's code arrives, its place is already the strip loading", async ({ page }, testInfo) => {
-      let release: () => void = () => {}
-      const held = new Promise<void>((r) => (release = r))
       // The strip's own chunk (the only one with "See who and why" in it) waits; the page draws the slot first.
-      await open(page, testInfo, answer(), theme, {}, (p) =>
-        p.route(/\/_next\/static\/chunks\/.+\.js/, async (route) => {
-          const response = await route.fetch()
-          const body = await response.text()
-          if (body.includes("See who and why")) await held
-          await route.fulfill({ response, body })
-        }),
-      )
+      let code: Awaited<ReturnType<typeof holdChunk>> | undefined
+      await open(page, testInfo, answer(), theme, {}, async (p) => (code = await holdChunk(p, "See who and why")))
       // Never a blank card, which reads as broken: the strip's frame, its rows waiting.
       await expect(strip(page).getByRole("heading", { name: "Who knows about “budget”" })).toBeVisible({ timeout: 30_000 })
       await expect(strip(page).getByRole("status", { name: "Finding who knows" })).toBeVisible()
       await shot(page, `first-frame-390-${theme}`)
       const first = (await strip(page).boundingBox())!.height
-      release()
+      code!.release()
       await expect(strip(page).getByRole("link", { name: /Maya Chen/ })).toBeVisible({ timeout: 30_000 })
       // The strip takes the same place: nothing under it moves.
       expect((await strip(page).boundingBox())!.height).toBe(first)
+      // A chunk still on its way as the page closes can't fail the test.
+      await code!.done()
     })
   })
 }

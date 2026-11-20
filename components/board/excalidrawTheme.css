@@ -427,6 +427,119 @@
   scroll-snap-align: start;
 }
 
+/* ---- a phone's one bar: the tools, Undo and Redo ---------------------------
+   On a phone the tools and Undo and Redo share one bar at the board's foot
+   (design-22 4). Excalidraw draws them apart, its tool row in its top bar and
+   Undo and Redo in its bottom bar's island, so that island is the bar and the
+   tool row stands inside it, from its left end to the actions packed at its
+   right: Undo and Redo, and while something is selected Edit, Duplicate and
+   Delete before them (--board-bar-end). Every control in the bar and in the
+   column of library, lock and hand takes a 44 px finger. The board's cluster
+   is at the top (the board page). Only on a board's own page: a call's stage
+   keeps its layout, and a computer's narrow window its docked band. */
+[data-board-page]:not([data-board-docked]) .excalidraw.excalidraw--mobile {
+  --board-bar-end: calc(2 * 44px + 9px + 12px); /* the actions, their rule, the bar's inner edge */
+}
+[data-board-page]:not([data-board-docked]) .excalidraw.excalidraw--mobile:has(.App-toolbar-content > .ToolIcon_type_button--show) {
+  --board-bar-end: calc(5 * 44px + 9px + 12px);
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-top-bar {
+  z-index: calc(var(--zIndex-layerUI) + 1);
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-toolbar--mobile {
+  position: absolute;
+  left: calc(14px + var(--sal, 0px) - var(--editor-container-padding));
+  right: calc(14px + var(--sar, 0px) + var(--board-bar-end) - var(--editor-container-padding));
+  bottom: calc(14px + 8px + var(--sab, 0px) - var(--editor-container-padding));
+  width: auto;
+  max-width: none;
+  background: transparent;
+  box-shadow: none;
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-toolbar-content {
+  justify-content: flex-end;
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-toolbar-content > div:last-child {
+  display: flex;
+  margin-left: 4px;
+  padding-left: 4px;
+  border-left: 1px solid var(--line-2);
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile :is(.App-toolbar-content, .mobile-misc-tools-container) :is(.ToolIcon, .ToolIcon__icon, .sidebar-trigger) {
+  width: 44px;
+  height: 44px;
+}
+/* The Library's own buttons (Excalidraw's sidebar: Browse libraries and its
+   menu, 32px) take a finger (V-1106). A mouse keeps Excalidraw's 32px. */
+@media (pointer: coarse) {
+  [data-board-page] .excalidraw .default-sidebar :is(.library-menu-browse-button, .dropdown-menu-button) {
+    min-height: var(--m-hit);
+  }
+  [data-board-page] .excalidraw .default-sidebar .dropdown-menu-button {
+    min-width: var(--m-hit);
+  }
+}
+/* Excalidraw's style panel (Edit, or the notes bar's More) under a finger
+   (V-1175): its buttons, the fonts among them, its radios' labels and its
+   swatches are drawn 44px, from Excalidraw's own --default-button-size, and
+   the opacity slider takes a finger above and below its 4px track (the
+   track is drawn in the content box; the margins keep the panel's rows
+   where they were). A mouse keeps Excalidraw's 32px. */
+@media (pointer: coarse) {
+  [data-board-page] .excalidraw .panelColumn {
+    --default-button-size: var(--m-hit);
+  }
+  [data-board-page] .excalidraw .panelColumn .color-picker__button {
+    width: var(--m-hit);
+    height: var(--m-hit);
+  }
+  [data-board-page] .excalidraw .panelColumn .range-input {
+    height: var(--m-hit);
+    margin-block: calc((4px - var(--m-hit)) / 2);
+    padding-block: calc((var(--m-hit) - 4px) / 2);
+    background-clip: content-box;
+  }
+}
+/* The style panel (Edit, or the notes bar's More) is a sheet: the bar's island
+   runs edge to edge on the board's foot, what it holds scrolls, and its row of
+   actions stays pinned at its foot. The tools, the board's bars at the foot and
+   the layers a finger meets over the canvas (data-canvas-layer: vote chips,
+   comment pins, an empty board's card) step behind it while it is open, so a
+   finger on the sheet meets only the sheet. Layers under z-index 4 (tags,
+   cursors, veils, protected badges) already lie under it. */
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-bottom-bar > .Island:has(.App-mobile-menu) {
+  display: flex;
+  flex-direction: column;
+  max-height: 70dvh;
+  margin: 0 !important;
+  border-radius: 16px 16px 0 0;
+  box-shadow: var(--e4);
+}
+/* Excalidraw sets the bar's 14px margins inline: the sheet meets the edges. */
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-bottom-bar:has(> .Island > .App-mobile-menu) {
+  margin: 0 !important;
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-bottom-bar > .Island > .App-mobile-menu {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile .App-bottom-bar > .Island:has(.App-mobile-menu) > .App-toolbar {
+  flex: none;
+  border-top: 1px solid var(--line);
+}
+[data-board-page]:not([data-board-docked]) .excalidraw--mobile:has(.App-mobile-menu) .App-top-bar,
+[data-board-page]:not([data-board-docked]):has(.App-mobile-menu) [data-phone-foot],
+[data-board-page]:not([data-board-docked]):has(.App-mobile-menu) [data-canvas-layer] {
+  visibility: hidden;
+}
+
+/* A tool the keyboard takes draws the brand's ring (V-915): the tools are
+   visually hidden radios (the highlighter a checkbox) before their icon. */
+.excalidraw.excalidraw .App-toolbar :is(.ToolIcon_type_radio, .ToolIcon_type_checkbox):focus-visible + .ToolIcon__icon {
+  box-shadow: inset 0 0 0 2px var(--brand);
+}
+
 /* ---- the board's own floating chrome (board page) ------------------------ */
 
 /* While someone draws, the clusters step back to 60 % and return on release.

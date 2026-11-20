@@ -3,11 +3,12 @@ import { cleanup, render, renderHook, screen } from "@testing-library/react"
 
 afterEach(cleanup)
 
-const fetchState: { data: unknown; urls: string[] } = { data: undefined, urls: [] }
+const fetchState: { data: unknown; error?: unknown; urls: string[]; quiet: boolean[] } = { data: undefined, urls: [], quiet: [] }
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => {
+  useFetch: (url: string, _schema?: unknown, _config?: unknown, request?: { suppressErrorToast?: boolean }) => {
     fetchState.urls.push(url)
-    return { data: url ? fetchState.data : undefined, mutate: vi.fn() }
+    fetchState.quiet.push(!!request?.suppressErrorToast)
+    return { data: url ? fetchState.data : undefined, isError: url ? fetchState.error : undefined, mutate: vi.fn() }
   },
 }))
 
@@ -50,6 +51,20 @@ describe("usePlan", () => {
     expect(result.current.isLocked("scim")).toBe(false)
     expect(result.current.limit).toBe(0)
     expect(result.current.upgradeUrl).toBeUndefined()
+  })
+
+  // The shell's plan row drops itself on a failed read, and says nothing on
+  // every page: its reader is quiet, the admin screens' readers still toast.
+  it("says the read failed only when nothing came back, and a quiet reader raises no toast", () => {
+    fetchState.data = undefined
+    fetchState.error = new Error("500")
+    fetchState.quiet = []
+    expect(renderHook(() => usePlan({ quiet: true })).result.current.failed).toBe(true)
+    expect(renderHook(() => usePlan()).result.current.failed).toBe(true)
+    expect(fetchState.quiet).toEqual([true, false])
+    fetchState.data = FREE
+    expect(renderHook(() => usePlan()).result.current.failed).toBe(false)
+    fetchState.error = undefined
   })
 
   // Three screens read /admin/seats and each typed its own idea of the

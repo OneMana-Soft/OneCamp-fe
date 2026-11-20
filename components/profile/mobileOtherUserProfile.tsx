@@ -197,7 +197,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             </Button>
                         )}
                         {profileInfo.data?.data && !isSelf && (
-                            <LazyConnected kind="person" id={userUUID} title={profileInfo.data.data.user_full_name || profileInfo.data.data.user_name} showLabel className="mt-2 h-11 w-full max-w-[200px]" />
+                            <LazyConnected kind="person" id={userUUID} title={shownName} showLabel className="mt-2 h-11 w-full max-w-[200px]" />
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
                             <div className="mt-6 flex w-full max-w-[260px] flex-col items-center gap-3">

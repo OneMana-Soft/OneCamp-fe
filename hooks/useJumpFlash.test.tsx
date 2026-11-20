@@ -62,11 +62,18 @@ describe("a jump to a card", () => {
 // still filling in could only scroll as far as the page then went, and was
 // left at the foot of the screen, out of sight, while the cards below it came.
 describe("a jump while the page is still filling in", () => {
-  let height = 600
+  // The page as a column: its frame at the top, cards above the row (`above`)
+  // and below it (`below`) that fill in late. The row sits `above` px further
+  // down the frame, however far the page is scrolled.
+  let above = 0
+  let below = 0
+  let scrolledBy = 0
   let grow = () => {}
   beforeEach(() => {
     vi.useFakeTimers()
-    height = 600
+    above = 0
+    below = 0
+    scrolledBy = 0
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -91,21 +98,61 @@ describe("a jump while the page is still filling in", () => {
         <Card />
       </div>,
     )
-    Object.defineProperty(document.querySelector("[data-page-frame]")!, "clientHeight", { get: () => height })
-    return document.querySelector('[data-setting-row="switch"]')!
+    const frame = document.querySelector<HTMLElement>("[data-page-frame]")!
+    const row = document.querySelector<HTMLElement>('[data-setting-row="switch"]')!
+    Object.defineProperty(frame, "clientHeight", { get: () => 600 + above + below })
+    Object.defineProperty(frame, "getBoundingClientRect", { value: () => new DOMRect(0, -scrolledBy, 720, 600 + above + below) })
+    Object.defineProperty(row, "getBoundingClientRect", { value: () => new DOMRect(0, 200 + above - scrolledBy, 720, 56) })
+    return row
+  }
+  function fill(px: { above?: number; below?: number }) {
+    above += px.above ?? 0
+    below += px.below ?? 0
+    grow()
   }
 
-  it("brings the row back to its place as the page grows, while it flashes", async () => {
+  it("brings the row back to its place as a card above it fills in", async () => {
     const row = page()
     act(() => void flashCard(settingIdOf("Use web search")))
     await act(() => vi.dynamicImportSettled())
-    height = 1400
-    grow()
+    fill({ above: 800 })
     expect(scrolled).toEqual([row, row])
-    act(() => void vi.advanceTimersByTime(1300))
-    height = 1800
-    grow()
+  })
+
+  // V-1117: on a busy day the keywords' read answered after the flash had
+  // faded (1.3 s), and the field it pushed off the screen stayed off.
+  it("keeps holding after the flash has faded, while the page may still fill in", async () => {
+    const row = page()
+    act(() => void flashCard(settingIdOf("Use web search")))
+    await act(() => vi.dynamicImportSettled())
+    act(() => void vi.advanceTimersByTime(2500))
+    expect(row.classList.contains("set-flash")).toBe(false)
+    fill({ above: 120 })
     expect(scrolled).toEqual([row, row])
+    act(() => void vi.advanceTimersByTime(30_000))
+    fill({ above: 120 })
+    expect(scrolled).toEqual([row, row])
+  })
+
+  // V-1117: the hold's code loads on its own. A card that filled in before it
+  // arrived was taken for the page as it was, so the row was never brought back.
+  it("holds the place the jump landed on, even when the page grows before the hold's code arrives", async () => {
+    const row = page()
+    act(() => void flashCard(settingIdOf("Use web search")))
+    above = 300
+    await act(() => vi.dynamicImportSettled())
+    expect(scrolled).toEqual([row, row])
+  })
+
+  // Only what moves the row brings it back: a page that grows below it, or
+  // is scrolled, leaves it where it is.
+  it("doesn't move the page when it grows below the row", async () => {
+    const row = page()
+    act(() => void flashCard(settingIdOf("Use web search")))
+    await act(() => vi.dynamicImportSettled())
+    scrolledBy = 400
+    fill({ below: 900 })
+    expect(scrolled).toEqual([row])
   })
 
   it("lets go once the person scrolls", async () => {
@@ -113,8 +160,7 @@ describe("a jump while the page is still filling in", () => {
     act(() => void flashCard(settingIdOf("Use web search")))
     await act(() => vi.dynamicImportSettled())
     window.dispatchEvent(new WheelEvent("wheel"))
-    height = 1400
-    grow()
+    fill({ above: 800 })
     expect(scrolled).toEqual([row])
   })
 
@@ -125,9 +171,21 @@ describe("a jump while the page is still filling in", () => {
     act(() => void flashCard(settingIdOf("Use web search")))
     await act(() => vi.dynamicImportSettled())
     window.dispatchEvent(new Event("pointerdown"))
-    height = 1400
-    grow()
+    fill({ above: 800 })
     expect(scrolled).toEqual([row])
+  })
+
+  it("lets go of the first landing when the person jumps again", async () => {
+    const row = page()
+    const ctx = document.querySelector<HTMLElement>('[data-setting-row=""]')!
+    Object.defineProperty(ctx, "getBoundingClientRect", { value: () => new DOMRect(0, 260 + above - scrolledBy, 720, 56) })
+    act(() => void flashCard(settingIdOf("Use web search")))
+    await act(() => vi.dynamicImportSettled())
+    act(() => void flashCard("ai-ctx"))
+    await act(() => vi.dynamicImportSettled())
+    expect(scrolled).toEqual([row, ctx])
+    fill({ above: 800 })
+    expect(scrolled).toEqual([row, ctx, ctx])
   })
 })
 

@@ -65,7 +65,7 @@ import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgend
 import { dayKey, dayListTime, itemsByDay, placeItems } from "@/components/calendar/calendarLayout";
 import { askedRange, gridDays, shownRange, spanWords, stepAnchor, weekNumber } from "@/lib/calendar/viewRange";
 import { useCalendarChoices, type ViewChoices } from "@/lib/calendar/choices";
-import { useSyncBroken } from "@/lib/calendar/googleSyncBroken";
+import { useSyncNote } from "@/lib/calendar/googleSyncBroken";
 import { placeAllByDates } from "@/lib/calendar/allDay";
 import { dayAndTime } from "@/lib/utils/date/clock";
 import { ScopePromptView, useScopePrompt } from "@/components/calendar/scopePrompt";
@@ -330,7 +330,7 @@ export function CalendarApp() {
     // Which Google account it is ("" for a link made before the server said).
     const googleAccount = gcalStatus?.data?.accountEmail || undefined;
     // Which linked provider stopped answering, in words.
-    const syncBroken = useSyncBroken(googleConnected);
+    const { words: syncNote, tone: syncTone } = useSyncNote(googleConnected, Calendars);
 
     // Back from Google's consent screen (CAL-BUG-8), said by a chunk of its own.
     useEffect(() => {
@@ -383,11 +383,11 @@ export function CalendarApp() {
     const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: choices.weekStartsOn }), [anchor, choices.weekStartsOn]);
     const shownWeek = useRef(weekStart);
     shownWeek.current = weekStart;
-    const weekCount = (pred: (it: MonthItem) => boolean) => {
+    const weekCount = useCallback((pred: (it: MonthItem) => boolean) => {
         const seen = new Set<string>();
         for (let i = 0; i < 7; i++) for (const it of byDay.get(dayKey(addDays(weekStart, i))) || []) if (pred(it)) seen.add(it.event_uuid);
         return seen.size;
-    };
+    }, [byDay, weekStart]);
 
     // ---- moving through time ------------------------------------------------
 
@@ -439,6 +439,9 @@ export function CalendarApp() {
     // computer. `edit` opens it editing (the card's pencil, Edit event: V-34).
     const openFull = useCallback((uuid: string, how?: OpenHow) => {
         setSelected(null);
+        // gcal-14: its source opens.
+        const src = uuid.includes(":") ? allEvents.find((x) => x.event_uuid === uuid)?.event_source : undefined;
+        if (src) return void (src.kind === "task" && !isMobile ? dispatch(openRightPanel({ taskUUID: src.id })) : router.push(src.href));
         const channel = checkInChannel(uuid);
         if (channel) return void import("@/lib/conversation/route").then((m) => router.push(m.route({ conversation: { kind: "channel", id: channel } })));
         if (isMobile) {
@@ -447,7 +450,7 @@ export function CalendarApp() {
         }
         // The panel loads the event by its id, showing the calendar's copy meanwhile.
         dispatch(openRightPanel({ eventUUID: uuid, ...(how?.edit ? { eventEditAt: Date.now() } : {}) }));
-    }, [isMobile, router, dispatch]);
+    }, [isMobile, router, dispatch, allEvents]);
     const openTask = useCallback((id: string) => {
         const uuid = taskOfAhead(id);
         if (isMobile) router.push(`/app/task/${uuid}`);
@@ -701,9 +704,10 @@ export function CalendarApp() {
         if (from && openMenu(from, e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : undefined)) e.preventDefault();
     };
     const menuItems = (ev: CalendarEventInterface, copy: (text: string, message: string) => unknown) => [
-        { label: "Open", onSelect: () => openFull(ev.event_uuid) },
-        { label: "Duplicate", onSelect: () => duplicate(ev) },
-        { label: "Copy link", onSelect: () => void copy(new URL(calendarRoute({ event: ev.event_uuid }), window.location.origin).toString(), "Link copied") },
+        { label: ev.event_source?.open ?? "Open", onSelect: () => openFull(ev.event_uuid) },
+        // gcal-14: no copy; the source's link.
+        ...(ev.event_source ? [] : [{ label: "Duplicate", onSelect: () => duplicate(ev) }]),
+        { label: "Copy link", onSelect: () => void copy(new URL(ev.event_source?.href ?? calendarRoute({ event: ev.event_uuid }), window.location.origin).toString(), "Link copied") },
         ...(canMove(ev.event_uuid) ? [{ label: "Delete", destructive: true, onSelect: () => askDelete(ev) }] : []),
     ];
 
@@ -814,7 +818,6 @@ export function CalendarApp() {
                         setCalendarsOpen(false);
                         setDialog({ open });
                     }}
-                    countOf={(id) => weekCount((i) => i.event_calendar_id === id)}
                 />
             )}
         />
@@ -894,7 +897,7 @@ export function CalendarApp() {
         requestAnimationFrame(() => window.print());
     }, []);
     const ownEvents = eventsRes?.data;
-    const otherLayer = useMemo(() => <OtherLayer.View fallback={null} render={(m) => <m.default from={gridStart} to={gridEnd} own={ownEvents} onChange={setOthers} />} />, [gridStart, gridEnd, ownEvents]);
+    const otherLayer = useMemo(() => <OtherLayer.View fallback={null} render={(m) => <m.default from={gridStart} to={gridEnd} own={ownEvents} onChange={setOthers} weekCount={weekCount} />} />, [gridStart, gridEnd, ownEvents, weekCount]);
     const openPanel = calendarsOpen ? panel : null;
     const actions = useMemo(
         () => (
@@ -939,11 +942,11 @@ export function CalendarApp() {
                 {!railShown ? (
                     <Popover open={calendarsOpen} onOpenChange={setCalendarsOpen}>
                         <PopoverTrigger asChild>
-                            <Button variant="ghost" size="sm" data-calendars-trigger="" aria-label={syncBroken ? `Calendars, ${syncBroken}` : "Calendars"} onPointerEnter={ahead(Calendars)} onFocus={ahead(Calendars)}>
-                                {/* Google or Outlook stopped answering (C9, B7): a danger dot. */}
+                            <Button variant="ghost" size="sm" data-calendars-trigger="" aria-label={syncNote ? `Calendars, ${syncNote}` : "Calendars"} onPointerEnter={ahead(Calendars)} onFocus={ahead(Calendars)}>
+                                {/* Google or Outlook stopped answering (C9, B7): a danger dot; one that can't be read (gcal-18): amber. */}
                                 <span className="relative flex">
                                     <CalendarDays />
-                                    {syncBroken ? <span aria-hidden="true" data-sync-broken="" className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-destructive ring-2 ring-sheet" /> : null}
+                                    {syncTone ? <span aria-hidden="true" {...{ [syncTone === "danger" ? "data-sync-broken" : "data-sync-stale"]: "" }} className={cn("absolute -right-0.5 -top-0.5 size-1.5 rounded-full ring-2 ring-sheet", syncTone === "danger" ? "bg-destructive" : "bg-warning")} /> : null}
                                 </span>
                                 {/* On a narrow sheet the icon and its colours carry it, so the period keeps its room. */}
                                 <span className="hidden @[61rem]/calhead:inline">Calendars</span>
@@ -1064,7 +1067,7 @@ export function CalendarApp() {
                 </Button>
             </div>
         ),
-        [searchOpen, searchQuery, railShown, calendarsOpen, openPanel, showEvents, googleConnected, syncBroken, showGoogle, shownView, viewIndex, pickView, newEvent, optionsOpen, openOptions, optionsWithWeek, choices.span, viewLink, pickSpan, printView, member, tasksShown, planShown],
+        [searchOpen, searchQuery, railShown, calendarsOpen, openPanel, showEvents, googleConnected, syncNote, syncTone, showGoogle, shownView, viewIndex, pickView, newEvent, optionsOpen, openOptions, optionsWithWeek, choices.span, viewLink, pickSpan, printView, member, tasksShown, planShown],
     );
     // The week's inputs keep while an event's card opens, so the week isn't drawn for it (C3):
     // its days are `drawn`, kept by the range they show.
@@ -1084,7 +1087,7 @@ export function CalendarApp() {
 
     return (
         <div ref={printRoot} className="relative flex h-full w-full overflow-hidden bg-sheet" data-calendar="" data-print-root="" onContextMenu={onContextMenu}>
-            <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
                 <h1 className="sr-only">Calendar</h1>
                 {isMobile ? (
                     <PhoneBar
@@ -1218,7 +1221,7 @@ export function CalendarApp() {
                         )}
                     </div>
                 </div>
-            </main>
+            </div>
 
             {aside && !sheet ? <aside className="w-[300px] shrink-0 border-l border-line bg-sheet">{aside}</aside> : aside}
             {railShown ? (
@@ -1372,23 +1375,25 @@ const PhoneBar = memo(function PhoneBar({
                         </Button>
                     </div>
                 ) : null}
-                <Button variant="secondary" size="sm" onClick={() => goTo(new Date())}>
-                    Today
-                </Button>
-                <Week.View fallback={<i className="w-8" />} render={(m) => <m.WeekButton week={{ current: start }} />} />
-                {onTasks ? (
-                    <Button variant="ghost" size="icon-sm" aria-label="Tasks" onClick={onTasks}>
-                        <ListTodo />
+                <div data-page-actions="" className="flex items-center gap-1.5">
+                    <Button variant="secondary" size="sm" onClick={() => goTo(new Date())}>
+                        Today
                     </Button>
-                ) : null}
-                {onPlan ? (
-                    <Button variant="ghost" size="icon-sm" aria-label="Plan my week" onClick={onPlan}>
-                        <Sparkles />
+                    <Week.View fallback={<i className="w-8" />} render={(m) => <m.WeekButton week={{ current: start }} />} />
+                    {onTasks ? (
+                        <Button variant="ghost" size="icon-sm" aria-label="Tasks" onClick={onTasks}>
+                            <ListTodo />
+                        </Button>
+                    ) : null}
+                    {onPlan ? (
+                        <Button variant="ghost" size="icon-sm" aria-label="Plan my week" onClick={onPlan}>
+                            <Sparkles />
+                        </Button>
+                    ) : null}
+                    <Button size="icon" aria-label="New event" onClick={onNew}>
+                        <Plus />
                     </Button>
-                ) : null}
-                <Button size="icon" aria-label="New event" onClick={onNew}>
-                    <Plus />
-                </Button>
+                </div>
             </div>
             {view !== "month" ? (
                 <div className="flex items-center px-1 pb-2">

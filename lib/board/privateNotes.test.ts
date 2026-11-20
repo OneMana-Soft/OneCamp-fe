@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { storeWithMakers } from "./authors"
-import { followShared, LOCAL_ORIGIN, mergeShared, type BoardElement } from "./binding"
+import { followShared, LOCAL_ORIGIN, mergeShared, UNLAYERED, type BoardElement } from "./binding"
 import {
   emptyPrivateNotes,
   heldNoteCount,
@@ -113,7 +113,7 @@ describe("what a private note sends to the shared board", () => {
     const notes = emptyPrivateNotes("r1")
     const scene = [card("c1", "t1"), words("t1", "c1", "Secret plan")]
     const w = privateWriter(notes, SAM, { get: (id) => elements.get(id) }, (id) => scene.find((el) => el.id === id))
-    doc.transact(() => storeWithMakers(authors, elements as never, scene, SAM, w), LOCAL_ORIGIN)
+    doc.transact(() => storeWithMakers(authors, elements as never, scene, SAM, UNLAYERED, w), LOCAL_ORIGIN)
     expect(elements.size).toBe(2)
     expect(JSON.stringify(elements.toJSON())).not.toContain("Secret plan")
     expect(Buffer.from(Y.encodeStateAsUpdate(doc)).toString("latin1")).not.toContain("Secret plan")

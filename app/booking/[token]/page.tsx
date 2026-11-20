@@ -1,7 +1,7 @@
 "use client"
 
 // A guest's own booking, from the link they were given (content.md K06,
-// manage): the ticket in the public frame, and a way to cancel it.
+// manage): the ticket in the public frame, and ways to move or cancel it.
 
 import { use, useEffect, useState } from "react"
 import { Loader2 } from "@/lib/icons"
@@ -13,7 +13,11 @@ import { cancelBooking, getBooking, type BookingView } from "@/services/bookingS
 import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
 import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame"
 import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
-import { BookingSpot, longDay, slotTime, zoneLabel } from "@/components/booking/BookingFlow"
+import { BookingSpot, longDay, slotTime, zoneLabel } from "@/components/booking/bookingTime"
+import { CalendarLinks, MovePicker } from "@/components/booking/MoveBooking"
+// The card takes the booking page's widths, so this page reaches BookingFlow as /book/[slug] does and the two
+// pages keep one chunk pool (release-1011/logs/cal-43/g7h2w/HANDBACK-1118b.txt).
+import { STEP_WIDTH } from "@/components/booking/BookingFlow"
 
 export default function ManageBooking({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -28,6 +32,11 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
   const [tz, setTz] = useState("UTC")
   // The guest cancelled it here, just now: the answer says whether the owner was told.
   const [cancelledHere, setCancelledHere] = useState(false)
+  // Moving it (gcal-7): the page shows the answer, or why not (a 429's own
+  // words, no answer).
+  const [moving, setMoving] = useState(false)
+  const [movedHere, setMovedHere] = useState(false)
+  const [moveNote, setMoveNote] = useState("")
 
   useEffect(() => setTz(browserTZ()), [])
   useEffect(() => {
@@ -74,6 +83,11 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
     } else setError(res.msg || "Couldn't cancel. Try again.")
   }
 
+  const startMove = () => {
+    setMoveNote("")
+    setMoving(true)
+  }
+
   const past = !!booking && new Date(booking.end) < new Date()
   const first = (booking?.owner_name || "").split(/\s+/)[0]
   const owner = first || "They"
@@ -92,7 +106,7 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
         : "This meeting is cancelled."
   return (
     <PublicFrame surface="booked" header={false} mainClassName="flex-none px-4 pt-6 sm:pt-[72px]">
-      <PaperCard className="max-w-[560px] rounded-[16px] px-5 pb-8 pt-8 shadow-e1 sm:px-9" data-manage-booking="">
+      <PaperCard className={cn("rounded-[16px] px-5 pb-8 pt-8 shadow-e1 sm:px-9", moving ? STEP_WIDTH[1] : STEP_WIDTH[4])} data-manage-booking="">
         {state === "loading" || !booking ? (
           <div role="status" aria-label="Loading your booking" className="flex flex-col items-center gap-3">
             {trouble ? (
@@ -115,11 +129,25 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
               <div className="flex items-center gap-2">
                 <p className={cn("text-heading font-semibold text-ink", booking.cancelled && "line-through")}>{longDay(booking.start, tz)}</p>
                 {booking.cancelled ? <span className="rounded-[5px] bg-press px-1.5 text-micro font-medium leading-[18px] text-ink-2">Cancelled</span> : null}
+                {movedHere && !booking.cancelled ? <span className="rounded-[5px] bg-[var(--camp-moss-tint)] px-1.5 text-micro font-medium leading-[18px] text-ink-2">Moved</span> : null}
               </div>
               <p className={cn("mt-0.5 text-ui text-ink-2 tabular-nums", booking.cancelled && "line-through")}>
                 {slotTime(booking.start, tz, false)} – {slotTime(booking.end, tz, false)} · {zoneLabel(tz)}
               </p>
+              {movedHere && !booking.cancelled ? (
+                <CalendarLinks id={booking.booking_id} title={`${booking.title} with ${booking.owner_name}`} start={booking.start} end={booking.end} />
+              ) : null}
             </div>
+            {movedHere && booking.owner_told && !booking.cancelled ? (
+              <p className="mt-4 text-ui-sm text-ink-2" data-moved-line="">
+                {owner} has been told.
+              </p>
+            ) : null}
+            {moveNote ? (
+              <p role="alert" className="mt-4 max-w-sm text-ui-sm text-danger-ink">
+                {moveNote}
+              </p>
+            ) : null}
 
             {booking.cancelled ? (
               <>
@@ -139,6 +167,23 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
                   </Button>
                 ) : null}
               </>
+            ) : moving ? (
+              <MovePicker
+                token={token}
+                slug={booking.slug}
+                tz={tz}
+                onTz={setTz}
+                onMoved={(v) => {
+                  setBooking(v)
+                  setMovedHere(true)
+                  setMoving(false)
+                }}
+                onStopped={(msg) => {
+                  setMoveNote(msg)
+                  setMoving(false)
+                }}
+                onClose={() => setMoving(false)}
+              />
             ) : asking ? (
               <div className="content-rise mt-5 w-full rounded-xl bg-raised p-4 text-left shadow-e1">
                 <p className="text-ui font-medium text-ink">Cancel this meeting?</p>
@@ -156,7 +201,13 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
               </div>
             ) : (
               <div className="mt-5 flex flex-wrap justify-center gap-2">
-                <Button variant="ghost" size="sm" className="text-danger-ink hover:text-danger-ink" onClick={() => setAsking(true)}>
+                {/* A page switched off or gone has no times to move to. */}
+                {pageLive && booking.slug ? (
+                  <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={startMove}>
+                    Change time
+                  </Button>
+                ) : null}
+                <Button variant="ghost" size="sm" className="text-danger-ink hover:text-danger-ink max-sm:h-11" onClick={() => setAsking(true)}>
                   Cancel booking
                 </Button>
               </div>

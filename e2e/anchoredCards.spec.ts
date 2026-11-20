@@ -351,3 +351,23 @@ for (const theme of ["light", "dark"] as const) {
     })
   }
 }
+
+// basecamp-05 head 3: the sheet a phone opens from a slot reads plain words as the quick card does
+// (parseEventText): "Lunch with Ada tomorrow 1pm" lands on Thursday at 1 PM, titled without the words.
+test.describe("plain words in the new-event sheet on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, colorScheme: "light", locale: "en-GB", hasTouch: true })
+  test("an event typed in plain words lands on the day and time they name", async ({ page }, testInfo) => {
+    await openCalendar(page, testInfo, "/app/calendar?date=2026-10-21&view=day")
+    const p = await hourIn(page, 11)
+    await page.mouse.click(p.x, p.y + 4)
+    const sheet = page.locator("[data-event-dialog]")
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole("textbox", { name: "Title" }).fill("Lunch with Ada tomorrow 1pm")
+    await expect(sheet.getByLabel(/^Start, /)).toHaveText(/22 Oct · 13:00$/)
+    await shot(page, "h3-plain-words-typed", "light")
+    const created = page.waitForRequest((r) => r.method() === "POST" && /\/(event\/createEvent|calendar\/events)$/.test(new URL(r.url()).pathname))
+    await page.locator("[data-sheet-footer]").getByRole("button", { name: "Create event" }).click()
+    const body = (await created).postDataJSON() as { title?: string }
+    expect(body.title).toBe("Lunch with Ada")
+  })
+})

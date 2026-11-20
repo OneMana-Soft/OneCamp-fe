@@ -10,6 +10,12 @@ import { SelectSheetContext, SelectSheetRow, type SelectSheetRowProps, type Sele
 // combobox's sheet with no filter, titled with the select's name, its rows the
 // combobox's (a finger's 44px, the chosen one checked, none lit until one is
 // chosen); in a sheet, a panel of that sheet with Back.
+//
+// The Select's parts, for a row that loads the whole Select lazily (the push
+// wait on the notification settings, A4 H4): through this chunk's boundary no new
+// chunk group reaches the Select, so the build keeps the chunks it cut without
+// that row (a group of its own re-cut the tables' cell-picker chunk build-wide).
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 function Row({ value, disabled, className, children }: SelectSheetRowProps) {
   const state = React.useContext(SelectSheetContext)

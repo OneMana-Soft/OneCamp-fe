@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
-import { execFileSync } from "node:child_process"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 import { privateViews } from "./privateMode"
 import { outwardNow, outwardScene, outwardTexts } from "./sceneOut"
 
@@ -88,6 +88,7 @@ const SENDS = /\b(makeRequest|axiosInstance\s*\.\s*(post|put|patch)|authedStream
 const READS = /\bgetSceneElements(IncludingDeleted)?\s*\(|"@\/lib\/board\/sceneOut"/
 const HOW: Record<string, string> = {
   "components/board/boardTools.tsx": "sceneOut", // Make tasks: a note held in private mode stays out
+  "components/board/mindMapBar.tsx": "sceneOut", // Expand with AI and Make a doc send a branch's words
   "components/board/saveBoardTemplate.tsx": "sceneOut", // a saved template
   "components/board/boardCanvas.tsx": "writer", // the frame's sync writes through the writer; the thumbnail sends the outward view
   "components/board/privateNotesHost.tsx": "none: it writes the author's own notes only at the reveal, after the round",
@@ -100,9 +101,8 @@ const HOW_CHECK: Record<string, RegExp> = {
 }
 
 describe("every board path that sends the scene", () => {
-  const files = execFileSync("git", ["ls-files", "components/board", "lib/board", "app/app/board"], { encoding: "utf8" })
-    .split("\n")
-    .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.|\.spec\./.test(f))
+  // Read from the disk, not from git's index, so the check holds in an archive copy (no .git) as in a checkout.
+  const files = sourceFiles(["components/board", "lib/board", "app/app/board"], /\.(ts|tsx)$/)
   const sending = files.filter((f) => {
     const src = readFileSync(f, "utf8")
     return READS.test(src) && SENDS.test(src)

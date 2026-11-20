@@ -2,8 +2,8 @@
 
 import { useEffect, useSyncExternalStore, type ReactNode } from "react"
 import { useLatch } from "@/hooks/useLatch"
-import { useHostPill, usePillHosted, usePillStoodIn } from "@/components/error/pillPlace"
-import { isAppOffline, isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
+import { useHostPill, useOfflineClaimed, usePillHosted, usePillStoodIn } from "@/components/error/pillPlace"
+import { isAppOffline, isReconnecting, isServerUnreachable, noteNetworkOk, probeServer, subscribeConnectivity } from "@/lib/connectivity"
 import { useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttContext"
 import { FAST_RECONNECT_TRIES } from "@/lib/mqtt/reconnectDelay"
 import { useUpdateReady } from "@/hooks/useUpdateReady"
@@ -52,17 +52,9 @@ const notOutdated = () => false
 /** How often the server is asked again while it doesn't answer. */
 const PROBE_EVERY_MS = 15_000
 
-function probeServer(onAnswer: () => void) {
-  const base = process.env.NEXT_PUBLIC_BACKEND_URL
-  if (!base) return
-  fetch(new URL("auth/providers", base), { cache: "no-store", credentials: "omit" })
-    .then(onAnswer)
-    .catch(() => {})
-}
-
-/** A pill's title says what's off; its detail, what follows from it (the changes waiting, the tries). */
+/** A pill's title says what's off; its detail, what follows from it (the changes waiting, the tries). quiet: no live region. */
 export type ConnectionPill =
-  | { kind: "offline"; title: string; detail?: string; line: string }
+  | { kind: "offline"; title: string; detail?: string; line: string; quiet?: boolean }
   | { kind: "review"; title: string }
   | { kind: "sync"; title: string }
   | { kind: "waiting"; title: string }
@@ -76,6 +68,8 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
   const unreachable = useSyncExternalStore(subscribeConnectivity, isServerUnreachable, assumeReachable)
   // The app's ONE connectivity state (lib/connectivity): the reads that got no answer wait on it too (hooks/useFetch).
   const offline = useSyncExternalStore(subscribeConnectivity, isAppOffline, assumeReachable)
+  const reconnecting = useSyncExternalStore(subscribeConnectivity, isReconnecting, assumeReachable)
+  const claimed = useOfflineClaimed()
   const connectionState = useMqttConnectionState()
   const reconnect = useMqttReconnect()
   const update = useUpdateReady()
@@ -106,12 +100,14 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
   const needYou = kept.conflicts.length + kept.failed.length + kept.held.length
   let pill: ConnectionPill = null
   if (offline) {
-    const title = !online ? "You're offline" : "Can't reach the server"
+    const title = !online ? "You're offline" : reconnecting ? "Reconnecting…" : "Can't reach the server"
     const detail = `${changes(waiting)} waiting`
     if (kept.full) pill = { kind: "offline", title, detail, line: "That's as many as this device keeps. New changes can't be kept until these are sent." }
     else if (waiting > 0) pill = { kind: "offline", title, detail, line: "Kept on this device. They're sent when you're back." }
     else if (!online) pill = { kind: "offline", title, line: "Changes to tasks are kept on this device. Other changes can't be saved until you're back." }
     else pill = { kind: "offline", title, line: "Trying again. Nothing you've saved is lost." }
+    // The page says it's offline itself (pillPlace, V-695): only what waits, quietly.
+    if (claimed) pill = waiting > 0 ? { ...pill, quiet: true } : null
   }
   else if (needYou > 0) pill = { kind: "review", title: `${changes(needYou)} ${needYou === 1 ? "needs" : "need"} you` }
   else if (kept.sending && waiting > 0) pill = { kind: "sync", title: `Sending ${changes(waiting)}…` }
@@ -162,10 +158,11 @@ function Pill({ pill, retry, reload, reconnect, className }: { pill: NonNullable
   }
   const detail = pill.kind === "offline" || pill.kind === "live" ? pill.detail : undefined
   const said = detail ? `${pill.title} · ${detail}` : pill.title
+  const quiet = pill.kind === "offline" && pill.quiet
   return (
     <div
-      role="status"
-      aria-live="polite"
+      role={quiet ? undefined : "status"}
+      aria-live={quiet ? undefined : "polite"}
       data-connection-pill={pill.kind}
       data-tone={pill.kind === "offline" ? "warn" : undefined}
       className={cn("shell-footpill", className)}

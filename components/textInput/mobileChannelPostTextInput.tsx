@@ -18,6 +18,7 @@ import { CreateCommentResInterface, CreateUpdateCommentReqInterface } from "@/ty
 import { clearChannelCommentMsgInputState, createChannelComment, createOrUpdateChannelCommentMsg } from "@/store/slice/channelCommentSlice";
 import { ChannelCommentFileUpload } from "@/components/fileUpload/channelCommentFileUpload";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
+import { sendOnce, type WithSendId } from "@/lib/chat/sendOnce";
 
 // Module-level, so a composer with no draft yet gets the same value on every
 // store change: a fresh {} per call re-drew it, editor and all, whenever
@@ -49,14 +50,16 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
         if(body.length==0) return
 
 
-        post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
+        // One reply however often it is sent (V-1088; the same rule as ThreadReplyBox).
+        sendOnce(postUUID, [body, files, false], (client_msg_id) => post.makeRequest<WithSendId<CreateUpdateCommentReqInterface>, CreateCommentResInterface>({
             apiEndpoint: PostEndpointUrl.CreatePostComment,
             payload: {
                 post_id: postUUID,
                 comment_attachments: files,
                 comment_text_html: body,
+                client_msg_id,
             }
-        })
+        }))
             .then((res)=>{
 
                 // postInfo.mutate()
@@ -73,6 +76,9 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
 
 
 
+            })
+            .catch(() => {
+                // Not sent, and usePost has said so: the words and their id stay for Send again.
             })
     }
 

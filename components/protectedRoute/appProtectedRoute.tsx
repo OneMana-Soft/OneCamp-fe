@@ -245,10 +245,10 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     if (failed) {
         return (
             <SplashFrame data-splash-error="">
-                <div className="flex flex-col items-center">
+                <main id="main-content" className="flex flex-col items-center">
                     <SpotCrash />
                     <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} className="py-4 [&_[data-empty-illustration]]:hidden" />
-                </div>
+                </main>
             </SplashFrame>
         );
     }

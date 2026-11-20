@@ -32,7 +32,7 @@
   margin-top: 0;
   margin-bottom: 0;
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror > * + * {
+.minimal-tiptap-editor.doc-editor .ProseMirror > :where(:not(:first-child)) {
   margin-top: 12px;
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror > p + p {
@@ -115,7 +115,13 @@
 .minimal-tiptap-editor.doc-editor .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child {
   margin-top: 0;
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + * {
+/* The block after a heading sits at the heading's own margin, whatever block it is (a table of contents is a <nav>).
+   The heading side is ONLY the class every doc heading has (blocks/text.ts heading-node; snapshotHtml adds it to the
+   read-only copy), so Chrome files this rule under .heading-node. A tag there, even in :is() or :where() beside the
+   class, put the rule in Chrome's universal sibling set, and every overlay opening or closing anywhere restyled the
+   whole page (V-924, lib/ui/styleInvalidationGuard.test.ts). In :where it weighs 0,3,0, under the old `> :is(h1..h6)
+   + *` (0,3,1), so a block's own top margin (a rule, a quote) still wins as it did; as a bare class (0,4,0) it didn't. */
+.minimal-tiptap-editor.doc-editor .ProseMirror > :where(.heading-node) + * {
   margin-top: 0;
 }
 
@@ -496,7 +502,7 @@
   margin-top: 0;
   margin-bottom: 0;
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-content > * + * {
+.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-content > :where(:not(:first-child)) {
   margin-top: 4px;
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror > .toggle[data-level="1"]:not(:first-child) { margin-top: 32px; }

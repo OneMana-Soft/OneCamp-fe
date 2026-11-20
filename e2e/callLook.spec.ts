@@ -13,7 +13,7 @@ import { fakeCallServer, type FakePerson } from "./fakeCallServer"
 // low light lifts the picture's brightness, a touch-up quiets the skin's
 // grain while the eye's edge stays as sharp and the face as bright. The face is a deep skin tone
 // under a strong warm lamp, the most colourful of lowLight.test.ts's skin
-// tones. Low light eases its lift in over some seconds, so the touch-up is
+// tones, and then the darkest skin tone, MST 10, in a dim room (FACES). Low light eases its lift in over some seconds, so the touch-up is
 // measured once the lift has settled: a face it lifts must still be skin.
 
 const W = 640
@@ -22,8 +22,30 @@ const H = 360
 const FACE = { x: 0.5, y: 0.55, rx: 0.16, ry: 0.32 }
 const EYE = { x: 0.44, y: 0.45, r: 0.035 }
 
-/** One YUV 4:2:0 frame: a dim blue-grey room, a face in skin tones with fixed grain, and a dark eye. */
-function stillY4m(): Buffer {
+/** A face's colour in the still, as Chromium reads a Y4M (BT.601): luma and the two chroma codes. */
+interface Face {
+  y: number
+  u: number
+  v: number
+}
+/**
+ * The darkest of the Monk skin tones, MST 10 (rgb 41, 36, 32), in a dim room
+ * (0.4 of its light), in video range as Chromium reads a Y4M (V-812, after
+ * h4a/monk.mjs writeCamera): read pixel by pixel, its grain's dark half fell
+ * under the touch-up's skin floor (look.ts).
+ */
+function mst10(): Face {
+  const [r, g, b] = [41, 36, 32].map((c) => c * 0.4)
+  const y = 0.299 * r + 0.587 * g + 0.114 * b
+  const u = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b
+  const v = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
+  return { y: Math.round(16 + (y * 219) / 255), u: Math.round(128 + ((u - 128) * 224) / 255), v: Math.round(128 + ((v - 128) * 224) / 255) }
+}
+/** The faces the touch-up and low light are measured on: a deep skin tone under a strong warm lamp, and the darkest skin tone. */
+const FACES: Record<string, Face> = { "a deep skin tone under a warm lamp": { y: 62, u: 112, v: 152 }, "the darkest skin tone (MST 10)": mst10() }
+
+/** One YUV 4:2:0 frame: a dim blue-grey room, a face in a skin tone with fixed grain, and a dark eye. */
+function stillY4m(face: Face): Buffer {
   const y = Buffer.alloc(W * H)
   const u = Buffer.alloc((W / 2) * (H / 2))
   const v = Buffer.alloc((W / 2) * (H / 2))
@@ -38,21 +60,25 @@ function stillY4m(): Buffer {
   for (let py = 0; py < H; py++)
     for (let px = 0; px < W; px++) {
       const k = at(px, py)
-      y[py * W + px] = k === "eye" ? 18 : k === "face" ? 62 + grain() : 30
+      y[py * W + px] = k === "eye" ? 18 : k === "face" ? face.y + grain() : 30
     }
   for (let py = 0; py < H / 2; py++)
     for (let px = 0; px < W / 2; px++) {
       const k = at(px * 2, py * 2)
-      u[py * (W / 2) + px] = k === "face" ? 112 : k === "eye" ? 128 : 136
-      v[py * (W / 2) + px] = k === "face" ? 152 : k === "eye" ? 128 : 122
+      u[py * (W / 2) + px] = k === "face" ? face.u : k === "eye" ? 128 : 136
+      v[py * (W / 2) + px] = k === "face" ? face.v : k === "eye" ? 128 : 122
     }
   return Buffer.concat([Buffer.from(`YUV4MPEG2 W${W} H${H} F30:1 Ip A1:1 C420jpeg\nFRAME\n`), y, u, v])
 }
-const STILL = path.resolve("node_modules/.cache/callLook/camera.y4m")
-mkdirSync(path.dirname(STILL), { recursive: true })
-writeFileSync(STILL, stillY4m())
+/** Each face's still, as a fake camera file, and the browser that has it as its camera. */
+const STILLS = Object.entries(FACES).map(([face, colour], i) => {
+  const file = path.resolve(`node_modules/.cache/callLook/camera-${i}.y4m`)
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFileSync(file, stillY4m(colour))
+  return { face, launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${file}`] } }
+})
 
-test.use({ launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${STILL}`] } })
+test.use({ launchOptions: STILLS[0].launchOptions })
 
 const DEVICES = {
   computer: { viewport: { width: 1280, height: 800 } },
@@ -78,14 +104,16 @@ interface Seen {
   edge: number
 }
 
-/** Waits until low light's lift has settled on a <video>: its brightness the same, within 1%, over 3 s. */
+/**
+ * Waits until low light's lift has settled on a <video>: its brightness the same, within 1%, over 3 s of the frames'
+ * own clock (the clock the lift eases by, lowLight.ts), however slowly a busy machine shows them.
+ */
 async function settled(video: Locator, message: string) {
   let last = (await seen(video)).mean
   await expect
     .poll(
       async () => {
-        await video.page().waitForTimeout(3000)
-        const now = (await seen(video)).mean
+        const now = (await seen(video, 3)).mean
         const change = Math.abs(now - last) / Math.max(1, last)
         last = now
         return change
@@ -95,18 +123,42 @@ async function settled(video: Locator, message: string) {
     .toBeLessThan(0.01)
 }
 
-/** The picture a <video> shows now, measured as the still was drawn. */
-async function seen(video: Locator): Promise<Seen> {
+/**
+ * The picture a <video> shows, measured as the still was drawn: the first frame it shows that isn't black, once `after`
+ * seconds of its frames' own clock have gone by. A busy machine can show a frame read as the camera's track is handed to
+ * its processor, or one the processor hasn't drawn yet, as black; that's no picture of the room. If no picture comes
+ * within 20 s, the one it shows then is measured, for the assertion to fail on.
+ */
+async function seen(video: Locator, after = 0): Promise<Seen> {
   return video.evaluate(
-    async (v: HTMLVideoElement, { FACE, EYE }) => {
-      await new Promise((r) => v.requestVideoFrameCallback(() => r(null)))
+    async (v: HTMLVideoElement, { FACE, EYE, span }) => {
+      const c = document.createElement("canvas")
+      const x = c.getContext("2d", { willReadFrequently: true })!
+      const until = performance.now() + 20_000
+      let clock: number | null = null
+      let gone = 0
+      for (;;) {
+        const frame = await new Promise<VideoFrameCallbackMetadata | null>((r) => {
+          const late = setTimeout(() => r(null), Math.max(0, until - performance.now()))
+          v.requestVideoFrameCallback((_, m) => (clearTimeout(late), r(m)))
+        })
+        if (frame) {
+          // Only the clock going on counts: a processor's track starts a clock of its own.
+          if (clock !== null && frame.mediaTime > clock) gone += frame.mediaTime - clock
+          clock = frame.mediaTime
+          if (gone < span) continue
+        }
+        c.width = v.videoWidth
+        c.height = v.videoHeight
+        x.drawImage(v, 0, 0, c.width, c.height)
+        if (!frame) break
+        const d = x.getImageData(0, 0, Math.max(1, c.width), Math.max(1, c.height)).data
+        let lit = false
+        for (let i = 0; i < d.length && !lit; i += 4) lit = d[i] + d[i + 1] + d[i + 2] > 6
+        if (lit) break
+      }
       const w = v.videoWidth
       const h = v.videoHeight
-      const c = document.createElement("canvas")
-      c.width = w
-      c.height = h
-      const x = c.getContext("2d", { willReadFrequently: true })!
-      x.drawImage(v, 0, 0, w, h)
       const luma = (fx: number, fy: number, fw: number, fh: number) => {
         const d = x.getImageData(Math.round(fx * w), Math.round(fy * h), Math.max(1, Math.round(fw * w)), Math.max(1, Math.round(fh * h))).data
         const ys: number[] = []
@@ -119,7 +171,7 @@ async function seen(video: Locator): Promise<Seen> {
       const skin = luma(EYE.x - EYE.r / 3, EYE.y + EYE.r * 2.2, EYE.r / 2, EYE.r / 2)
       return { mean: luma(0, 0, 1, 1).mean, grain: (100 * cheek.sd) / Math.max(1, cheek.mean), face: cheek.mean, edge: (skin.mean - eye.mean) / Math.max(1, skin.mean) }
     },
-    { FACE, EYE },
+    { FACE, EYE, span: after },
   )
 }
 
@@ -195,10 +247,19 @@ async function computer(context: BrowserContext, pace: "keeps up" | "can't keep 
   }, pace)
 }
 
-for (const [device, use] of Object.entries(DEVICES)) {
-  test(`touch-up and low light change the green room's picture and the call's, and come off in the call, on a ${device}`, async ({ browser }, testInfo) => {
+for (const [still, { face }] of STILLS.entries()) for (const [device, use] of Object.entries(DEVICES)) touchUpAndLowLight(still, face, device, use)
+
+function touchUpAndLowLight(still: number, face: string, device: string, use: BrowserContextOptions) {
+  const shot = (name: string) => (still ? `${name}-face${still}` : name)
+  test(`touch-up and low light change the green room's picture and the call's, and come off in the call${still ? `, with ${face}` : ""}, on a ${device}`, async ({ browser, playwright }, testInfo) => {
     test.setTimeout(240_000)
-    const context = await browser.newContext({ ...use, permissions: ["camera", "microphone"] })
+    // A still is its browser's camera from launch (Playwright won't launch one per describe), so a later still's browser is the test's own.
+    const own = still ? await playwright.chromium.launch(STILLS[still].launchOptions) : null
+    const context = await (own ?? browser).newContext({
+      ...use,
+      permissions: ["camera", "microphone"],
+      ...(own ? { baseURL: testInfo.project.use.baseURL, serviceWorkers: "block" as const } : {}),
+    })
     // The effects as chosen, all through: on a slow machine the call's strain watch would make them lighter (the next test).
     await computer(context, "keeps up")
     const said = await toastsSaid(context)
@@ -228,7 +289,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
     const both = await seen(preview)
     expect(both.edge, "the eye's edge stays sharp").toBeGreaterThan(plain.edge * 0.8)
     expect(Math.abs(both.face - lit.face), "the touch-up keeps the face as bright as low light made it, within 3%").toBeLessThanOrEqual(lit.face * 0.03)
-    await shotInThemes(page, `look-green-room-on-${device}`)
+    await shotInThemes(page, shot(`look-green-room-on-${device}`))
     await page.keyboard.press("Escape")
 
     // The call puts them on its camera as it publishes.
@@ -252,7 +313,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
     const panel = page.locator("[data-call-effects]")
     const smooth = panel.getByRole("radiogroup", { name: "Touch-up" }).getByRole("radio", { name: "Smooth" })
     await expect(smooth).toHaveAttribute("aria-checked", "true")
-    await shotInThemes(page, `look-call-on-${device}`)
+    await shotInThemes(page, shot(`look-call-on-${device}`))
     // The shot is of the effects as chosen: the strain watch made nothing lighter while it was taken.
     await expect(smooth, "the touch-up is still smooth after the shot").toHaveAttribute("aria-checked", "true")
     await expect(page.locator(".toast-root").filter({ hasText: "Effects made lighter" })).toHaveCount(0)
@@ -260,9 +321,10 @@ for (const [device, use] of Object.entries(DEVICES)) {
     await expect.poll(async () => (await seen(self)).mean, { message: "low light off: the room as dim as it is", timeout: 60_000 }).toBeLessThan(plain.mean * 1.12)
     await press(device, panel.getByRole("radiogroup", { name: "Touch-up" }).getByRole("radio", { name: "Off" }))
     await expect.poll(async () => (await seen(self)).grain, { message: "touch-up off: the grain is back", timeout: 60_000 }).toBeGreaterThan(plain.grain * 0.85)
-    await shotInThemes(page, `look-call-off-${device}`)
+    await shotInThemes(page, shot(`look-call-off-${device}`))
     expect((await said(page)).filter((words) => words.includes("Effects made lighter")), "the call never made this computer's effects lighter").toEqual([])
     await context.close()
+    await own?.close()
   })
 }
 

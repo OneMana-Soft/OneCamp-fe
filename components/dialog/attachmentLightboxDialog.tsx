@@ -256,7 +256,9 @@ export function MediaLightboxDialog({
     useEffect(() => {
         if (isDesktop) {
             const handleKeyDown = (e: KeyboardEvent) => {
-                if (!dialogOpenState) return
+                // A control that took the key keeps it: a slider (the video's
+                // volume or seek bar) steps on its arrows (V-1162).
+                if (!dialogOpenState || e.defaultPrevented) return
                 if (e.key === "ArrowLeft") handlePrevious()
                 if (e.key === "ArrowRight") handleNext()
                 // Esc is the dialog's own: Radix closes it (onOpenChange).
@@ -335,6 +337,8 @@ export function MediaLightboxDialog({
         loading: (mediaReq.isLoading || mediaReq.isValidating) && !mediaReq.data?.url && !currentMedia.initial_url,
         onDownload: handleDownload,
         mime: currentMedia.attachment_raw_type,
+        // Edge to edge, so the stage's foot is the screen's: toasts stand clear of its controls.
+        foot: true,
     }
 
     const effectiveType = resolveEffectiveType(currentMedia)

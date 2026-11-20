@@ -72,8 +72,8 @@ describe("the public frame", () => {
 
   it("passes each guest page's workspace on to the frame", () => {
     // A meeting's guest page, by a link or at a room's address, is GuestMeeting;
-    // a shared doc's, past its password, is GuestDoc.
-    for (const page of ["components/guest/GuestDoc.tsx", "app/guest/t/[token]/page.tsx", "app/guest/c/[token]/page.tsx", "app/guest/b/[token]/page.tsx", "components/guest/GuestMeeting.tsx"]) {
+    // a shared doc's, past its password, is GuestDoc; a shared board's, GuestBoardLink.
+    for (const page of ["components/guest/GuestDoc.tsx", "app/guest/t/[token]/page.tsx", "app/guest/c/[token]/page.tsx", "components/guest/GuestBoardLink.tsx", "components/guest/GuestMeeting.tsx"]) {
       expect(readFileSync(page, "utf8")).toMatch(/workspaceName=\{[^}]*workspace/)
     }
   })
@@ -122,7 +122,7 @@ describe("the public frame", () => {
 
   // The guest channel, board and meeting joined it at the integration (11 Oct),
   // so every guest page shares the one frame (G1); the client view is work's.
-  for (const page of ["app/guest/d/[token]/page.tsx", "app/guest/t/[token]/page.tsx", "app/guest/c/[token]/page.tsx", "app/guest/b/[token]/page.tsx", "app/guest/m/[token]/page.tsx", "app/book/[slug]/page.tsx", "app/booking/[token]/page.tsx"]) {
+  for (const page of ["app/guest/d/[token]/page.tsx", "app/guest/t/[token]/page.tsx", "app/guest/c/[token]/page.tsx", "components/guest/GuestBoardLink.tsx", "app/guest/m/[token]/page.tsx", "app/book/[slug]/page.tsx", "app/booking/[token]/page.tsx"]) {
     it(`${page} goes through PublicFrame`, () => {
       const src = readFileSync(page, "utf8")
       expect(src).toMatch(/PublicFrame|PublicGone|BookingFlow|ManageBooking/)

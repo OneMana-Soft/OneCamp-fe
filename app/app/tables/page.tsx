@@ -9,7 +9,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
-import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight, RotateCcw, Upload } from "@/lib/icons"
+import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight, RotateCcw, Upload, Download } from "@/lib/icons"
 import { DataTable, createTable, deleteTable, updateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -66,6 +66,7 @@ export default function TablesPage() {
   const [query, setQuery] = React.useState("")
   const [renaming, setRenaming] = React.useState<string | null>(null)
   const [trashOpen, setTrashOpen] = React.useState(false)
+  const [exportingAll, setExportingAll] = React.useState(false)
   const [importing, setImporting] = React.useState(false)
   const offerUndo = useUndoToast(React.useCallback(() => void mutate(), [mutate]))
   const renameNext = React.useRef<string | null>(null)
@@ -137,6 +138,21 @@ export default function TablesPage() {
     }
   }
 
+  // Every table the reader can open as one workbook (lib/tables/exportAll,
+  // a chunk read on use); shown only when the list holds a table.
+  const exportAll = async () => {
+    if (exportingAll) return
+    setExportingAll(true)
+    try {
+      const { exportAllTables } = await import("@/lib/tables/exportAll")
+      await exportAllTables(toast)
+    } catch {
+      toast({ tone: "error", variant: "destructive", title: "Couldn't export the tables", description: "Check your connection and try again." })
+    } finally {
+      setExportingAll(false)
+    }
+  }
+
   const count = tables.length
   return (
     <div className="mx-auto w-full max-w-[944px] px-4 pb-16 pt-6 sm:px-8 sm:pt-8" data-tables-page="">
@@ -168,18 +184,25 @@ export default function TablesPage() {
           />
           <kbd className="kbd">/</kbd>
         </label>
-        <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted tables" onPointerEnter={warmTrash} onFocus={warmTrash} onClick={() => setTrashOpen(true)}>
-          <RotateCcw className="size-4" />
-        </Button>
-        <Button variant="secondary" size="sm" className="gap-1.5" aria-label="Import a spreadsheet" onPointerEnter={warmImport} onFocus={warmImport} onClick={() => setImporting(true)}>
-          <Upload className="size-3.5" />
-          <span className="hidden sm:inline">Import</span>
-        </Button>
-        <Button onClick={handleCreate} busy={creating} size="sm" className="gap-1.5">
-          <Plus className="size-3.5" />
-          New table
-          <kbd className="kbd ml-0.5 hidden sm:inline-flex">T</kbd>
-        </Button>
+        <div data-page-actions="" className="flex flex-wrap items-center gap-3">
+          {count > 0 ? (
+            <Button variant="ghost" size="icon-sm" aria-label="Export all tables" title="Export all tables to Excel" busy={exportingAll} onClick={() => void exportAll()}>
+              <Download className="size-4" />
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted tables" onPointerEnter={warmTrash} onFocus={warmTrash} onClick={() => setTrashOpen(true)}>
+            <RotateCcw className="size-4" />
+          </Button>
+          <Button variant="secondary" size="sm" className="gap-1.5" aria-label="Import a spreadsheet" onPointerEnter={warmImport} onFocus={warmImport} onClick={() => setImporting(true)}>
+            <Upload className="size-3.5" />
+            <span className="hidden sm:inline">Import</span>
+          </Button>
+          <Button onClick={handleCreate} busy={creating} size="sm" className="gap-1.5">
+            <Plus className="size-3.5" />
+            New table
+            <kbd className="kbd ml-0.5 hidden sm:inline-flex">T</kbd>
+          </Button>
+        </div>
       </div>
       {importing ? <ImportPart.View fallback={null} render={(m) => <m.ImportSheetDialog onClose={() => setImporting(false)} onDone={() => void mutate()} />} /> : null}
       {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TablesTrash onClose={() => setTrashOpen(false)} onRestored={() => void mutate()} renderFailed={trashFailed} />} /> : null}

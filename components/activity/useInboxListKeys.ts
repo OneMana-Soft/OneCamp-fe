@@ -31,6 +31,15 @@ export interface InboxListKeys<E> {
   setRead?: (e: E, read: boolean) => void
 }
 
+/** Focuses `key`'s row (its stretched control, else the row) and keeps it in view; false when it isn't drawn. */
+export function focusRow(box: HTMLElement, key: string): boolean {
+  const row = box.querySelector<HTMLElement>(`[data-feed-key="${CSS.escape(key)}"]`)
+  const control = row?.querySelector<HTMLElement>("[data-row-link]") ?? row
+  control?.focus({ preventScroll: true })
+  row?.scrollIntoView?.({ block: "nearest" })
+  return !!row
+}
+
 /**
  * The Inbox's keys, for every tab's list (STEP4 #6, chat P2): J and K (or the
  * arrows) move through the rows, starting at the first from the page; while
@@ -48,13 +57,6 @@ export function useInboxListKeys<E>(opts: InboxListKeys<E>): void {
     now.current = opts
   })
   useEffect(() => {
-    const rowOf = (box: HTMLElement, key: string) => box.querySelector<HTMLElement>(`[data-feed-key="${CSS.escape(key)}"]`)
-    const focusRow = (box: HTMLElement, key: string) => {
-      const row = rowOf(box, key)
-      const control = row?.querySelector<HTMLElement>("[data-row-link]") ?? row
-      control?.focus({ preventScroll: true })
-      row?.scrollIntoView?.({ block: "nearest" })
-    }
     const onKey = (e: KeyboardEvent) => {
       const { box: boxRef, entries, keyOf, pane, targetOf, isUnread, setRead } = now.current
       const el = boxRef.current

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import VideoPlayer from "@/components/attachments/videoPlayer"
 import { AudioPlayer } from "@/components/fileUpload/AudioPlayer"
 import DocumentViewer from "@/components/attachments/documentViewer"
+import { holdOverlayFoot } from "@/components/attachments/overlayFoot"
 import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { Download, Loader2, RotateCcw, ZoomIn, ZoomOut } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -39,7 +40,16 @@ export interface StageMedia {
      * Download is the card's, so the card draws none, and one Download shows).
      */
     onCantPreview?: (cant: boolean) => void
+    /**
+     * The stage stands at the screen's foot, edge to edge (the lightbox): its
+     * zoom controls and a video's controls hold the page's overlay foot while
+     * drawn (holdOverlayFoot).
+     */
+    foot?: boolean
 }
+
+// The zoom controls' top: their 24px and the safe area under them (bottom-6), and their 36px (h-9).
+const holdZoomFoot = () => holdOverlayFoot("calc(60px + env(safe-area-inset-bottom))")
 
 /**
  * A file the stage can't draw, as one card wherever that happens (design
@@ -104,6 +114,7 @@ function StageImage({ fileName, media }: { fileName: string; media: StageMedia }
                                 "bottom-[calc(theme(spacing.6)+env(safe-area-inset-bottom))]",
                                 "left-1/2 -translate-x-1/2",
                             )}
+                            ref={media.foot ? holdZoomFoot : undefined}
                             role="toolbar"
                             aria-label="Image zoom controls"
                             data-touch-group=""
@@ -202,6 +213,7 @@ export function renderAsPerAttachmentType(attachmentString: AttachmentType, file
                     key={media.key}
                     url={media.url}
                     fileName={fileName}
+                    foot={media.foot}
                 />
             )
 

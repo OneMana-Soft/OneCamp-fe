@@ -1293,7 +1293,7 @@ const RECENT_KIND_LABEL: Record<RecentItem["type"], string> = {
 }
 
 function hitKindLabel(type: SearchResult["type"]): string {
-  const known: Record<string, string> = { post: "Message", chat: "Direct message", task: "Task", doc: "Doc", project: "Project", channel: "Channel", team: "Team", board: "Board", user: "Person", event: "Event" }
+  const known: Record<string, string> = { post: "Message", chat: "Direct message", task: "Task", doc: "Doc", project: "Project", channel: "Channel", team: "Team", board: "Board", user: "Person", event: "Event", transcript: "Call" }
   return known[type] ?? "Result"
 }
 
@@ -1336,6 +1336,9 @@ function hitPlace(result: SearchResult): MarkedPlace {
     case "team":
     case "event":
       return { kind: result.type }
+    case "transcript":
+      // A line said in a call leads with its speaker's face, as a message does.
+      return { kind: "person", label: result.transcript?.transcript_by_user_full_name }
     default:
       return { kind: null }
   }

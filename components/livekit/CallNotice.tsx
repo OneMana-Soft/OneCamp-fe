@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useRef, type ReactNode } from "react"
+import { useEffect, useRef, type ComponentType, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Captions } from "@/lib/icons"
 import { captionsWhereText, type CallTranscription } from "./callState"
+import type { AskedNoticeProps } from "./AskedNotice"
+import { callNoticeCard } from "./callNoticeCard"
 
 // The notices over a call's stage (captions on, a recording started). Imported
 // by the call alone (VideoConference, RecordingNotice), so neither the stage's
@@ -15,7 +17,9 @@ import { captionsWhereText, type CallTranscription } from "./callState"
  * One shell, so every call notice reads and answers alike: Esc is Got it, and
  * Got it takes the focus only from nowhere, never from a field someone is
  * typing in or a control they just used. data names the notice
- * ({ "data-captions-notice": "" }).
+ * ({ "data-captions-notice": "" }). Leave call, where given, leaves. One that
+ * asks (a guest, zoom-09) is the one asks gives (the guest's page's
+ * LazyAskedNotice): OK or Leave call, nothing else.
  */
 export function CallNotice({
   mark,
@@ -23,6 +27,10 @@ export function CallNotice({
   body,
   actions,
   onDismiss,
+  onLeave,
+  asks,
+  failed,
+  busy,
   data,
 }: {
   mark: ReactNode
@@ -30,6 +38,10 @@ export function CallNotice({
   body: ReactNode
   actions?: ReactNode
   onDismiss: () => void
+  onLeave?: () => void
+  asks?: ComponentType<AskedNoticeProps>
+  failed?: boolean
+  busy?: boolean
   data: Record<`data-${string}`, string>
 }) {
   const gotIt = useRef<HTMLButtonElement>(null)
@@ -37,6 +49,8 @@ export function CallNotice({
     const at = document.activeElement
     if (!at || at === document.body) gotIt.current?.focus({ preventScroll: true })
   }, [])
+  const Asked = asks
+  if (Asked && onLeave) return <Asked mark={mark} title={title} body={body} failed={failed} busy={busy} onOk={onDismiss} onLeave={onLeave} data={data} />
   return (
     <div
       role="status"
@@ -46,7 +60,7 @@ export function CallNotice({
         e.stopPropagation()
         onDismiss()
       }}
-      className="hub-pop-down pointer-events-auto w-full max-w-[440px] rounded-[14px] bg-[#1F2024] p-3 text-ui-sm text-[#EEEEF0] shadow-e3 ring-1 ring-white/[0.09]"
+      className={`hub-pop-down ${callNoticeCard}`}
       {...data}
     >
       <p className="flex items-center gap-2 font-medium">
@@ -56,6 +70,11 @@ export function CallNotice({
       <p className="mt-1 text-pretty text-[#A8ABB1]">{body}</p>
       <div className="mt-2.5 flex flex-wrap justify-end gap-2">
         {actions}
+        {onLeave && (
+          <Button size="sm" variant="ghost" onClick={onLeave} className="text-danger-ink hover:text-danger-ink">
+            Leave call
+          </Button>
+        )}
         <Button ref={gotIt} size="sm" variant="secondary" onClick={onDismiss}>
           Got it
         </Button>
@@ -75,11 +94,19 @@ export function CaptionsNotice({
   onDismiss,
   captioningMe,
   onToggleMe,
+  onLeave,
+  asks,
+  failed,
+  busy,
 }: {
   transcription: CallTranscription
   onDismiss: () => void
   captioningMe?: boolean
   onToggleMe?: () => void
+  onLeave?: () => void
+  asks?: ComponentType<AskedNoticeProps>
+  failed?: boolean
+  busy?: boolean
 }) {
   return (
     <CallNotice
@@ -88,6 +115,10 @@ export function CaptionsNotice({
       title={transcription.by ? `${transcription.by} turned on captions` : "Captions are on"}
       body={captionsWhereText(transcription)}
       onDismiss={onDismiss}
+      onLeave={onLeave}
+      asks={asks}
+      failed={failed}
+      busy={busy}
       actions={
         onToggleMe && captioningMe !== false ? (
           <Button size="sm" variant="ghost" onClick={onToggleMe}>

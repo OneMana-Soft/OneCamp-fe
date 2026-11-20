@@ -1,8 +1,10 @@
 import type { SearchResult } from "@/services/searchService"
 import { chatPath } from "@/lib/routes/conversationRoute"
-import { route } from "@/lib/conversation/route"
+import { chatRef, route } from "@/lib/conversation/route"
+import type { ConversationRef } from "@/lib/conversation/types"
 import { calendarRoute } from "@/lib/calendar/route"
 import { firstHitWords } from "@/lib/search/highlight"
+import { momentQuery } from "@/lib/calls/callMoment"
 
 /** A channel, at one of its messages when there is one (the Link Router). */
 const channelPath = (channel: string, message?: string) => route({ conversation: { kind: "channel", id: channel }, ...(message ? { message } : {}) })
@@ -63,6 +65,16 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       return result.channel?.ch_id ? channelPath(result.channel.ch_id) : null
     case "event":
       return result.event?.event_uuid ? calendarRoute({ event: result.event.event_uuid }) : null
+    case "transcript": {
+      // A line said in a call (zoom-13) opens its conversation's recordings, the player at that moment: ids and a
+      // time only. A call nobody recorded asks for no picture; its recording id is then the call's key.
+      const t = result.transcript
+      const id = t?.transcript_conv_id
+      const conversation: ConversationRef | null = !id ? null : t?.transcript_conv_kind === "channel" ? { kind: "channel", id } : chatRef(id, selfUUID)
+      const recording = t?.transcript_recording_id
+      if (!conversation || !recording) return null
+      return `${route({ conversation })}/recording?${momentQuery({ recording, atMs: t?.transcript_offset_ms ?? 0, media: t?.transcript_has_media !== false })}`
+    }
     default:
       return null
   }

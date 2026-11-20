@@ -19,6 +19,7 @@ const PRELOAD: Record<string, () => Promise<unknown>[]> = {
   security: () => [import("@/components/admin/GuestAccessCard"), import("@/components/admin/ScimProvisioningCard")],
   docs: () => [import("@/components/admin/DocPoliciesCard")],
   permissions: () => [import("@/components/admin/PermissionsCard")],
+  rooms: () => [import("@/components/admin/RoomsCard")],
   "email-settings": () => [import("@/components/admin/EmailProviderCard"), import("@/components/admin/EmailSettingsCard")],
   audit: () => [import("@/components/admin/AdminAuditLog"), import("@/components/admin/RetentionCard")],
   archive: () => [import("@/components/admin/ArchiveCard")],

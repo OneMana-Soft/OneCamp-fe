@@ -5,8 +5,7 @@
 
 import type { Room } from "livekit-client"
 import { mergeReadings, readStats, startQuality, type Reading, type SentSample } from "@/lib/calls/quality"
-import { backendFetch } from "@/lib/http/backendFetch"
-import { publicCall } from "@/services/publicApi"
+import { postAsAsker } from "./callConsent"
 import type { Asker } from "./handsRunner"
 
 type StatsTrack = { sid?: string; getRTCStatsReport(): Promise<RTCStatsReport | undefined> }
@@ -54,14 +53,7 @@ export function roomReader(room: Room): () => Promise<Reading | null> {
  * the next (startQuality).
  */
 async function send(asker: Asker, samples: SentSample[], leaving: boolean): Promise<void> {
-  const body = JSON.stringify({ samples })
-  if ("sessionId" in asker) {
-    const res = await backendFetch(`calls/${encodeURIComponent(asker.sessionId)}/quality`, { method: "POST", body, keepalive: leaving, headers: { "Content-Type": "application/json" } })
-    if (!res.ok) throw new Error(`call quality not kept: ${res.status}`)
-    return
-  }
-  const r = await publicCall("/guest/calls/quality", { method: "POST", body, keepalive: leaving, headers: { Authorization: `Bearer ${asker.callToken}` } })
-  if (!r.ok) throw new Error(`call quality not kept: ${r.status}`)
+  if (!(await postAsAsker(asker, "quality", JSON.stringify({ samples }), leaving))) throw new Error("call quality not kept")
 }
 
 type PressureRecord = { state: string }

@@ -1,7 +1,8 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
 import { StatusDot } from "@/components/ui/statusWord"
+import type { ComponentType } from "react"
+import type { AskedNoticeProps } from "./AskedNotice"
 import { CallNotice } from "./CallNotice"
 
 // A recording asks first and tells everyone (CALLS-07), as captions do: the
@@ -10,16 +11,40 @@ import { CallNotice } from "./CallNotice"
 // (VideoConference), so no green room or guest page carries it.
 
 /**
- * The confirm before a recording starts: everyone is told, and where the
- * recording goes, from the call's place ("in #launch", "with Maya Chen"). Pure.
+ * What a recording is said to be, in one place for the confirm before it
+ * starts, everyone else's notice and the screen reader: everyone is told, and
+ * where the recording goes, from the call's place ("in #launch", "with Maya
+ * Chen"), in the same words in the confirm and the notice (D-CL-7: a guest,
+ * who has no place, is told it stays with this conversation); who started it;
+ * while the call's transcript is on and kept, that a transcript comes with it
+ * (V-948: the server files the call's lines under the recording as it runs,
+ * and a recording makes none of its own). Otherwise every word is as it was. Pure.
  */
-export function recordingConfirm(place?: string): { title: string; description: string; confirmText: string } {
-  const goes = place?.startsWith("in #")
-    ? `goes to ${place.slice(3)}'s recordings, where its members can watch it`
-    : place?.startsWith("with ")
-      ? `goes to your conversation ${place}, where only the people in it can watch it`
+export function recordingWords({ place, by, transcript }: { place?: string; by?: string; transcript?: boolean }): {
+  confirm: { title: string; description: string; confirmText: string }
+  title: string
+  body: string
+  said: string
+} {
+  const withIt = transcript ? ", with a transcript" : ""
+  const title = by ? `${by} started recording` : "Recording started"
+  const channel = place?.startsWith("in #") ? place.slice(3) : undefined
+  const people = place?.startsWith("with ") ? `your conversation ${place}` : undefined
+  const goes = channel
+    ? `goes to ${channel}'s recordings, where its members can watch it`
+    : people
+      ? `goes to ${people}, where only the people in it can watch it`
       : "stays with this conversation, for the people in it"
-  return { title: "Record this call?", description: `Everyone in it is told, and can leave. The recording ${goes}.`, confirmText: "Start recording" }
+  return {
+    confirm: {
+      title: "Record this call?",
+      description: `Everyone in it is told, and can leave. The recording${withIt}${withIt && ","} ${goes}.`,
+      confirmText: "Start recording",
+    },
+    title,
+    body: `Everything said and shown from now is recorded${withIt}. The recording ${goes}. Leave if you don't want to be in it.`,
+    said: `${title}${withIt}`,
+  }
 }
 
 /**
@@ -54,23 +79,23 @@ export function seenAfter(seen: RecordingSeen | null, on: boolean, was: boolean,
 
 /**
  * What everyone but its starter reads when a recording starts: who started
- * it, that everything from now is recorded, and Leave call (CallNotice: Esc
- * and Got it). Shown once per recording; the pill keeps saying it after (the
+ * it, that everything from now is recorded (with a transcript, while the call
+ * keeps one), where the recording goes (place, as its confirm says), and Leave call (CallNotice: Esc and Got it; a guest's asks first). Shown once per recording; the pill keeps saying it after (the
  * call says who started recording to a screen reader).
  */
-export function RecordingNotice({ by, onDismiss, onLeave }: { by?: string; onDismiss: () => void; onLeave: () => void }) {
+export function RecordingNotice({ place, by, transcript, onDismiss, onLeave, asks, failed, busy }: { place?: string; by?: string; transcript?: boolean; onDismiss: () => void; onLeave: () => void; asks?: ComponentType<AskedNoticeProps>; failed?: boolean; busy?: boolean }) {
+  const words = recordingWords({ place, by, transcript })
   return (
     <CallNotice
       data={{ "data-recording-notice": "" }}
       mark={<StatusDot tone="danger" className="size-2" />}
-      title={by ? `${by} started recording` : "Recording started"}
-      body="Everything said and shown from now is recorded. Leave if you don't want to be in it."
+      title={words.title}
+      body={words.body}
       onDismiss={onDismiss}
-      actions={
-        <Button size="sm" variant="ghost" onClick={onLeave} className="text-danger-ink hover:text-danger-ink">
-          Leave call
-        </Button>
-      }
+      onLeave={onLeave}
+      asks={asks}
+      failed={failed}
+      busy={busy}
     />
   )
 }

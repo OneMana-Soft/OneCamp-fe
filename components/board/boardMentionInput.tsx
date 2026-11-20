@@ -15,8 +15,6 @@ import { displayNameOf, handleOf } from "@/lib/personName"
 import * as React from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { usePost } from "@/hooks/usePost"
-import { BoardsPost } from "@/services/endpoints/boards"
 import type { UserProfileDataInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -31,9 +29,17 @@ interface BoardMentionInputProps {
   onMentionedUsersChange: (users: MentionedUser[]) => void
   onSubmit?: () => void
   onCancel?: () => void
+  /** The box's words; a box that finds people adds "(use @ to mention)" (a board link's guest's says nothing of mentions). */
   placeholder?: string
   className?: string
   autoFocus?: boolean
+  /** The field, for a caller that puts the focus back in it (a refused comment keeps its words, miro-32). */
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>
+  /**
+   * Finds the workspace's people on "@": the caller's search (a member's board page passes it in); without one, as for a
+   * board link's guest, the box mentions no one and carries no request code (miro-33).
+   */
+  findPeople?: (text: string) => Promise<UserProfileDataInterface[] | null | undefined>
 }
 
 const displayName = (u: UserProfileDataInterface) => displayNameOf(u) || "user"
@@ -47,9 +53,11 @@ export function BoardMentionInput({
   placeholder,
   className,
   autoFocus,
+  inputRef,
+  findPeople,
 }: BoardMentionInputProps) {
-  const ref = React.useRef<HTMLTextAreaElement>(null)
-  const search = usePost()
+  const own = React.useRef<HTMLTextAreaElement>(null)
+  const ref = inputRef ?? own
 
   // Users picked from the dropdown (the only mention candidates).
   const [selected, setSelected] = React.useState<MentionedUser[]>([])
@@ -60,7 +68,7 @@ export function BoardMentionInput({
 
   React.useEffect(() => {
     if (autoFocus) ref.current?.focus()
-  }, [autoFocus])
+  }, [autoFocus, ref])
 
   // Report the mentions that are still present in the text (so deleting an
   // "@Name" token removes the notification too). Deduplicated by uuid.
@@ -81,16 +89,13 @@ export function BoardMentionInput({
 
   // Debounced member search while a mention query is active.
   React.useEffect(() => {
-    if (query === null || query.length < 1) {
+    if (!findPeople || query === null || query.length < 1) {
       setResults([])
       return
     }
     const t = setTimeout(async () => {
       try {
-        const res = await search.makeRequest<{ searchText: string }, UserProfileDataInterface[]>({
-          apiEndpoint: BoardsPost.SearchUserForBoard,
-          payload: { searchText: query },
-        })
+        const res = await findPeople(query)
         setResults(res && Array.isArray(res) ? res.slice(0, 6) : [])
         setActiveIndex(0)
       } catch {
@@ -185,7 +190,7 @@ export function BoardMentionInput({
         onChange={handleChange}
         data-escape-own={dropdownOpen ? "" : undefined}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder}
+        placeholder={placeholder && findPeople ? `${placeholder} (use @ to mention)` : placeholder}
         className={className}
       />
       {dropdownOpen && (

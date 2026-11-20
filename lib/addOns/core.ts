@@ -29,6 +29,25 @@ type MessageAddOn = { actions: AddOnAction[]; below: ReactNode }
 /** A file's in the viewer: what it offers, and what it found. */
 type AttachmentAddOn = { actions: AddOnAction[]; note: { title: string; text: string } | null }
 
+/**
+ * A mind map node's bar offers its add-ons this (miro-15): what they need to add ideas under the node, the bar's way
+ * of saying no, and its hold on its other actions while one is at work.
+ */
+export interface MindMapNodeOffer {
+  boardId: string
+  /** One of the bar's actions is at work: the others wait. */
+  held: boolean
+  /** Whether the action may go now: offline, it says so in the bar's way and may not. */
+  ready: (title: string) => boolean
+  refuse: (title: string, description: string) => void
+  /** The node's words and its map's root's (null for the root itself), as they may leave this tab. */
+  words: () => Promise<{ node: string; root: string | null }>
+  /** Adds the ideas an answer names under the node, as one change; null when it names none. Returns how many. */
+  grow: (answer: unknown, words: string) => Promise<number | null>
+  /** An add-on is at work (true) or done (false): the bar holds or frees its other actions. */
+  working: (on: boolean) => void
+}
+
 /** No add-on, or one that offers nothing now. */
 export const NO_MESSAGE_ADD_ON: MessageAddOn = { actions: [], below: null }
 export const NO_ATTACHMENT_ADD_ON: AttachmentAddOn = { actions: [], note: null }
@@ -36,6 +55,7 @@ export const NO_ATTACHMENT_ADD_ON: AttachmentAddOn = { actions: [], note: null }
 const given: {
   useMessage?: (text: string) => MessageAddOn
   useAttachment?: (media: AttachmentMediaReq | undefined, image: boolean, source: AttachmentSource | undefined) => AttachmentAddOn
+  useMindMapNode?: (offer: MindMapNodeOffer) => AddOnAction[]
 } = {}
 
 /** Given as an edition's module loads, before anything draws, so each hook stays one function. A second for a surface is two packages' mistake: it throws. */
@@ -48,3 +68,5 @@ export function provideAddOns(add: typeof given): void {
 export const useMessageAddOn = (text: string) => (given.useMessage ? given.useMessage(text) : NO_MESSAGE_ADD_ON)
 export const useAttachmentAddOn: NonNullable<typeof given.useAttachment> = (media, image, source) =>
   given.useAttachment ? given.useAttachment(media, image, source) : NO_ATTACHMENT_ADD_ON
+const NO_ACTIONS: AddOnAction[] = []
+export const useMindMapNodeAddOn = (offer: MindMapNodeOffer): AddOnAction[] => (given.useMindMapNode ? given.useMindMapNode(offer) : NO_ACTIONS)

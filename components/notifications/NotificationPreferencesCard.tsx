@@ -38,6 +38,7 @@ import {
   SwitchRow,
 } from "@/components/ui/settingsSection"
 import { SavedTick, reasonOf, type SaveStatus } from "@/components/ui/saveStatus"
+import { PushDelaySection } from "@/components/notifications/PushDelaySection"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -386,6 +387,8 @@ export function NotificationPreferencesCard() {
           </SettingRow>
         </SettingsList>
       </SettingsSection>
+
+      <PushDelaySection />
 
       <SettingsSection
         id="notifications-quiet"

@@ -18,7 +18,8 @@ import { join } from "path"
  * a directory named ? does not exist".
  *
  * This repo meets neither condition: tests run with `vitest --run` on Linux locally and on
- * ubuntu-latest in CI, with no UI, no browser mode, and no api.host. So the finding does not
+ * an Ubuntu runner in CI (every job is pinned to ubuntu-24.04), with no UI, no browser mode,
+ * and no api.host. So the finding does not
  * apply, and the remedy npm audit suggests — vitest 4 — is a major upgrade that additionally
  * requires Node >= 20.12, i.e. a toolchain bump to fix something that cannot happen here.
  *
@@ -96,7 +97,10 @@ describe("the test runner must not expose a UI or API server", () => {
         const ci = read(".github/workflows/ci.yml")
         expect(ci).toContain("vitest --run")
         expect(ci).not.toMatch(/vitest\s+--ui/)
-        // ubuntu-latest, so the Windows-only traversal cannot apply even if a UI were started.
-        expect(ci).toContain("ubuntu-latest")
+        // Every job runs on an Ubuntu runner (pinned, not ubuntu-latest), so the Windows-only traversal cannot
+        // apply even if a UI were started.
+        const runners = [...ci.matchAll(/^\s*runs-on:\s*(\S+)/gm)].map((m) => m[1])
+        expect(runners.length).toBeGreaterThan(0)
+        for (const runner of runners) expect(runner).toMatch(/^ubuntu-/)
     })
 })

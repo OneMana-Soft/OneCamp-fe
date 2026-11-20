@@ -62,13 +62,16 @@ const FORMS: Array<{ file: string; host: Host; field: Field; via?: string }> = [
   { file: "app/invoice/[project]/page.tsx", host: "page", field: "DateField" },
   // A legal hold's search, from and to (gcal-new-audit-retention H2).
   { file: "components/admin/LegalHoldsCard.tsx", host: "dialog", field: "DateField" },
-  { file: "components/calendar/bookingEditor.tsx", host: "page", field: "TimeField" },
+  // A booking page's own dates; its week's and dates' times are working hours' one editor (below).
+  { file: "components/calendar/bookingEditor.tsx", host: "page", field: "DateField" },
   { file: "components/calendar/form/eventForm.tsx", host: "sheet", field: "DateField" },
   { file: "components/calendar/repeat/customRepeatSheet.tsx", host: "dialog", field: "DateField" },
   // Propose a new time: the event's panel and the guest's own page, loaded as it is opened.
   { file: "components/calendar/rsvp/proposals.tsx", via: "components/calendar/rsvp/proposalsChunk.ts", host: "page", field: "DateField" },
   { file: "components/calendar/rsvp/proposals.tsx", via: "components/calendar/rsvp/proposalsChunk.ts", host: "page", field: "TimeField" },
-  { file: "components/calendar/workingHours/workingHoursSection.tsx", host: "page", field: "TimeField" },
+  { file: "components/calendar/workingHours/weekHoursEditor.tsx", via: "components/calendar/workingHours/workingHoursSection.tsx", host: "page", field: "TimeField" },
+  { file: "components/calendar/workingHours/weekHoursEditor.tsx", via: "components/calendar/bookingEditor.tsx", host: "page", field: "TimeField" },
+  { file: "components/calendar/workingHours/weekHoursEditor.tsx", via: "components/project/ProjectSlaDialog.tsx", host: "dialog", field: "TimeField" },
   { file: "components/checkins/ChannelCheckIns.tsx", host: "dialog", field: "TimeField" },
   { file: "components/dialog/createProjectDialog.tsx", host: "dialog", field: "DateField" },
   { file: "components/dialog/updateUserStatusDialog.tsx", host: "sheet", field: "DateTimeField" },
@@ -91,6 +94,8 @@ const FORMS: Array<{ file: string; host: Host; field: Field; via?: string }> = [
   { file: "components/work/releases/ProjectReleases.tsx", host: "dialog", field: "DateField" },
   { file: "components/work/releases/ReleaseSheet.tsx", host: "sheet", field: "DateField" },
   { file: "components/work/rules/RuleBuilder.tsx", host: "dialog", field: "TimeField" },
+  // The triage rota's first turn (linear-21 H4), in the project's triage settings sheet.
+  { file: "components/work/triage/TriageSettings.tsx", host: "dialog", field: "DateField" },
   { file: "components/notifications/PauseNotificationsDialog.tsx", host: "sheet", field: "WhenField" },
   { file: "components/later/reminderPicker.tsx", via: "components/later/useRemindMe.tsx", host: "sheet", field: "WhenField" },
   { file: "components/messages/scheduleSendButton.tsx", host: "popover", field: "WhenField" },

@@ -115,7 +115,7 @@ export function PhoneProfileCard() {
 export function SettingsPhoneList() {
   const places = useSettingsPlaces(true)
   return (
-    <main id="main-content" className="h-full min-h-0 overflow-y-auto px-4 pb-24 pt-4">
+    <div className="h-full min-h-0 overflow-y-auto px-4 pb-24 pt-4">
       <h1 className="sr-only">Admin</h1>
       <div className="space-y-6">
         {ADMIN_GROUPS.map((group) => {
@@ -134,6 +134,6 @@ export function SettingsPhoneList() {
           )
         })}
       </div>
-    </main>
+    </div>
   )
 }

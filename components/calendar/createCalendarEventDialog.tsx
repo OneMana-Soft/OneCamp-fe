@@ -16,9 +16,10 @@ import { FEATURE_CALENDAR_REPEATS, useFeature } from "@/hooks/useClientConfig";
 import { readerZone } from "@/lib/calendar/eventsApi";
 import { useTellGuests } from "@/components/calendar/tellGuests";
 import { useScopePrompt } from "@/components/calendar/scopePrompt";
+import { usePlainWords } from "@/components/calendar/form/usePlainWords";
 import { EventForm } from "@/components/calendar/form/eventForm";
 import { createEvent } from "@/components/calendar/form/saveEvent";
-import { formProblem, newEventValues, type EventFormValues } from "@/lib/calendar/eventForm";
+import { formProblem, newEventValues, roomsKey, type EventFormValues } from "@/lib/calendar/eventForm";
 import { notesText } from "@/lib/calendar/notes";
 import { DEFAULT_REMINDERS_KEY } from "@/lib/calendar/reminders";
 import { usePreferences } from "@/lib/preferences/usePreference";
@@ -74,23 +75,30 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
     const [values, setValues] = useState<EventFormValues>(() => valuesFor(initial, defaultStartDate));
     const [problem, setProblem] = useState<ReturnType<typeof formProblem>>(null);
     const [submitting, setSubmitting] = useState(false);
+    // "Lunch with Ada tomorrow 1pm" typed in the title: read as the quick card reads it.
+    const words = usePlainWords(values, setValues);
+    const forgetWords = words.reset;
 
     // A fresh form each time it opens: from quick create, from a slot, or at the next round hour.
+    // The calendar keeps it mounted, so the last opening's plain words are forgotten too.
     useEffect(() => {
         if (!open) return;
         setValues(valuesFor(initial, defaultStartDate));
         setProblem(null);
-    }, [open, defaultStartDate, initial]);
+        forgetWords();
+    }, [open, defaultStartDate, initial, forgetWords]);
 
     const submit = async () => {
         const wrong = formProblem(values);
         setProblem(wrong);
         if (wrong || submitting) return;
         setSubmitting(true);
-        const done = await createEvent({ makeRequest: post.makeRequest, askScope, askTell }, values, full);
+        const done = await createEvent({ makeRequest: post.makeRequest, askScope, askTell }, words.saved, full);
         setSubmitting(false);
         // A calendar read-only in its provider: said at the form's Calendar row until another is picked (V-594).
         if (!done.saved && done.why === "read_only") setProblem({ field: "calendar", message: done.message, calendar: values.calendarId });
+        // A room it books is taken, too many or gone: said at the form's Rooms row while they stay chosen (gcal-6).
+        if (!done.saved && done.why === "room") setProblem({ field: "rooms", message: done.message, taken: done.taken, rooms: roomsKey(values) });
         if (!done.saved) return;
         onSuccess?.();
         onOpenChange(false);
@@ -115,7 +123,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
         <>
             <EventForm
                 values={values}
-                onChange={setValues}
+                onChange={words.onChange}
                 full={full}
                 organiser
                 exclude={self ? [self] : []}

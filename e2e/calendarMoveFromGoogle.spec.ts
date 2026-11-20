@@ -7,16 +7,24 @@ import { stubBackend } from "./stubbedApp"
 // then "In step with Google" with how long ago. When Google stops answering
 // for the account (C9), it says so once, on the account line, offers to
 // connect Google again, and the closed Calendars button carries a danger dot.
+// When Google can't be read for over half an hour (gcal-18: down, timing out,
+// slowing us down), the account line says so in one calm sentence and the
+// closed button carries a warning dot instead: nothing to connect again.
 // A phone has the same in its calendar options. With SHOTS_DIR set, each
 // state is saved for review.
 
 const NOW = new Date(2026, 9, 21, 10, 0)
 
-type Sync = { provider: "google"; account: string; state: string; progress: number; moved: number; unchanged: number; last_synced_at?: string; error?: string }
+type Sync = { provider: "google"; account: string; state: string; progress: number; moved: number; unchanged: number; last_synced_at?: string; error?: string; stale_since?: string | null; read_error?: string }
 
 // What the server keeps as why; the web says it in its own short words.
 const STOPPED = "Google stopped answering for this account. Connect it again."
 const BROKEN: Partial<Sync> = { state: "broken", progress: 100, error: STOPPED }
+// gcal-18: in step two hours ago, and Google hasn't answered since (H1's stale_since and read_error).
+const LAST = new Date(NOW.getTime() - 2 * 3600_000).toISOString()
+const STALE: Partial<Sync> = { state: "synced", progress: 100, moved: 412, last_synced_at: LAST, stale_since: LAST, read_error: "unreachable" }
+// 8:00 AM, as the reader's clock writes it (12 or 24 hours).
+const STALE_WORDS = /^sam@gmail\.com · Google hasn't answered since (8:00\sAM|08:00)$/
 
 async function open(page: Page, testInfo: TestInfo, from: Partial<Sync> = {}) {
   const sync: { now: Sync; moves: number } = {
@@ -100,6 +108,22 @@ for (const theme of ["light", "dark"] as const) {
       await panel.getByRole("button", { name: "Connect Google again" }).click()
       await asked
     })
+
+    test("when Google can't be read for a while, it says so calmly with a warning dot", async ({ page }, testInfo) => {
+      test.setTimeout(420_000)
+      await open(page, testInfo, STALE)
+      const closed = page.getByRole("button", { name: /^Calendars, Google hasn't answered since (8:00\sAM|08:00)$/ })
+      await expect(closed.locator("[data-sync-stale]")).toBeVisible({ timeout: 60_000 })
+      await expect(closed.locator("[data-sync-stale]")).toHaveClass(/\bbg-warning\b/)
+      await expect(closed.locator("[data-sync-broken]")).toHaveCount(0)
+      await shot(page, "gcal18-stale-closed", theme)
+      await closed.click()
+      const panel = page.locator("[data-calendars-panel]")
+      await expect(panel.locator("[data-google-account]")).toHaveText(STALE_WORDS)
+      await expect(panel.getByText(/hasn't answered/)).toHaveCount(1)
+      await expect(panel.getByRole("button", { name: /Google again|from Google/ })).toHaveCount(0)
+      await shot(page, "gcal18-stale", theme)
+    })
   })
 }
 
@@ -139,6 +163,20 @@ for (const theme of ["light", "dark"] as const) {
       const asked = page.waitForRequest((r) => r.url().includes("/integration/google-calendar/auth-url"))
       await again.tap()
       await asked
+    })
+
+    test("the calendar options say Google hasn't answered, wrapped on the account line", async ({ page }, testInfo) => {
+      test.setTimeout(420_000)
+      await open(page, testInfo, STALE)
+      await page.getByRole("button", { name: "Calendar options" }).click({ timeout: 60_000 })
+      const line = page.locator("[data-drawer-google] [data-google-account]")
+      await expect(line).toHaveText(STALE_WORDS)
+      // The sentence wraps inside the drawer: no line runs past its own box, and the page doesn't scroll sideways.
+      expect(await line.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+      await expect(page.locator("[data-drawer-google]").getByRole("button", { name: /Google again|from Google/ })).toHaveCount(0)
+      const width = await page.evaluate(() => document.documentElement.scrollWidth)
+      expect(width).toBeLessThanOrEqual(390)
+      await shot(page, "gcal18-stale", theme)
     })
   })
 }

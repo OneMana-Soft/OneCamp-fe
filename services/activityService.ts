@@ -23,3 +23,18 @@ export async function markActivitySeen(): Promise<number | null | false> {
     done()
   }
 }
+
+/** The most keys the server takes in one POST /activity/dismiss. */
+export const DISMISS_KEYS_MAX = 20
+
+/**
+ * Takes Inbox items out of the session's own Priority (dismissed) or puts
+ * them back, by the server's keys of them, DISMISS_KEYS_MAX to a write. The
+ * server takes the person from the session: no user id is sent. Throws on a
+ * failed write; the caller says so (no app-wide error toast).
+ */
+export async function setPriorityDismissed(keys: string[], dismissed: boolean): Promise<void> {
+  for (let i = 0; i < keys.length; i += DISMISS_KEYS_MAX) {
+    await axiosInstance.post(InboxPost.DismissFromPriority, { keys: keys.slice(i, i + DISMISS_KEYS_MAX), dismissed }, { suppressErrorToast: true })
+  }
+}

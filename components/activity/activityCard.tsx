@@ -30,7 +30,7 @@ import { displayNameOf } from "@/lib/personName"
 import { UnifiedActivityItem } from "@/types/activity"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { AgentAvatar, BotAvatar } from "@/components/ui/graphics/PrincipalAvatar"
-import { ArrowUpRight, Bot, Check, ChevronDown, CircleDot, FileText } from "@/lib/icons"
+import { ArrowUpRight, Bot, Check, ChevronDown, CircleDot, FileText, Flag, FlagOff } from "@/lib/icons"
 import { UserProfileInterface } from "@/types/user"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -57,6 +57,11 @@ interface ActivityCardProps {
     /** Undefined draws no dot (a list with no read state). */
     unread?: boolean
     onToggleRead?: (keys: string[], read: boolean) => void
+    /**
+     * Takes the row out of Priority (out) or puts it back (A4 H5), by the
+     * server's keys of its item and its echoes. Without it, no such tool.
+     */
+    onPriority?: (keys: string[], out: boolean) => void
     /** The row is chosen (its tint and bar). */
     selected?: boolean
     /** Draw the hairline above the row (inset to the content column): rows in a virtual list are not siblings. */
@@ -85,6 +90,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     entry,
     unread,
     onToggleRead,
+    onPriority,
     selected,
     separated,
     underDay,
@@ -119,6 +125,10 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     )
     const href = activityHref(activity, currentUserId)
     const keys = useMemo(() => [activityKey(activity), ...(entry?.others ?? []).map(activityKey)], [activity, entry])
+    // The server's own keys (none on an item that can't be Priority, or that
+    // came live, till a refetch): a Priority row goes out, and comes back.
+    const priorityKeys = useMemo(() => (activity.key ? [activity, ...(entry?.others ?? [])].flatMap((a) => (a.key ? [a.key] : [])) : []), [activity, entry])
+    const priorityOut = !onPriority || priorityKeys.length === 0 ? undefined : activity.priority === "high" ? true : activity.dismissed ? false : undefined
     // Where the row opens beside the Inbox, when the screen has room for the panel.
     const panel = onOpenInPanel && !shares ? panelTargetOf(href, currentUserId) : null
 
@@ -239,7 +249,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                 separated && !compact && "after:pointer-events-none after:absolute after:left-14 after:right-4 after:top-0 after:h-px after:bg-line hover:after:opacity-0",
             )}
             tools={
-                onToggleRead || href || whyId ? (
+                onToggleRead || href || whyId || priorityOut !== undefined ? (
                     <>
                         {onToggleRead && unread !== undefined ? (
                             <HubToolButton
@@ -251,6 +261,18 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
                                 }}
                             >
                                 {unread ? <Check /> : <CircleDot />}
+                            </HubToolButton>
+                        ) : null}
+                        {priorityOut !== undefined ? (
+                            <HubToolButton
+                                label={priorityOut ? "Remove from Priority" : "Back to Priority"}
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    // CR-333: a double press's second click lands on the next row's tool, or this one flipped.
+                                    if (e.detail < 2) onPriority?.(priorityKeys, priorityOut)
+                                }}
+                            >
+                                {priorityOut ? <FlagOff /> : <Flag />}
                             </HubToolButton>
                         ) : null}
                         {saveTarget ? <SaveForLaterButton target={saveTarget} className="size-6 [&_svg]:size-3.5" /> : null}

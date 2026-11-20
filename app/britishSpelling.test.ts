@@ -1,8 +1,10 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
+
+import { copyFiles, copyTexts } from "@/lib/testing/copyStrings"
 
 /**
  * British (Indian) English in everything people read (owner, 12 Oct 2026):
@@ -17,7 +19,6 @@ import { describe, expect, it } from "vitest"
  */
 
 const ROOT = process.cwd()
-const DIRS = ["app", "components", "hooks", "lib", "services", "store", "context"]
 
 /** The US spellings, as whole words, case aside. */
 const US = new RegExp(
@@ -77,30 +78,13 @@ const KEPT = [
 // Files that still say a US spelling, each with its owner. Empty it.
 const PENDING = new Map<string, string>([])
 
-function sourceFiles(dir: string, out: string[] = []): string[] {
-  let entries
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const e of entries) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) {
-      if (e.name !== "node_modules") sourceFiles(p, out)
-    } else if (/\.tsx?$/.test(e.name) && !/\.(test|spec)\.tsx?$/.test(e.name) && !e.name.endsWith(".d.ts")) out.push(p)
-  }
-  return out
-}
-
 const nameOf = (n: ts.Node, sf: ts.SourceFile) => (n as { name?: ts.Node }).name?.getText(sf).replace(/["']/g, "") ?? ""
 
 /** Copy in one file that spells a word the US way, as "file: word in its text". */
 export function usSpellings(file: string, src: string): string[] {
   if (!US.test(src)) return []
-  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found: string[] = []
-  const shown = (n: ts.Node): boolean => {
+  const shown = (n: ts.Node, sf: ts.SourceFile): boolean => {
     if (ts.isJsxText(n)) return true
     let p = n.parent
     if (p && ts.isJsxExpression(p)) p = p.parent
@@ -114,22 +98,16 @@ export function usSpellings(file: string, src: string): string[] {
     }
     return false
   }
-  const visit = (n: ts.Node) => {
-    let text: string | null = null
-    if (ts.isJsxText(n)) text = n.text
-    else if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) text = n.text
-    else if (ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) text = n.text
-    if (text && US.test(text) && !classList(text) && !KEPT.some((k) => k.test(text!)) && shown(n)) {
+  for (const { text, node, sf } of copyTexts(file, src)) {
+    if (text && US.test(text) && !classList(text) && !KEPT.some((k) => k.test(text)) && shown(node, sf)) {
       found.push(`${relative(ROOT, file)}: ${text.match(US)![0]} in "${text.trim().replace(/\s+/g, " ").slice(0, 70)}"`)
     }
-    ts.forEachChild(n, visit)
   }
-  visit(sf)
   return found
 }
 
 describe("British spelling in the copy", () => {
-  const files = DIRS.flatMap((d) => sourceFiles(join(ROOT, d)))
+  const files = copyFiles()
 
   it("scans the whole app", () => {
     expect(files.length).toBeGreaterThan(500)

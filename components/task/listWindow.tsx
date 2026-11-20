@@ -4,7 +4,7 @@ import * as React from "react"
 
 import { useStableCallback } from "@/hooks/useStableCallback"
 import type { TaskGroup } from "@/lib/tasks/grouping"
-import { lendListNav } from "@/lib/ui/listNav"
+import { lendListNav, revealRow } from "@/lib/ui/listNav"
 import { useWindowedRows } from "@/lib/ui/useWindowedRows"
 import { drawnIndexes, firstScreen, layFlow, planGroups, type Flow, type FlowItem, type GroupPlan } from "@/lib/ui/windowedRows"
 import type { TaskInfoInterface } from "@/types/task"
@@ -130,7 +130,8 @@ export const ListWindow = React.memo(function ListWindow({
 
   // The keys: the list's order, and a reveal that scrolls the window to a row and focuses it once drawn.
   const now = React.useRef<Flow>(flow)
-  const pending = React.useRef<string | null>(null)
+  /** The row a key went to before it was drawn: brought into view, and focused unless the key said not, as it lands. */
+  const pending = React.useRef<{ id: string; focus: boolean } | null>(null)
   const scrollToNow = useStableCallback(scrollTo)
   React.useLayoutEffect(() => {
     now.current = flow
@@ -138,13 +139,14 @@ export const ListWindow = React.memo(function ListWindow({
   React.useEffect(() => {
     const list = box.current
     if (!on || !list) return
-    // The key's row takes the focus as it lands (the list draws it after this window's move, and the window draws no more).
+    // The key's row takes the focus as it lands (the list draws it after this window's move, and the window draws no more),
+    // and is brought wholly into view in the frame: the window scrolled to it by the flow's sizes, which the page may not keep.
     const landed = new MutationObserver(() => {
-      const id = pending.current
-      const row = id ? list.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`) : null
-      if (row) {
+      const p = pending.current
+      const row = p ? list.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(p.id)}"]`) : null
+      if (p && row) {
         pending.current = null
-        row.focus({ preventScroll: true })
+        revealRow(row, p.focus)
       }
     })
     landed.observe(list, { childList: true, subtree: true })
@@ -154,17 +156,15 @@ export const ListWindow = React.memo(function ListWindow({
       reveal: (id, focus = true) => {
         const row = list.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)
         if (row) {
-          row.scrollIntoView({ block: "nearest", inline: "nearest" })
           // A key's row focused now: an earlier key's, still to be drawn, no longer takes the focus once it is.
-          if (focus) {
-            pending.current = null
-            row.focus({ preventScroll: true })
-          }
+          if (focus) pending.current = null
+          revealRow(row, focus)
           return
         }
         const i = now.current.index.get(id)
         if (i === undefined) return
-        if (focus) pending.current = id
+        // A row only brought into view leaves a key's row still to be focused as it was.
+        if (focus || !pending.current?.focus) pending.current = { id, focus }
         scrollToNow(i)
       },
     })

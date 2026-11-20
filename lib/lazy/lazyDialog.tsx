@@ -3,9 +3,9 @@
 import React from "react"
 import { useLatch } from "@/hooks/useLatch"
 import { lazyPart } from "@/lib/lazy/lazyPart"
-import { OverlayUnavailable } from "@/lib/lazy/overlayUnavailable"
+import { OverlayUnavailable, overlayCame } from "@/lib/lazy/overlayUnavailable"
 
-/** A dialog drawn while it's closed too, to close with its own animation. */
+/** A dialog drawn while it's closed too (mounted from its first open), to close with its own animation. */
 interface OpenProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -25,25 +25,25 @@ const NotYet = () => null
 
 /**
  * A dialog fetched the first time it opens (a lazy part), so a screen that
- * only might open it doesn't carry it. One drawn while closed (open,
- * onOpenChange) stays mounted once open, to close with its own animation; one
- * drawn only while open (onClose) is open whenever it's drawn. Neither
- * suspends while its code comes, so the screen behind it stays as it was
- * (V-39: next/dynamic with no boundary of its own sent the page back to its
- * loading skeleton). When its code can't come, opening it says so in a toast
- * ("Couldn't open `what`", OverlayUnavailable: every lazy overlay's failed
- * part) and closes; the next open tries again.
+ * only might open it doesn't carry it. It doesn't suspend while its code comes
+ * (V-39: bare next/dynamic sent the page back to its loading skeleton). When
+ * its code can't come, opening it says so in a toast (OverlayUnavailable) and
+ * closes; the next open tries again, and the code coming, however asked, takes
+ * that toast down. warm() fetches it sooner (an opener's pointer or focus, an
+ * idle page); it resolves, never rejects.
  */
-export function lazyDialog<P extends DialogProps>(load: () => Promise<React.ComponentType<P>>, what: string): React.FC<P> {
+export function lazyDialog<P extends DialogProps>(load: () => Promise<React.ComponentType<P>>, what: string): React.FC<P> & { warm(): Promise<boolean> } {
+  const title = `Couldn't open ${what}`
   function Unavailable(props: P & { retry: () => void }) {
-    return isOpen(props) ? <OverlayUnavailable title={`Couldn't open ${what}`} onClose={() => close(props)} /> : null
+    return isOpen(props) ? <OverlayUnavailable title={title} onClose={() => close(props)} /> : null
   }
-  const part = lazyPart<P>(load, { placeholder: NotYet, failed: Unavailable })
-  return function LazyDialog(props: P) {
+  const part = lazyPart<P>(() => load().then((c) => (overlayCame(title), c)), { placeholder: NotYet, failed: Unavailable })
+  function LazyDialog(props: P) {
     const open = isOpen(props)
     const asked = useLatch(open)
     // An open after a failed fetch tries again (warm is safe while rendering).
     if (open) void part.warm()
     return asked ? <part.Part {...props} /> : null
   }
+  return Object.assign(LazyDialog, { warm: part.warm })
 }

@@ -11,6 +11,8 @@ const media = vi.hoisted(() => ({ isMobile: true, status: "ready", transcript: u
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: media.isMobile }) }))
 // The transcript route's answer: none yet, unless a test gives one. Every URL asked is kept ("" asks nothing).
 vi.mock("@/hooks/useFetch", () => ({
+  // Who is looking: nobody known, so no line offers a correction here (zoom-05's own tests do).
+  useFetchOnlyOnce: () => ({ data: undefined }),
   useFetch: (url: string) => {
     media.asked.push(url)
     return { data: url ? media.transcript : undefined, isLoading: false, isError: false, mutate: vi.fn() }

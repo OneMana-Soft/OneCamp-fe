@@ -13,8 +13,22 @@ import { Button } from "@/components/ui/button"
 import { embedCode } from "@/lib/embeds/embedCode"
 import { Check, Code } from "@/lib/icons"
 
-/** Before a link is made (link ""), the note; with a new link, its embed code and the copy hint for both. */
-export function BoardEmbedRow({ link, name }: { link: string; name?: string }) {
+/**
+ * Before a link is made (link ""), the note; with a new link, its embed code and the copy hint for both.
+ * A link with a password has no embed code: another site's frame is no place to type it (the embed
+ * page says so too, for a password added after the code was copied), so the row says why instead.
+ */
+export function BoardEmbedRow({ link, name, password = false }: { link: string; name?: string; password?: boolean }) {
+  if (password) {
+    return (
+      <>
+        <p className="basis-full text-meta text-ink-3" data-embed-note="">
+          A board with a password can&apos;t be embedded. Share the link instead.
+        </p>
+        {link ? <p className="text-meta text-ink-3">Copy it now: it won&apos;t be shown again.</p> : null}
+      </>
+    )
+  }
   if (!link) {
     return (
       <p className="basis-full text-meta text-ink-3" data-embed-note="">

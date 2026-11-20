@@ -25,11 +25,12 @@ import { displayNameOf } from "@/lib/personName"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { nextLabel } from "@/lib/checkins"
 import { cn } from "@/lib/utils/helpers/cn"
-import { BLANK_DRAFT, draftFromRule, draftFromTemplate, draftProblem } from "@/lib/rules/draft"
+import { ARRIVES, BLANK_DRAFT, arrivalDraft, draftFromRule, draftFromTemplate, draftProblem } from "@/lib/rules/draft"
 import { ruleSentence, suggestedName, type RuleNames } from "@/lib/rules/sentence"
 import type { Rule, RuleDraft, RuleTemplate } from "@/lib/rules/types"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import type { UserProfileDataInterface } from "@/types/user"
+import { listOf } from "@/lib/utils/listOf"
 import { RuleBuilder, type Person } from "./RuleBuilder"
 import { RuleRuns } from "./RuleRuns"
 import { StatusRulesPanel } from "@/components/work/approvals/StatusRulesPanel"
@@ -105,7 +106,12 @@ function RuleRow({ rule, names, canManage, onToggle, onEdit, onHistory, onDelete
  * history: a dialog on a computer, a bottom sheet with its actions pinned on
  * a phone (ResponsiveDialog).
  */
-export function ProjectRulesDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+/**
+ * A project's rules. With arrival (linear-21 H4, opened from the triage settings) it is the same
+ * dialog on the rules about work arriving in triage: those alone listed, and a new one starts on
+ * task_arrived (none of the ready-made rules hear it). The cap stays the project's.
+ */
+export function ProjectRulesDialog({ projectId, onClose, arrival = false }: { projectId: string; onClose: () => void; arrival?: boolean }) {
   const { payload, error, isLoading, save, setActive, remove, refresh } = useProjectRules(projectId)
   const { options: statuses } = useProjectStatuses(projectId)
   const members = useFetch<ProjectInfoRawInterface>(`${GetEndpointUrl.GetProjectMembers}/${projectId}`, undefined, { revalidateOnFocus: false })
@@ -142,10 +148,12 @@ export function ProjectRulesDialog({ projectId, onClose }: { projectId: string; 
     return { status: (v) => byStatus.get(v), person: (id) => byPerson.get(id), agent: (id) => byAgent.get(id) ?? byPerson.get(id), form: (id) => byForm.get(id) }
   }, [statuses, people, agentChoices, forms])
 
-  const rules = payload?.rules ?? []
+  const all = listOf<Rule>(payload?.rules)
+  const rules = arrival ? all.filter((r) => r.trigger_type === ARRIVES) : all
   const canManage = !!payload?.can_manage
-  const atCap = rules.length >= (payload?.max ?? 50)
-  const ruleName = (id: string) => rules.find((r) => r.id === id)?.name ?? "A deleted rule"
+  const atCap = all.length >= (payload?.max ?? 50)
+  const ruleName = (id: string) => all.find((r) => r.id === id)?.name ?? "A deleted rule"
+  const blank = () => (arrival ? arrivalDraft() : { ...BLANK_DRAFT })
 
   const startEdit = (draft: RuleDraft, id?: string) => {
     setProblem("")
@@ -202,8 +210,10 @@ export function ProjectRulesDialog({ projectId, onClose }: { projectId: string; 
       options={[{ value: "rules", label: "Rules", icon: Workflow }, { value: "statuses", label: "Statuses", icon: BadgeCheck }, { value: "history", label: "History", icon: History }]} />
   )
 
-  let title = "Rules"
-  let description: string | undefined = "Work that runs itself: when something happens to a task, a form is sent, on a schedule or as a due date nears, the project does the next step."
+  let title = arrival ? "Rules on arrival" : "Rules"
+  let description: string | undefined = arrival
+    ? "What comes to wait in triage is decided as it arrives: by the door it came in by, accepted into a status or declined with a reason."
+    : "Work that runs itself: when something happens to a task, a form is sent, on a schedule or as a due date nears, the project does the next step."
   let body: React.ReactNode
   let footer: React.ReactNode = <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
 
@@ -261,7 +271,7 @@ export function ProjectRulesDialog({ projectId, onClose }: { projectId: string; 
     footer = (
       <>
         <Button type="button" variant="ghost" onClick={() => setView({ kind: "list" })}>Back</Button>
-        <Button type="button" variant="outline" onClick={() => startEdit({ ...BLANK_DRAFT })}>Start from nothing</Button>
+        <Button type="button" variant="outline" onClick={() => startEdit(blank())}>Start from nothing</Button>
       </>
     )
   } else if (view.kind === "statuses") {
@@ -286,8 +296,10 @@ export function ProjectRulesDialog({ projectId, onClose }: { projectId: string; 
       <div className="space-y-3">
         {tabs}
         {rules.length === 0 ? (
-          <EmptyState icon={Workflow} hue="dusk" title="No rules yet"
-            description={canManage ? "Start from a ready-made rule: share work out, set dates, tell people. They run on every plan, as often as you need." : "The project's admins make its rules. They'll show here."} />
+          <EmptyState icon={Workflow} hue="dusk" title={arrival ? "No rules on arrival yet" : "No rules yet"}
+            description={!canManage ? "The project's admins make its rules. They'll show here."
+              : arrival ? "Decide work as it arrives: by the door it came in by, accept it into a status or decline it with a reason, and give it to whoever is on duty."
+              : "Start from a ready-made rule: share work out, set dates, tell people. They run on every plan, as often as you need."} />
         ) : (
           <ul className="space-y-2" aria-label="Rules">
             {rules.map((r) => (
@@ -302,13 +314,15 @@ export function ProjectRulesDialog({ projectId, onClose }: { projectId: string; 
     if (canManage) {
       footer = (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:contents">
+          <div className={cn("grid gap-2 sm:contents", arrival ? "grid-cols-1" : "grid-cols-2")}>
             <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
-            <Button type="button" variant="outline" className="gap-1.5" disabled={atCap} onClick={() => setView({ kind: "templates" })}>
-              <LayoutTemplate className="size-4" /> Ready-made
-            </Button>
+            {!arrival && (
+              <Button type="button" variant="outline" className="gap-1.5" disabled={atCap} onClick={() => setView({ kind: "templates" })}>
+                <LayoutTemplate className="size-4" /> Ready-made
+              </Button>
+            )}
           </div>
-          <Button type="button" className="gap-1.5" disabled={atCap} onClick={() => startEdit({ ...BLANK_DRAFT })} title={atCap ? "A project has at most 50 rules" : undefined}>
+          <Button type="button" className="gap-1.5" disabled={atCap} onClick={() => startEdit(blank())} title={atCap ? "A project has at most 50 rules" : undefined}>
             <Plus className="size-4" /> New rule
           </Button>
         </>

@@ -29,6 +29,7 @@ const KIND_LABELS: Record<string, string> = {
   channel: "channels",
   board: "boards",
   event: "events",
+  transcript: "transcripts",
   team: "teams",
 }
 

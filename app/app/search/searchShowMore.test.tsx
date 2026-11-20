@@ -6,6 +6,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 // Show more asks for the next page. With nothing more, it counts the rows it
 // shows (SA-BUG-9).
 
+// The page names a call's conversation from the sidebar (zoom-13): an empty one here.
+vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: (pick: (s: unknown) => unknown) => pick({ users: { userSidebar: {} } }) }))
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("q=rollout"),
   useRouter: () => ({ replace: vi.fn(), back: vi.fn(), push: vi.fn() }),

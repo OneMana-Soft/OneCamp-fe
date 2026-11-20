@@ -24,6 +24,7 @@ import { SettingsCardError, SettingsList, SettingsRowsSkeleton, SettingsSection,
 import { SavedTick, switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { cn } from "@/lib/utils/helpers/cn"
 import { lazyView } from "@/lib/lazy/lazyView"
+import { FreeBusySection } from "@/components/calendar/freeBusySection"
 
 // Working hours bring the zone list and the time fields: a chunk of their own,
 // asked for as these sections draw.
@@ -349,6 +350,9 @@ export function ProfileSections() {
       </div>
       <div className="min-h-[7.5rem] scroll-mt-5">
         <WorkingHours.View render={(m) => <m.WorkingHoursSection />} fallback={null} />
+      </div>
+      <div className="scroll-mt-5">
+        <FreeBusySection />
       </div>
       <div id="profile-security" className="scroll-mt-5">
         <SigningInSection />

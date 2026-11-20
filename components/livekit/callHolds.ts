@@ -67,7 +67,9 @@ export function holdNotice(p: HoldPacket, holdsYou: boolean): { title: string; d
 }
 
 /** Why a control is off for you while the call holds it, said on the control and where you'd type. Pure. */
-export function heldReason(what: CallHold): string {
+export function heldReason(what: CallHold, asking = false): string {
+  // A guest's microphone and camera wait on their OK to a recording or captions notice (zoom-09).
+  if (asking && (what === "microphone" || what === "camera")) return "Press OK on the notice first"
   return what === "chat" ? "The people running the call have turned off chat for now." : `The people running the call have turned off ${NOUN[what]}.`
 }
 
@@ -75,7 +77,7 @@ export function heldReason(what: CallHold): string {
 const NEXT: Partial<Record<CallHold, string>> = { microphone: "Raise your hand to ask to talk.", chat: "You can still read it." }
 
 /** What to do about a hold, or nothing. Pure. */
-export const heldNext = (what: CallHold): string | undefined => NEXT[what]
+export const heldNext = (what: CallHold, asking = false): string | undefined => (asking && (what === "microphone" || what === "camera") ? "Your microphone and camera stay off until you do." : NEXT[what])
 
 /** What someone reads on joining a call that holds their microphone, their camera or both: they're off, and why. Pure. */
 export function joinHeldNotice(mic: boolean, camera: boolean): { title: string; description: string } {

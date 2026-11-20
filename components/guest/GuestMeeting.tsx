@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { LazyVideoConference as VideoConference } from "@/components/livekit/LazyCall";
+import { LazyAskedNotice } from "@/components/livekit/LazyAskedNotice";
 import { PreJoin } from "@/components/livekit/PreJoin";
 import type { GreenRoomTracks } from "@/components/livekit/greenRoomHandOver";
 import { CallEndScreen } from "@/components/livekit/CallEndScreen";
@@ -165,6 +166,7 @@ export function GuestMeeting({ door, gone, onLocked, memberHref }: { door: Guest
                     // A guest lets nobody in: no member's read, and no admit.
                     lobby={undefined}
                     guest
+                    asked={LazyAskedNotice}
                     audio={call.choice.audio}
                     video={call.choice.video}
                     tracks={call.choice.tracks}

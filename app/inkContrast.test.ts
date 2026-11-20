@@ -403,7 +403,7 @@ const DECORATIVE: Use[] = [
   { file: "app/globals.css", match: ".shell-row[aria-disabled=\"true\"]", why: "a disabled sidebar row" },
   { file: "app/globals.css", match: ".split-handle-glyph", why: "a split pane's grip glyph, aria-hidden: it says the bar drags, and the bar's name says what it is" },
   { file: "components/board/excalidrawTheme.css", match: "[disabled] .ToolIcon__icon", why: "a disabled tool's icon" },
-  { file: "components/booking/BookingFlow.tsx", match: "!loading && !open && \"cursor-default font-normal text-ink-4\"", why: "a day with no times: the booking page's disabled day (its label says so)" },
+  { file: "components/booking/slotPicker.tsx", match: "!loading && !open && \"cursor-default font-normal text-ink-4\"", why: "a day with no times: the booking page's disabled day (its label says so)" },
   { file: "components/calendar/bookingEditor.tsx", match: ": \"text-ink-4\")}", why: "a closed day in the booking page's preview, drawn as the page draws it: disabled" },
   { file: "components/calendar/calendarsPopover.tsx", match: "<ChevronRight className=\"size-3.5 text-ink-4\" aria-hidden=\"true\" />", why: "a chevron, aria-hidden" },
   { file: "components/doc/docPreview.tsx", match: "justify-center text-ink-4\" aria-hidden=\"true\"", why: "a doc preview's placeholder glyph" },

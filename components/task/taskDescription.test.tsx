@@ -85,9 +85,13 @@ describe("the task panel", () => {
     expect(panel).toMatch(/<TaskCommentBox\b/)
   })
 
-  it("paints its fields first and the rest a frame later, as a transition", () => {
-    expect(panel).toMatch(/requestAnimationFrame\(\(\) => startTransition\(\(\) => setSettled\(true\)\)\)/)
-    expect(panel).toMatch(/\{settled \? \(<>/)
+  it("paints its head first and the rest once that frame has painted, counted from the task's answer", () => {
+    // lib/ui/afterPaint (a frame, then a task, then a transition); the commits
+    // themselves are taskPanelHeadFirst.test.tsx's.
+    expect(panel).toMatch(/const settled = useAfterPaint\(!!taskInfo\.data\)/)
+    expect(panel).toMatch(/<\/OverlaySheetTitle>\s*(\{\/\*[\s\S]*?\*\/\}\s*)?\{settled && \(<>/)
+    // Nothing stands in for what's held (step 3): a spacer is a block that moves.
+    expect(panel).not.toMatch(/aria-hidden className="h-\[/)
   })
 
   it("loads in its own shape, not behind a spinner", () => {

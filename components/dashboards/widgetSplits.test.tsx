@@ -17,6 +17,7 @@ vi.mock("@/hooks/useProjectFields", () => ({ useProjectFields: (...a: unknown[])
 import { DashboardWidget } from "@/components/dashboards/DashboardWidget"
 import { WidgetDialog } from "@/components/dashboards/WidgetDialog"
 import type { InsightSlice, Spread } from "@/lib/reports"
+import { widgetTitle } from "@/lib/dashboards"
 
 const vendor = { id: "f1", project_id: "p1", name: "Vendor", type: "text", options: [] }
 const budget = { id: "f2", project_id: "p1", name: "Budget", type: "money", options: [] }
@@ -44,7 +45,7 @@ describe("a breakdown's choices (L32)", () => {
     const save = vi.fn().mockResolvedValue(undefined)
     render(<WidgetDialog project="p1" others={false} preset={{ kind: "breakdown", query: {} }} onSave={save} onClose={() => {}} />)
     expect(fields).toHaveBeenLastCalledWith("p1")
-    expect(options("Split")).toEqual(["By project", "By person", "By priority", "By type", "By status", "By labels", "By cycle", "By estimate", "By Vendor"])
+    expect(options("Split")).toEqual(["By project", "By person", "By priority", "By type", "By status", "By labels", "By cycle", "By estimate", "By SLA", "By Vendor"])
     expect(options("Measure")).toEqual(["Count", "Effort"])
     choose("Split", "By Vendor")
     choose("Measure", "Effort")
@@ -105,5 +106,40 @@ describe("a breakdown widget (L32)", () => {
     const old = { ...widget(""), query: { by: "priority" as const } }
     render(<DashboardWidget widget={old} result={{ id: "w1", kind: "breakdown", data: { by: "priority", rows: [{ priority: "high", open: 2, overdue: 1 }] } }} loading={false} now={0} />)
     expect(screen.getAllByRole("row")[1].textContent).toBe("High21")
+  })
+})
+
+// V-1062 (linear-24): a breakdown by SLA, the way the Insights report slices it, its states named
+// as the report names them (lib/reportInsights sliceName); the server sends none for a project whose
+// SLA state its reader doesn't read (SLAs off, a guest).
+describe("a breakdown by SLA (V-1062)", () => {
+  const widget = { id: "w1", kind: "breakdown" as const, title: "", query: { by: "sla" as const, measure: "count" as const }, x: 0, y: 0, w: 6, h: 4 }
+  const sla = (key: string, name: string, open: number, done: number): InsightSlice => ({ ...slice(key, name, { open, done, overdue: 0 }), by: "sla" })
+
+  it("is offered as By SLA, and saved under that name", async () => {
+    fields.mockReturnValue({ fields: [], canEdit: false })
+    const save = vi.fn().mockResolvedValue(undefined)
+    render(<WidgetDialog project="p1" others={false} preset={{ kind: "breakdown", query: {} }} onSave={save} onClose={() => {}} />)
+    choose("Split", "By SLA")
+    fireEvent.click(screen.getByRole("button", { name: "Add widget" }))
+    await waitFor(() => expect(save).toHaveBeenCalled())
+    expect(save.mock.calls[0][0]).toMatchObject({ kind: "breakdown", query: { by: "sla" } })
+    // Untitled, it's named for what it shows.
+    expect(widgetTitle(save.mock.calls[0][0])).toBe("By SLA")
+  })
+
+  it("names its states as the report does: Breached, At risk, On track, Met, and No SLA", () => {
+    const slices = [sla("breached", "Breached", 4, 0), sla("at_risk", "At risk", 3, 0), sla("on_track", "On track", 2, 0), sla("met", "Met", 0, 5), sla("", "", 1, 0)]
+    render(<DashboardWidget widget={widget} result={{ id: "w1", kind: "breakdown", data: { by: "sla", measure: "count", slices } }} loading={false} now={0} />)
+    const table = screen.getByRole("table")
+    expect(within(table).getAllByRole("columnheader")[0].textContent).toBe("SLA")
+    const names = within(table).getAllByRole("row").slice(1).map((r) => r.querySelector("td,th")?.textContent)
+    expect([...names].sort()).toEqual(["At risk", "Breached", "Met", "No SLA", "On track"])
+  })
+
+  it("says why it has nothing when no project it reads keeps SLA state (a list written as null)", () => {
+    render(<DashboardWidget widget={widget} result={{ id: "w1", kind: "breakdown", data: { by: "sla", measure: "count", slices: null as unknown as InsightSlice[] } }} loading={false} now={0} />)
+    expect(screen.queryByRole("table")).toBeNull()
+    expect(screen.getByText(/No SLA state to count/i)).toBeTruthy()
   })
 })

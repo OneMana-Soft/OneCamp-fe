@@ -33,12 +33,6 @@ export const projectPoliciesKey = (projectId: string) => `/project/${projectId}/
 /** The workspace's policies, for its admins. */
 export const ADMIN_POLICIES_KEY = "/admin/policies"
 
-/** Sets who changes the project's tasks; null gives it back to the workspace's. */
-export async function setProjectEditWho(projectId: string, value: EditWho | null): Promise<PolicyInfo> {
-  const res = await axiosInstance.put<{ data: PolicyInfo }>(`${projectPoliciesKey(projectId)}/${EDIT_WHO}`, { value }, OWN_ERRORS)
-  return res.data.data
-}
-
 /**
  * Sets a workspace policy (an admin's), and puts the server's answer into
  * the admins' list, so every card showing it shows what the server holds.

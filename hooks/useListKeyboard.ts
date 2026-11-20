@@ -7,7 +7,7 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { goArmed, isTyping } from "@/lib/goKeys"
 import { LIST_FIELDS, listKey, rangeOf, stepAcross, stepIn, type ListField } from "@/lib/listKeys"
 import { onEscape } from "@/lib/keys/onEscape"
-import { listNavIn } from "@/lib/ui/listNav"
+import { afterFocus, keysDrive, keysRelease, listNavIn, revealRow } from "@/lib/ui/listNav"
 import type { SelectionStore } from "@/lib/listSelection"
 
 const ITEM = "[data-task-id]"
@@ -75,24 +75,26 @@ export function useListKeyboard({
       return viewOf(el) !== null && viewOf(el) === viewOf(box)
     }
 
+    // Focused and brought into view with nothing of the page's layout read in the key (lib/ui/listNav revealRow).
     const reveal = (id: string) => {
       const list = nav()
       if (list) return list.reveal(id)
       const el = elOf(id)
-      if (!el) return
-      el.scrollIntoView({ block: "nearest", inline: "nearest" })
-      if (el.hasAttribute("tabindex")) el.focus({ preventScroll: true })
+      if (el) revealRow(el, el.hasAttribute("tabindex"))
     }
 
     const go = (id: string | null, extend: boolean) => {
       if (!id) return
       const s = store.get()
+      // The focus first, while nothing waits to be styled, so the key's light and focus are styled once, in the frame.
+      reveal(id)
+      // The keys drive: a resting pointer's hover holds still till the pointer moves (lib/ui/listNav keysDrive).
+      keysDrive(box)
       if (extend) {
         const from = s.anchor ?? s.highlighted ?? id
         store.addRun(rangeOf(order(), from, id), from)
       }
       store.highlight(id)
-      reveal(id)
       // A task open in the panel follows the highlight.
       const open = panelTask()
       if (open && open !== id && has(open)) dispatch(openRightPanel({ taskUUID: id }))
@@ -145,10 +147,11 @@ export function useListKeyboard({
     }
 
     // A click or a Tab onto a task puts the highlight there. Ctrl/⌘-click picks
-    // a task and Shift-click a run, instead of opening it.
+    // a task and Shift-click a run, instead of opening it. A key's focus lights
+    // its row once the focus is done (afterFocus), as the key goes on to.
     const onFocusIn = (e: FocusEvent) => {
       const id = itemOf(e.target)
-      if (id) store.highlight(id)
+      if (id) afterFocus(() => store.highlight(id))
     }
     const onMouseDown = (e: MouseEvent) => {
       // Shift-click would otherwise select the page's text up to here.
@@ -181,8 +184,9 @@ export function useListKeyboard({
       if (!open || hidden() || !has(open) || store.get().highlighted === open) return
       store.highlight(open)
       const list = nav()
+      const el = list ? null : elOf(open)
       if (list) list.reveal(open, false)
-      else elOf(open)?.scrollIntoView({ block: "nearest", inline: "nearest" })
+      else if (el) revealRow(el, false)
     })
 
     // Esc clears the selection; with none, it lets go of the highlight and passes the press on.
@@ -204,6 +208,9 @@ export function useListKeyboard({
       box.removeEventListener("focusin", onFocusIn)
       box.removeEventListener("mousedown", onMouseDown, true)
       box.removeEventListener("click", onClick, true)
+      // A list that goes while the keys marked it is let go (lib/ui/listNav keysRelease); one that stays while its keys
+      // stop (a drag pauses them) keeps the mark, as the pointer is still where it was.
+      if (!box.isConnected) keysRelease(box)
     }
   }, [enabled, containerRef, store, onEdit, fields, dispatch, app])
 }
@@ -234,8 +241,9 @@ function usePaintedPlace(containerRef: RefObject<HTMLElement | null>, store: Sel
     }
     paint()
     reach(document.activeElement)
-    const onFocusIn = (e: FocusEvent) => reach(e.target)
-    const onFocusOut = (e: FocusEvent) => reach(e.relatedTarget)
+    // Written once a key's focus is done (lib/ui/listNav afterFocus), so it restyles nothing within it; at once for a click's or Tab's.
+    const onFocusIn = (e: FocusEvent) => afterFocus(() => reach(e.target))
+    const onFocusOut = (e: FocusEvent) => afterFocus(() => reach(e.relatedTarget))
     box.addEventListener("focusin", onFocusIn)
     box.addEventListener("focusout", onFocusOut)
     let was = store.get().highlighted

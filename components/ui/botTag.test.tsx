@@ -66,8 +66,10 @@ describe("bots are described by their kind", () => {
   })
 
   it("calls a bot an AI teammate only through botSubtitle", () => {
+    // lib/glossaryAi.ts lists the word as retired, so the copy guard can catch it.
+    const exempt = ["lib/botCopy.ts", "lib/glossaryAi.ts"]
     const offenders = files
-      .filter((f) => !f.endsWith("lib/botCopy.ts") && /["'>]\s*AI teammate\s*["'<]/.test(readFileSync(f, "utf8")))
+      .filter((f) => !exempt.some((e) => f.endsWith(e)) && /["'>]\s*AI teammate\s*["'<]/.test(readFileSync(f, "utf8")))
       .map((f) => relative(REPO_ROOT, f))
     expect(offenders, "use botSubtitle(useBotKind(uuid, isBot))").toEqual([])
   })

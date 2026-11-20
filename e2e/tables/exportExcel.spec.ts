@@ -1,6 +1,7 @@
 import { expect, test, type Locator } from "@playwright/test"
 
 import { SAM } from "../stubbedApp"
+import { toast } from "../toasts"
 import { TableServer } from "./tableServer"
 
 // Tables, package 2b: "Export Excel" in the table's More menu saves the view
@@ -31,7 +32,7 @@ for (const device of [
     const saved = page.waitForEvent("download")
     await press(page.getByRole("menu").getByRole("menuitem", { name: "Export Excel" }))
     expect((await saved).suggestedFilename()).toBe("Deals.xlsx")
-    await expect(page.getByText("Exported to Excel")).toBeVisible()
+    await expect(toast(page, "Exported to Excel")).toBeVisible()
     // Asked for by the view's spec: every row, in the table's order, the shown fields in theirs.
     expect(server.exports).toEqual([expect.objectContaining({ fields: ["vendor", "spend"], spec: {} })])
     await close()

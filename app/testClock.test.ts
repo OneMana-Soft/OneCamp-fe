@@ -86,7 +86,6 @@ const BASELINE: Record<string, number> = {
   "components/guest/guestChannelPage.test.tsx": 1,
   "components/guest/guestDocComments.test.tsx": 1,
   "components/guest/guestHue.test.tsx": 1,
-  "components/guest/guestLinkSection.test.tsx": 3,
   "components/guest/guestPieces.test.tsx": 1,
   "components/guest/guestProjectPage.test.tsx": 5,
   "components/guest/guestTableChips.test.tsx": 2,

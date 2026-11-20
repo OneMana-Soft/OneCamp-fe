@@ -17,6 +17,7 @@ import { ChatCommentFileUpload } from "@/components/fileUpload/chatCommentFileUp
 import { GroupChatCommentFileUpload } from "@/components/fileUpload/groupChatCommentFileUpload"
 import { SendHorizontal } from "@/lib/icons"
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags"
+import { sendOnce, type WithSendId } from "@/lib/chat/sendOnce"
 import { getGroupingId } from "@/lib/utils/getGroupingId"
 import { followsOnReply } from "@/lib/conversation/threadFollow"
 import { mentionPlaceAttrs } from "@/lib/conversation/mentionPlace"
@@ -161,10 +162,12 @@ export const ThreadReplyBox = memo(function ThreadReplyBox({ kind, conversation,
         const files = draft.files
         const body = removeEmptyPTags(latestContent ?? draft.body)
         if (!body && files.length === 0) return
-        post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
+        // One reply however often it is sent: the same draft sent again, after
+        // a failure or while it is on its way, goes with the same id (V-1088).
+        sendOnce(thread, [body, files, draft.alsoSend], (client_msg_id) => post.makeRequest<WithSendId<CreateUpdateCommentReqInterface>, CreateCommentResInterface>({
             apiEndpoint: adapter.endpoint,
-            payload: adapter.payload(thread, body, files, draft.alsoSend),
-        }).then((answer) => {
+            payload: { ...adapter.payload(thread, body, files, draft.alsoSend), client_msg_id },
+        })).then((answer) => {
             const me = selfProfile.data?.data
             if (answer?.comment_id && me) {
                 adapter.sent(dispatch, { thread, conversation, body, files, me, answer })
@@ -172,6 +175,8 @@ export const ThreadReplyBox = memo(function ThreadReplyBox({ kind, conversation,
                 followsOnReply(thread)
             }
             dispatch(adapter.clear(thread, files))
+        }).catch(() => {
+            // Not sent, and usePost has said so: the words and their id stay for Send again.
         })
     })
     const onChange = useStableCallback((content: unknown) => {

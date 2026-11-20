@@ -5,8 +5,7 @@ import { shownRowsOf, specOf, type ViewRows } from "@/lib/tables/viewRows"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { toCsv } from "@/lib/tables/csv"
 import { downloadBlob, downloadFrom } from "@/lib/utils/download"
-import { apiErrorStatus } from "@/lib/utils/apiError"
-import { unprocessableReason } from "@/lib/tables/unprocessable"
+import { refusalOf } from "@/lib/tables/exportRefusal"
 import type { useToast } from "@/hooks/use-toast"
 import { MAX_PRINT_ROWS, printSheet, printView } from "@/lib/tables/printView"
 
@@ -75,13 +74,7 @@ export async function exportRows(x: ExportInput): Promise<void> {
     }
     note?.update({ id: note.id, tone: "success", title: "Exported to Excel", description: undefined })
   } catch (thrown) {
-    // Refused in the server's words (a 422: a formula or a rollup it can't
-    // work out over every row yet), never "Try again", which is refused again.
-    // The workbook was asked for as a file, so a refusal came as one: its
-    // words are read back here, lazily, and never in the shared download
-    // helper, whose new chunk every page would carry.
-    const e = await import("@/lib/utils/downloadRefusal").then(({ withItsWords }) => withItsWords(thrown), () => thrown).catch((x: unknown) => x)
-    const why = apiErrorStatus(e) === 404 ? "It's gone, or you can no longer open it." : unprocessableReason(e)
+    const why = await refusalOf(thrown, "It's gone, or you can no longer open it.")
     note?.update({ id: note.id, tone: "error", variant: "destructive", title: `Couldn't ${x.format === "pdf" ? "print" : "export"} the table`, description: why ?? "Not every row could be read. Try again." })
   }
 }

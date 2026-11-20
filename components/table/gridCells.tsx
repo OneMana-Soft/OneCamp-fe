@@ -14,7 +14,9 @@ import { AlertTriangle } from "@/lib/icons"
 import { PopoverContent } from "@/components/ui/popover"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { LazyPopover } from "./LazyPopover"
-import { cellPickers, ComboboxCell, kindCells, PickerLoading } from "./cellPickerPart"
+import { ComboboxCell, PickerLoading } from "./cellPickerPart"
+// The chunks these cells load: their loaders live with the grid, never in this chunk (cellLoaders, V-1049).
+import { cellPickers, filesPart, kindCells } from "./cellLoaders"
 import { computedOf, formulaOf, isFromRow, optionsOf, relationOf, type RelationRef, type TableField } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
 import { showFormulaValue } from "@/lib/tables/formula"
@@ -22,7 +24,6 @@ import { dayOf, listText, numberFormatOf } from "@/lib/tables/cellFormat"
 import { localDay } from "@/lib/utils/timeZone"
 import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
 import { fieldKind } from "@/lib/fieldTypes/registry"
-import { lazyView } from "@/lib/lazy/lazyView"
 import {
   CELL_PAD,
   FOCUS,
@@ -42,9 +43,6 @@ import {
 
 // The grid's keys between cells and its column drag come with the live cells (V-148).
 export { cellClick, cellKeyDown, cellMouseDown, cellPress, columnDrag, gridKeyDown, gridKeyUp, playHeld, pressHeld, typeHeld } from "@/components/table/gridMoves"
-
-/** A files cell (FilesCell.tsx): a chunk of its own, as few tables have one. */
-const filesPart = lazyView(() => import("@/components/table/FilesCell"))
 
 /**
  * What a cell shows: its saved value, or what was just chosen while that is
@@ -112,6 +110,7 @@ export function Cell({ field, value, cellId, primary, readOnly, ctx, unsaved, on
           readOnly={readOnly || (linksTable && !tableName)}
           onLink={linksTable ? onLink : undefined}
           onCommit={(refs: RelationRef[]) => void onCommit(refs)}
+          openCall={ctx.openCall}
         />
       </div>
     )

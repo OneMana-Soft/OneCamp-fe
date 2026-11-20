@@ -4,7 +4,7 @@ import path from "path"
 import ts from "typescript"
 import { lineProblem, sourceMeasure } from "../scripts/fluidity/routes.mjs"
 
-import { chainOf, dynamicImportRe, firstScreen, firstScreenEntries, resolve, routeReach, sourceOf, walk } from "../scripts/fluidity/reach.mjs"
+import { chainOf, dynamicImportRe, firstScreen, firstScreenEntries, importRe, resolve, routeReach, sourceOf, walk } from "../scripts/fluidity/reach.mjs"
 
 // What a visitor's first screen downloads. A new visitor waited 8 to 9
 // seconds for Home, a good part of it on code Home never runs: the editor
@@ -103,6 +103,10 @@ const PROJECT_LAZY = [
   "components/project/ProjectKeyTypesDialog.tsx",
   // Few tasks have a type, so their glyphs load when one first shows (A8K).
   "components/task/TaskTypeGlyph.tsx",
+  // A task's SLA chip and the Filter's SLA list load when a project with SLAs on sends one (linear-24 W1).
+  "components/task/SlaChip.tsx",
+  "lib/work/sla.ts",
+  "components/task/slaFacet.tsx",
   "components/projectTemplates/SaveAsTemplateDialog.tsx",
   "components/task/cycleBurndownDialog.tsx",
   "components/charts/SvgChart.tsx",
@@ -321,6 +325,19 @@ describe("the calendar's first screen", () => {
       const reached = reach(route)
       expect(BOOKING_LAZY.filter((f) => reached.has(f)), route).toEqual([])
     }
+    // Each is a file that exists: a list naming files that went away would pass for nothing.
+    expect(BOOKING_LAZY.filter((f) => !existsSync(f))).toEqual([])
+  })
+
+  // gcal-7 (18 Nov): Turbopack puts a lazy group in the signature of every module it reaches, and when /booking/[token]
+  // reaches a module set other than /book/[slug]'s, the two pages' shared pool is cut into new chunk files (67 moved).
+  // So the booking's page reaches BookingFlow as /book/[slug] does, and neither page adds a lazy import of its own.
+  it("keeps the two booking pages on one chunk pool: the booking's page reaches BookingFlow, and nothing new loads lazily", () => {
+    expect(sourceOf("app/booking/[token]/page.tsx")).toMatch(/from "@\/components\/booking\/BookingFlow"/)
+    const files = [...pagesAndLayouts("components/booking", /^[^.]+\.tsx?$/), "app/book/[slug]/page.tsx", "app/booking/[token]/page.tsx"]
+    const lazy = files.flatMap((f) => [...sourceOf(f).matchAll(dynamicImportRe)].map((m) => `${f} => ${resolve(m[1], f) ?? m[1]}`))
+    // The burst is LIVE's own; the gone or failed page comes through components/guest/publicGoneLater.
+    expect(lazy).toEqual(["components/booking/bookingConfirmation.tsx => lib/celebrate.ts"])
   })
 
   it("keeps each public booking page under its own ceiling", () => {
@@ -476,6 +493,23 @@ describe("a table's first screen", () => {
       .filter((p) => p.endsWith("page.tsx") && p !== TABLE_ROUTE)
       .map((p) => routeReach(p) as Map<string, string | null>)
     expect(piece.filter((f) => others.some((r) => r.has(f)))).toEqual([])
+  })
+
+  // A link to a channel or a call (airtable-01). The link's live cell, its chips and its picker are lazy chunks that a
+  // guest's table, the site's table and a doc's table load too, so they reach no router, Link Router or call opener: a
+  // lazy chunk that reaches the shared core re-cuts the chunks of every page that loads it (LEAD-RULES, 30 Oct 00:13;
+  // TABLES-LEAD-227: RelationCell's useRouter gave 42 modules a copy). A channel's chip is its plain path; a call's chip
+  // asks the cells' opener, which the tables page hands them (it holds the router) and fetches on the first click.
+  it("keeps a link's channels and calls off the shared core: the page opens a call through a chunk of its own", () => {
+    const { files, packages } = walk(["components/table/gridCells.tsx", "components/table/relationFace.tsx", "components/table/cellPickers.tsx"]) as {
+      files: Map<string, string | null>
+      packages: Array<[string, string]>
+    }
+    const core = ["lib/conversation/route.ts", "lib/routes/conversationRoute.ts", "lib/swrMutate.ts", "components/ui/error-state.tsx", "services/callPlaceService.ts"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => spec.startsWith("next/navigation"))).toEqual([])
+    expect([...sourceOf(TABLE_ROUTE).matchAll(dynamicImportRe)].map((m) => resolve(m[1], TABLE_ROUTE) ?? m[1])).toContain("services/callPlaceService.ts")
+    expect(reached.has("services/callPlaceService.ts")).toBe(false)
   })
 })
 
@@ -892,6 +926,21 @@ describe("the projects overview's first screen", () => {
     expect(kanbanOnly.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
   })
 
+  // The push wait's picker (A4 H4) is the shared Select, loaded on the notification settings page through the Select's
+  // own phone-sheet chunk. A chunk of its own that reached select.tsx was a new chunk group, and the build re-cut the
+  // tables' lazy cell-picker chunk everywhere (wZ38o: 3vorado1td6qh broke up, static/chunks +12.7 KB gz); through the
+  // sheet's boundary no group is new. The section hands it the value, the words and the save, so the chunk reaches no
+  // shared core (LEAD-RULES, 30 Oct 00:13).
+  it("loads the push wait's picker through the Select's own sheet chunk, off the shared core", () => {
+    const SECTION = "components/notifications/PushDelaySection.tsx"
+    expect([...sourceOf(SECTION).matchAll(dynamicImportRe)].map((m) => resolve(m[1], SECTION) ?? m[1])).toEqual(["components/ui/selectSheet.tsx"])
+    const { files, packages } = walk(["components/ui/selectSheet.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(files.has("components/ui/select.tsx")).toBe(true)
+    const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "lib/preferences/usePreference.ts", "components/ui/saveStatus.tsx"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/|sonner)/.test(spec))).toEqual([])
+  })
+
   // A new chunk that reaches the shared core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13 and 20:5x).
   it("keeps the Timeline view off the shared core: the overview hands it the projects and their milestones", () => {
     const { files, packages } = walk(["components/project/ProjectsTimeline.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
@@ -933,6 +982,25 @@ describe("a board's first screen", () => {
     expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/|sonner)/.test(spec))).toEqual([])
     const whole = walk(["components/board/boardCall.tsx"]).files as Map<string, string | null>
     expect(chainOf(whole, CALLS_CORE_PATH.file)).toBe("hooks/use-toast.ts <- lib/http/loadFailure.ts <- components/activity/hubEmpty.tsx <- components/board/boardCall.tsx")
+  })
+
+  // The mind-map bar (miro-15) is a chunk the board fetches on first use. Every module a chunk reaches joins that chunk's
+  // group, and Turbopack buckets each group's modules by the groups that reach them: the bar importing the notes bar's
+  // parts, the board's keys, the doc graph and its icons itself moved them into new buckets, which gave the doc editor
+  // a third copy in a doc's chunks and lifted every app route (V-1262). The board loads all of them already, so it
+  // hands them over (components/board/boardKit): the bar's chunk reaches none of what the kit imports.
+  it("hands the mind-map bar the parts the board already holds: the bar's chunk reaches none of the kit's modules", () => {
+    const kit = "components/board/boardKit.ts"
+    const handed = ["components/ui/FloatingBar.tsx", "components/board/barPicker.tsx", "components/board/boardKeys.ts", "services/docGraphService.ts", "lib/icons.ts"]
+    const kitImports = existsSync(kit) ? [...readFileSync(kit, "utf8").matchAll(importRe)].map((m) => resolve(m[1], kit)).filter((f): f is string => !!f) : []
+    const { files, packages } = walk(["components/board/mindMapBar.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect([...new Set([...handed, ...kitImports])].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.filter(([spec]) => /^lucide-react(\/|$)/.test(spec)).map(([, by]) => by)).toEqual([])
+    expect(handed.filter((f) => !kitImports.includes(f))).toEqual([])
+    // The board holds them itself, so the kit adds nothing to its load; the bar stays a chunk of its own.
+    const board = walk(["components/board/boardWorkbench.tsx"]).files as Map<string, string | null>
+    expect([kit, ...kitImports].filter((f) => !board.has(f))).toEqual([])
+    expect(board.has("components/board/mindMapBar.tsx")).toBe(false)
   })
 })
 

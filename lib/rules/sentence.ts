@@ -1,8 +1,9 @@
 import type { SentencePart } from "@/components/admin/workflowsParts"
-import { AlarmClock, BadgeCheck, Bell, CalendarClock, ClipboardList, Clock, Flag, Hash, ListTodo, MessageSquare, Pencil, Gauge, Repeat, Tag, Type, User, UserPlus, type LucideIcon } from "@/lib/icons"
+import { AlarmClock, BadgeCheck, Bell, CalendarClock, CircleCheck, ClipboardList, Clock, Flag, Hash, Inbox, ListTodo, MessageSquare, Pencil, Gauge, Repeat, Tag, Type, User, UserPlus, XCircle, type LucideIcon } from "@/lib/icons"
 import { dueText, scheduleText } from "@/lib/rules/schedule"
 import type { ApprovalOutcome, RuleAction, RuleCondition, RuleDraft } from "@/lib/rules/types"
 import { orList } from "@/lib/utils/format/orList"
+import { sourceWord } from "@/lib/work/triage"
 
 const OUTCOME: Record<ApprovalOutcome, string> = { approved: "a task is approved", changes: "changes are asked for on a task", rejected: "a task's approval is rejected" }
 
@@ -59,6 +60,8 @@ export function triggerText(r: Pick<RuleDraft, "trigger_type" | "trigger_config"
     }
     case "approval_decided":
       return r.trigger_config.outcome ? OUTCOME[r.trigger_config.outcome] : "a task's approval is answered"
+    case "task_arrived":
+      return "work arrives in triage"
   }
   return "something happens"
 }
@@ -68,6 +71,7 @@ function triggerGlyph(r: Pick<RuleDraft, "trigger_type">): LucideIcon {
   if (r.trigger_type === "schedule") return Clock
   if (r.trigger_type === "form_submitted") return ClipboardList
   if (r.trigger_type === "approval_decided") return BadgeCheck
+  if (r.trigger_type === "task_arrived") return Inbox
   if (r.trigger_type === "task_due_soon" || r.trigger_type === "task_overdue") return AlarmClock
   return r.trigger_type === "task_field_changed" ? Tag : ListTodo
 }
@@ -76,9 +80,17 @@ function triggerGlyph(r: Pick<RuleDraft, "trigger_type">): LucideIcon {
 export const forEachTask = (r: Pick<RuleDraft, "trigger_type" | "trigger_config">) => r.trigger_type === "schedule" && !!r.trigger_config.each_task
 
 /** One condition, said. */
+/** A door in a sentence: "form", "chat", but "API" and "GitHub" as they're written (lib/work/triage's words). */
+function doorWord(source: string) {
+  const w = sourceWord(source)
+  return /^[A-Z][a-z]+$/.test(w) ? w.toLowerCase() : w
+}
+
 export function conditionText(c: RuleCondition, names: RuleNames = {}): string {
   const v = c.value ?? ""
   switch (c.field) {
+    case "source":
+      return `it ${c.op === "is_not" ? "didn't come" : "came"} in by ${doorWord(v)}`
     case "priority":
       return `${c.op === "is_not" ? "it isn't" : "it's"} ${PRIORITY[v] ?? v} priority`
     case "status":
@@ -109,6 +121,7 @@ const ASSIGN: Record<string, [string, LucideIcon]> = {
   creator: ["give it to its creator", UserPlus],
   actor: ["give it to whoever moved it", UserPlus],
   nobody: ["unassign it", User],
+  on_duty: ["give it to whoever is on triage duty", UserPlus],
 }
 
 /** One action, said, with its glyph. */
@@ -131,13 +144,16 @@ export function actionPart(a: RuleAction, names: RuleNames = {}): [string, Lucid
       return [a.task_name ? `add ‘${a.task_name}’` : "add a subtask", ListTodo]
     case "notify": {
       const who =
-        a.notify === "assignee" ? "whoever has it" : a.notify === "creator" ? "its creator" : a.notify === "actor" ? "whoever changed it" : orList((a.user_ids ?? []).map((id) => personOf(id, names)))
+        a.notify === "assignee" ? "whoever has it" : a.notify === "creator" ? "its creator" : a.notify === "actor" ? "whoever changed it" : a.notify === "on_duty" ? "whoever is on triage duty" : orList((a.user_ids ?? []).map((id) => personOf(id, names)))
       return [`tell ${who || "people"}`, Bell]
     }
     case "reply":
       return ["post in a channel", MessageSquare]
     case "create_task":
       return [a.task_name ? `make ‘${a.task_name}’` : "make a task", ListTodo]
+    case "triage":
+      if (a.decision === "decline") return ["decline it, saying why", XCircle]
+      return [a.status ? `accept it into ${names.status?.(a.status) ?? a.status}` : "accept it as it is", CircleCheck]
   }
   return [String(a.type), Pencil]
 }

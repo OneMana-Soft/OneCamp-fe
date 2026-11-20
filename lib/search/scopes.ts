@@ -4,7 +4,7 @@ import type { SearchResult } from "@/services/searchService"
  * The search page's scope chips (hub.md S8) and its grouping by type (S9).
  * Pure, so the grouping and the counts are tested without a page.
  */
-export type SearchScope = "all" | "messages" | "tasks" | "docs" | "events" | "projects" | "people" | "channels" | "files"
+export type SearchScope = "all" | "messages" | "tasks" | "docs" | "events" | "projects" | "people" | "channels" | "files" | "calls"
 
 export const SCOPES: { id: SearchScope; label: string; singular: string; plural: string }[] = [
   { id: "all", label: "All", singular: "result", plural: "results" },
@@ -12,6 +12,7 @@ export const SCOPES: { id: SearchScope; label: string; singular: string; plural:
   { id: "tasks", label: "Tasks", singular: "task", plural: "tasks" },
   { id: "docs", label: "Docs", singular: "doc", plural: "docs" },
   { id: "events", label: "Events", singular: "event", plural: "events" },
+  { id: "calls", label: "Calls", singular: "line", plural: "lines" },
   { id: "projects", label: "Projects", singular: "project", plural: "projects" },
   { id: "people", label: "People", singular: "person", plural: "people" },
   { id: "channels", label: "Channels", singular: "channel", plural: "channels" },
@@ -31,6 +32,7 @@ const SCOPE_OF: Record<SearchResult["type"], Exclude<SearchScope, "all">> = {
   team: "channels",
   attachment: "files",
   event: "events",
+  transcript: "calls",
 }
 
 export function scopeOf(result: Pick<SearchResult, "type">): Exclude<SearchScope, "all"> {
@@ -132,8 +134,8 @@ export function groupResults(results: SearchResult[], scope: SearchScope, counts
  * what printed "30 Jun 58746" on the first v3 shots.
  */
 export function resultTime(result: SearchResult): number {
-  // An event's own time is in its line (eventWhen): when it was made says nothing.
-  if (result.type === "event") return 0
+  // An event's own time is in its line (eventWhen): when it was made says nothing. So is a call's line's (its call's start).
+  if (result.type === "event" || result.type === "transcript") return 0
   const item = (result as unknown as Record<string, Record<string, unknown> | undefined>)[result.type]
   const t = item?.created_date ?? item?.updated_date
   if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return 0

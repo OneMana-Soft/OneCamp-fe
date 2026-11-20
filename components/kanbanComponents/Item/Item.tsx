@@ -43,6 +43,7 @@ import { useProjectHue } from "@/lib/projectHue"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 const TaskTypeGlyph = lazyPiece(() => import("@/components/task/TaskTypeGlyph"))
+const SlaChip = lazyPiece(() => import("@/components/task/SlaChip"))
 const WaitingMark = lazyPiece(() => import("@/components/task/WaitingMark"))
 
 interface Props {
@@ -176,6 +177,11 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, cross
                     )}
                     <TaskPriorityCell priority={task.task_priority} label="tip" />
                     <DueLabel date={task.task_due_date} done={done} variant="card" />
+                    {task.task_sla && (
+                      <Suspense fallback={null}>
+                        <SlaChip sla={task.task_sla} hidden={task.task_hidden} done={done} />
+                      </Suspense>
+                    )}
                     {statusBadge && (
                         <span className="max-w-[40%] truncate font-[510] text-ink-2" title="Status">
                             {statusBadge}
@@ -208,7 +214,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, cross
             </div>
 
             {status && (
-                <span className="absolute right-3 top-3 transition-opacity group-hover:opacity-0" data-card-done-glyph="">
+                <span className="absolute right-3 top-3 transition-opacity row-hover-in:opacity-0" data-card-done-glyph="">
                     <TaskStatusCell status={status} label="tip" size={14} />
                 </span>
             )}
@@ -448,7 +454,7 @@ export const Item = React.memo(
                             <span
                                 className={cn(
                                     "absolute right-2 top-2 z-10 inline-flex items-center gap-1 transition-opacity duration-[140ms]",
-                                    "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
+                                    "opacity-0 pointer-events-none row-hover-in:opacity-100 row-hover-in:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
                                     dragging && "hidden",
                                 )}
                             >

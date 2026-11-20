@@ -53,13 +53,16 @@ export async function expectToastOnTop(words: Locator): Promise<void> {
 }
 
 type Edges = { top: number; bottom: number; left: number; right: number; height: number; width: number }
-export type ActionReach = { look: Edges; reach: Edges; card: Edges; onClose: number; grows: boolean }
+export type ActionReach = { look: Edges; reach: Edges; card: Edges; onClose: number; grows: boolean; edge: string[]; corner: string }
 
 /**
  * Where a toast's action (Undo, Retry, View) takes a tap, probed with elementFromPoint pixel by pixel along the lines
  * through its centre (V-889): the look's box, the reach's, and the card's. `onClose` counts the points the toast's × takes
  * with the reach off that the action takes with it on (it must take none: the × is a circle, so its box's corners
- * were never its own); `grows` says whether the card is a different height with the reach off.
+ * were never its own); `grows` says whether the card is a different height with the reach off. `edge` lists what else
+ * takes a point just inside the action's top-right edge, along its look's top and right sides and at its reach's top
+ * right, the ×'s side, past the circle of a × that shows, the toast's own face aside (V-917 (a)); `corner` what takes the toast's top-right corner,
+ * where the × sits, and whether the × shows (V-917 (b)).
  */
 export async function actionReach(action: Locator): Promise<ActionReach> {
   return action.evaluate((el) => {
@@ -96,8 +99,60 @@ export async function actionReach(action: Locator): Promise<ActionReach> {
     })
     off.remove()
     const onClose = closes.filter(([px, py]) => takes(px, py)).length
-    return { look: edges(look), reach: edges(reach), card: edges(cardEl.getBoundingClientRect()), onClose, grows }
+    // "face": the toast's own card or root, which no tap acts on: the action's rounded corner and the ×'s column above
+    // it (V-889) are the face's once a hidden × takes no tap. "other" is anything else, named.
+    const root = el.closest(".toast-root")
+    const name = (px: number, py: number) => {
+      const hit = document.elementFromPoint(px, py)
+      if (!hit) return "nothing"
+      if (el.contains(hit)) return "action"
+      if (close?.contains(hit)) return "close"
+      if (root?.contains(hit) && !hit.closest("a, button, [role=button], input")) return "face"
+      return `other ${hit.tagName.toLowerCase()}${hit.classList[0] ? "." + hit.classList[0] : ""}`
+    }
+    // The × drawn over the action's corner takes the taps it covers, as it looks; nothing past its circle may.
+    const shown = !!close && getComputedStyle(close).opacity !== "0"
+    const under = (px: number, py: number) => shown && !!x && Math.hypot(px - (x.left + x.width / 2), py - (x.top + x.height / 2)) <= x.width / 2 + 1
+    const probes: [number, number][] = [[reach.right - 1, reach.top]]
+    for (let d = 1; d <= 24; d++) probes.push([look.right - d, look.top + 1])
+    for (let d = 2; d <= 13; d++) probes.push([look.right - 1, look.top + d])
+    const edge = probes
+      .filter(([px, py]) => !under(px, py) && !["action", "face"].includes(name(px, py)))
+      .map(([px, py]) => `${name(px, py)} at ${Math.round(px - look.right)},${Math.round(py - look.top)}`)
+    const corner = x ? `${name(x.left + x.width / 2, x.top + x.height / 2)}, the × ${shown ? "shown" : "hidden"}` : "no ×"
+    return { look: edges(look), reach: edges(reach), card: edges(cardEl.getBoundingClientRect()), onClose, grows, edge, corner }
   })
+}
+
+type SlotWatch = { seen: string[]; stop: boolean }
+
+/**
+ * Each slot the front toast is drawn in, read every frame from now until the returned reader is called (V-940): "top"
+ * while its card's middle is in the screen's top half, "foot" in the bottom half, in the order seen, a repeat dropped.
+ * A toast said while a held menu still left came in under the top bar and jumped to the foot about 220 ms later.
+ */
+export async function watchToastSlots(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const w: SlotWatch = { seen: [], stop: false }
+    ;(window as unknown as { __toastSlots: SlotWatch }).__toastSlots = w
+    const frame = () => {
+      if (w.stop) return
+      const card = document.querySelector('.toast-root[data-state="open"]:not([data-behind]) .toast-card')
+      if (card) {
+        const r = card.getBoundingClientRect()
+        const slot = r.top + r.height / 2 < window.innerHeight / 2 ? "top" : "foot"
+        if (w.seen[w.seen.length - 1] !== slot) w.seen.push(slot)
+      }
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
+  return () =>
+    page.evaluate(() => {
+      const w = (window as unknown as { __toastSlots: SlotWatch }).__toastSlots
+      w.stop = true
+      return w.seen
+    })
 }
 
 /** For a review frame only: outlines where each toast action takes a tap. Returns the remover. */
@@ -116,7 +171,11 @@ export async function outlineActionReach(page: Page): Promise<() => Promise<void
  */
 export async function expectFingerReach(action: Locator): Promise<ActionReach["look"]> {
   await animationsSettled(action, { message: "the toast has arrived: nothing still moves or scales its action" })
-  const { look, reach, card, onClose, grows } = await actionReach(action)
+  // The ×, a sibling, too: its 140 ms fade starts at opacity "0" while it already takes taps (CR-344). Not the whole
+  // toast: its timer line is a finite animation as long as the toast's time.
+  const close = action.locator("xpath=ancestor::li[contains(concat(' ', @class, ' '), ' toast-root ')]").locator(".toast-close")
+  if (await close.count()) await animationsSettled(close, { message: "the toast's × has finished fading" })
+  const { look, reach, card, onClose, grows, edge, corner } = await actionReach(action)
   const said = JSON.stringify({ look, reach, card })
   expect(look.height, said).toBeCloseTo(26, 0)
   expect(reach.height, said).toBeGreaterThanOrEqual(44)
@@ -125,5 +184,8 @@ export async function expectFingerReach(action: Locator): Promise<ActionReach["l
   expect(reach.bottom, said).toBeLessThanOrEqual(card.bottom)
   expect(onClose, "points of the × that the action's reach takes from it").toBe(0)
   expect(grows, "the card is another height with the reach off").toBe(false)
+  // V-917: the ×'s reach never takes the action's top-right edge, nor a hidden × the corner where it sits.
+  expect(edge, `what else takes the action's top-right edge, its look's and its reach's, ${said}`).toEqual([])
+  expect(corner, "the toast's top-right corner").toMatch(/^(face|other[^,]*|nothing), the × hidden$|^close, the × shown$/)
   return look
 }

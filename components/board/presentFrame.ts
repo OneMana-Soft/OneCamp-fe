@@ -80,6 +80,17 @@ export const BOARD_SCREEN = "[data-board-page], [data-guest-board]"
  * clusters (a viewer has no tool row there), the facilitation bar, and the slides' bar or a follower's chip.
  */
 export const BOARD_BARS = "[data-board-top], [data-facilitation], [data-board-slides]"
+/**
+ * Where what's drawn over a board's canvas at its top ends, on the page (canvasInsets' top, with BOARD_BARS): on a
+ * phone the board's cluster, since its tool row went to the foot (design-22 4). A phone's Find opens the board under
+ * it (V-1110). Undefined without a board's canvas.
+ */
+export function boardTopFoot(): number | undefined {
+  const canvas = document.querySelector(CONTAINER)
+  const host = canvas?.closest(BOARD_SCREEN)
+  if (!canvas || !host) return undefined
+  return canvas.getBoundingClientRect().top + canvasInsets(host, BOARD_BARS).top
+}
 /** A board's side panel open over its canvas on a computer (the outline, Frames, Find): a slide moves beside it. */
 export const BOARD_SIDES = "[data-board-side]"
 

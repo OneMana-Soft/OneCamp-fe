@@ -1,5 +1,5 @@
 "use client"
-import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
 import { TagPills } from "@/components/tags/TagPills"
 import { lazyPart } from "@/lib/lazy/lazyPart"
 import { useSWRConfig } from "swr"
@@ -31,7 +31,7 @@ const tagPicker = lazyPart<TagPickerProps>(() => tagCode().then((m) => m.TagPick
   },
 })
 import {Button} from "@/components/ui/button"
-import {useDispatch, useSelector} from "react-redux"
+import {shallowEqual, useDispatch, useSelector} from "react-redux"
 import type {RootState} from "@/store/store"
 import {priorities, type prioritiesInterface} from "@/types/table"
 import { statusOptionOf, statusPatch, type TaskStatusFields } from "@/lib/taskStatus"
@@ -41,7 +41,6 @@ import { taskPageUrl } from "@/lib/work/taskLinks"
 import { displayNameOf } from "@/lib/personName"
 import { copyToClipboard } from "@/hooks/useCopyToClipboard"
 import { runWhenQuiet } from "@/lib/ui/whenQuiet"
-import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch"
 import { usePageName } from "@/lib/utils/pageName"
 import {
@@ -77,7 +76,7 @@ import { accessHeldBack, accessOf, canCommentTask, canEditTask } from "@/lib/wor
 import { canDeleteTask } from "@/lib/work/canDelete"
 
 import {useToast} from "@/hooks/use-toast"
-import type { CreateTaskCommentInterface, CreateTaskInterface, NewSubTaskDraft, RemoveTaskAttachmentInterface, TaskInfoInterface, TaskInfoRawInterface } from "@/types/task"
+import type { CreateTaskCommentInterface, CreateTaskInterface, NewSubTaskDraft, RemoveTaskAttachmentInterface, TaskActivityInterface, TaskInfoInterface, TaskInfoRawInterface } from "@/types/task"
 import {useUploadFile} from "@/hooks/useUploadFile"
 import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader"
 import { warmTooltip } from "@/components/ui/tooltip"
@@ -103,6 +102,7 @@ const TaskCycleField = cycleField.Part
 const TaskMilestoneField = milestoneField.Part
 const TaskReleaseField = releaseField.Part
 import {TaskTimeSection} from "@/components/task/taskTimeSection"
+import { ProjectStatuses, statusOptionsNow, TaskLoggedTime } from "@/components/task/rowReads"
 import { TaskEstimateField } from "@/components/task/taskEstimateField"
 import { TaskFieldsSection } from "@/components/task/taskFieldsSection"
 import {TaskClientReview} from "@/components/task/taskClientReview"
@@ -145,9 +145,10 @@ import { SegmentedControl } from "@/components/ui/segmentedControl"
 import TaskStream from "@/components/task/TaskStream"
 import { DatesProperty, MoreFields, entranceStyle, usePanelEntrance } from "@/components/task/panelParts"
 import { propertyLabel, propertyRow, panelSection } from "@/lib/ui/propertyRow"
-import { useTaskTime } from "@/hooks/useTaskTime"
+import { useSyncedState } from "@/hooks/useSyncedState"
 import { PANEL_INCLUDE, seedPanelParts, type PanelParts } from "@/lib/work/panelIncludes"
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { useAfterPaint } from "@/lib/ui/afterPaint"
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -174,6 +175,37 @@ interface TaskInfoPanelProps {
 
 type StreamFilter = "all" | "comments" | "history" | "github"
 
+/**
+ * The task's history in its stream: the newest lines come with the task,
+ * older ones on asking (PROJ-BUG-8). Held here, not by the panel, a page
+ * coming in draws the stream, not the whole body (V-1099). It stays mounted
+ * while another filter shows, so what was loaded is kept; a page that answers
+ * that the task can't be opened is the panel's to say (onCantOpen).
+ */
+function TaskHistoryFeed({ taskUUID, newest, hasMore, show, comments, renderComments, onCantOpen }: {
+    taskUUID: string
+    newest: TaskActivityInterface[] | undefined
+    hasMore: boolean | undefined
+    show: "all" | "history" | undefined
+    comments: ComponentProps<typeof TaskStream>["comments"]
+    renderComments: ComponentProps<typeof TaskStream>["renderComments"]
+    onCantOpen: (error: unknown) => void
+}) {
+    const history = useEarlierHistory(taskUUID, newest, hasMore)
+    const { cantOpen } = history
+    // Only an answer that says so: setting the panel's state, even to what it
+    // holds, can draw its body once more.
+    useEffect(() => {
+        if (cantOpen) onCantOpen(cantOpen)
+    }, [cantOpen, onCantOpen])
+    if (show === "history") return <TaskActivitySection taskActivity={history.activities} earlier={history} />
+    if (show === "all") return <TaskStream activities={history.activities} earlier={history} comments={comments} renderComments={renderComments} />
+    return null
+}
+
+// A date the task has, or none: the server leaves an unset one out or sends the zero time.
+const dateOf = (value: string | null | undefined) => (value && !isZeroEpoch(value) ? new Date(value) : undefined)
+
 
 
 /**
@@ -183,6 +215,9 @@ type StreamFilter = "all" | "comments" | "history" | "github"
  */
 const PAGE_COLUMNS = "mx-auto w-full max-w-[1080px] lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-x-10 lg:px-8"
 
+// The task's SLA (linear-24 W2): the rows' chip, a chunk drawn only for a task the server sent an SLA for, and
+// fetched ahead with the panel's other parts (warmTaskParts), so a task with an SLA opens whole offline.
+const SlaChip = lazyPiece(() => import("@/components/task/SlaChip"))
 // Only a restricted task, or one the reader may restrict, has the row (WA2b).
 const TaskVisibilityRow = lazyPiece(() => import("@/components/task/TaskVisibility").then((m) => ({ default: m.TaskVisibilityRow })))
 // The statuses dialog comes when it opens, as on the project's list and board.
@@ -194,7 +229,7 @@ const ProjectStatusesDialog = lazyPiece(() => import("@/components/project/Proje
  * its code comes once a tooltip is on screen, which a phone's board never had (offlineTasks:674).
  */
 export const warmTaskParts = () =>
-    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), releaseField.warm(), approvalCard.warm(), TaskVisibilityRow.warm(), warmTooltip()])
+    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), releaseField.warm(), approvalCard.warm(), TaskVisibilityRow.warm(), SlaChip.warm(), warmTooltip()])
 
 /** The palette's actions on the open task (linear-28): a chunk of their own, fetched once (the browser keeps it). */
 const loadTaskActions = () => import("@/lib/work/taskPaletteEntries")
@@ -220,19 +255,10 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // (saveLabel, below), never from this state: a save from its changes also
     // ran on mount with the empty first value, and wiped the tags of a task
     // whose details were already cached (PROJ-BUG-1).
-    const [taskLabel, setTaskLabel] = useState<string>("")
+    // (The tags as shown are taskLabel, below the task's read: they follow its answer.)
     // The tags as the server has them: its last answer, or the last save it took.
     const savedLabel = useRef("")
     const [managingStatuses, setManagingStatuses] = useState(false)
-    // The task's status as it stands (category and custom status); the option
-    // shown is derived from it and the project's statuses, which may load later.
-    const [statusFields, setStatusFields] = useState<TaskStatusFields>({})
-    const [selectedPriority, setSelectedPriority] = useState<prioritiesInterface | undefined>(undefined)
-    const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
-    const [taskIsDeleted, setTaskIsDeleted] = useState<boolean>(false)
-    const [startDate, setStartDate] = useState<Date | undefined>(undefined)
-    const [taskSubTasks, setTaskSubTasks] = useState<TaskInfoInterface[]>([])
-    const [taskAttachments, setTaskAttachments] = useState<AttachmentMediaReq[]>([])
     // The header's hairline shows once the body has scrolled (W28).
     const [scrolled, setScrolled] = useState(false)
     const [streamFilter, setStreamFilter] = useState<StreamFilter>("all")
@@ -249,6 +275,29 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         refreshWhenHidden: false,
         refreshWhenOffline: false,
     }, inReaderZone({ params: { include: PANEL_INCLUDE } }))
+    // What the panel shows of the task follows its answer, worked out in the
+    // same draw (useSyncedState): an effect copying it into state drew the
+    // whole body once more for each answer (V-1099). A change made here holds
+    // until the next answer.
+    const answer = taskInfo.data?.data
+    const [startDate, setStartDate] = useSyncedState<typeof answer, Date | undefined>(answer, (d) => dateOf(d?.task_start_date))
+    const [dueDate, setDueDate] = useSyncedState<typeof answer, Date | undefined>(answer, (d) => dateOf(d?.task_due_date))
+    // The task's status as it stands (category and custom status); the option
+    // shown is derived from it and the project's statuses, which may load later.
+    const [statusFields, setStatusFields] = useSyncedState<typeof answer, TaskStatusFields>(answer, (d) => d ? {
+        task_status: d.task_status,
+        task_custom_status: d.task_custom_status,
+        task_custom_status_name: d.task_custom_status_name,
+    } : {})
+    const [selectedPriority, setSelectedPriority] = useSyncedState<typeof answer, prioritiesInterface | undefined>(answer, (d) => d ? priorities.find((p) => p.value === d.task_priority) : undefined)
+    const [taskSubTasks, setTaskSubTasks] = useSyncedState<typeof answer, TaskInfoInterface[]>(answer, (d) => d?.task_sub_tasks || [])
+    // The tags as shown. They are saved only from the picker's change
+    // (saveLabel, below), never from this state: a save from its changes also
+    // ran on mount with the empty first value, and wiped the tags of a task
+    // whose details were already cached (PROJ-BUG-1).
+    const [taskLabel, setTaskLabel] = useSyncedState<typeof answer, string>(answer, (d) => d?.task_label || "")
+    const [taskIsDeleted, setTaskIsDeleted] = useSyncedState<typeof answer, boolean>(answer, (d) => d ? !isZeroEpoch(d.task_deleted_at || '') : false)
+    const [taskAttachments, setTaskAttachments] = useSyncedState<typeof answer, AttachmentMediaReq[]>(answer, (d) => d?.task_attachments || [])
     // Its comments and changes come on the project's topic, which goes live
     // with the connection's other topics once the broker answers them: read
     // before then, the task is read again, as an open conversation is (F5).
@@ -263,19 +312,20 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             if (!isAppOffline()) void refill()
         })
     }, [partial, refill])
-    // Its time comes with the task, so it waits for it.
-    const taskTime = useTaskTime(taskInfo.data ? taskUUID : "")
     // On its own page the tab says the task's name ("Task · OneCamp" said
     // which section, not which task: PTC-38); in a panel the page beside it
     // keeps its own.
     usePageName(onPage ? taskInfo.data?.data?.task_name : undefined)
-    const { options: statusOpts } = useProjectStatuses(taskInfo.data?.data?.task_project?.project_uuid)
-    // The newest history lines come with the task; older ones on asking (PROJ-BUG-8).
-    const history = useEarlierHistory(taskUUID, taskInfo.data?.data?.task_activities, taskInfo.data?.data?.task_activity_has_more)
-    const selectedStatus = useMemo(
-        () => (statusFields.task_status ? statusOptionOf(statusFields, statusOpts) : undefined),
-        [statusFields, statusOpts],
-    )
+    // A page of its history that answers it can't be opened (TaskHistoryFeed),
+    // kept with the task it was for.
+    const [historyCantOpen, setHistoryCantOpen] = useState<{ task: string; error: unknown }>()
+    const onHistoryCantOpen = useCallback((error: unknown) => setHistoryCantOpen({ task: taskUUID, error }), [taskUUID])
+    // The task's status as the task states it (the server rewrites a task
+    // when its status is renamed or moved): what the panel itself needs. Its
+    // colour and the project's other statuses are read by the rows that show
+    // them (ProjectStatuses), so their late answer draws those rows, not the
+    // panel (V-1099); an action takes them as they are then (statusOptionsNow).
+    const selectedStatus = useMemo(() => (statusFields.task_status ? statusOptionOf(statusFields) : undefined), [statusFields])
     const syncStatus = useFetch<{ data: { status: string; error?: string; attempts: number } }>(
         taskUUID && (taskInfo.data?.data?.task_github_issue_url || taskInfo.data?.data?.task_github_pr_url)
             ? `${GetEndpointUrl.GetGitHubSyncStatus}/${taskUUID}`
@@ -324,8 +374,13 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         (state: RootState) => state.TaskInfo.taskInfoInputState[taskUUID] || NO_INPUT,
     )
 
+    // The task's comments as the store holds them (with live and optimistic
+    // ones), or the answer's own until they reach it (the effect below): the
+    // store takes that same array, so sending them draws nothing (V-1099).
+    const answerComments = answer?.task_comments
     const taskCommentState = useSelector(
-        (state: RootState) => state.createTaskComment.taskComments[taskUUID] || NO_COMMENTS,
+        (state: RootState) => state.createTaskComment.taskComments[taskUUID] ?? answerComments ?? NO_COMMENTS,
+        shallowEqual,
     )
 
     // What the reader may do here, as the server says (Work Access, A1):
@@ -760,29 +815,16 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         [post, taskUUID, taskInfo],
     )
 
+    // Each answer's comments go to the store once it is drawn, read, kept or
+    // written into the cache. The panel drew them from the answer already (the
+    // selector's fallback), and the store keeps what it holds of them, so
+    // sending them draws nothing more (V-1099). Neither sets state.
+    // (Merged, addTaskComments: optimistic and live ones are kept.)
     useEffect(() => {
-        if (!taskInfo.data?.data) return
-
-        const data = taskInfo.data.data
-
-        // Merge server comments into Redux (idempotent — preserves existing
-        // optimistic/MQTT updates via merge logic in addTaskComments).
-        dispatch(addTaskComments({taskId: taskUUID, comments: data.task_comments || []}))
-
-        setStartDate(!isZeroEpoch(data.task_start_date) ? new Date(data.task_start_date) : undefined)
-        setDueDate(!isZeroEpoch(data.task_due_date) ? new Date(data.task_due_date) : undefined)
-        setStatusFields({
-            task_status: data.task_status,
-            task_custom_status: data.task_custom_status,
-            task_custom_status_name: data.task_custom_status_name,
-        })
-        setSelectedPriority(priorities.find((p) => p.value === data.task_priority))
-        setTaskSubTasks(data.task_sub_tasks||[])
-        setTaskLabel(data.task_label || "")
-        savedLabel.current = data.task_label || ""
-        setTaskIsDeleted(!isZeroEpoch(data.task_deleted_at || ''))
-        setTaskAttachments(data.task_attachments || [])
-    }, [taskInfo.data?.data, taskUUID, dispatch])
+        if (!answer) return
+        dispatch(addTaskComments({taskId: taskUUID, comments: answer.task_comments || []}))
+        savedLabel.current = answer.task_label || ""
+    }, [answer, dispatch, taskUUID])
     useEffect(() => {
         if (
             taskInputState &&
@@ -829,7 +871,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // the list said In progress, and the page raised an error (PTC-2).
     const handleStatusSelect = useCallback(
         (value: string) => {
-            const patch = statusPatch(value, statusOpts)
+            const patch = statusPatch(value, statusOptionsNow(answer?.task_project?.project_uuid))
             const before = statusFields
             void optimistic({
                 key: `task:${taskUUID}:status`,
@@ -838,7 +880,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                 commit: () => updateTaskStatus(value, taskUUID, patch),
             })
         },
-        [taskUUID, updateTaskStatus, statusOpts, statusFields],
+        [taskUUID, updateTaskStatus, answer?.task_project?.project_uuid, statusFields],
     )
 
     const handlePrioritySelect = useCallback(
@@ -879,7 +921,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                   link: taskPageUrl(task.task_key, taskUUID),
                   canEdit,
                   status: selectedStatus?.value,
-                  statusOptions: statusOpts,
+                  get statusOptions() {
+                      return statusOptionsNow(task.task_project?.project_uuid)
+                  },
                   onStatus: handleStatusSelect,
                   priority: selectedPriority?.value,
                   priorityOptions: priorities,
@@ -1043,16 +1087,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         })
     }, [taskInfo.data?.data, deleteTasks])
 
-    // Opening a task paints its header and fields first; the description and
-    // everything under it (two editors, comments, dependencies) follow a frame
-    // later, as a transition. With the task already loaded (hovering loads
-    // it), the click otherwise waited for the whole panel before its first
-    // paint.
-    const [settled, setSettled] = useState(false)
-    useEffect(() => {
-        const id = requestAnimationFrame(() => startTransition(() => setSettled(true)))
-        return () => cancelAnimationFrame(id)
-    }, [])
+    // The header and title paint with the task's answer, all under the title
+    // once that frame has (fluid-18); no spacer, so nothing painted moves.
+    const settled = useAfterPaint(!!taskInfo.data)
 
     const hasGitHub = !!(taskInfo.data?.data?.task_github_issue_url || taskInfo.data?.data?.task_github_pr_url || taskInfo.data?.data?.task_github_branch)
     const streamOptions = useMemo(
@@ -1085,7 +1122,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // A task that isn't there for this person says so, with the way back: an id that names nothing, a task deleted
     // for good and one in a project they aren't in all answer 404, and only a failed read offers Try again (PTC-4).
     // A page of its history that answers so (deleted, or they left its project, while open) is the same answer.
-    const cantOpen = !taskInfo.data?.data && taskInfo.isError ? taskInfo.isError : history.cantOpen
+    const cantOpen = !taskInfo.data?.data && taskInfo.isError ? taskInfo.isError : historyCantOpen?.task === taskUUID ? historyCantOpen.error : undefined
     if (cantOpen) {
         return (
             <div className="flex h-full flex-col">
@@ -1187,6 +1224,8 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         )}
                     </OverlaySheetTitle>
 
+                    {/* All of it a frame later (a phone puts the description first). */}
+                    {settled && (<>
                     <TaskApprovalCard taskUUID={taskUUID} members={projectMembers} status={selectedStatus} />
 
                     {/* The six properties that always show, then the rest (W29). */}
@@ -1194,15 +1233,19 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         data-task-properties=""
                         className={cn("mb-6", onPage && "lg:sticky lg:top-6 lg:!col-start-2 lg:row-[1/span_40] lg:mb-0 lg:self-start lg:rounded-lg lg:bg-raised lg:p-4 lg:shadow-e1")}
                     >
-                    <TaskStatusPriorityControl
-                        isAdmin={canEdit}
-                        selectedStatus={selectedStatus}
-                        statusOptions={statusOpts}
-                        selectedPriority={selectedPriority}
-                        onSelectStatus={handleStatusSelect}
-                        onSelectPriority={handlePrioritySelect}
-                        onManageStatuses={access.manage && projectUUID ? () => setManagingStatuses(true) : undefined}
-                    />
+                    <ProjectStatuses projectUUID={projectUUID}>
+                        {(statusOptions) => (
+                            <TaskStatusPriorityControl
+                                isAdmin={canEdit}
+                                selectedStatus={statusFields.task_status ? statusOptionOf(statusFields, statusOptions) : undefined}
+                                statusOptions={statusOptions}
+                                selectedPriority={selectedPriority}
+                                onSelectStatus={handleStatusSelect}
+                                onSelectPriority={handlePrioritySelect}
+                                onManageStatuses={access.manage && projectUUID ? () => setManagingStatuses(true) : undefined}
+                            />
+                        )}
+                    </ProjectStatuses>
                     {access.manage && projectUUID && managingStatuses && (
                         <Suspense fallback={null}>
                             <ProjectStatusesDialog
@@ -1239,6 +1282,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         start={startDate}
                         due={dueDate}
                         done={isDone}
+                        sla={taskInfo.data?.data?.task_sla && <SlaChip sla={taskInfo.data.data.task_sla} hidden={taskInfo.data.data.task_hidden} done={isDone} className="ml-1" />}
                         onStart={(d) => {
                             const before = startDate
                             void optimistic({ key: `task:${taskUUID}:start`, apply: () => setStartDate(d), revert: () => setStartDate(before), commit: () => updateTaskStartDate(d, taskUUID) })
@@ -1249,13 +1293,17 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         }}
                     />
                     {projectUUID && (
-                        <TaskEstimateField
-                            taskUUID={taskUUID}
-                            projectUUID={projectUUID}
-                            minutes={taskInfo.data?.data.task_estimate_minutes}
-                            loggedSeconds={taskTime.time?.seconds}
-                            canEdit={canEdit}
-                        />
+                        <TaskLoggedTime taskUUID={taskUUID}>
+                            {(loggedSeconds) => (
+                                <TaskEstimateField
+                                    taskUUID={taskUUID}
+                                    projectUUID={projectUUID}
+                                    minutes={taskInfo.data?.data.task_estimate_minutes}
+                                    loggedSeconds={loggedSeconds}
+                                    canEdit={canEdit}
+                                />
+                            )}
+                        </TaskLoggedTime>
                     )}
                     {projectUUID && (
                         <TaskPointsRow taskUUID={taskUUID} projectUUID={projectUUID} points={taskInfo.data?.data.task_estimate_points} canEdit={canEdit} />
@@ -1309,7 +1357,6 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     </MoreFields>
                     </div>
 
-                    {settled ? (<>
                     {/* Its own component: typing renders the editor, not the panel. */}
                     <div className="max-sm:order-[-1] max-sm:mb-5">
                         <TaskDescription
@@ -1320,31 +1367,36 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         />
                     </div>
 
-                    <SubtasksSection
-                        isAdmin={canEdit}
-                        restricted={!!taskInfo.data?.data.task_restricted}
-                        subtasks={taskSubTasks}
-                        projectMembers={projectMembers}
-                        onToggleStatus={(id, newStatus) => {
-                                const patch = statusPatch(newStatus, statusOpts)
-                                changeSubtask(id, "status", patch, () => updateTaskStatus(newStatus, id, patch))
-                            }
-                        }
-                        onRename={(id, name) => saveName({ taskName: name, taskUUID: id })}
-                        onUpdateStart={(id, d) => changeSubtask(id, "start", { task_start_date: d?.toISOString() || "" }, () => updateTaskStartDate(d, id))}
-                        onUpdateDue={(id, d) => changeSubtask(id, "due", { task_due_date: d?.toISOString() || "" }, () => updateTaskDueDate(d, id))}
-                        onUpdateAssignee={(id, userInfo) => {
-                                const before = taskSubTasks.find((t) => t.task_uuid === id)?.task_assignee
-                                void updateTaskAssignee(userInfo, id, before, (who) =>
-                                    setTaskSubTasks((prev) => prev.map((t) => (t.task_uuid === id ? { ...t, task_assignee: who } : t))),
-                                )
-                            }
-                        }
-                        onOpen={handleChangeTask}
-                        onCreateSubtask={handleCreateSubtask}
-                        canAdd={canEdit && !subTask}
-                        epic={epicTask ? statusOpts : undefined}
-                    />
+                    {/* An epic's tasks show their own statuses (J-H). */}
+                    <ProjectStatuses projectUUID={epicTask ? projectUUID : undefined}>
+                        {(statusOptions) => (
+                            <SubtasksSection
+                                isAdmin={canEdit}
+                                restricted={!!taskInfo.data?.data.task_restricted}
+                                subtasks={taskSubTasks}
+                                projectMembers={projectMembers}
+                                onToggleStatus={(id, newStatus) => {
+                                        const patch = statusPatch(newStatus, statusOptionsNow(projectUUID))
+                                        changeSubtask(id, "status", patch, () => updateTaskStatus(newStatus, id, patch))
+                                    }
+                                }
+                                onRename={(id, name) => saveName({ taskName: name, taskUUID: id })}
+                                onUpdateStart={(id, d) => changeSubtask(id, "start", { task_start_date: d?.toISOString() || "" }, () => updateTaskStartDate(d, id))}
+                                onUpdateDue={(id, d) => changeSubtask(id, "due", { task_due_date: d?.toISOString() || "" }, () => updateTaskDueDate(d, id))}
+                                onUpdateAssignee={(id, userInfo) => {
+                                        const before = taskSubTasks.find((t) => t.task_uuid === id)?.task_assignee
+                                        void updateTaskAssignee(userInfo, id, before, (who) =>
+                                            setTaskSubTasks((prev) => prev.map((t) => (t.task_uuid === id ? { ...t, task_assignee: who } : t))),
+                                        )
+                                    }
+                                }
+                                onOpen={handleChangeTask}
+                                onCreateSubtask={handleCreateSubtask}
+                                canAdd={canEdit && !subTask}
+                                epic={epicTask ? statusOptions : undefined}
+                            />
+                        )}
+                    </ProjectStatuses>
 
                     {/* A project's top-level tasks wait on one another, an epic's among them; subtasks are steps inside a task. */}
                     {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !subTask && (
@@ -1477,29 +1529,26 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             <ErrorState subject="the activity" onRetry={() => void taskInfo.mutate()} className="py-8" />
                         ) : streamFilter === "github" ? (
                             <GitHubActivityTab taskUUID={taskUUID} />
-                        ) : streamFilter === "history" ? (
-                            <TaskActivitySection taskActivity={history.activities} earlier={history} />
                         ) : streamFilter === "comments" ? (
                             taskCommentState.length ? renderComments(0, taskCommentState.length) : (
                                 <p className="py-6 text-center text-ui-sm text-ink-3">No comments yet. Ask a question or share where it stands.</p>
                             )
-                        ) : (
-                            <TaskStream
-                                activities={history.activities}
-                                earlier={history}
-                                comments={taskCommentState}
-                                renderComments={renderComments}
-                            />
-                        )}
+                        ) : null}
+                        <TaskHistoryFeed
+                            taskUUID={taskUUID}
+                            newest={taskInfo.data?.data?.task_activities}
+                            hasMore={taskInfo.data?.data?.task_activity_has_more}
+                            show={taskInfo.isError && !taskInfo.data?.data ? undefined : streamFilter === "history" || streamFilter === "all" ? streamFilter : undefined}
+                            comments={taskCommentState}
+                            renderComments={renderComments}
+                            onCantOpen={onHistoryCantOpen}
+                        />
                     </section>
-                    </>) : (
-                        // Where the description and the rest go, for the frame before they do.
-                        <div aria-hidden className="h-[11.5rem]" />
-                    )}
+                    </>)}
                 </div>
             </div>
 
-            {!canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} later={accessHeldBack(taskUUID, taskInfo.data?.data, partial)} /> : settled ? <TaskCommentBox
+            {!settled ? null : !canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} later={accessHeldBack(taskUUID, taskInfo.data?.data, partial)} /> : <TaskCommentBox
                 taskUUID={taskUUID}
                 frame={onPage ? PAGE_COLUMNS : undefined}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
@@ -1510,7 +1559,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     files.forEach(f => dt.items.add(f));
                     await uploadFile.makeRequestToUploadToTaskComment(dt.files, taskInfo.data.data.task_project.project_uuid, taskUUID);
                 }}
-            /> : <div aria-hidden className="h-[7.5rem] flex-shrink-0 border-t" />}
+            />}
         </div>
     )
 }

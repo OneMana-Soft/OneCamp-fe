@@ -46,11 +46,40 @@ export const FIELD_OPS: Record<ConditionField, { op: ConditionOp; label: string 
   tags: [{ op: "has", label: "include" }, { op: "has_not", label: "don't include" }, { op: "is_empty", label: "are empty" }],
   name: [{ op: "contains", label: "says" }, { op: "not_contains", label: "doesn't say" }],
   due: [{ op: "within_days", label: "is within" }, { op: "overdue", label: "has passed" }, { op: "is_empty", label: "isn't set" }, { op: "is_set", label: "is set" }],
+  source: [{ op: "is", label: "is" }, { op: "is_not", label: "isn't" }],
 }
 
 export const FIELD_LABEL: Record<ConditionField, string> = {
-  priority: "Priority", status: "Status", assignee: "Assignee", creator: "Made by", tags: "Tags", name: "Name", due: "Due date",
+  priority: "Priority", status: "Status", assignee: "Assignee", creator: "Made by", tags: "Tags", name: "Name", due: "Due date", source: "Came in by",
 }
+
+// Rules on arriving work (linear-21 H4; business/Workflow arrival.go): only a task_arrived rule tests
+// the door work came in by or decides it, which the server refuses on any other trigger (arrivalOnly).
+export const ARRIVES = "task_arrived" satisfies RuleTrigger
+/**
+ * The doors a rule can test: business/Triage Sources less import, which runs as bulk work that rules
+ * never hear (conditions.go refuses it). Their words are lib/work/triage sourceWord's; that file stays
+ * as it is, for every byte of it is in the project page's first load (app/firstLoad.test).
+ */
+export const ARRIVAL_DOORS = ["form", "api", "agent", "github", "chat"]
+/** The longest reason a decline gives (business/Triage MaxReason). */
+export const MAX_REASON = 500
+/** What a rule does, in the order the builder offers it; ask_agent joins where the edition has agents. */
+const ACTION_KINDS: RuleActionType[] = ["triage", "assign", "set_status", "set_priority", "set_due", "add_comment", "add_subtask", "notify"]
+
+/** The fields a rule on trigger t can test. */
+export const conditionFields = (t: RuleTrigger) => (Object.keys(FIELD_OPS) as ConditionField[]).filter((f) => f !== "source" || t === ARRIVES)
+/** What a rule on trigger t can do. */
+export const actionKinds = (t: RuleTrigger) => ACTION_KINDS.filter((a) => a !== "triage" || t === ARRIVES)
+
+/** A draft without what only arriving work takes: its door conditions and its decisions. */
+function offArrival(d: RuleDraft): RuleDraft {
+  const decides = (a: RuleAction) => a.type !== "triage"
+  return { ...d, conditions: { ...d.conditions, items: (d.conditions.items ?? []).filter((c) => c.field !== "source") }, actions: d.actions.filter(decides), else_actions: d.else_actions.filter(decides) }
+}
+
+/** A new rule on arriving work: it tests the door and accepts what comes in by it. */
+export const arrivalDraft = (): RuleDraft => ({ ...withTrigger(BLANK_DRAFT, ARRIVES), conditions: { match: "all", items: [newCondition("source")] }, actions: [newAction("triage")] })
 
 const VALUELESS: ConditionOp[] = ["is_empty", "is_set", "overdue"]
 export const needsValue = (op: ConditionOp) => !VALUELESS.includes(op)
@@ -58,7 +87,7 @@ export const needsValue = (op: ConditionOp) => !VALUELESS.includes(op)
 /** A condition on a field, with its first op and a sensible value. */
 export function newCondition(field: ConditionField): RuleCondition {
   const op = FIELD_OPS[field][0].op
-  const value = field === "priority" ? "high" : field === "due" ? "3" : field === "status" ? "todo" : ""
+  const value = field === "priority" ? "high" : field === "due" ? "3" : field === "status" ? "todo" : field === "source" ? ARRIVAL_DOORS[0] : ""
   return { field, op, value }
 }
 
@@ -83,6 +112,8 @@ export function newAction(type: RuleActionType): RuleAction {
       return { type, task_name: "", priority: "medium" }
     case "ask_agent":
       return { type, text: "" }
+    case "triage":
+      return { type, decision: "accept", status: "" }
     default:
       return { type }
   }
@@ -108,7 +139,8 @@ export function triggerDefaults(t: RuleTrigger): RuleTriggerConfig {
  * by telling whoever has it, with the conditions choosing the tasks; neither
  * has an otherwise.
  */
-export function withTrigger(d: RuleDraft, t: RuleTrigger, eachTask = false): RuleDraft {
+export function withTrigger(from: RuleDraft, t: RuleTrigger, eachTask = false): RuleDraft {
+  const d = t === ARRIVES ? from : offArrival(from)
   const trigger_config: RuleTriggerConfig = t === "schedule" ? { ...triggerDefaults(t), ...(d.trigger_type === "schedule" ? d.trigger_config : {}), each_task: eachTask || undefined } : triggerDefaults(t)
   if (t !== "schedule") return { ...d, trigger_type: t, trigger_config, actions: d.actions.filter((a) => a.type !== "create_task" || d.trigger_type !== "schedule") }
   if (eachTask) {
@@ -149,6 +181,9 @@ export function draftProblem(d: RuleDraft): string {
     if (a.type === "assign" && a.assign === "person" && !(a.user_ids ?? []).length) return "Pick who gets it."
     if (a.type === "ask_agent" && !(a.text ?? "").trim()) return "Write what to ask the agent."
     if (a.type === "create_task" && !(a.task_name ?? "").trim()) return "Name the task it makes."
+    if (a.type === "triage" && d.trigger_type !== ARRIVES) return "Only a rule on arriving work accepts or declines it."
+    if (a.type === "triage" && a.decision === "decline" && !(a.text ?? "").trim()) return "Say why it's declined: the requester is told."
+    if (a.type === "triage" && (a.text ?? "").length > MAX_REASON) return `A reason is at most ${MAX_REASON} characters.`
   }
   return ""
 }

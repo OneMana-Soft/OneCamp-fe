@@ -93,7 +93,7 @@ export function TemplateGallery<T extends GalleryItem>({
   }
 
   const finder = (
-    <label className="flex h-9 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:focus-halo">
+    <label className="flex h-9 items-center gap-2 rounded-lg max-md:h-11 pointer-coarse:h-11 bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:focus-halo">
       <Search className="size-3.5 shrink-0" aria-hidden="true" />
       <input
         autoFocus={!sheet}
@@ -107,18 +107,19 @@ export function TemplateGallery<T extends GalleryItem>({
         aria-autocomplete="list"
         aria-controls="template-options"
         aria-activedescendant={chosen ? `template-option-${chosen.id}` : undefined}
-        className="min-w-0 flex-1 bg-transparent text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base"
+        className="min-w-0 flex-1 self-stretch bg-transparent text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base"
       />
     </label>
   )
 
   const kinds = (
-    <div className="flex flex-wrap gap-1" role="group" aria-label="Kinds of template">
+    <div className="flex flex-wrap gap-1" role="group" aria-label="Kinds of template" data-touch-group="">
       {[null, ...categories].map((c) => (
         <button
           key={c ?? "all"}
           type="button"
           aria-pressed={category === c}
+          data-touch-target=""
           onClick={() => setCategory(c)}
           className={cn(
             "h-7 rounded-md px-2 text-ui-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand max-sm:h-9",

@@ -20,7 +20,7 @@ export function ThreadRow({ docId, thread }: { docId: string; thread: ThreadView
     const last = thread.comments[thread.comments.length - 1]
     const replies = thread.comments.length - 1
     const by = first?.comment_by
-    const name = displayNameOf(by) || "Someone"
+    const name = (by?.is_bot && by.user_full_name) || displayNameOf(by) || "Someone"
     const said = plainText(first?.comment_text) || ((first?.comment_attachments?.length ?? 0) > 0 ? "Attached a file" : "")
     return (
         <NodeLink

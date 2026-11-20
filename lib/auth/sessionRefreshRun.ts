@@ -12,6 +12,7 @@
  */
 import axios from "axios"
 import { WEB_CLIENT_HEADERS } from "@/lib/http/csrfToken"
+import { browserFetch } from "@/lib/http/browserFetch"
 import { acrossTabs } from "@/lib/acrossTabs"
 
 /** A refresh that hangs gives up, so the lock and everyone waiting on it are let go. */
@@ -39,6 +40,8 @@ interface RefreshClock {
  * has since this one asked. Over fetch, as the sign-in page's own check sent
  * it: an answer that is never cached, and an AxiosError (a refused one
  * carries its 401) for the callers that tell refused from unreachable.
+ * Through lib/http/browserFetch, so Firefox's preflight asks for no header
+ * the API refuses (V-1086).
  */
 export function runRefresh(clock: RefreshClock): Promise<void> {
   return acrossTabs(LOCK_NAME, async () => {
@@ -52,7 +55,7 @@ export function runRefresh(clock: RefreshClock): Promise<void> {
         withCredentials: true,
         headers: { ...WEB_CLIENT_HEADERS },
         timeout: REFRESH_TIMEOUT_MS,
-        adapter: "fetch",
+        adapter: browserFetch,
         fetchOptions: { cache: "no-store" },
       })
     } catch (e) {

@@ -225,3 +225,24 @@ for (const theme of ["light", "dark"] as const) {
     })
   })
 }
+
+// A task beside the page (split view) loads the right panel's task code, one lazy group (V-1172,
+// scripts/fluidity/stable-pools.json): the pane draws the same panel, its lock and who can see it included.
+test.describe("a restricted task beside the board, at 1280", () => {
+  test.use({ viewport: { width: 1280, height: 860 } })
+  test("its pane draws the task's panel, with who can see it", async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    await page.addInitScript((kept) => {
+      try {
+        if (!sessionStorage.getItem("oc_split_layout")) localStorage.setItem("oc_split_layout", kept)
+      } catch {
+        /* storage blocked */
+      }
+    }, JSON.stringify({ panes: [{ kind: "task", id: id(0) }], order: [], sizes: {} }))
+    await openProject(page, testInfo, "kanban", { restricted: true, people: [IVY.user_uuid] })
+    const pane = page.locator("section[data-split-view]")
+    await expect(pane).toHaveCount(1)
+    await expect(pane.locator("[data-task-panel] [data-property=visibility]")).toContainText("Only some people", { timeout: 60_000 })
+    await shot(page, "beside", "light")
+  })
+})

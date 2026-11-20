@@ -16,11 +16,13 @@ import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { AddWorkReads } from "@/components/board/addWorkReads"
 import type { FrameNotesSource } from "@/components/board/frameNotesReads"
-import BoardTools, { insertBoardTemplate } from "@/components/board/boardTools"
+import BoardTools, { NotesToTasksDialog, insertBoardTemplate } from "@/components/board/boardTools"
 import StickyTool from "@/components/board/stickyTool"
 import NotesBar, { FrameBar, Floating, HideExcalidrawPanel } from "@/components/board/notesBar"
-import { BOARD_TEMPLATES } from "@/lib/board/templates"
-import { STYLE_FONT, STYLE_ROUGHNESS, isStickyNote, type BoardStyle } from "@/lib/board/notes"
+import { BOARD_KIT } from "@/components/board/boardKit"
+import { BOARD_TEMPLATES, lockedBackground } from "@/lib/board/templates"
+import { STYLE_FONT, STYLE_ROUGHNESS, isStickyNote, type BoardStyle, type SelectedNote } from "@/lib/board/notes"
+import { isFoldedNode, mindNodeOf } from "@/lib/board/mindMapTree"
 import { findFromSearch, linkedFromSearch } from "@/lib/board/frames"
 import { selectedIn, whenSceneReady } from "@/lib/board/scene"
 import { frameDrawing, loadBoardViewport } from "@/lib/board/camera"
@@ -65,15 +67,23 @@ const SIDE_CODE = {
   tagFilter: () => import("@/components/board/tagFilterPanel").then((m) => m.default),
   addWork: () => import("@/components/board/addWorkPanel").then((m) => m.default),
   find: () => import("@/components/board/findPanel").then((m) => m.default),
+  layers: () => import("@/components/board/layersPanel").then((m) => m.default),
 }
 const FramesPanel = lazyPanel(SIDE_CODE.frames, PANEL, SidePanelShape)
 const TagFilterPanel = lazyPanel(SIDE_CODE.tagFilter, PANEL, SidePanelShape)
 const AddWorkPanel = lazyPanel(SIDE_CODE.addWork, PANEL, SidePanelShape)
 const FindPanel = lazyPanel(SIDE_CODE.find, PANEL, SidePanelShape)
+const LayersPanel = lazyPanel(SIDE_CODE.layers, PANEL, SidePanelShape)
 // Protected objects (miro-44): their badges, and Protect in a selection's bar, one chunk for a board that has a
 // protected object or a reader who may protect.
 const ProtectedLayer = lazyPiece(() => import("@/components/board/protectedLayer"))
 const ProtectControl = lazyPiece(() => import("@/components/board/protectedLayer").then((m) => ({ default: m.ProtectControl })))
+// Mind maps (miro-15): their keys, bar, badge and a new map, one chunk loaded on first use, with the one layout's own
+// chunk (lib/board/mindMap) fetched beside it rather than after it: the bar waits for the layout at its top. The board
+// hands the chunk the parts it already holds (BOARD_KIT), so the chunk re-cuts no other route's chunks (V-1262).
+const loadMindMap = () => Promise.all([import("@/components/board/mindMapBar"), import("@/lib/board/mindMap")]).then(([m]) => m)
+const MindMapActions = lazyPiece(() => loadMindMap().then((m) => ({ default: m.MindMapActions })))
+const MindMapFolds = lazyPiece(() => loadMindMap().then((m) => ({ default: m.MindMapFolds })))
 const WARM = { frames: lazyChunk(SIDE_CODE.frames), tagFilter: lazyChunk(SIDE_CODE.tagFilter), addWork: lazyChunk(SIDE_CODE.addWork), find: lazyChunk(SIDE_CODE.find) }
 
 const NOBODY = { id: "", name: "" }
@@ -87,7 +97,7 @@ const NO_TAGS: readonly string[] = []
  * (miro-46), here so the star's code stays off the route's first load.
  */
 export interface BoardCommand {
-  kind: "note" | "templates" | "frames" | "tagFilter" | "addWork" | "find" | "saveTemplate" | "export" | "openFile" | "warm" | "code" | "star" | "unstar"
+  kind: "note" | "mindMap" | "templates" | "frames" | "layers" | "tagFilter" | "addWork" | "find" | "saveTemplate" | "export" | "openFile" | "warm" | "code" | "star" | "unstar"
   at: number
   id?: string
 }
@@ -122,7 +132,8 @@ function CodeBlockEditor({ api, id, onClose }: { api: ExcalidrawImperativeAPI; i
 async function layTeamTemplate(api: ExcalidrawImperativeAPI, templateId: string): Promise<void> {
   const elements = templateElementsOf(await getTemplate(templateId))
   if (elements.length === 0) throw new Error("the template has nothing on it")
-  addCopies(api, elements, `team-${Date.now().toString(36)}`, { animate: !prefersReducedMotion() })
+  // Its background (its frames) lands locked, as a built-in template's does (miro-03).
+  addCopies(api, lockedBackground(elements), `team-${Date.now().toString(36)}`, { animate: !prefersReducedMotion() })
 }
 
 export interface BoardSelection {
@@ -136,9 +147,11 @@ export interface BoardSelection {
   editing: boolean
   /** The words being typed are a note's: its bar's place, so Excalidraw's panel stays away. */
   editingNote: boolean
+  /** The one mind map node selected, or whose words are being typed (miro-15). */
+  mind?: string | null
 }
 
-const NONE: BoardSelection = { ids: [], notes: [], frame: null, editing: false, editingNote: false }
+const NONE: BoardSelection = { ids: [], notes: [], frame: null, editing: false, editingNote: false, mind: null }
 const sameIds = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i])
 
 /**
@@ -163,21 +176,41 @@ export function useBoardSelection(api: ExcalidrawImperativeAPI | null): BoardSel
       const notes = chosen.filter((e) => isStickyNote(e as never)).map((e) => e.id)
       const frames = chosen.filter((e) => e.type === "frame")
       const holder = appState.editingTextElement?.containerId
+      const held = holder ? (elements as SceneElement[]).find((e) => e.id === holder) : undefined
+      const mind = mindNodeOf(elements as SceneElement[], appState, chosen)
       const next: BoardSelection = {
         ids: chosen.map((e) => e.id),
         notes,
         frame: frames.length === 1 && chosen.length === 1 ? frames[0].id : null,
         editing: !!appState.editingTextElement,
-        editingNote: !!holder && (elements as SceneElement[]).some((e) => e.id === holder && isStickyNote(e as never)),
+        editingNote: !!held && isStickyNote(held as never),
+        mind,
       }
       setSel((prev) =>
-        prev.editing === next.editing && prev.editingNote === next.editingNote && prev.frame === next.frame && sameIds(prev.ids, next.ids) && sameIds(prev.notes, next.notes) ? prev : next,
+        prev.editing === next.editing && prev.editingNote === next.editingNote && prev.mind === next.mind && prev.frame === next.frame && sameIds(prev.ids, next.ids) && sameIds(prev.notes, next.notes) ? prev : next,
       )
     }
     read(api.getSceneElements(), api.getAppState() as never)
     return api.onChange((els, st) => read(els, st as never))
   }, [api])
   return sel
+}
+
+/** Whether any mind map node is folded on the board: its badge's piece loads only then (miro-15). */
+export function useAnyFolded(api: ExcalidrawImperativeAPI | null): boolean {
+  const [any, setAny] = React.useState(false)
+  React.useEffect(() => {
+    if (!api) return
+    let last: readonly unknown[] | null = null
+    const read = (elements: readonly unknown[]) => {
+      if (elements === last) return
+      last = elements
+      setAny((elements as SceneElement[]).some((e) => !e.isDeleted && isFoldedNode(e)))
+    }
+    read(api.getSceneElements())
+    return api.onChange((els) => read(els))
+  }, [api])
+  return any
 }
 
 /**
@@ -296,12 +329,40 @@ export default function BoardWorkbench({
   dispatch?: Dispatch
 }) {
   const selection = useBoardSelection(api)
+  const anyFolded = useAnyFolded(api)
+  const [mindTasks, setMindTasks] = React.useState<SelectedNote[] | null>(null)
   // What's protected (miro-44): a protected selection gets no notes or frame bar (the server puts back any change to
   // it), only who protected it, and Lift protection for those who may.
   const protection = useProtection(provider.document)
   // The board's owner or a workspace admin protects objects and lifts protection (getBoardInfo's board_can_protect).
   const canProtect = useCanProtect(boardId)
   const held = protection.size > 0 && selection.ids.some((id) => protection.has(id))
+  // The map keys (miro-15): heard from a new map or the first map node selected until the board or its edit rights
+  // go. They read the node from Excalidraw's own state at key time, so no key waits on React (CR-421 F5).
+  const protectedNow = React.useRef(protection)
+  protectedNow.current = protection
+  const mindEars = React.useRef<(() => void) | null>(null)
+  const hearMind = React.useCallback(
+    (m: Awaited<ReturnType<typeof loadMindMap>>) => {
+      if (api && editable && !mindEars.current) mindEars.current = m.hearMindKeys(api, (id) => protectedNow.current.has(id), BOARD_KIT)
+    },
+    [api, editable],
+  )
+  React.useEffect(() => {
+    if (!selection.mind) return
+    let gone = false
+    void loadMindMap().then((m) => !gone && hearMind(m))
+    return () => {
+      gone = true
+    }
+  }, [selection.mind, hearMind])
+  React.useEffect(
+    () => () => {
+      mindEars.current?.()
+      mindEars.current = null
+    },
+    [hearMind],
+  )
   // A note keeps its size while its words are typed, its words shrinking to fit it (miro-07).
   useTypedNoteFit(api, editable)
   // And notes laid out before their face had come are fitted again in it as it lands, on open too (V-229).
@@ -372,7 +433,7 @@ export default function BoardWorkbench({
     else if (command.kind === "find") {
       setFind({ query: "", at: command.at, fromLink: false })
       setSide((open) => (open === "find" ? null : "find"))
-    } else if (command.kind === "frames" || command.kind === "tagFilter" || command.kind === "addWork") {
+    } else if (command.kind === "frames" || command.kind === "layers" || command.kind === "tagFilter" || command.kind === "addWork") {
       const kind = command.kind
       setSide((open) => (open === kind ? null : kind))
     } else if (command.kind === "saveTemplate") setSaving(true)
@@ -380,6 +441,12 @@ export default function BoardWorkbench({
     else if (command.kind === "openFile") fileRef.current?.click()
     else if (command.kind === "note") setNoteNow(command.at)
     else if (command.kind === "code") setCoding({ id: command.id ?? null })
+    else if (command.kind === "mindMap" && api && editable)
+      void loadMindMap().then((m) => {
+        hearMind(m)
+        return m.startMindMap(api, STYLE_FONT[style ?? "clean"])
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a press is acted on once, as the board and style are then
   }, [command])
   // Star board and Unstar board (miro-46), with the board's name as it is at the press: one star helper for every
   // kind of place (lib/places/starring), in Starred at once and taken back if the server refuses.
@@ -492,6 +559,8 @@ export default function BoardWorkbench({
   const sidePanel =
     side === "frames" ? (
       <FramesPanel api={api} provider={provider} boardId={boardId} editable={editable} frameNotes={frameNotes} onClose={closeSide} />
+    ) : side === "layers" ? (
+      <LayersPanel api={api} doc={provider.document} editable={editable} protection={protection} onClose={closeSide} />
     ) : side === "find" ? (
       <FindPanel
         api={api}
@@ -515,7 +584,8 @@ export default function BoardWorkbench({
 
   // The bars a selection gets: the notes bar or the frame bar, unless it's protected; and in it, or on its own,
   // Protect for those who may, or who protected it for everyone.
-  const notesBar = editable && selection.notes.length > 0 && !selection.editing && !held
+  const mindBar = editable && !!selection.mind && !held && !selection.editing
+  const notesBar = editable && selection.notes.length > 0 && !selection.editing && !held && !mindBar
   const frameBar = editable && !!selection.frame && !selection.editing && !held
   const mayProtect = canProtect && editable
   const protect =
@@ -550,7 +620,23 @@ export default function BoardWorkbench({
       {notesBar && <NotesBar api={api} ids={selection.notes} tagHues={tagHues} votes={votes} extra={protect && protect(true)} />}
       {editable && selection.editingNote && <HideExcalidrawPanel />}
       {frameBar && <FrameBar api={api} frameId={selection.frame!} boardId={boardId} extra={protect && protect(true)} />}
-      {protect && !notesBar && !frameBar && (
+      {mindBar && (
+        <Floating api={api} ids={selection.ids} label="Mind map" attr="data-mind-map-bar">
+          <React.Suspense fallback={null}>
+            {/* Keyed by its node: More and its state go with the node, so a bar that moves on (Delete branch selects
+                the parent) never keeps the last node's More open over the board. */}
+            <MindMapActions key={selection.mind!} api={api} node={selection.mind!} boardId={boardId} onTasks={setMindTasks} kit={BOARD_KIT} />
+          </React.Suspense>
+          {protect && protect(true)}
+        </Floating>
+      )}
+      {anyFolded && (
+        <React.Suspense fallback={null}>
+          <MindMapFolds api={api} doc={provider.document} />
+        </React.Suspense>
+      )}
+      {editable && mindTasks && <NotesToTasksDialog open onOpenChange={(o) => !o && setMindTasks(null)} api={api} notes={mindTasks} what="idea" />}
+      {protect && !notesBar && !frameBar && !mindBar && (
         <Floating api={api} ids={selection.ids} label="Protection" attr="data-protect-bar">
           {protect(false)}
         </Floating>

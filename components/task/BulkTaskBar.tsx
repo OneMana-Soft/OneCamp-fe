@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
-import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
+import { OptionList, PriorityList } from "@/components/task/OptionList"
 import { DesktopNavigationChatAvatar } from "@/components/navigationBar/desktop/desktopNavigationChatAvatar"
 import { projectTagsKey, useProjectTags, type ProjectTag } from "@/hooks/useProjectTags"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -246,11 +246,7 @@ export function BulkTaskBar({
                     />
                   )}
                   {field === "priority" && (
-                    <OptionList
-                      placeholder="Set priority…"
-                      items={BULK_PRIORITIES.map((p) => ({ value: p.value, search: p.label, node: <TaskPriorityCell priority={p} /> }))}
-                      onPick={change.priority}
-                    />
+                    <PriorityList onPick={change.priority} />
                   )}
                   {field === "assignee" && project && (
                     <AssigneeList
@@ -364,33 +360,6 @@ function MilestoneList({ projectId, onPick }: { projectId: string; onPick: (id: 
       items={[{ value: "", search: "No milestone", node: <span>No milestone</span> }, ...items]}
       onPick={(value) => onPick(value, milestones.find((m) => m.id === value)?.name ?? "")}
     />
-  )
-}
-
-/** A searchable list of choices, focused as it opens so the keyboard carries on. */
-function OptionList({
-  placeholder,
-  items,
-  onPick,
-}: {
-  placeholder: string
-  items: { value: string; search: string; node: React.ReactNode; indent?: boolean }[]
-  onPick: (value: string) => void
-}) {
-  return (
-    <Command>
-      <CommandInput placeholder={placeholder} autoFocus />
-      <CommandList>
-        <CommandEmpty>Nothing matches.</CommandEmpty>
-        <CommandGroup>
-          {items.map((i) => (
-            <CommandItem key={i.value} value={i.search} onSelect={() => onPick(i.value)} className={i.indent ? "pl-6" : undefined}>
-              {i.node}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </CommandList>
-    </Command>
   )
 }
 

@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { holdChunk } from "../holdChunk"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
 
@@ -26,21 +27,7 @@ const rows = [{ item: "Booth", vendor: acme, spend: 2500 }, { item: "Banners", v
  * data-relation-hidden) until released; every other file goes at once. Routed,
  * the page's files skip the browser's cache, so a reload asks for them again.
  */
-async function holdLinkFaces(page: Page) {
-  let release = () => {}
-  const released = new Promise<void>((r) => (release = r))
-  let held = 0
-  await page.route(/\/_next\/static\/chunks\/[^?]+\.js(\?.*)?$/, async (route) => {
-    const res = await route.fetch()
-    const body = await res.text()
-    if (body.includes("data-relation-hidden")) {
-      held++
-      await released
-    }
-    await route.fulfill({ response: res, body })
-  })
-  return { release, held: () => held }
-}
+const holdLinkFaces = (page: Page) => holdChunk(page, "data-relation-hidden")
 
 async function shootThemes(page: Page, name: string) {
   if (!SHOTS) return
@@ -72,7 +59,7 @@ for (const phone of [false, true]) {
     await expect(first).toContainText("Booth", { timeout: 60_000 })
     // The rollup over the link is drawn at once; the link cell waits, empty, in its place.
     await expect(rollup).toContainText("₹2,500")
-    await expect.poll(hold.held, { timeout: 30_000 }).toBeGreaterThan(0)
+    await expect.poll(hold.asked, { timeout: 30_000 }).toBe(true)
     await expect(link.locator("[data-cell]")).toHaveCount(1)
     await expect(page.locator("[data-relation-chip]")).toHaveCount(0)
     // A linked cell shows a pill where its chips will be, so it never reads as unlinked; an unlinked one stays empty (DB-29).
@@ -86,6 +73,7 @@ for (const phone of [false, true]) {
     await expect(page.locator("[data-relation-wait]")).toHaveCount(0)
     expect({ row: await boxOf(first), link: await boxOf(link), rollup: await boxOf(rollup) }).toEqual(waiting)
     await shootThemes(page, `link-faces-drawn-${at}`)
+    await hold.done()
     await close()
   })
 }

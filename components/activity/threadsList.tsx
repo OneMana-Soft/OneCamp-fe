@@ -139,7 +139,7 @@ export default function ThreadsList({ unreadOnly, onShowAll, pane }: { unreadOnl
                         }
                     />
                 ) : first && visible.length === 0 ? (
-                    <HubEmpty spot="message" title="No threads you follow" description="Reply in a thread, or follow one from its menu, and it lands here." />
+                    <HubEmpty spot="message" title="No threads you follow" description="A thread you reply in or follow shows here once someone replies." />
                 ) : null
             }
         >

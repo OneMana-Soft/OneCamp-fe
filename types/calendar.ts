@@ -56,6 +56,8 @@ export interface CalendarEventInterface {
     calendar_name?: string;
     /** On a calendar the reader subscribes to (B8): seen whole, changed only where it is published. */
     event_read_only?: boolean;
+    /** An entry its calendar fills itself with (gcal-14: a task, a milestone, time off): where it comes from and the page that opens it. */
+    event_source?: import("@/lib/calendar/derived").DerivedSource;
     /** "private" for one its organiser made private (V-643): its card and view say so. Else the calendar's default, or public. */
     event_visibility?: string;
     /** A task block's task (B1, gcal-new-task-blocks): its uuid, and its name, state and project when the reader may read it. */

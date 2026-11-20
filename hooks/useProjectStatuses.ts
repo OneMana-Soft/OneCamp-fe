@@ -5,8 +5,8 @@ import { useSWRConfig } from "swr"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { projectStatusesKey as url } from "@/lib/projectStatusesKey"
-import { inOrder, type OrderedStatuses } from "@/lib/statusOrder"
-import { BUILT_IN_STATUSES, holdsProjectTasks, type StatusCategory, statusOptions } from "@/lib/taskStatus"
+import { projectOptions, type OrderedStatuses } from "@/lib/statusOrder"
+import { holdsProjectTasks, type StatusCategory } from "@/lib/taskStatus"
 
 export interface StatusInput {
   name: string
@@ -23,7 +23,7 @@ export function useProjectStatuses(projectId: string | undefined) {
   const key = projectId ? url(projectId) : ""
   const { data, isLoading, mutate } = useFetch<{ data: OrderedStatuses }>(key, undefined, { revalidateOnFocus: false })
   const project = data?.data
-  const options = useMemo(() => (project ? inOrder(statusOptions(project), project.order) : BUILT_IN_STATUSES), [project])
+  const options = useMemo(() => projectOptions(project), [project])
   // A rename, a new category or a delete rewrites the tasks in that status on
   // the server, so what the app holds of them is fetched again; without this a
   // card kept the chip of a status that no longer existed until a reload.

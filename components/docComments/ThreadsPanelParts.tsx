@@ -28,7 +28,7 @@ import { orderThreads, peopleIn, quoteLine, wroteIn, type Tab } from "./threadVi
 import type { DocThreads } from "./useDocThreads"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
-const nameOf = (p: UserProfileDataInterface) => displayNameOf(p) || "Someone"
+const nameOf = (p: UserProfileDataInterface) => (p.is_bot && p.user_full_name) || displayNameOf(p) || "Someone"
 
 /** The list's tab, its person, and the threads they show, in order; a reveal moves both to show its thread. */
 export function useThreadList(docId: string, t: DocThreads, places?: ReadonlyMap<string, ResolvedAnchor>) {

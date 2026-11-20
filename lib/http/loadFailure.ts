@@ -34,6 +34,13 @@ export function loadFailure(error: unknown): LoadFailure {
   return status === 400 || status === 404 || status === 410 ? "gone" : "failed"
 }
 
+/** What a read Try again can't fix says about its noun: a title and the line under it. */
+export function failureWords(kind: Exclude<LoadFailure, "failed">, noun: string): { title: string; detail: string } {
+  return kind === "no-access"
+    ? { title: `You can't see this ${noun}`, detail: "It hasn't been shared with you. Ask whoever sent you the link to give you access." }
+    : { title: `This ${noun} doesn't exist or was deleted`, detail: "The link may be old or mistyped." }
+}
+
 /*
  * Who says that a read failed (owner's policy, 12 Oct 2026):
  *

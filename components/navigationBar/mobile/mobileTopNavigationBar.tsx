@@ -52,7 +52,7 @@ export function MobileTopNavigationBar({
                 <div data-phone-bar-side="" className='flex items-center justify-start'><MobileTopNavigationBarFirst/></div>
                 <div className='min-w-0 flex items-center justify-center'><MobileTopNavigationBarSecond/></div>
                 {/* data-phone-bar-end: where a page's own tools go (PhoneBarActions). */}
-                <div data-phone-bar-side="" className='flex items-center justify-end' data-phone-bar-end=""><MobileTopNavigationBarThird/></div>
+                <div data-phone-bar-side="" className='flex items-center justify-end gap-1' data-phone-bar-end=""><MobileTopNavigationBarThird/></div>
             </div>
         </div>
 

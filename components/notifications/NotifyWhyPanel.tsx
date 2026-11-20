@@ -17,6 +17,7 @@ import {
   testDeliveries,
   testTitle,
   failureOf,
+  type Delivery,
   type DeliveryState,
   type NotifyState,
   type TestAnswer,
@@ -69,13 +70,13 @@ function Part({ title, children }: { title: string; children: React.ReactNode })
   )
 }
 
-function Deliveries({ rows }: { rows: DeliveryState[] }) {
+function Deliveries({ rows, waiting = [] }: { rows: DeliveryState[]; waiting?: Delivery[] }) {
   if (!rows.length) return null
   return (
     <Part title="Where it went">
       <ul className="divide-y divide-line rounded-lg border border-line">
         {rows.map((d, i) => {
-          const state = deliveryStateWords(d)
+          const state = deliveryStateWords(d, waiting.includes(d.delivery))
           return (
             <li key={`${d.delivery}-${i}`} data-delivery={d.delivery} data-state={d.state} className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm">
               <span className="font-medium text-foreground">{deliveryName(d.delivery)}</span>
@@ -93,7 +94,7 @@ function Steps({ trace, place }: { trace: WhyTrace; place: string }) {
     <Part title="Each step">
       <ol>
         {trace.steps.map((s, i) => {
-          const said = stepWords(s, place, trace.decision?.hold_till)
+          const said = stepWords(s, place, s.step === "wait" ? trace.decision?.wait_till : trace.decision?.hold_till)
           return (
             <Said key={`${s.step}-${i}`} tone={said.tone} data-step={s.step} data-verdict={s.verdict}>
               {said.words}
@@ -131,7 +132,7 @@ function WhyBody({ answer, place }: { answer: WhyAnswer; place: string }) {
         <div key={trace.event_id || i} data-event="" className={cn("space-y-3", i > 0 && "border-t border-line pt-3")}>
           {many ? <p className="text-xs font-medium text-foreground">{i === 0 ? "The latest notice" : "An earlier notice"}</p> : null}
           <Steps trace={trace} place={place} />
-          <Deliveries rows={trace.deliveries ?? []} />
+          <Deliveries rows={trace.deliveries ?? []} waiting={trace.decision?.waiting} />
         </div>
       ))}
     </>

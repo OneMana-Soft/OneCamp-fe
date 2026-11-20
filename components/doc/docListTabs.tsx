@@ -272,7 +272,7 @@ function PagesButton() {
     return (
         <>
             <PhoneBarActions>
-                <button type="button" onClick={() => setOpen(true)} aria-label="Pages">
+                <button type="button" data-touch-target="" onClick={() => setOpen(true)} aria-label="Pages">
                     <PanelLeft aria-hidden="true" />
                 </button>
             </PhoneBarActions>

@@ -60,6 +60,7 @@ export function DatesProperty({
   done,
   onStart,
   onDue,
+  sla,
 }: {
   isAdmin: boolean
   start?: Date
@@ -67,6 +68,8 @@ export function DatesProperty({
   done: boolean
   onStart: (d: Date | undefined) => void
   onDue: (d: Date | undefined) => void
+  /** The task's SLA chip (linear-24 W2), beside when it is due. */
+  sla?: React.ReactNode
 }) {
   return (
     <div className={propertyRow()} data-property="dates">
@@ -76,6 +79,7 @@ export function DatesProperty({
         {(start || due) && <span className="text-ink-4" aria-hidden>→</span>}
         {(start || due) && <DateProperty bare isAdmin={isAdmin} label="Due date" emptyText="Due" value={due} onSelect={onDue} onClear={() => onDue(undefined)} />}
         {due && !done && <DueLabel date={due} variant="panel" className="ml-1" />}
+        {sla}
       </div>
     </div>
   )

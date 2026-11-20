@@ -1,34 +1,37 @@
-// A picture of someone's own to put behind them in calls. It stays on this
+// A picture to put behind someone in calls: their own, or a scene made from
+// their words (meet-09, AiBackground.tsx), each kept in a slot of its own. It stays on this
 // device: made smaller here (1280 x 720 at most, a JPEG) and kept in this
 // browser's storage, never uploaded. In a private window, or when storage is
 // full, it lasts until the page closes and the picker says so.
 
 import { BACKDROP_SIZE } from "./effects"
 
-const KEY = "onecamp.call.picture"
+/** Whose picture: one's own, or a scene made from words. */
+export type PictureSlot = "own" | "scene"
+const KEYS: Record<PictureSlot, string> = { own: "onecamp.call.picture", scene: "onecamp.call.scene" }
 /** The most a picture may take in storage, as a data URL. */
 export const PICTURE_MAX_CHARS = 1_500_000
 /** Pictures the browser can read and that make sense behind someone. */
 export const PICTURE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
 
-let kept: string | null = null
+const kept: Partial<Record<PictureSlot, string>> = {}
 
-/** The picture chosen last, as an image address, or null. */
-export function readPicture(): string | null {
-  if (kept) return kept
+/** The picture kept last in a slot, as an image address, or null. */
+export function readPicture(slot: PictureSlot = "own"): string | null {
+  if (kept[slot]) return kept[slot]
   try {
-    const v = window.localStorage.getItem(KEY)
-    return v && v.startsWith("data:image/") ? (kept = v) : null
+    const v = window.localStorage.getItem(KEYS[slot])
+    return v && v.startsWith("data:image/") ? (kept[slot] = v) : null
   } catch {
     return null
   }
 }
 
-/** Forgets the picture, here and in storage. */
-export function forgetPicture(): void {
-  kept = null
+/** Forgets a slot's picture, here and in storage. */
+export function forgetPicture(slot: PictureSlot = "own"): void {
+  delete kept[slot]
   try {
-    window.localStorage.removeItem(KEY)
+    window.localStorage.removeItem(KEYS[slot])
   } catch {
     /* nothing kept */
   }
@@ -50,10 +53,11 @@ export function coverCrop(width: number, height: number, frame = BACKDROP_SIZE):
 }
 
 /**
- * Takes a picture the person chose: checks it is one, makes it the frame's
- * size, keeps it. Says whether it will be there next time. Throws, in words.
+ * Takes a picture the person chose, or a scene painted here: checks it is
+ * one, makes it the frame's size, keeps it in its slot in place of the one
+ * before. Says whether it will be there next time. Throws, in words.
  */
-export async function keepPicture(file: File): Promise<{ url: string; remembered: boolean }> {
+export async function keepPicture(file: File, slot: PictureSlot = "own"): Promise<{ url: string; remembered: boolean }> {
   if (!(PICTURE_TYPES as readonly string[]).includes(file.type)) throw new Error("Choose a JPEG, PNG or WebP picture.")
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error("That picture couldn't be opened. Try another.")
@@ -68,11 +72,12 @@ export async function keepPicture(file: File): Promise<{ url: string; remembered
   g.drawImage(bitmap, c.sx, c.sy, c.sw, c.sh, 0, 0, W, H)
   bitmap.close()
   const url = canvas.toDataURL("image/jpeg", 0.85)
-  kept = url
+  forgetPicture(slot)
+  kept[slot] = url
   let remembered = false
   if (url.length <= PICTURE_MAX_CHARS) {
     try {
-      window.localStorage.setItem(KEY, url)
+      window.localStorage.setItem(KEYS[slot], url)
       remembered = true
     } catch {
       /* this page only */

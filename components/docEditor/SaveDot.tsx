@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useClaimOffline } from "@/components/error/pillPlace"
 import { cn } from "@/lib/utils/helpers/cn"
 import { clockTime } from "@/lib/utils/date/clock"
 
@@ -87,6 +88,8 @@ function SaveDotView({ state, savedAt, live, thing, onRetry, className }: SaveDo
   }, [state])
 
   const copy = saveDotCopy(shown, savedAt, live, thing)
+  // Offline, the page's voice unless a doc's pill speaks (V-695).
+  const speaksOffline = useClaimOffline(disconnected(shown), { yields: true })
   const dot = (
     <span
       aria-hidden="true"
@@ -115,7 +118,7 @@ function SaveDotView({ state, savedAt, live, thing, onRetry, className }: SaveDo
       {dot}
       {label}
       <span className="sr-only" aria-live="polite">
-        {copy}
+        {disconnected(shown) && !speaksOffline ? null : copy}
       </span>
     </>
   )

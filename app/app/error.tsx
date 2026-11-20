@@ -22,7 +22,7 @@ export default function AppRouteError({ error, reset }: { error: Error & { diges
   }, [error])
 
   return (
-    <main id="main-content" className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-4 py-16">
+    <div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-4 py-16">
       <CrashState title="Something broke on this page" digest={error.digest} onRetry={reset} details={() => crashDetails(error)}>
         {process.env.NODE_ENV === "development" && (
           <pre className="mt-6 max-h-48 w-full max-w-xl overflow-auto rounded-lg bg-sunken p-3 text-left font-mono text-2xs text-ink-2">
@@ -30,6 +30,6 @@ export default function AppRouteError({ error, reset }: { error: Error & { diges
           </pre>
         )}
       </CrashState>
-    </main>
+    </div>
   )
 }

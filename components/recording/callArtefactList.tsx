@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react"
+import type { MouseEvent, ReactNode } from "react"
 import Link from "next/link"
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { Button } from "@/components/ui/button"
@@ -64,9 +64,11 @@ export interface CallArtefactsProps {
   onLeave?: () => void
   /** Drawn under its call's own line (a board's Calls), which says when and links its chat: each row leaves both out. */
   underCall?: { chat: string | null }
+  /** What a caller draws under each call's buttons (an event's call: its recap, components/calendar/callRecap). */
+  below?: (call: CallArtefact) => ReactNode
 }
 
-export function CallArtefacts({ calls, selfUUID, onPlay, onDelete, onLeave, underCall }: CallArtefactsProps) {
+export function CallArtefacts({ calls, selfUUID, onPlay, onDelete, onLeave, underCall, below }: CallArtefactsProps) {
   const leave = onLeave
     ? (e: MouseEvent) => {
         if (!wantsNewTab(e)) onLeave()
@@ -118,6 +120,7 @@ export function CallArtefacts({ calls, selfUUID, onPlay, onDelete, onLeave, unde
                 </Button>
               )}
             </div>
+            {below?.(a)}
           </li>
         )
       })}

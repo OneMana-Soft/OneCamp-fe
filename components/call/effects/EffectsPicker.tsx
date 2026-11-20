@@ -2,16 +2,16 @@
 
 // Backgrounds and sound, one picker for the green room and the call: what is
 // behind someone (none, a light or strong blur, a backdrop drawn in the camp
-// palette, a picture of their own), their touch-up and low light, and how
-// their microphone is cleaned up. Everything it offers runs on this device.
+// palette, a picture of their own, a scene made from their words), their
+// touch-up and low light, and how their microphone is cleaned up. Everything
+// it offers runs on this device; a scene's words go to the workspace's model.
 
 import * as React from "react"
-import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
-import { AudioLines, Check, CircleSlash, ImagePlus, Loader2, Sparkles, Trash2, User } from "@/lib/icons"
+import { AudioLines, Check, CircleSlash, ImagePlus, Loader2, Sparkles, Trash2, WandSparkles } from "@/lib/icons"
 import type { Background, BackdropId, CallEffects, NoiseLevel, TouchUp } from "@/lib/calls/processors/effects"
 import { BACKDROPS, NOISE_LEVELS, TOUCH_UPS, backgroundName } from "@/lib/calls/processors/effectsCopy"
-import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { Switch } from "@/components/ui/switch"
+import type { PickerControls } from "./pickerControls"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** A background as a radio value, and back. Pure. */
@@ -23,11 +23,13 @@ export function valueOf(b: Background): string {
 export function backgroundOf(value: string): Background {
   if (value === "blur-light" || value === "blur-strong") return { kind: "blur", strength: value === "blur-light" ? "light" : "strong" }
   if (value.startsWith("backdrop-")) return { kind: "backdrop", id: value.slice("backdrop-".length) as BackdropId }
-  if (value === "picture") return { kind: "picture" }
+  if (value === "picture" || value === "scene") return { kind: value }
   return { kind: "none" }
 }
 
 export interface EffectsPickerProps {
+  /** The radio groups, segmented control, switch and person icon, from the surface that draws the chooser (pickerControls.ts). */
+  controls: PickerControls
   effects: CallEffects
   onBackground: (b: Background) => void
   onNoise: (n: NoiseLevel) => void
@@ -40,6 +42,12 @@ export interface EffectsPickerProps {
   backdrop: (id: BackdropId) => Promise<string>
   /** One's own picture, if one is kept, and how to change or forget it. */
   picture: { url: string | null; onChoose: (file: File) => void; onForget: () => void; note?: string | null }
+  /**
+   * A scene made from words (AiBackground.tsx), where one may be made or one
+   * is kept: onMake opens the composer (absent where the workspace's AI is
+   * off), and the composer is drawn under the tiles, inline.
+   */
+  scene?: { url: string | null; onMake?: () => void; onForget: () => void; note?: string | null; composer?: React.ReactNode }
   /** Tiles to a row: three in a panel or a sheet, four in the green room's wider popover. */
   columns?: 3 | 4
   /** A quiet line under the options while something holds them (the CPU watch). */
@@ -47,12 +55,16 @@ export interface EffectsPickerProps {
 }
 
 // The chosen tile's ring sits outside it, 2 px of light past 2 px of the
-// surface: inset, a light ring vanished on the pale backdrops.
+// surface: inset, a light ring vanished on the pale backdrops. Focus is a
+// brand outline in that same band, the light ring drawn in against the tile
+// while it shows (V-863: the light ring had won over the focus ring).
+// scroll-mt-5: brought into view (Use this, the arrows), a tile stops clear of the scroll area's top edge, its rings whole.
 const TILE =
-  "group relative flex aspect-video w-full items-end overflow-hidden rounded-[10px] border border-white/[0.08] bg-white/[0.06] text-left outline-none ring-offset-2 ring-offset-[#131416] transition-[box-shadow,background-color] duration-150 hover:bg-white/[0.10] focus-visible:ring-2 focus-visible:ring-brand data-[state=checked]:ring-2 data-[state=checked]:ring-[#EEEEF0] disabled:cursor-not-allowed disabled:opacity-50"
+  "group relative flex aspect-video w-full scroll-mt-5 items-end overflow-hidden rounded-[10px] border border-white/[0.08] bg-white/[0.06] text-left outline-none ring-offset-2 ring-offset-[#131416] transition-[box-shadow,background-color] duration-150 hover:bg-white/[0.10] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand focus-visible:ring-offset-0 data-[state=checked]:ring-2 data-[state=checked]:ring-[#EEEEF0] disabled:cursor-not-allowed disabled:opacity-50"
 const TILE_NAME = "relative m-1 truncate rounded-[6px] bg-black/55 px-1.5 py-0.5 text-micro font-medium text-[#EEEEF0]"
 
 export function EffectsPicker(p: EffectsPickerProps) {
+  const { RadioGroup: RadioGroupPrimitive, SegmentedControl, User } = p.controls
   const headingId = React.useId()
   const noiseId = React.useId()
   const lookId = React.useId()
@@ -73,7 +85,11 @@ export function EffectsPicker(p: EffectsPickerProps) {
         <RadioGroupPrimitive.Root
           aria-labelledby={headingId}
           value={valueOf(p.effects.background)}
-          onValueChange={(v) => (v === "picture" && !p.picture.url ? file.current?.click() : p.onBackground(backgroundOf(v)))}
+          onValueChange={(v) => {
+            if (v === "picture" && !p.picture.url) file.current?.click()
+            else if (v === "scene" && !p.scene?.url) p.scene?.onMake?.()
+            else p.onBackground(backgroundOf(v))
+          }}
           className={cn("grid gap-2", p.columns === 4 ? "grid-cols-4" : "grid-cols-3")}
           disabled={off}
         >
@@ -99,17 +115,8 @@ export function EffectsPicker(p: EffectsPickerProps) {
               <span className={TILE_NAME}>{b.name}</span>
             </RadioGroupPrimitive.Item>
           ))}
-          <RadioGroupPrimitive.Item value="picture" className={TILE} aria-label={p.picture.url ? "Your picture" : "Add a picture of your own"}>
-            {p.picture.url ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a data URL on this device, never optimised
-              <img src={p.picture.url} alt="" className="absolute inset-0 size-full object-cover" />
-            ) : (
-              <span aria-hidden className="absolute inset-0 grid place-items-center text-ink-3 [&_svg]:size-5">
-                <ImagePlus />
-              </span>
-            )}
-            <span className={TILE_NAME}>{p.picture.url ? "Your picture" : "Add yours"}</span>
-          </RadioGroupPrimitive.Item>
+          <KeptTile Item={RadioGroupPrimitive.Item} value="picture" url={p.picture.url} icon={<ImagePlus />} names={["Your picture", "Add yours", "Add a picture of your own"]} />
+          {p.scene && (p.scene.url || p.scene.onMake) ? <KeptTile Item={RadioGroupPrimitive.Item} value="scene" url={p.scene.url} icon={<WandSparkles />} names={["Your scene", "Make one", "Make a background from words"]} /> : null}
         </RadioGroupPrimitive.Root>
         <input
           ref={file}
@@ -124,18 +131,11 @@ export function EffectsPicker(p: EffectsPickerProps) {
             if (f) p.picture.onChoose(f)
           }}
         />
-        {p.picture.url ? (
-          <div className="mt-2 flex items-center gap-3 text-meta">
-            <button type="button" className="text-ink-2 underline-offset-2 hover:text-[#EEEEF0] hover:underline focus-visible:outline-2 focus-visible:outline-brand" onClick={() => file.current?.click()}>
-              Change your picture
-            </button>
-            <button type="button" className="inline-flex items-center gap-1 text-ink-3 hover:text-[#EEEEF0] focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3.5" onClick={p.picture.onForget}>
-              <Trash2 aria-hidden />
-              Remove it
-            </button>
-          </div>
-        ) : null}
+        {p.picture.url ? <KeptLinks again="Change your picture" onAgain={() => file.current?.click()} onForget={p.picture.onForget} /> : null}
         {p.picture.note ? <p className="mt-1.5 text-meta text-ink-3">{p.picture.note}</p> : null}
+        {p.scene?.url ? <KeptLinks again="Make another" onAgain={p.scene.onMake} onForget={p.scene.onForget} forget="Remove your scene" /> : null}
+        {p.scene?.note ? <p className="mt-1.5 text-meta text-ink-3">{p.scene.note}</p> : null}
+        {p.scene?.composer}
       </section>
 
       {/* Generated backgrounds join the Background tiles above; the touch-up and low light are the same camera's. */}
@@ -211,6 +211,40 @@ export function EffectsPicker(p: EffectsPickerProps) {
       <p className="text-meta text-ink-3" data-effects-on-device="">
         Effects run on this device. Nothing you show or say is sent anywhere to make them.
       </p>
+    </div>
+  )
+}
+
+/** A tile for a picture kept on this device (one's own, or a scene): its thumb once kept, else an icon offering to add one. */
+function KeptTile({ Item, value, url, icon, names: [kept, empty, offer] }: { Item: PickerControls["RadioGroup"]["Item"]; value: "picture" | "scene"; url: string | null; icon: React.ReactNode; names: [string, string, string] }) {
+  return (
+    <Item value={value} className={TILE} aria-label={url ? kept : offer}>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a data URL on this device, never optimised
+        <img src={url} alt="" className="absolute inset-0 size-full object-cover" />
+      ) : (
+        <span aria-hidden className="absolute inset-0 grid place-items-center text-ink-3 [&_svg]:size-5">
+          {icon}
+        </span>
+      )}
+      <span className={TILE_NAME}>{url ? kept : empty}</span>
+    </Item>
+  )
+}
+
+/** Under the tiles, for a kept picture or scene: another in its place (where one can be had), or remove it. */
+function KeptLinks({ again, onAgain, onForget, forget }: { again: string; onAgain?: () => void; onForget: () => void; forget?: string }) {
+  return (
+    <div className="mt-2 flex items-center gap-3 text-meta">
+      {onAgain ? (
+        <button type="button" className="min-h-8 text-ink-2 underline-offset-2 hover:text-[#EEEEF0] hover:underline focus-visible:outline-2 focus-visible:outline-brand max-md:min-h-11" onClick={onAgain}>
+          {again}
+        </button>
+      ) : null}
+      <button type="button" aria-label={forget} className="inline-flex min-h-8 items-center gap-1 text-ink-3 hover:text-[#EEEEF0] focus-visible:outline-2 focus-visible:outline-brand max-md:min-h-11 [&_svg]:size-3.5" onClick={onForget}>
+        <Trash2 aria-hidden />
+        Remove it
+      </button>
     </div>
   )
 }

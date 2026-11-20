@@ -32,6 +32,10 @@ export interface UnifiedActivityItem {
     id?: string;
     time: string;
     priority?: "high" | "normal" | "low";
+    /** The server's key of the item, which POST /activity/dismiss names it by; none on an item that can never be Priority (A4 H5). */
+    key?: string;
+    /** The person took it out of Priority: it reads priority "normal" until they put it back. */
+    dismissed?: boolean;
     /** Counted on the Inbox badge (business/Activity unreadInInbox): its dot. */
     unread?: boolean;
     mention?: MentionInfoInterface;

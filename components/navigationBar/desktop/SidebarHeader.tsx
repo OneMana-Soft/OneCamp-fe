@@ -5,7 +5,7 @@ import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useDispatch } from "react-redux"
 import { localDay } from "@/lib/utils/timeZone"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronsUpDown, CircleHelp, Gift, PanelLeft, Pin, Settings, Shield, SquarePen, UserPlus } from "@/lib/icons"
+import { ChevronDown, CircleHelp, Gift, PanelLeft, Pin, Settings, Shield, SquarePen, UserPlus } from "@/lib/icons"
 import { openUI } from "@/store/slice/uiSlice"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
@@ -13,6 +13,10 @@ import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { useWorkspaceName } from "@/hooks/useWorkspaceName"
 import { ix } from "@/lib/ui/interactive"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+
+// The plan row (SHELL-15): admins only, lazy (planParts).
+const PlanRow = lazyPart(() => import("@/components/navigationBar/planParts").then((m) => m.PlanRow)).Part
 
 /** The host people reach this workspace at, for the menu's second line. */
 function workspaceHost(): string {
@@ -92,7 +96,7 @@ interface SidebarHeaderProps {
 
 /**
  * The sidebar's header row (design v3, shell S3 and M1): the mark, the
- * workspace's name and ⇅ open the workspace menu; the collapse control shows
+ * workspace's name and ⌄ open the workspace menu; the collapse control shows
  * on hover; compose opens the new-message picker. Home is the Home row and
  * G H, so the mark no longer goes home (owner decision 4).
  */
@@ -112,7 +116,7 @@ export const SidebarHeader = memo(function SidebarHeader({ isAdmin, onCollapse, 
         >
           <WorkspaceMark draw={draw} />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</span>
-          <ChevronsUpDown className="shell-chevron h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <ChevronDown className="shell-chevron h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         </button>
       </WorkspaceMenu>
       {onPin ? (
@@ -164,7 +168,7 @@ export const SidebarHeader = memo(function SidebarHeader({ isAdmin, onCollapse, 
 /**
  * The workspace menu (design v3, shell M1): 264px, r12, e3, dropping 4px under
  * the header, left-aligned, popping from its top-left. OneCamp is one
- * workspace per install, so there is no "switch workspace" row: ⇅ means menu.
+ * workspace per install, so there is no "switch workspace" row: ⌄ means menu.
  * Admin-only rows are absent for everyone else, never greyed.
  */
 export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
@@ -194,6 +198,7 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
             {host && <div className="truncate text-2xs text-ink-3">{host}</div>}
           </div>
         </div>
+        {isAdmin && <PlanRow />}
         <div className="shell-menu-sep" />
         {can(CAP_INVITATION_CREATE) && (
           <DropdownMenuItem className="shell-menu-item" onSelect={() => window.dispatchEvent(new CustomEvent("open-invite-people"))}>

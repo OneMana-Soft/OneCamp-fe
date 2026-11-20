@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildInvoice, defaultPeriod, money, round2, suggestNumber, type Period } from "./invoice"
+import { buildInvoice, defaultPeriod, localeCurrency, money, round2, suggestNumber, type Period } from "./invoice"
 import type { TimeReport } from "@/lib/tasks/time"
 import { pinTestClock } from "@/lib/testing/testClock"
 
@@ -110,5 +110,40 @@ describe("defaultPeriod (PTC-41)", () => {
     const { timeOf } = timeIn({})
     const { period } = await defaultPeriod(timeOf, now)
     expect(period.from).toEqual(new Date(2026, 8, 1))
+  })
+})
+
+// ADMIN-17: a new invoice with no project currency started in rupees for
+// everyone. It starts in the reader's own, from their region; the project's
+// currency, and one this browser saved, still win.
+describe("the reader's currency", () => {
+  it("comes from the region of the reader's language", () => {
+    expect(localeCurrency("en-US")).toBe("USD")
+    expect(localeCurrency("en-GB")).toBe("GBP")
+    expect(localeCurrency("en-IN")).toBe("INR")
+    expect(localeCurrency("hi")).toBe("INR")
+    expect(localeCurrency("de-DE")).toBe("EUR")
+    expect(localeCurrency("fr")).toBe("EUR")
+    expect(localeCurrency("en-CA")).toBe("CAD")
+    expect(localeCurrency("en-AU")).toBe("AUD")
+    expect(localeCurrency("en-SG")).toBe("SGD")
+    expect(localeCurrency("de-CH")).toBe("CHF")
+    expect(localeCurrency("ar-AE")).toBe("AED")
+    expect(localeCurrency("en-NZ")).toBe("NZD")
+    expect(localeCurrency("en-ZA")).toBe("ZAR")
+  })
+
+  // Bulgaria has used the euro since 1 Jan 2026; Andorra, Monaco, San Marino, the Vatican,
+  // Montenegro and Kosovo use it outside the EU.
+  it("is euros in Bulgaria, and where the euro is used outside the EU", () => {
+    expect(localeCurrency("bg")).toBe("EUR")
+    expect(localeCurrency("fr-MC")).toBe("EUR")
+  })
+
+  it("is dollars anywhere else, and for anything it can't read", () => {
+    expect(localeCurrency("ja-JP")).toBe("USD")
+    expect(localeCurrency("")).toBe("USD")
+    expect(localeCurrency(undefined)).toBe("USD")
+    expect(localeCurrency("not a locale!")).toBe("USD")
   })
 })

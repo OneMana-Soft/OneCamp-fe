@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
 
+import { barFits } from "../floatingBars"
 import { SAM, docInfo, reviewShot, stubBackend } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
 import { more } from "./docWith"
@@ -774,6 +775,34 @@ for (const m of MODES) {
       await page.locator("[data-save-version]").first().click()
       await expect(page.getByText("Named versions are kept until you remove the name.")).toBeVisible()
       await reviewShot(page, "19-history-naming", m.theme)
+    })
+  })
+}
+
+// design-22 item 4: on an upright tablet (768, touch) the bulk bar is the
+// FloatingBar, its items 44 px under a finger (app/phone.css F3c); a phone's
+// is its own bar (BulkBar's sheet mode). The shared checks: floatingBars.ts.
+for (const theme of ["light", "dark"] as const) {
+  test.describe(`Docs & Files at 768 with touch, ${theme}`, () => {
+    test.use({ viewport: { width: 768, height: 1024 }, colorScheme: theme, isMobile: true, hasTouch: true })
+
+    test("several items chosen: the bulk bar takes a finger, and its Colour colours them", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      const w = world()
+      await serve(page, testInfo, w, theme)
+      await page.goto(`/app/project/${P}?tab=docs`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const row = (name: string) => page.getByRole("treeitem", { name, exact: true })
+      await expect(row("Contracts")).toBeVisible({ timeout: 60_000 })
+      await row("Launch brief.pdf").click({ modifiers: ["ControlOrMeta"] })
+      await row("Q4 kickoff.pptx").click({ modifiers: ["ControlOrMeta"] })
+      const bar = page.getByRole("toolbar", { name: "Selected items" })
+      await expect(bar).toContainText("2 selected")
+      await expect(page.locator("[data-bulk-bar='phone']")).toHaveCount(0)
+      await barFits(page, bar, `bulk-768-${theme}`)
+      await reviewShot(page, "20-bulk-768", theme)
+      await bar.getByRole("button", { name: "Colour", exact: true }).tap()
+      await page.getByRole("menuitemradio", { name: "Sky" }).tap()
+      await expect.poll(() => w.colours).toEqual([{ doc_uuids: [BRIEF, DECK], color: "sky" }])
     })
   })
 }

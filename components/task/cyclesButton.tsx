@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RefreshCw, TrendingDown, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
-import { cycleLabel, percentDone, timeLeft, type Cycle } from "@/lib/tasks/cycles"
+import { cycleLabel, percentDone, runningCycles, timeLeft, type Cycle } from "@/lib/tasks/cycles"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { lazyView } from "@/lib/lazy/lazyView"
 
@@ -32,6 +32,8 @@ export const warmSwitcher = () => Switcher.warm()
  * week · 3 d left" whose 16 px ring is how far the cycle is; it opens a
  * switcher with the current cycle as a card at the top, then the rest. With
  * a cycle shown, the chip is raised, with Burndown and "show all" beside it.
+ * With cycles side by side (jira-04 C) and none shown, it names the one
+ * ending first and counts the rest ("+1"); the list shows one, or all.
  */
 export function CyclesButton({
   projectId,
@@ -52,8 +54,10 @@ export function CyclesButton({
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const { cycles } = useProjectCycles(projectId)
   const active = cycles.find((c) => c.id === activeCycleId)
-  const current = cycles.find((c) => c.state === "current" && !c.completed_at)
-  const chip = active ?? current
+  const running = runningCycles(cycles)
+  const chip = active ?? running[0]
+  // The others running beside the one the chip names, when it names none shown.
+  const also = active ? [] : running.slice(1)
 
   return (
     <div className="flex items-center gap-0.5" data-cycles="">
@@ -63,7 +67,7 @@ export function CyclesButton({
             ref={triggerRef}
             variant={active ? "secondary" : "ghost"}
             size="sm"
-            aria-label={chip ? `Cycles: ${cycleLabel(chip)}, ${timeLeft(chip)}` : "Cycles"}
+            aria-label={chip ? `Cycles: ${cycleLabel(chip)}, ${timeLeft(chip)}${also.length ? `; also running: ${also.map(cycleLabel).join(", ")}` : ""}` : "Cycles"}
             className={cn("gap-1.5", active && "ring-1 ring-inset ring-brand/40")}
             // The switcher's chunk starts loading as the pointer or the focus
             // reaches the chip, so it is in by the click.
@@ -75,6 +79,7 @@ export function CyclesButton({
                 <ProgressRing value={percentDone(chip.progress)} size={16} weight={2.5} label={`${percentDone(chip.progress)}% done`} />
                 <span className="max-w-40 truncate">{cycleLabel(chip)}</span>
                 <span className="text-ink-3">· {timeLeft(chip)}</span>
+                {also.length > 0 && <span className="text-ink-3 tabular-nums">+{also.length}</span>}
               </>
             ) : (
               <>

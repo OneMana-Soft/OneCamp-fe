@@ -20,6 +20,7 @@ import { useCallSession } from "@/components/livekit/useCallSession"
 import { useCallChat } from "@/components/livekit/callChat"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useClientConfig } from "@/hooks/useClientConfig"
+import { useWorkspaceAdmin } from "@/hooks/useMyId"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { callRefOf } from "@/services/callService"
@@ -166,6 +167,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
 
 /** The workspace's transcription settings, for a member's call (VideoConference's transcriptionConfig). */
 export function useTranscriptionConfig() {
-  const c = useClientConfig() as ReturnType<typeof useClientConfig> & { transcription_where?: string; transcription_language?: string }
-  return { mode: c.transcription_mode, where: c.transcription_where, language: c.transcription_language }
+  const c = useClientConfig() as ReturnType<typeof useClientConfig> & { transcription_where?: string; transcription_language?: string; transcription_off_reason?: string }
+  const admin = useWorkspaceAdmin()
+  return { mode: c.transcription_mode, where: c.transcription_where, language: c.transcription_language, offReason: c.transcription_off_reason, admin }
 }

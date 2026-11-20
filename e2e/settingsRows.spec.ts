@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { SAM, stubBackend } from "./stubbedApp"
 
@@ -9,7 +9,8 @@ import { SAM, stubBackend } from "./stubbedApp"
 //   - Search settings lands on the field, in view: on a page still filling in,
 //     the jump could only scroll as far as the page then went, and a card that
 //     filled in above the field pushed it off the foot of the screen
-//     (hooks/jumpHold);
+//     (hooks/jumpHold), and still did when it filled in after the flash had
+//     faded (V-1117);
 //   - the field it lands on wears a halo while it is marked: the halo reached
 //     past the row, and its card clips what reaches past its edge, so on a
 //     card of one row nothing showed.
@@ -27,27 +28,61 @@ const answers = {
     request.method() === "GET" ? { msg: "ok", data: { read_receipts: true, read_receipts_allowed: true } } : { msg: "ok" },
 }
 
+const keywords = ["budget", "Q4 plan", "launch", "invoice", "renewal", "outage", "pricing", "hiring", "roadmap", "security review"]
+
+// The field a jump lands on, with keywords that fill in above it `late` ms
+// after it has taken the focus: a jump from Search settings, or (a phone has
+// no search box) a link to the field. A read that answers late (a slow network,
+// a busy server) fills its card in long after the jump has landed.
+async function jumpThenFill(page: Page, testInfo: TestInfo, { late, from, chips }: { late: number; from: "search" | "link"; chips: string[] }) {
+  let fillIn = () => {}
+  const filled = new Promise<void>((resolve) => (fillIn = () => resolve()))
+  await stubBackend(page, testInfo, { ...answers, "/me/keywords": () => filled.then(() => ({ msg: "ok", data: chips })) })
+  if (from === "search") {
+    await page.goto("/app/settings/profile", { waitUntil: "domcontentloaded", timeout: 120_000 })
+    await page.getByLabel("Search settings").fill("read receipts", { timeout: 60_000 })
+    const hits = page.getByRole("navigation", { name: "Settings search results" })
+    await hits.locator("[data-hit-field]").filter({ hasText: "Send and see read receipts" }).first().click()
+    await page.waitForURL(/\/app\/settings\/notifications/, { timeout: 60_000 })
+  } else {
+    await page.goto("/app/settings/notifications#read-receipts", { waitUntil: "domcontentloaded", timeout: 120_000 })
+  }
+  const field = page.getByRole("switch", { name: /Send and see read receipts/ })
+  await expect(field).toBeFocused({ timeout: 60_000 })
+  if (late) await new Promise((resolve) => setTimeout(resolve, late))
+  fillIn()
+  await expect(page.getByText(chips[chips.length - 1]).first()).toBeVisible({ timeout: 30_000 })
+  return field
+}
+
+// Long after the jump's flash (1.3 s) has faded, the field is still held:
+// with SHOTS_DIR set, the field after the late fill-in is saved.
+async function heldAfterLateFill(page: Page, testInfo: TestInfo, shot: string, from: "search" | "link", chips: string[]) {
+  const field = await jumpThenFill(page, testInfo, { late: 2500, from, chips })
+  try {
+    await expect(field).toBeInViewport({ ratio: 1 })
+  } finally {
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/${shot}.png` })
+  }
+}
+
 test.describe("on a computer", () => {
   test.use({ viewport: { width: 1280, height: 860 } })
 
   test("Search settings lands on the field, in view, as the page fills in", async ({ page }, testInfo) => {
     test.setTimeout(120_000)
     // Keywords and VIPs, above the field, fill in once the jump has landed.
-    let fillIn = () => {}
-    const filled = new Promise<void>((resolve) => (fillIn = () => resolve()))
-    const keywords = ["budget", "Q4 plan", "launch", "invoice", "renewal", "outage", "pricing", "hiring", "roadmap", "security review"]
-    await stubBackend(page, testInfo, { ...answers, "/me/keywords": () => filled.then(() => ({ msg: "ok", data: keywords })) })
-    await page.goto("/app/settings/profile", { waitUntil: "domcontentloaded", timeout: 120_000 })
-    await page.getByLabel("Search settings").fill("read receipts", { timeout: 60_000 })
-    const hits = page.getByRole("navigation", { name: "Settings search results" })
-    await hits.locator("[data-hit-field]").filter({ hasText: "Send and see read receipts" }).first().click()
-    await page.waitForURL(/\/app\/settings\/notifications/, { timeout: 60_000 })
-    const field = page.getByRole("switch", { name: /Send and see read receipts/ })
-    await expect(field).toBeFocused({ timeout: 30_000 })
-    fillIn()
-    await expect(page.getByText("security review").first()).toBeVisible({ timeout: 30_000 })
+    const field = await jumpThenFill(page, testInfo, { late: 0, from: "search", chips: keywords })
     await expect(field).toBeInViewport({ ratio: 1 })
   })
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`Search settings keeps the field in view when a card above fills in late (${scheme})`, async ({ page }, testInfo) => {
+      test.setTimeout(120_000)
+      await page.emulateMedia({ colorScheme: scheme })
+      await heldAfterLateFill(page, testInfo, `late-fill-1280-${scheme}`, "search", keywords)
+    })
+  }
 
   test("the field a jump lands on wears its halo, inside its card", async ({ page }, testInfo) => {
     test.setTimeout(120_000)
@@ -79,6 +114,17 @@ test.describe("on a computer", () => {
 
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+  // A narrow column wraps the chips into more rows: thirty of them (of the
+  // fifty a person may keep) push the field off a phone's screen.
+  const many = [...keywords, ...Array.from({ length: 20 }, (_, i) => `keyword ${i + 1}`)]
+  for (const scheme of ["light", "dark"] as const) {
+    test(`a link to a field keeps it in view when a card above fills in late (${scheme})`, async ({ page }, testInfo) => {
+      test.setTimeout(120_000)
+      await page.emulateMedia({ colorScheme: scheme })
+      await heldAfterLateFill(page, testInfo, `late-fill-390-${scheme}`, "link", many)
+    })
+  }
 
   test("every row's description on Notifications shows in full", async ({ page }, testInfo) => {
     test.setTimeout(120_000)

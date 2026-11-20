@@ -17,6 +17,12 @@ describe("a search hit as the thing it names", () => {
 
   it("names nothing for a hit with no id, or of a kind nothing links to", () => {
     expect(hitRef(hit({ type: "task", task: { task_name: "No id" } }))).toBeNull()
-    expect(hitRef(hit({ type: "channel", channel: { channel_uuid: "c1" } }))).toBeNull()
+    expect(hitRef(hit({ type: "team", team: { team_uuid: "t1", team_name: "Events" } }))).toBeNull()
+  })
+
+  it("reads a channel by its id and name, as the index sends one, and nothing for one without both", () => {
+    expect(hitRef(hit({ type: "channel", channel: { ch_id: "c1", ch_name: "general", ch_private: false } }))).toEqual({ kind: "channel", id: "c1", title: "general" })
+    expect(hitRef(hit({ type: "channel", channel: { ch_id: "c1" } }))).toBeNull()
+    expect(hitRef(hit({ type: "channel", channel: { channel_uuid: "c1", ch_name: "general" } }))).toBeNull()
   })
 })

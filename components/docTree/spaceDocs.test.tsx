@@ -150,7 +150,8 @@ describe("where it loads", () => {
   it("is a chunk of its own on a project's page and the team's, never on their first load", () => {
     const desktop = readFileSync("components/project/projectTaskDesktop.tsx", "utf8")
     expect(desktop).toMatch(/lazyView\(\(\) => import\("@\/components\/docTree\/SpaceDocs"\)\)/)
-    expect(desktop).toMatch(/"docs"\] as const/)
+    // Docs is one of the page's tabs (?tab=docs), wherever it sits among them (linear-21 H3 put Triage after it).
+    expect(desktop).toMatch(/VALID_TABS = \[[^\]]*"docs"[^\]]*\] as const/)
     for (const f of ["components/project/projectListTabs.tsx", "components/team/TeamDesktop.tsx", "components/team/TeamListTabContent.tsx"]) {
       const src = readFileSync(f, "utf8")
       expect(src, f).toMatch(/dynamic\(\(\) => import\("@\/components\/docTree\/SpaceDocs"\)/)

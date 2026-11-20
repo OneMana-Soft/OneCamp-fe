@@ -8,6 +8,7 @@ import { DocTreeSkeleton } from "@/components/docTree/DocsSection";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { TeamInfoRawInterface } from "@/types/team";
+import { TeamCalendarButton } from "@/components/team/teamCalendarButton";
 
 // The team's docs (docs programme B5): the pages made in its space, loaded
 // when the tab is first shown.
@@ -45,6 +46,8 @@ export const TeamListTabContent = ({ teamId }: { teamId: string }) => {
             className="flex h-full min-h-0 flex-col"
         >
             <SectionTabsContent value="projects" className="flex min-h-0 flex-1 flex-col">
+                {/* The team's own calendar (gcal-14), once the team itself read. */}
+                {teamInfo.data?.data ? <TeamCalendarButton teamId={teamId} className="mx-4 mt-3 self-start" /> : null}
                 <SearchField
                     onChange={handleSearchChange}
                     value={inputValue}

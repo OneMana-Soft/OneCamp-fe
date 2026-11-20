@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import * as React from "react"
 import { pinTestClock } from "@/lib/testing/testClock"
 import { NotifyWhyPanel, type NotifyWhyPanelProps } from "@/components/notifications/NotifyWhyPanel"
-import { causeWords, clockWords, stateWords, type TestAnswer, type WhyAnswer } from "@/lib/notifications/whyWords"
+import { causeWords, clockWords, stateWords, type DeliveryState, type TestAnswer, type WhyAnswer } from "@/lib/notifications/whyWords"
 
 /*
  * "Why did or didn't I get this?" (A4 H3): the one lazy piece both doors open,
@@ -194,6 +194,36 @@ describe("Why am I seeing this?", () => {
     expect(said).toContain("You're in this conversation.")
     expect(said).toContain("Nothing to hold: it only went where it can't interrupt you.")
     expect(said).toContain("Nothing held it back.")
+  })
+
+  // A4 H4: in OneCamp, the push waits (the decision's waiting and wait_till); read first, it's dropped.
+  const waited = (push: DeliveryState): WhyAnswer => ({
+    events: [
+      {
+        ...record.events[0],
+        steps: [
+          { step: "hold", verdict: "not_held" },
+          { step: "wait", verdict: "in_onecamp" },
+        ],
+        decision: { user_id: ME, cause: "chat.mention", to: ["inbox", "desktop"], waiting: ["push"], wait_till: "2026-11-08T06:32:00Z" },
+        deliveries: [{ delivery: "desktop", state: "dropped", at: "2026-11-08T06:31:00Z" }, push],
+      },
+    ],
+  })
+
+  it("says a push waits while you're in OneCamp, until when, and that it's waiting", async () => {
+    open(why({ status: "done", data: waited({ delivery: "push", state: "waiting", hold_until: "2026-11-08T06:32:00Z", at: "2026-11-08T06:31:00Z" }) }))
+    const root = await panel()
+    expect(steps(root)).toContain(`You were in OneCamp, so your push waited until ${clockWords("2026-11-08T06:32:00Z")}.`)
+    expect(steps(root)).toContain("Nothing held it back.")
+    expect(root.querySelector('[data-delivery="push"]')?.textContent).toBe(`PushWaiting until ${clockWords("2026-11-08T06:32:00Z")}, while you're in OneCamp`)
+  })
+
+  it("a push that waited and wasn't sent says you read it first; a dropped notice that didn't wait keeps its words", async () => {
+    open(why({ status: "done", data: waited({ delivery: "push", state: "dropped", at: "2026-11-08T06:31:00Z" }) }))
+    const root = await panel()
+    expect(root.querySelector('[data-delivery="push"]')?.textContent).toBe("PushNot sent: you read it first, or it was deleted or held")
+    expect(root.querySelector('[data-delivery="desktop"]')?.textContent).toBe("Desktop noticeNot sent: the message was deleted while it was held")
   })
 
   it.each(["chat.dm", "chat.mention", "chat.reply_to_you", "chat.reply", "chat.team", "chat.keyword", "chat.broadcast", "chat.message", "chat.reaction", "chat.call", "calendar.invited", "calendar.reminder"])(

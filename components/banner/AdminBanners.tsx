@@ -4,6 +4,10 @@ import { EmailOffBanner } from "@/components/banner/EmailOffBanner"
 import { DiskBanner } from "@/components/banner/DiskBanner"
 import { ImportOutcomeBanner } from "@/components/banner/ImportOutcomeBanner"
 import { MembersEditNotice } from "@/components/banner/MembersEditNotice"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+
+// The 80 % notice (SHELL-15): admins only, lazy (planParts).
+const SeatsNotice = lazyPart(() => import("@/components/navigationBar/planParts").then((m) => m.SeatsNotice)).Part
 
 // The banners for the people who run things: email that can't go out, a
 // filling disk, how their own imports ended (a workspace's admins), and the
@@ -18,6 +22,7 @@ export function AdminBanners({ isAdmin }: { isAdmin?: boolean }) {
       <EmailOffBanner isAdmin={isAdmin} />
       <DiskBanner isAdmin={isAdmin} />
       <ImportOutcomeBanner isAdmin={isAdmin} />
+      {isAdmin && <SeatsNotice />}
       <MembersEditNotice />
     </>
   )

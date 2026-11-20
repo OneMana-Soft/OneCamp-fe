@@ -105,6 +105,17 @@ describe("a camera's look", () => {
     await expect(applyCamera(camera() as never, only({ kind: "picture" }), noPicture)).rejects.toThrow("no longer on this device")
   })
 
+  it("puts a scene made from words behind, in place of the backdrop it had, from its own slot, or says it has gone", async () => {
+    const t = camera()
+    const kept = { picture: (slot?: string) => (slot === "scene" ? "data:image/jpeg;base64,SCENE" : "data:image/jpeg;base64,OWN") }
+    await applyCamera(t as never, only({ kind: "backdrop", id: "lake" }), kept)
+    await applyCamera(t as never, only({ kind: "scene", at: 1 }), kept)
+    // Swapped in live: the camera's processor stays, so the room never shows between.
+    expect(t.setProcessor).toHaveBeenCalledTimes(1)
+    expect(built[0].updates).toEqual([{ background: { imagePath: "data:image/jpeg;base64,SCENE", blurRadius: undefined }, touchUp: "off", lowLight: false }])
+    await expect(applyCamera(camera() as never, only({ kind: "scene" }), noPicture)).rejects.toThrow("Your scene is no longer on this device. Make it again.")
+  })
+
   it("comes off when nothing is chosen, and leaves anyone else's processor alone", async () => {
     const t = camera()
     await applyCamera(t as never, only({ kind: "blur", strength: "light" }), noPicture)

@@ -85,7 +85,9 @@ describe("the press response", () => {
     const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
     expect(css).toMatch(/@media \(pointer: coarse\) \{\s*\[data-press="row"\]/)
     expect(css).toMatch(/@media \(pointer: coarse\) and \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\[data-press="control"\]:active[\s\S]*?scale: 0\.96/)
-    expect(css).toMatch(/\[data-press="icon"\]:active[^{]*\{\s*scale: 0\.92/)
+    // An icon dips its glyph and keeps its box, which carries its 44px reach (V-1047).
+    expect(css).toMatch(/:is\(\[data-press="icon"\], \[data-interactive="icon"\]\):active[^{]*> \* \{\s*scale: 0\.92/)
+    expect(css).toMatch(/:is\(\[data-press="icon"\], \[data-interactive="icon"\], \[data-interactive="chip"\]\):active \{\s*scale: none/)
     expect(css).toMatch(/\[data-press="card"\]:active[^{]*\{\s*scale: 0\.985/)
   })
 })

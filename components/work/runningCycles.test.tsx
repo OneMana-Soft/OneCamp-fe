@@ -76,6 +76,16 @@ describe("RunningCycles", () => {
     expect(within(rows[1]).getByRole("progressbar").getAttribute("aria-label")).toBe("Launch, Cycle 3: 50% done, 50% of its time gone")
   })
 
+  // jira-04 C: a project that runs cycles side by side lists each of its running cycles, each a row of its own.
+  it("lists both of a project's cycles when it runs them side by side", () => {
+    hoisted.answer = { data: { cycles: [cycle({}), cycle({ id: "c2", number: 4, name: "Polish", ends_at: "2026-11-11T00:00:00Z", days_left: 14 })] } }
+    render(<RunningCycles />)
+    const rows = screen.getAllByRole("row").slice(1)
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("Cycle 3"), expect.stringContaining("Polish")])
+    expect(rows.every((r) => r.getAttribute("href") === "/app/project/p1?tab=backlog")).toBe(true)
+    expect(screen.getByText(/2 cycles running/)).toBeTruthy()
+  })
+
   it("lists them as rows on a phone", () => {
     hoisted.answer = { data: { cycles: [cycle({})] } }
     render(<RunningCycles compact />)

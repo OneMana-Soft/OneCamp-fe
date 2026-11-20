@@ -1,5 +1,5 @@
 import { act, cleanup, render, screen } from "@testing-library/react"
-import type { ComponentProps } from "react"
+import { Profiler, type ComponentProps } from "react"
 import { Provider } from "react-redux"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -96,6 +96,53 @@ describe("the list's rows", () => {
     rerender(list([...first, ...more]))
     expect(drawn.names.filter((n) => first.some((t) => t.task_name === n))).toEqual([])
     expect(drawn.names).toHaveLength(more.length)
+  })
+
+  // fluid-19: a project's first page (about 200 rows) drawn whole in one commit was its longest task, and a screen then
+  // the rest in one transition still a long one. Rows drawn by each commit's end are counted at the commit (a Profiler's onRender).
+  const listOf = (tasks: TaskInfoInterface[], commits: number[]) => (
+    <Provider store={store}>
+      <Profiler id="list" onRender={() => commits.push(drawn.names.length)}>
+        <GroupedTaskList tasks={tasks} options={BUILT_IN_STATUSES} grouping="status" props={PROPS} canEdit={canEdit} projectId="p" />
+      </Profiler>
+    </Provider>
+  )
+  // Four open groups of fifty: each under its sixty, so every row is shown, and 200 in all, so none is windowed.
+  const OPEN = ["backlog", "todo", "inProgress", "inReview"]
+  const page200 = () => Array.from({ length: 200 }, (_, i) => ({ ...task(i), task_status: OPEN[i % 4] }) as TaskInfoInterface)
+
+  it("a first page of 200 rows commits a screen of them, then the rest a screen at a time: every row drawn, each once (fluid-19)", () => {
+    const commits: number[] = []
+    render(listOf(page200(), commits))
+    // The first commit draws one screen, as the window's first draw does; no later commit draws more than a screen.
+    expect(commits[0]).toBe(30)
+    const steps = commits.map((n, i) => n - (i ? commits[i - 1] : 0))
+    expect(Math.max(...steps)).toBeLessThanOrEqual(30)
+    expect(commits.filter((n, i) => n > (i ? commits[i - 1] : 0)).length).toBeGreaterThan(5)
+    // Find-in-page finds every row, and no row is drawn again.
+    expect(commits.at(-1)).toBe(200)
+    expect(new Set(drawn.names).size).toBe(200)
+    expect(drawn.names).toHaveLength(200)
+  })
+
+  it("a list filled stays whole: a page that takes it to 200 rows draws all its new rows in one commit (fluid-19)", () => {
+    const tasks = page200()
+    const commits: number[] = []
+    const { rerender } = render(listOf(tasks.slice(0, 60), commits))
+    expect(commits[0]).toBe(30)
+    expect(drawn.names).toHaveLength(60)
+    drawn.names = []
+    commits.length = 0
+    rerender(listOf(tasks, commits))
+    expect(commits[0]).toBe(140)
+    expect(drawn.names).toHaveLength(140)
+  })
+
+  it("a list of a screen or less draws whole in its first commit (fluid-19)", () => {
+    const commits: number[] = []
+    render(listOf(page200().slice(0, 30), commits))
+    expect(commits[0]).toBe(30)
+    expect(drawn.names).toHaveLength(30)
   })
 
   it("opening the board, a change of address, draws no row of the hidden list again", async () => {

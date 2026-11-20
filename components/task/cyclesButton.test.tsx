@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import type { ReactElement } from "react"
 import type { Cycle } from "@/lib/tasks/cycles"
 import { warmBursts } from "@/lib/celebrateSoon"
@@ -136,7 +136,13 @@ describe("the cycle chip and switcher (work.md W45)", () => {
   })
 
   it("names where the unfinished tasks go before completing", () => {
-    cycles = [...CYCLES, { ...CYCLES[0], id: "c4", number: 4, name: "", state: "upcoming", progress: { total: 0, started: 0, done: 0 } }]
+    // Cycles 4 and 5 are planned back to back after Launch week, one after another: the tasks go to 4, the first.
+    const planned = { ...CYCLES[0], name: "", state: "upcoming" as const, progress: { total: 0, started: 0, done: 0 } }
+    cycles = [
+      ...CYCLES,
+      { ...planned, id: "c5", number: 5, starts_at: "2026-11-02T00:00:00+05:30", ends_at: "2026-11-16T00:00:00+05:30" },
+      { ...planned, id: "c4", number: 4, starts_at: "2026-10-19T00:00:00+05:30", ends_at: "2026-11-02T00:00:00+05:30" },
+    ]
     openPopover()
     fireEvent.click(screen.getAllByRole("button", { name: "Complete…" })[0])
     const ask = screen.getByRole("group", { name: "Complete Launch week" })
@@ -169,5 +175,75 @@ describe("the cycle chip and switcher (work.md W45)", () => {
     expect(timeLeft(c, Date.parse("2026-10-11T00:00:00Z"))).toBe("3 d left")
     expect(timeLeft(c, Date.parse("2026-10-01T00:00:00Z"))).toBe("Starts in 4 d")
     expect(timeLeft(c, Date.parse("2026-10-15T00:00:00Z"))).toBe("Ended")
+  })
+})
+
+// jira-04 C: a project that runs cycles side by side has two running at once.
+// The chip names the one ending first and counts the rest; the switcher's
+// card holds every running cycle, each with its own Complete…; the list
+// shows one cycle at a time, or all.
+describe("two cycles running side by side", () => {
+  const POLISH: Cycle = { ...CYCLES[0], id: "c4", number: 4, name: "Polish", starts_at: "2026-10-12T00:00:00+05:30", ends_at: "2026-10-26T00:00:00+05:30", progress: { total: 2, started: 0, done: 0 } }
+  afterEach(() => {
+    cycles = CYCLES
+    complete.mockClear()
+  })
+
+  it("names the one ending first on the chip, and the other in its label and a +1", () => {
+    cycles = [POLISH, CYCLES[0]]
+    render(<CyclesButton projectId="p" onShow={() => {}} />)
+    const chip = screen.getByRole("button", { name: /Cycles: Launch week/ })
+    expect(chip.getAttribute("aria-label")).toBe("Cycles: Launch week, 4 d left; also running: Polish")
+    expect(chip.textContent).toMatch(/Launch week\s*· 4 d left\s*\+1$/)
+  })
+
+  it("names the cycle shown, with no +1, when the list shows one", () => {
+    cycles = [POLISH, CYCLES[0]]
+    render(<CyclesButton projectId="p" activeCycleId="c4" onShow={() => {}} />)
+    const chip = screen.getByRole("button", { name: /Cycles: Polish/ })
+    expect(chip.textContent).not.toContain("+1")
+  })
+
+  it("puts both on the card at the top, each completed on its own", async () => {
+    cycles = [POLISH, CYCLES[0], { ...CYCLES[0], id: "c2", number: 2, name: "Beta week", state: "completed", completed_at: "2026-10-04T18:00:00Z", done_count: 6 }]
+    openPopover()
+    const card = screen.getByRole("list", { name: "Current cycles" })
+    expect(within(card).getAllByRole("listitem").map((li) => li.textContent)).toEqual([expect.stringContaining("Launch week"), expect.stringContaining("Polish")])
+    const rest = screen.getByRole("list", { name: "Cycles" })
+    expect(rest.textContent).toContain("Beta week")
+    expect(rest.textContent).not.toContain("Polish")
+    expect(within(card).getAllByRole("button", { name: "Complete…" })).toHaveLength(2)
+    fireEvent.click(within(card).getAllByRole("button", { name: "Complete…" })[1])
+    const ask = screen.getByRole("group", { name: "Complete Polish" })
+    await act(async () => fireEvent.click(within(ask).getByRole("button", { name: "Complete" })))
+    expect(complete).toHaveBeenCalledWith("c4", true)
+  })
+
+  it("names the one ending first, though its number is higher, on the chip and at the top of the card", () => {
+    const HOTFIX: Cycle = { ...CYCLES[0], id: "c5", number: 5, name: "Hotfix", starts_at: "2026-10-08T00:00:00+05:30", ends_at: "2026-10-17T00:00:00+05:30" }
+    cycles = [CYCLES[0], HOTFIX]
+    render(<CyclesButton projectId="p" onShow={() => {}} />)
+    const chip = screen.getByRole("button", { name: /Cycles: Hotfix/ })
+    expect(chip.getAttribute("aria-label")).toBe("Cycles: Hotfix, 2 d left; also running: Launch week")
+    fireEvent.click(chip)
+    const card = screen.getByRole("list", { name: "Current cycles" })
+    expect(within(card).getAllByRole("listitem").map((li) => li.textContent)).toEqual([expect.stringContaining("Hotfix"), expect.stringContaining("Launch week")])
+  })
+
+  it("says a running cycle's unfinished tasks move to the cycle after both, never the other running one", () => {
+    const NEXT: Cycle = { ...CYCLES[0], id: "c5", number: 5, name: "Next up", state: "upcoming", starts_at: "2026-10-19T00:00:00+05:30", ends_at: "2026-11-02T00:00:00+05:30", progress: { total: 0, started: 0, done: 0 } }
+    cycles = [POLISH, CYCLES[0], NEXT]
+    openPopover()
+    const [launch, polish] = within(screen.getByRole("list", { name: "Current cycles" })).getAllByRole("listitem")
+    fireEvent.click(within(launch).getByRole("button", { name: "Complete…" }))
+    expect(screen.getByRole("group", { name: "Complete Launch week" }).textContent).toContain("4 unfinished tasks move to Next up.")
+    // Next up shares Polish's days, so Polish's go to a new cycle.
+    fireEvent.click(within(polish).getByRole("button", { name: "Complete…" }))
+    expect(screen.getByRole("group", { name: "Complete Polish" }).textContent).toContain("2 unfinished tasks move to a new cycle.")
+  })
+
+  it("keeps one cycle's card as it was", () => {
+    openPopover()
+    expect(screen.getByRole("list", { name: "Current cycle" })).toBeTruthy()
   })
 })

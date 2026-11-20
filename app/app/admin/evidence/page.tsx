@@ -58,7 +58,7 @@ const AUDIT_LOG_HREF = "/app/admin?tab=audit"
 function PackFrame({ children, action }: { children: ReactNode; action?: ReactNode }) {
     const place = SETTINGS_PLACES.find((p) => p.key === "evidence")
     return (
-        <main id="main-content" className="h-full overflow-y-auto bg-background">
+        <div className="h-full overflow-y-auto bg-background">
             <PageFrame className="print:max-w-none print:p-0">
                 <PageFrameHeader
                     hue={place?.hue ?? "lake"}
@@ -71,7 +71,7 @@ function PackFrame({ children, action }: { children: ReactNode; action?: ReactNo
                 />
                 {children}
             </PageFrame>
-        </main>
+        </div>
     )
 }
 

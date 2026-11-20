@@ -6,14 +6,25 @@ import { SkipBack, SkipForward } from "@/lib/icons";
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { holdOverlayFoot } from "@/components/attachments/overlayFoot"
 
 
 interface VideoPlayerProps {
     url: string
     fileName: string
+    /**
+     * On a stage at the screen's foot (the lightbox): the controls hold the
+     * page's overlay foot for as long as the player is drawn, faded or not, so
+     * a toast stands clear of them and never moves with their fade.
+     */
+    foot?: boolean
 }
 
-export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
+// The controls' top over the foot: 16px (p-4), Play's 40px (h-10), 12px (space-y-3), then the seek
+// bar's 6px track with its 16px thumb centred on it, 79px in all (measured at 768, 820 and 1280).
+const holdControlsFoot = () => holdOverlayFoot("80px")
+
+export default function VideoPlayer({ url, fileName, foot }: VideoPlayerProps) {
     const videoRef = useRef<HTMLVideoElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const [isPlaying, setIsPlaying] = useState(false)
@@ -39,20 +50,23 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
             }, 3000)
         }
 
+        const handleMouseLeave = () => {
+            if (isPlaying) {
+                setShowControls(false)
+            }
+        }
+
         const container = containerRef.current
         if (container) {
             container.addEventListener("mousemove", handleMouseMove)
-            container.addEventListener("mouseleave", () => {
-                if (isPlaying) {
-                    setShowControls(false)
-                }
-            })
+            container.addEventListener("mouseleave", handleMouseLeave)
         }
 
         return () => {
             clearTimeout(timer)
             if (container) {
                 container.removeEventListener("mousemove", handleMouseMove)
+                container.removeEventListener("mouseleave", handleMouseLeave)
             }
         }
     }, [isPlaying])
@@ -192,6 +206,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
             )}
 
             <div
+                ref={foot ? holdControlsFoot : undefined}
                 className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 pointer-events-none ${
                     showControls ? "opacity-100" : "opacity-0"
                 }`}
@@ -210,7 +225,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
                         className="cursor-pointer [&>.relative>.absolute]:bg-white [&>.relative]:bg-white/30"
                     />
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between max-sm:mt-7">
                         <div className="flex items-center space-x-2">
                             <Button data-tone="light" variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white rounded-full h-8 w-8" aria-label="Skip back 10 seconds">
                                 <SkipBack className="h-4 w-4" />
@@ -240,12 +255,13 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
                         </div>
 
                         <div className="flex items-center space-x-2">
-                            <div className="flex items-center space-x-2 group">
+                            <div className="relative flex items-center space-x-2 group/volume">
                                 <Button data-tone="light" variant="ghost" size="icon" onClick={toggleMute} className="text-white rounded-full h-8 w-8" aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}>
                                     {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                                 </Button>
 
-                                <div className="w-20 hidden group-hover:block transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-150">
+                                {/* V-1162: shown wherever there's no hover to reveal it. Below sm it stands over Mute, so nothing moves under a finger; the foot is taller there so its thumb's 44 px reach keeps clear of the seek bar's line and of Mute's and Settings' centres. */}
+                                <div className="w-20 hidden group-hover:block group-focus-within/volume:block [@media(hover:none)]:block max-sm:absolute max-sm:bottom-10 max-sm:-left-6 transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-150">
                                     <Slider
                                         value={[isMuted ? 0 : volume]}
                                         min={0}

@@ -109,7 +109,9 @@ export function StageTile({
                   pinned ? "opacity-100" : "opacity-0 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100",
                   // While you draw on this tile's share, the pin steps aside for the drawing bar, which a phone's narrow tile
                   // gives its whole width (callInk's data-ink-drawing; DESIGN-BUILD-57 MUST 1).
-                  "group-has-[[data-ink-drawing]]/tile:hidden",
+                  // A targeted rule, never group-has-: Tailwind compiles that to `:has(..) *`, and Chrome then restyles a whole
+                  // subtree on every DOM change under any :has() anchor in the app (V-924; lib/ui/styleInvalidationGuard.test.ts).
+                  "[:where([data-stage-tile]):has([data-ink-drawing])_&]:hidden",
                 )}
               >
                 {pinned ? <PinOff /> : <Pin />}

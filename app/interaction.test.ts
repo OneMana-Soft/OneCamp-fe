@@ -324,7 +324,7 @@ function rule4(file: string, src: string, cssWithin: Set<string> = CSS_WITHIN): 
   return out
 }
 
-const HOVER_REVEAL = /group-hover(?:\/[\w-]+)?:(?:opacity-100|visible|block|flex|inline-flex|inline-block|grid|pointer-events-auto)|(?<![\w:-])hover:opacity-100/
+const HOVER_REVEAL = /(?:group-hover(?:\/[\w-]+)?|row-hover-in):(?:opacity-100|visible|block|flex|inline-flex|inline-block|grid|pointer-events-auto)|(?<![\w:-])hover:opacity-100/
 const HIDDEN = /(?:^|\s)(?:(?:sm|md|lg|xl):)?(?:opacity-0|invisible|hidden|pointer-events-none)(?=\s|$)/
 const FOCUS_REVEAL = /group-focus-within(?:\/[\w-]+)?:|group-focus-visible(?:\/[\w-]+)?:|group-has-\[:focus-visible\](?:\/[\w-]+)?:|(?<![\w-])focus(?:-visible|-within)?:(?:opacity-100|visible|block|flex|inline-flex|inline-block|grid|pointer-events-auto)/
 
@@ -333,7 +333,6 @@ const HOVER_ONLY: Array<[file: string, snippet: string, why: string]> = [
   ["components/task/taskRowParts.tsx", "inline-block shrink-0 rounded-full border border-dashed border-line-3 opacity-0", "an empty assignee's ring, decoration; the row's own focus opens the panel that assigns"],
   ["components/ai/AiScheduleDialog.tsx", "shrink-0 text-2xs text-muted-foreground opacity-0", "a check glyph on a slot row, which is the button"],
   ["components/ai/RescheduleDialog.tsx", "shrink-0 opacity-0 pointer-events-none transition-opacity", "a check glyph on a slot row, which is the button"],
-  ["components/attachments/videoPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; the keyboard's volume is the player's keys"],
   ["components/fileUpload/AudioPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; the keyboard's volume is the player's keys"],
   ["components/project/timeline/TimelineBar.tsx", "cursor-crosshair", "the handle that draws a dependency, a pointer gesture; the panel adds one by keyboard"],
   ["components/project/ProjectsOverview.tsx", "opacity-0 group-hover/h:opacity-100", "a sort chevron on a column header, which is the button and says its sort"],
@@ -384,6 +383,8 @@ const KEYBOARD_MOVES: Array<[file: string, where: string, path: RegExp]> = [
   // A choice's option moves with Alt+↑/↓ on its name (TB-15), the box the
   // keyboard reaches; the grip beside it is the pointer's, hidden from it.
   ["components/fields/OptionsEditor.tsx", "components/fields/OptionsEditor.tsx", /reorder && e\.altKey && \(e\.key === "ArrowUp" \|\| e\.key === "ArrowDown"\)/],
+  // A board's layers (miro-03): a mouse drags a row; the keyboard and a finger press the row's own Move up and Move down.
+  ["components/board/layersPanel.tsx", "components/board/layersPanel.tsx", /aria-label=\{`Move \$\{l\.name\} up`\}/],
 ]
 
 const ARROWS = /Arrow(?:Left|Right|Up|Down)|startsWith\("Arrow"\)/
@@ -722,6 +723,7 @@ describe("each rule bites (fixtures)", () => {
 
   it("5: revealed on hover and not on focus", () => {
     expect(rule5("x.tsx", `<span className="opacity-0 group-hover:opacity-100" />`)).toHaveLength(1)
+    expect(rule5("x.tsx", `<span className="opacity-0 row-hover-in:opacity-100" />`), "a list row's hover reveal (V-1054) is a hover reveal").toHaveLength(1)
     expect(rule5("x.tsx", `<span className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" />`)).toEqual([])
   })
 
@@ -805,5 +807,15 @@ describe("each rule bites (fixtures)", () => {
     expect(rule14("x.tsx", `<Button busy={saving}><Check /> {saving ? "Saving…" : "Save"}</Button>`)).toEqual([])
     expect(rule14("x.tsx", `<Button variant="ghost" onClick={refresh}><RefreshCw className={cn(busy && "animate-spin")} /> Refresh</Button>`)).toEqual([])
     expect(rule14("x.tsx", `<div aria-busy={busy}>{busy && <Loader2 className="animate-spin" />}</div>`)).toEqual([])
+  })
+
+  // Under a coarse pointer extend-touch-target makes the same ::after its
+  // reach (absolute, inset -0.5rem): the spinner drew outside its button.
+  it("14: the layer's busy spinner pins its own place, so a touch reach on its ::after never moves it", () => {
+    const css = readFileSync(join(ROOT, "app/interaction.css"), "utf8")
+    const rule = css.match(/:is\(\[data-press="control"\], \[data-press="icon"\]\)\[aria-busy="true"\]::after \{([^}]*)\}/)?.[1] ?? ""
+    expect(rule).toMatch(/\bcontent: "";/)
+    expect(rule).toMatch(/\bposition: static;/)
+    expect(rule).toMatch(/\binset: auto;/)
   })
 })

@@ -287,19 +287,33 @@ export async function closeForeign(page: Page) {
  * is wider than the screen, so a swipe along the row brings More tools in and
  * a tap opens it. Before miro-40 H1 the row didn't scroll: More tools sat past
  * the screen's right edge, out of a finger's reach. The page holds one board.
+ *
+ * A finger swipes until More tools is inside the row's clip, as a person
+ * swipes again when one swipe falls short: a 240 px drag alone moves the row
+ * 225 px, and only a fling at the lift carries it on to More. Chromium starts
+ * no fling when the lift comes after a pause (a slow frame: the dark canvas
+ * draws through an invert filter), and More then rests past the clip, where
+ * the tap meets Undo (BOARD166-D22R, d22p/NOTES.md).
  */
 export async function reachMoreTools(page: Page) {
   const row = page.locator(".App-toolbar--mobile")
+  const trigger = page.locator(".App-toolbar__extra-tools-trigger")
   const box = await row.boundingBox()
   if (!box) throw new Error("the phone's tool row isn't on the page")
   const f = await finger(page)
   const y = box.y + box.height / 2
-  await f.down(box.x + box.width - 24, y)
-  for (let i = 1; i <= 10; i++) await f.move(box.x + box.width - 24 - i * 24, y)
-  await f.up()
-  await flingEnded(row)
-  const at = await page.locator(".App-toolbar__extra-tools-trigger").boundingBox()
+  const inside = (at: { x: number; width: number } | null) => !!at && at.x >= box.x && at.x + at.width <= box.x + box.width
+  let at: Awaited<ReturnType<typeof trigger.boundingBox>> = null
+  for (let swipes = 0; swipes < 4; swipes++) {
+    await f.down(box.x + box.width - 24, y)
+    for (let i = 1; i <= 10; i++) await f.move(box.x + box.width - 24 - i * 24, y)
+    await f.up()
+    await flingEnded(row)
+    at = await trigger.boundingBox()
+    if (inside(at)) break
+  }
   const width = page.viewportSize()?.width ?? 0
   expect(!!at && at.x >= 0 && at.x + at.width <= width, "More tools is on the screen after a swipe along the row").toBe(true)
+  expect(inside(at), "More tools is inside the row's clip after swiping along the row").toBe(true)
   await page.touchscreen.tap(at!.x + at!.width / 2, at!.y + at!.height / 2)
 }

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 import { renderAsPerAttachmentType, type StageMedia } from "./mediaStage"
+import { holdOverlayFoot } from "./overlayFoot"
 
 // The stage draws a file by its kind, and what it can't draw is the file's
 // card: its glyph, its name, "Can't preview this file" and Download (design
@@ -67,5 +68,62 @@ describe("what the stage can't draw", () => {
     unmount()
     render(<>{renderAsPerAttachmentType("other", "a.zip", media({ tone: "light" }))}</>)
     expect(card().c.className).toMatch(/bg-raised/)
+  })
+})
+
+// From sm up a toast stood on the lightbox's zoom controls at a tablet's width
+// and took their taps: the stage at the screen's foot holds the page's overlay
+// foot (html[data-overlay-foot], --overlay-foot) and app/phone.css lifts
+// toasts 12px above it.
+describe("the overlay foot", () => {
+  const root = document.documentElement
+  const foot = () => ({ on: root.hasAttribute("data-overlay-foot"), at: root.style.getPropertyValue("--overlay-foot") })
+
+  it("is held by the lightbox's zoom controls while drawn, and let go when they go", () => {
+    const { unmount } = render(<>{renderAsPerAttachmentType("image", "Whiteboard.png", media({ mime: "image/png", foot: true }))}</>)
+    expect(screen.getByRole("toolbar", { name: "Image zoom controls" })).toBeTruthy()
+    expect(foot()).toEqual({ on: true, at: "calc(60px + env(safe-area-inset-bottom))" })
+    unmount()
+    expect(foot()).toEqual({ on: false, at: "" })
+  })
+
+  it("is never held by a stage that isn't at the screen's foot (Docs & Files' preview)", () => {
+    render(<>{renderAsPerAttachmentType("image", "Whiteboard.png", media({ mime: "image/png" }))}</>)
+    expect(screen.getByRole("toolbar", { name: "Image zoom controls" })).toBeTruthy()
+    expect(foot().on).toBe(false)
+  })
+
+  it("is counted: it stays while any holder holds it, at the highest, and a release twice is one", () => {
+    const a = holdOverlayFoot("60px")
+    const b = holdOverlayFoot("80px")
+    expect(foot()).toEqual({ on: true, at: "max(60px, 80px)" })
+    b()
+    b()
+    expect(foot()).toEqual({ on: true, at: "60px" })
+    a()
+    expect(foot()).toEqual({ on: false, at: "" })
+  })
+
+  // V-1139: the video player's seek bar and buttons run along the stage's foot,
+  // and a toast from sm up stood on their right end (Mute, Playback settings,
+  // Enter fullscreen) and took their presses.
+  it("is held by the lightbox's video player while drawn, through its controls' fade, and let go when it goes", () => {
+    const { unmount } = render(<>{renderAsPerAttachmentType("video", "Clip.webm", media({ mime: "video/webm", foot: true }))}</>)
+    expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy()
+    const held = foot()
+    expect(held).toEqual({ on: true, at: "80px" })
+    // Playing, the controls fade when the pointer leaves: the toast doesn't move with them.
+    const video = document.querySelector("video")!
+    fireEvent.play(video)
+    fireEvent.mouseLeave(video.parentElement!)
+    expect(foot()).toEqual(held)
+    unmount()
+    expect(foot()).toEqual({ on: false, at: "" })
+  })
+
+  it("is never held by a video on a stage that isn't at the screen's foot (Docs & Files' preview)", () => {
+    render(<>{renderAsPerAttachmentType("video", "Clip.webm", media({ mime: "video/webm" }))}</>)
+    expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy()
+    expect(foot().on).toBe(false)
   })
 })

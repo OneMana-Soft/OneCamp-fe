@@ -12,7 +12,7 @@
  * Never on the note's own element: an element changes with every edit and
  * undo, and a copy would carry its original's maker.
  */
-import { changedElements, cloneElement, type BoardElement, type SharedElements } from "@/lib/board/binding"
+import { guardedChanges, type SceneGuard, cloneElement, type BoardElement, type SharedElements } from "@/lib/board/binding"
 import { isStickyNote, type BoardElementLike } from "@/lib/board/notes"
 
 /** The board document's map of note makers. */
@@ -64,9 +64,10 @@ export function storeWithMakers(
   shared: Pick<SharedElements, "get" | "set">,
   scene: readonly BoardElement[],
   who: NoteAuthor | null | undefined,
+  guard: SceneGuard,
   outbound?: (el: BoardElement) => BoardElement,
 ): { wrote: number; stamped: number } {
-  const changed = changedElements(shared, scene)
+  const changed = guardedChanges(shared, scene, guard)
   if (changed.length === 0) return { wrote: 0, stamped: 0 }
   const stamped = stampNewNotes(authors, changed as never, shared, who)
   for (const el of changed) shared.set(el.id, cloneElement(outbound ? outbound(el) : el))

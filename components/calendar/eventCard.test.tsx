@@ -256,6 +256,17 @@ describe("the card on a phone", () => {
     expect(within(foot).getByRole("radio", { name: "Yes" }).className).toMatch(/\bh-11\b/)
   })
 
+  // CR-295 F1: every card's footer is pinned at the sheet's foot, so the sheet says so and its body's fade spares
+  // that edge (app/interaction.css, V-619); a plain event's Open details was faded when its card scrolled.
+  it("pins a plain event's Open details at its foot, where the fade never reaches", () => {
+    render(<EventPopover event={event({ event_guests: [], event_participants: [] })} anchor={null} now={now} selfId="sam" phone onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const sheet = document.querySelector("[data-event-sheet]") as HTMLElement
+    const foot = sheet.querySelector("[data-card-footer]") as HTMLElement
+    expect(within(foot).getByRole("button", { name: "Open details" })).toBeTruthy()
+    expect(foot.className).toMatch(/sticky/)
+    expect(sheet.hasAttribute("data-pinned-foot")).toBe(true)
+  })
+
   it("stays open while it asks which events an answer is for", () => {
     const close = vi.fn()
     render(<EventPopover event={event()} anchor={anchor()} now={now} selfId="lee" holdOpen onClose={close} onOpenFull={vi.fn()} />)

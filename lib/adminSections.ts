@@ -23,6 +23,7 @@ import {
   GitBranch,
   Key,
   KeyRound,
+  DoorOpen,
   Lock,
   Mail,
   Mic,
@@ -182,7 +183,7 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
   {
     key: "invitations",
     label: "Invitations",
-    description: "Who has been asked in, and the link that brings people in.",
+    description: "Who has been asked in, and each person's link.",
     href: admin("invitations"),
     icon: UserPlus,
     hue: SETTINGS_GROUP_HUE.workspace,
@@ -259,6 +260,16 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
     hue: SETTINGS_GROUP_HUE.workspace,
     group: "workspace",
     keywords: ["who can change tasks", "roles", "projects"],
+  },
+  {
+    key: "rooms",
+    label: "Rooms",
+    description: "The meeting rooms people book with an event: where each is and what it has.",
+    href: admin("rooms"),
+    icon: DoorOpen,
+    hue: SETTINGS_GROUP_HUE.workspace,
+    group: "workspace",
+    keywords: ["resource directory", "meeting rooms", "resources", "booking", "capacity", "calendar"],
   },
   {
     key: "email-settings",

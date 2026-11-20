@@ -64,7 +64,7 @@ function itemLabel(kind: "board" | "doc", start: Label | null, { owner, labels =
 
 async function openBoard(browser: Browser, device: keyof typeof DEVICES, user: typeof USERS.sam, label: ReturnType<typeof itemLabel>, use: BrowserContextOptions = {}) {
   const n1 = note("n1", 0, 0, "Q3 numbers")
-  const levels = { sam: "edit", ann: "edit", vic: "view" }
+  const levels = { sam: "edit", ann: "full", vic: "view" }
   const board = { uuid: BOARD, title: "Board pack", levels, update: boardDoc([...n1]) }
   const collab = collabFor([{ id: boardDocName(BOARD), update: board.update, levels }])
   const context = await browser.newContext({ ...DEVICES[device], ...use })
@@ -75,7 +75,7 @@ async function openBoard(browser: Browser, device: keyof typeof DEVICES, user: t
       /* the tip then shows; the test reads past it */
     }
   })
-  // Who the share dialog reads as owner and editors (its external link is for them): Sam owns the board, Ann edits it.
+  // Who the share dialog reads as owner and editors (its external link is the owner's and co-owners', miro-33): Sam owns the board, Ann co-owns it.
   const who = (u: typeof USERS.sam) => ({ user_uuid: u.user_uuid, user_name: u.user_name, user_full_name: u.user_full_name })
   const permissions = { board_uuid: BOARD, board_title: board.title, board_private: false, board_created_by: who(USERS.sam), board_editing_users: [who(USERS.ann)], board_viewing_users: [who(USERS.vic)] }
   const fixtures = [...label.fixtures, [/\/board\/getBoardPermissions$/, { msg: "ok", data: permissions }], ...boardFixtures([board], user, USERS.sam)]
@@ -89,7 +89,7 @@ async function openBoard(browser: Browser, device: keyof typeof DEVICES, user: t
 const boardMore = (page: Page) => page.getByRole("toolbar", { name: "Board", exact: true }).getByRole("button", { name: "More", exact: true })
 
 test.describe("a board's sensitivity label (miro-44 L)", () => {
-  test("on a computer: an editor labels it from More; its chip, Share and Export say so; a lowering the server refuses says why", async ({ browser }) => {
+  test("on a computer: a co-owner labels it from More; its chip, Share and Export say so; a lowering the server refuses says why", async ({ browser }) => {
     test.setTimeout(120_000)
     const label = itemLabel("board", null, { owner: false })
     const { context, page } = await openBoard(browser, "computer", USERS.ann, label)
@@ -183,7 +183,7 @@ test.describe("a board's sensitivity label (miro-44 L)", () => {
       const cluster = actions.getByRole("toolbar", { name: "Board tools" })
       await expect(cluster.getByRole("button", { name: "Board options" })).toBeVisible()
       const shot = (name: string) => page.screenshot({ path: test.info().outputPath(`board-cluster-${name}${width}-${colorScheme}.png`) })
-      // The row inside the screen; each of the cluster's buttons its 36 px; every button met by a finger at its
+      // The row inside the screen; each of the cluster's buttons its 44 px (design-22 4); every button met by a finger at its
       // centre (on the screen, and nothing over it). The cluster's width, which never gives way.
       const onScreen = async () => {
         const box = (await actions.boundingBox())!
@@ -191,7 +191,7 @@ test.describe("a board's sensitivity label (miro-44 L)", () => {
         expect(box.x + box.width, "the row's right edge").toBeLessThanOrEqual(width)
         for (const b of await cluster.getByRole("button").all()) {
           const { width: w, height: h } = (await b.boundingBox())!
-          expect([Math.round(w), Math.round(h)]).toEqual([36, 36])
+          expect([Math.round(w), Math.round(h)]).toEqual([44, 44])
         }
         const missed = await actions.evaluate(
           (row, w) =>

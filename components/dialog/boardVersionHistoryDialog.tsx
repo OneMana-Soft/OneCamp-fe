@@ -19,6 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
@@ -112,6 +114,12 @@ export function BoardVersionHistoryDialog({ open, onOpenChange, boardId }: Board
             ))
           )}
         </div>
+        {/* A phone's sheet keeps its way out pinned at its foot, in a thumb's reach (design-22 4). */}
+        <DialogFooter className="sm:hidden">
+          <DialogClose asChild>
+            <Button variant="outline">Close</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

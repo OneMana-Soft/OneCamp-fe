@@ -11,6 +11,7 @@
 import { browserTZ } from "@/lib/utils/timeZone"
 import type { RepeatScope } from "@/lib/calendar/repeat"
 import type { CalendarEventTask, EventProposal } from "@/types/calendar"
+import type { Room } from "@/lib/calendar/rooms"
 
 // The API's path (router/calendarProgramme.go). It sits here, not in
 // services/endPoints.ts, which every route's first load carries (PROGRAM.md
@@ -76,6 +77,8 @@ export interface ApiEvent {
   all_day: boolean
   sequence: number
   attendees: ApiAttendee[]
+  /** The rooms it books (gcal-6). */
+  rooms?: Room[]
   organiser: { user_uuid: string }
   /** Its colour (one of the camp hues; none for its calendar's), busy or free, and who may see it. */
   hue?: string
@@ -118,6 +121,7 @@ export interface ApiEventPatch {
   start?: ApiWhen
   end?: ApiWhen
   attendees?: ApiGuestInput[]
+  rooms?: string[]
   recurrence?: { rule: string }
   hue?: string
   transparency?: "opaque" | "transparent"
@@ -140,6 +144,8 @@ export interface ApiEventInput {
   start: ApiWhen
   end: ApiWhen
   attendees?: ApiGuestInput[]
+  /** The rooms it books, by id (gcal-6). */
+  rooms?: string[]
   recurrence?: { rule: string }
   hue?: string
   transparency?: "opaque" | "transparent"

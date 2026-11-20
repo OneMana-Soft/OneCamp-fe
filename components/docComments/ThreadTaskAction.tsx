@@ -10,6 +10,7 @@ import Link from "next/link"
 
 import { ListTodo } from "@/lib/icons"
 import { taskDraftFromMessage } from "@/lib/task/messageToTask"
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 import type { ThreadView } from "@/components/threads/types"
 
 const CreateTaskDialog = dynamic(() => import("@/components/dialog/createTaskDialog"), { ssr: false })
@@ -32,7 +33,7 @@ export function ThreadTaskAction({ thread, docId, onLinked, children }: { thread
   const source = {
     threadID: thread.id,
     link: typeof window !== "undefined" ? `${window.location.origin}/app/doc/${encodeURIComponent(docId)}?thread=${encodeURIComponent(thread.id)}` : "",
-    authorName: first?.comment_by?.user_full_name || first?.comment_by?.user_name,
+    authorName: userDisplayName(first?.comment_by) || undefined,
   }
   return (
     <>

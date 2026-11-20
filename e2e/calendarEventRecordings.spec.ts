@@ -73,6 +73,7 @@ const wordsOf = (key: string) =>
     transcript_text: key === "EG_last" ? "Quick one: the pricing page copy is final." : `${SAID[i % SAID.length]} (${i + 1})`,
     transcript_timestamp: 0,
     transcript_offset_ms: i * 6_000,
+    uid: `0x${(i + 1).toString(16)}`,
   }))
 
 /**
@@ -228,6 +229,8 @@ for (const theme of SHOT_THEMES) {
         // Transcript panel beside the recording, as the row's "Transcript, 120 lines" says.
         await expect(player.locator("[data-transcript]")).toContainText(SAID[0], { timeout: 30_000 })
         await expect(player.getByText("No transcript available")).toHaveCount(0)
+        // An event's call's words are the calendar's: no line offers a correction, not even Sam's own (zoom-05 B1).
+        await expect(player.getByRole("button", { name: "Correct this line" })).toHaveCount(0)
         expect(played).toEqual([`${WEEKLY} EG_today`])
         expect(read[0]).toBe(`${WEEKLY} EG_today 0`)
         expect(read.every((r) => r.startsWith(`${WEEKLY} EG_today `))).toBe(true)

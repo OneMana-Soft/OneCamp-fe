@@ -31,4 +31,17 @@ describe("the lightbox", () => {
     fireEvent.click(screen.getByRole("button", { name: "Info" }))
     expect(document.querySelector("[data-lightbox-rail]")?.textContent).toMatch(/In this set · 2/)
   })
+
+  it("pages the set on the arrow keys, and leaves an arrow a control took to that control (V-1162)", () => {
+    render(<MediaLightboxDialog media={a} allMedia={[a, b]} mediaGetUrl="/m" dialogOpenState setOpenState={() => {}} />)
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    expect(screen.getByRole("dialog", { name: "notes.txt" })).toBeTruthy()
+    // A slider (the video's volume or seek bar) steps on its arrows and says so: the set stays put.
+    const taken = new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true })
+    taken.preventDefault()
+    fireEvent(window, taken)
+    expect(screen.getByRole("dialog", { name: "notes.txt" })).toBeTruthy()
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+    expect(screen.getByRole("dialog", { name: "brief.pdf" })).toBeTruthy()
+  })
 })

@@ -397,8 +397,8 @@ body {
   /* REVEAL (§6.5, §7.2): a row or card with tools (data-reveal) shows them
      (data-tools) under the pointer and with focus inside it. On touch they
      are always there, or, in a dense list (data-reveal="tap"), on the row a
-     finger revealed (data-revealed, hooks/useTouchReveal; HubRow keeps its
-     own). They overlay or sit in room kept for them, and take no clicks
+     finger revealed (data-revealed, hooks/useTouchReveal; a HubRow's are in
+     the drawer its Actions opens). They overlay or sit in room kept for them, and take no clicks
      while hidden. A tool's open menu keeps them out. */
   [data-reveal] [data-tools] {
     opacity: 0;
@@ -616,8 +616,9 @@ body {
 [data-reorder-held] {
   opacity: 0.4;
 }
+/* By visibility, as the cursor is drawn (GroupedTaskList): no box leaves layout. */
 [data-reorder-held] [data-kbd-cursor] {
-  display: none;
+  visibility: hidden;
 }
 
 /* A primary that can't be pressed looks like a disabled field, at full
@@ -639,12 +640,17 @@ body {
    unavailable, its label at 2.94:1 (DESIGN-BUILD-10, 24 Oct 2026). The one
    spinner of every busy Button (data-press is Button's), so callers draw none
    (app/interaction.test rule 14). Unlayered, as above, so no utility on the
-   control or its icon undoes it. With reduced motion the arc holds still. */
+   control or its icon undoes it. It pins its own place: a touch reach on the
+   same ::after (extend-touch-target: absolute, inset -0.5rem under a coarse
+   pointer) drew it 8 px up and left, outside the button (EXPALL F1, 13 Nov).
+   With reduced motion the arc holds still. */
 :is([data-press="control"], [data-press="icon"])[aria-busy="true"] > svg:first-child {
   display: none;
 }
 :is([data-press="control"], [data-press="icon"])[aria-busy="true"]::after {
   content: "";
+  position: static;
+  inset: auto;
   order: -1;
   flex: none;
   width: 0.8125rem;

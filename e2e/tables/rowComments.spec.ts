@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from "@playwright/test"
 
 import { SAM } from "../stubbedApp"
 import { PRIYA, TableServer } from "./tableServer"
+import { hoverWhenReachable } from "../menuReach"
 
 // Comments on a row (tables A8, business/TableComments): a row's record shows
 // the threads on the row and on its cells, each saying where it is; a field's
@@ -121,7 +122,11 @@ test("a row's record shows its threads where they are, and starts one on a cell"
   await expect(comments.getByText("Owner confirmed.")).toHaveCount(0)
   await expect(sam.page.getByRole("button", { name: "Comment on Cost, 1 comment" })).toBeVisible()
 
-  await sam.page.getByRole("button", { name: /^Comment on Stage/ }).click()
+  // A field's comment button shows, and takes a click, under the pointer on its field (or with the focus in it): the
+  // pointer rests on Stage's row first, as a person's does on the way to the button (V-957).
+  const onStage = sam.page.getByRole("button", { name: /^Comment on Stage/ })
+  await hoverWhenReachable(sam.page.locator("[data-record-panel] dl > div, [role=dialog] dl > div").filter({ has: onStage }))
+  await onStage.click()
   const box = sam.page.getByRole("textbox", { name: "Comment on Stage" })
   await expect(box).toBeFocused()
   await box.pressSequentially("Is this blocked on the venue?")
@@ -149,3 +154,68 @@ for (const [width, height] of [
     })
   }
 }
+
+// V-1042: the record's comment box rests as an editable line until it is asked for (CommentComposer's waitForUse), so a
+// record opened or stepped to makes no editor. Asked for, by a click or by the keyboard's Tab, the editor comes in with
+// the caret, and a comment typed at once lands whole (what reached the line first is handed over) and sends.
+test("V-1042 at 1280: the row's comment box rests with no editor; a click, or Tab, brings it in with the caret, and a comment typed at once lands and sends", async ({ browser }, testInfo) => {
+  const server = new TableServer(fields, rows)
+  const threads = seed(server)
+  const open = await openRecord(server, threads, { width: 1280, height: 900, scheme: "light" })
+  // By the mouse.
+  const sam = await open(browser, testInfo)
+  const box = sam.page.locator("[data-row-comment-box]")
+  const line = box.getByRole("textbox", { name: "Comment on this row" })
+  const editor = box.locator(".ProseMirror")
+  await expect(line).toBeVisible()
+  await expect(editor, "no editor at rest").toHaveCount(0)
+  await line.click()
+  await sam.page.keyboard.type("Can the stage go up a day early?")
+  await expect(editor, "the click: the editor, the caret in it").toBeFocused()
+  await expect(editor).toHaveText("Can the stage go up a day early?")
+  await expect(box.getByRole("textbox", { name: "Comment on this row" }), "one box by its name").toHaveCount(1)
+  await sam.page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
+  await expect.poll(() => threads.made.length).toBe(1)
+  expect(threads.made[0].body).toContain("Can the stage go up a day early?")
+  await sam.close()
+
+  // By the keyboard: Tab from the record's first control reaches the line, and the editor takes the focus from it.
+  const again = await open(browser, testInfo)
+  const box2 = again.page.locator("[data-row-comment-box]")
+  await expect(box2.getByRole("textbox", { name: "Comment on this row" })).toBeVisible()
+  await again.page.locator("[data-record-panel]").locator("button, input, textarea, [contenteditable=true]").first().focus()
+  const inBox = () => box2.evaluate((b) => b.contains(document.activeElement))
+  for (let i = 0; i < 80 && !(await inBox()); i++) await again.page.keyboard.press("Tab")
+  await again.page.keyboard.type("Owner confirmed")
+  await expect(box2.locator(".ProseMirror"), "Tab: the editor, the caret in it").toBeFocused()
+  await expect(box2.locator(".ProseMirror")).toHaveText("Owner confirmed")
+  await again.close()
+})
+
+// V-1225 (MAIN's ruling): every composer with an editor looks the same at rest, so the row's box shows @ beside send
+// before its editor is made; a press of @ there makes the editor and starts a mention in it, the people's list open.
+test("V-1225 at 1280: the row's comment box shows @ beside send at rest, and a click on it starts a mention", async ({ browser }, testInfo) => {
+  const server = new TableServer(fields, rows)
+  const threads = seed(server)
+  const sam = await (await openRecord(server, threads, { width: 1280, height: 900, scheme: "light" }))(browser, testInfo)
+  const box = sam.page.locator("[data-row-comment-box]")
+  const at = box.getByRole("button", { name: "Mention someone" })
+  await expect(box.getByRole("textbox", { name: "Comment on this row" })).toBeVisible()
+  await expect(box.locator(".ProseMirror"), "no editor at rest").toHaveCount(0)
+  await expect(at, "@ at rest").toBeVisible()
+  const send = await box.getByRole("button", { name: "Comment", exact: true }).boundingBox()
+  const atBox = await at.boundingBox()
+  expect(atBox && send && atBox.x < send.x, "@ beside send, before it").toBe(true)
+  await at.click()
+  const editor = box.locator(".ProseMirror")
+  await expect(editor, "the click: the editor, the caret in it").toBeFocused()
+  await expect(editor).toHaveText("@")
+  const list = sam.page.getByRole("listbox", { name: /^Mention/ })
+  // The list names people by their username, the one asking first: "pri" leaves Priya, whom Enter takes.
+  await expect(list.getByRole("option", { name: /priya/i })).toBeVisible({ timeout: 15_000 })
+  await sam.page.keyboard.type("pri")
+  await expect(editor).toHaveText("@pri")
+  await sam.page.keyboard.press("Enter")
+  await expect(editor.locator("[data-type=mention], .mention").first()).toContainText(/priya/i)
+  await sam.close()
+})

@@ -97,6 +97,22 @@ describe("a crash the app can't recover from", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reload page" }))
     expect(reload).toHaveBeenCalled()
   })
+
+  // V-1013: it is drawn instead of the shell, so it holds the page's one main,
+  // or "Skip to content" and landmark navigation find nothing.
+  it("is the page's one main landmark, the skip link's target", () => {
+    shouldThrow = true
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    render(
+      <GlobalErrorBoundary>
+        <Boom />
+      </GlobalErrorBoundary>,
+    )
+    expect(document.querySelectorAll("main")).toHaveLength(1)
+    const main = screen.getByRole("main")
+    expect(main.id).toBe("main-content")
+    expect(main.querySelector("[data-crash-state]")).not.toBeNull()
+  })
 })
 
 describe("one part of a page that crashes", () => {

@@ -16,6 +16,8 @@ const grammar = vi.hoisted(() => {
   })
   return { here, arrive: () => arrive() }
 })
+// The page names a call's conversation from the sidebar (zoom-13): an empty one here.
+vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: (pick: (s: unknown) => unknown) => pick({ users: { userSidebar: {} } }) }))
 vi.mock("@/lib/search/query", async (orig) => {
   await grammar.here
   return orig()

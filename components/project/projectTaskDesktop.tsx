@@ -9,9 +9,12 @@ import { FileText, List, Megaphone, Paperclip } from "@/lib/icons";
 import { TabLoading } from "@/components/task/TabLoading"
 import { lazyView } from "@/lib/lazy/lazyView"
 import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
-import { Kanban, ListTodo, Rocket } from "@/lib/icons";
+import { Inbox, Kanban, ListTodo, Rocket } from "@/lib/icons";
 // Releases (P10-1b): one entry for both registries; its view is a chunk of its own.
 import { ReleasesTab } from "@/components/work/releases/ReleasesTab"
+// Triage (linear-21 H3): one entry for both registries; its queue is a chunk of its own.
+import { TriageTab } from "@/components/work/triage/TriageTab"
+import { triageShown } from "@/lib/work/triage"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { WorkTabsList } from "@/components/task/WorkTabs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
@@ -44,7 +47,7 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ChartGantt } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { countAddress } from "@/lib/tasks/listAddress"
-import { useState, useEffect, useCallback, startTransition } from "react"
+import { useState, useEffect, useCallback, useRef, startTransition } from "react"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
 import { NotificationLevelMenu } from "@/components/Notification/notificationLevels";
 import { useProjectNotification } from "@/hooks/useNotificationLevel";
@@ -55,7 +58,8 @@ import { LazyConnected } from "@/components/workGraph/LazyConnected"
 import { ProjectLinksStrip } from "@/components/project/ProjectLinksStrip"
 import { ProjectPlanStrip } from "@/components/project/ProjectPlanStrip"
 
-const VALID_TABS = ["list", "kanban", "backlog", "timeline", "releases", "updates", "attachments", "docs"] as const
+// Triage last, so 1 to 8 keep their tabs; it is drawn (and 9 reaches it) only while the project has triage on.
+const VALID_TABS = ["list", "kanban", "backlog", "timeline", "releases", "updates", "attachments", "docs", "triage"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -67,6 +71,10 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const isAdmin = !!projectInfo.data?.data.project_is_admin
     const isMember = !!projectInfo.data?.data.project_is_member
     const access = accessOf(projectInfo.data?.data)
+    // Its triage, from the info the page already reads (project_triage): no read of the queue until the tab is open.
+    const triage = triageShown(projectInfo.data?.data.project_triage)
+    const triageOn = useRef(triage.on)
+    triageOn.current = triage.on
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -84,12 +92,18 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     // The underline moves at once; the tab's content follows as a transition,
     // which a further click can interrupt.
     const handleTabChange = useCallback((value: string) => {
+        if (value === "triage" && !triageOn.current) return
         if (VALID_TABS.includes(value as TabValue)) {
             startTransition(() => setSelectedTab(value as TabValue))
         }
     }, [])
 
     useEffect(() => tabInAddress("tab", selectedTab), [selectedTab, tabInAddress])
+    // ?tab=triage on a project with triage off opens its list, once its info has said so.
+    const infoRead = !!projectInfo.data
+    useEffect(() => {
+        if (selectedTab === "triage" && infoRead && !triage.on) setSelectedTab("list")
+    }, [selectedTab, infoRead, triage.on])
 
     // The other tabs' chunks load once the list has painted and the page is
     // idle, so the first screen stays small and a tab switch still finds its
@@ -201,6 +215,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             { value: "updates", label: "Updates", icon: <Megaphone /> },
                             { value: "attachments", label: "Attachments", icon: <Paperclip />, count: project?.project_attachments?.length },
                             { value: "docs", label: "Docs & Files", icon: <FileText /> },
+                            ...(triage.on ? [{ value: "triage" as const, label: "Triage", icon: <Inbox />, count: triage.count }] : []),
                         ]}
                     />
                     {/* One scroll container for every tab's body. The panels
@@ -241,6 +256,11 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         <TabsContent value="docs" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Docs.View fallback={<TabLoading kind="list" />} render={(m) => <m.default space={`project:${projectId}` as const} name={project?.project_name} />} />
                         </TabsContent>
+                        {triage.on && (
+                            <TabsContent value="triage" className="mt-0 h-full [animation:work-fade-in_120ms_var(--ease-out)]">
+                                <TriageTab projectId={projectId} canManage={access.manage} />
+                            </TabsContent>
+                        )}
                     </div>
                 </Tabs>
             )}

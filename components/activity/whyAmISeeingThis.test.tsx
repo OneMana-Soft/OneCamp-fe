@@ -85,6 +85,26 @@ describe("which Inbox items say why", () => {
     expect(whyMessageId({ activity_type: "NOTICE", time: at, notice: { kind: "doc.shared" } } as unknown as UnifiedActivityItem)).toBeNull()
   })
 
+  // V-837: a reply in a thread is a chat message the router records under the
+  // reply's own id (ReplyNotice.MessageID), so its row says why, as a mention's
+  // does; a comment on a task, a doc or a board is no chat message and has none.
+  it("a reply in a chat's or a post's thread names the reply itself; one on a task, a doc or a board has none (V-837)", () => {
+    const reply = (on: object) => ({ activity_type: "COMMENT", time: at, comment: { comment_uuid: "r1", comment_text: "On it", ...on } }) as unknown as UnifiedActivityItem
+    const mentionedIn = (on: object, uuid = "r2") =>
+      ({ activity_type: "MENTION", time: at, mention: { mention_created_at: at, mention_comment_uuid: uuid, mention_comment: { comment_uuid: "r2", comment_text: "see", ...on } } }) as unknown as UnifiedActivityItem
+    expect(whyMessageId(reply({ comment_post: { post_uuid: "p1" } }))).toBe("r1")
+    expect(whyMessageId(reply({ comment_chat: { chat_uuid: "m1" } }))).toBe("r1")
+    expect(whyMessageId(mentionedIn({ comment_post: { post_uuid: "p1" } }))).toBe("r2")
+    expect(whyMessageId(mentionedIn({ comment_chat: { chat_uuid: "m1" } }))).toBe("r2")
+    // The live item may carry the reply's id on the comment alone.
+    expect(whyMessageId(mentionedIn({ comment_post: { post_uuid: "p1" } }, ""))).toBe("r2")
+    expect(whyMessageId(reply({ comment_task: { task_uuid: "t1" } }))).toBeNull()
+    expect(whyMessageId(reply({ comment_doc: { doc_uuid: "d1" } }))).toBeNull()
+    expect(whyMessageId(reply({ comment_board: { board_uuid: "b1" } }))).toBeNull()
+    expect(whyMessageId(mentionedIn({ comment_task: { task_uuid: "t1" } }))).toBeNull()
+    expect(whyMessageId(mentionedIn({ comment_doc: { doc_uuid: "d1" } }))).toBeNull()
+  })
+
   it("a row about a chat message has Why am I seeing this? in its menu; a row about a task has none", () => {
     render(<ActivityCard activity={inChannel} />)
     expect(whyButton()).toBeInTheDocument()

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { ALL_BOARD_TEMPLATES, boardTemplate } from "./templateLibrary"
 import { BOARD_TEMPLATES, TEMPLATE_CATEGORIES, skeletonBounds } from "./templates"
 import { NOTE_COLOURS } from "./notes"
+import { mapOf, relayout } from "./mindMap"
 
 // The template library (miro-19): every layout tested as the five are.
 describe("the template library", () => {
@@ -53,11 +54,22 @@ describe("the template library", () => {
   it("wraps every note's words to fit it, in the note's own ink, and marks it a note", () => {
     for (const t of ALL_BOARD_TEMPLATES)
       for (const s of t.build("p")) {
-        if (s.type !== "rectangle") continue
+        // A mind map's ideas are its nodes, not notes (miro-15): the test below has them.
+        if (s.type !== "rectangle" || "mindMap" in (s.customData ?? {})) continue
         for (const l of s.label.text.split("\n")) expect(l.length, `${t.id}: ${l}`).toBeLessThanOrEqual(Math.floor((s.width - 20) / 11))
         expect(s.customData.kind, t.id).toBe("note")
         expect(s.label.strokeColor, t.id).toBe(NOTE_COLOURS[s.customData.colour].ink)
       }
+  })
+
+  it("builds the mind map as a real mind map: tagged ideas and connectors, as the one layout lays them out", () => {
+    const built = boardTemplate("mind-map")!.build("p") as unknown as Parameters<typeof relayout>[0]
+    const nodes = mapOf(built, "p-map")
+    expect(nodes).toHaveLength(7)
+    expect(nodes.filter((n) => n.parent === null).map((n) => n.id)).toEqual(["p-centre"])
+    expect(new Set(nodes.filter((n) => n.parent).map((n) => n.side))).toEqual(new Set(["l", "r"]))
+    expect(built.filter((e) => e.type === "arrow")).toHaveLength(6)
+    expect(relayout(built, "p-map")).toEqual([])
   })
 
   it("never shares ids between two inserts of a template", () => {

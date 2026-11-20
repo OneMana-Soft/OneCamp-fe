@@ -411,7 +411,7 @@ describe("an edge with more past it fades", () => {
       ["components/ui/comboboxMenu.tsx", "pinsSheetTop"],
       ["components/ui/date-field-panels.tsx", "pinsSheetTop"],
       ["components/ui/sheet-menu.tsx", "pinsSheetFoot"],
-      ["components/calendar/eventPopover.tsx", 'data-pinned-foot={info.asks ? "" : undefined}'],
+      ["components/calendar/eventPopover.tsx", 'data-event-sheet="" data-pinned-foot=""'],
     ]) expect(readFileSync(join(ROOT, file), "utf8"), `${file} sticks to the sheet's edge under its fade`).toContain(pin)
     for (const file of ["components/ui/drawer.tsx", "components/ui/moreMarks.ts"]) expect(readFileSync(join(ROOT, file), "utf8"), file).not.toMatch(/sheetPins|markAttribute/)
   })

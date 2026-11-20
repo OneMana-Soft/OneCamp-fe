@@ -5,8 +5,9 @@ import ts from "typescript"
  * phone.css F3b), read from a component's source. A control's reach under a
  * finger (F3) runs past a small control's edges, so two set closer than 44px
  * less their size overlap, and the later takes the earlier's taps. A row of
- * them is a touch group (data-touch-group), or spaced for a finger by its own
- * gap (gap-4 and up, or pointer-coarse:gap-4 and up). Read by
+ * them is a touch group (data-touch-group, or a page header's actions row,
+ * data-page-actions), or spaced for a finger by its own gap (gap-4 and up, or
+ * pointer-coarse:gap-4 and up). Read by
  * app/touchGroups.test.ts. Pure.
  *
  * A small control here is a square one that reaches past its edges: Button
@@ -62,6 +63,8 @@ const TRANSPARENT = /^(?:DropdownMenu|DropdownMenuTrigger|Tooltip|TooltipTrigger
 
 /** Whether a JSX node is a small control that reaches past its edges (inside a wrapper that draws nothing, too). */
 function isSmallControl(node: ts.Node): boolean {
+  // {count > 0 ? (<Button …/>) : null}: the parentheses are no gap (V-1025).
+  while (ts.isParenthesizedExpression(node)) node = node.expression
   const el = opening(node)
   if (!el) return false
   const tag = el.tagName.getText()
@@ -83,8 +86,7 @@ function kindOf(child: ts.JsxChild): "control" | "space" | "other" {
     // {open && <Button …/>} and {a ? <Button …/> : <Button …/>}: a control where it shows.
     if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) return isSmallControl(e.right) ? "control" : "other"
     if (ts.isConditionalExpression(e)) return isSmallControl(e.whenTrue) || isSmallControl(e.whenFalse) ? "control" : "other"
-    if (ts.isParenthesizedExpression(e) && isSmallControl(e.expression)) return "control"
-    return "other"
+    return isSmallControl(e) ? "control" : "other"
   }
   return isSmallControl(child) ? "control" : "other"
 }
@@ -104,7 +106,7 @@ export function crowdedRows(src: string, file: string): string[] {
         if (run >= 2) crowded = true
       }
       const el = node.openingElement
-      const grouped = attr(el, "data-touch-group") !== undefined || SPACED.test(text(attr(el, "className")) ?? "")
+      const grouped = attr(el, "data-touch-group") !== undefined || attr(el, "data-page-actions") !== undefined || SPACED.test(text(attr(el, "className")) ?? "")
       if (crowded && !grouped) out.push(`${file}:${sf.getLineAndCharacterOfPosition(el.getStart()).line + 1}`)
     }
     ts.forEachChild(node, visit)

@@ -52,7 +52,7 @@ describe("dashboards", () => {
 describe("breakdowns and effort (L32)", () => {
   it("split every way the report does, and a number may be an effort, in points where there are any", async () => {
     const { BREAKDOWNS, metricText } = await import("@/lib/dashboards")
-    expect(BREAKDOWNS.map((b) => b.label)).toEqual(["By project", "By person", "By priority", "By type", "By status", "By labels", "By cycle", "By estimate"])
+    expect(BREAKDOWNS.map((b) => b.label)).toEqual(["By project", "By person", "By priority", "By type", "By status", "By labels", "By cycle", "By estimate", "By SLA"])
     expect(metricText({ measure: "effort_open", value: 13, effort: { points: 13, hours: 2 } })).toBe("13 pt")
     expect(metricText({ measure: "effort_done", value: 7.5, effort: { points: 0, hours: 7.5 } })).toBe("7.5 h")
   })

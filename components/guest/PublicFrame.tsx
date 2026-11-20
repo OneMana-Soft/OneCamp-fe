@@ -65,7 +65,7 @@ export function PublicFrame({
   return (
     <div data-public-frame="" data-fill={fill || undefined} className={cn("public-frame flex w-full flex-col text-ink", fill ? "h-dvh" : "min-h-dvh", className)}>
       <PublicHeader title={title} titleFromSm={titleFromSm} workspaceName={workspaceName} actions={actions} header={header} band={band} />
-      <main className={cn("flex w-full flex-1 flex-col", fill ? "min-h-0 items-stretch" : "items-center", mainClassName)}>{children}</main>
+      <main id="main-content" className={cn("flex w-full flex-1 flex-col", fill ? "min-h-0 items-stretch" : "items-center", mainClassName)}>{children}</main>
       {credit || reportHref || footer ? (
         <footer className={cn("flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 text-meta text-ink-3", fill ? "py-2" : "pb-8 pt-6")}>
           {credit && <MadeWithOneCamp surface={surface} />}

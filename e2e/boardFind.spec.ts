@@ -8,6 +8,7 @@ import { pixelsAt, spreadOf } from "./contrast"
 import { holdChunk } from "./holdChunk"
 import { settled } from "./sheetLayout"
 import { SHOT_THEMES, reviewShot } from "./stubbedApp"
+import { boardRoom } from "./boxes"
 
 // Find and replace on a board (whiteboard programme W6-B2, row miro-05): a
 // search hit on a board's words opens the board with Find on those words, the
@@ -155,36 +156,36 @@ async function lights(page: Page) {
   })
 }
 
-/** Whether the current match is lit in the half of the board a phone's Find sheet leaves in view. */
+/** Whether the current match is lit whole in the room a phone's Find sheet leaves in view, under the board's top bar (boardRoom). */
 async function litAbove(page: Page, sheet: Locator) {
-  const top = (await sheet.boundingBox())!.y
-  const canvas = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
+  const room = await boardRoom(page, sheet)
   const { box } = await lights(page)
-  return !!box && box.top >= canvas.y && box.bottom <= top
+  return !!box && box.top >= room.top && box.bottom <= room.bottom
 }
 
 /**
- * Whether a note's whole box, as the board holds it and its camera draws it, sits on a phone between the tool row that
- * floats over the board's top (Excalidraw's MobileMenu row) and the Find sheet: not only its lit words.
+ * Whether a note's whole box, as the board holds it and its camera draws it, sits on a phone between the bar that
+ * floats over the board's top (its cluster; the tool row is at the foot since design-22 4) and the Find sheet, in the
+ * room boardRoom reads: not only its lit words.
  */
 async function noteBetween(page: Page, collab: ReturnType<typeof collabFor>, sheet: Locator, id: string) {
   const note = byId(collab, id)!
   const camera = (await cameraOf(page))!
   const canvas = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
-  const row = (await page.locator(".App-toolbar--mobile").boundingBox())!
+  const room = await boardRoom(page, sheet)
   const top = canvas.y + (note.y! + camera.scrollY) * camera.zoom
-  return top >= row.y + row.height && top + note.height! * camera.zoom <= (await sheet.boundingBox())!.y
+  return top >= room.top && top + note.height! * camera.zoom <= room.bottom
 }
 
 /**
- * Whether a frame's name sits whole on a phone between the tool row over the board's top and the Find sheet: the words
+ * Whether a frame's name sits whole on a phone between the bar over the board's top and the Find sheet (boardRoom): the words
  * Find matched, not only the frame they name. Excalidraw 0.18.1 writes a frame's name on the page over its canvas, just
  * above the frame's top edge (#<app>-frame-name-<frame id>), at 14 px whatever the zoom (V-270).
  */
 async function nameBetween(page: Page, sheet: Locator, frameId: string) {
   const name = await page.locator(`[id$="-frame-name-${frameId}"]`).boundingBox()
-  const row = (await page.locator(".App-toolbar--mobile").boundingBox())!
-  return !!name && name.y >= row.y + row.height && name.y + name.height <= (await sheet.boundingBox())!.y
+  const room = await boardRoom(page, sheet)
+  return !!name && name.y >= room.top && name.y + name.height <= room.bottom
 }
 
 /** Whether the current match is lit on a computer's screen, clear of the Find panel at its side. */
@@ -394,22 +395,22 @@ test(`on a phone, a typed word's match under the sheet comes up above it before 
   await field.pressSequentially("caterer", { delay: 30 })
   await expect(sheet.locator("[data-board-find-count]")).toHaveText("1 of 1")
   await expect.poll(() => litAbove(page, sheet), { timeout: 10_000, message: "the typed match is lit above the sheet" }).toBe(true)
-  // The whole note, its rounded top included, clears the tool row over the board's top as well as the sheet.
+  // The whole note, its rounded top included, clears the bar over the board's top as well as the sheet.
   const between = () => noteBetween(page, collab, sheet, "caterer")
-  await expect.poll(between, { timeout: 10_000, message: "the typed match's note sits whole between the tool row and the sheet" }).toBe(true)
+  await expect.poll(between, { timeout: 10_000, message: "the typed match's note sits whole between the board's top bar and the sheet" }).toBe(true)
   await expect(field).toBeFocused()
   await expect(page.locator("[data-notes-bar]")).toHaveCount(0)
   await reviewShot(page, "board-find-typed-sheet", theme)
   // A step goes to it by the same rule, and selects it.
   await field.press("Enter")
-  await expect.poll(between, { timeout: 10_000, message: "the stepped-to note sits whole between the tool row and the sheet" }).toBe(true)
+  await expect.poll(between, { timeout: 10_000, message: "the stepped-to note sits whole between the board's top bar and the sheet" }).toBe(true)
   await context.close()
 })
 
 // V-270: a frame's name is written above the frame, outside the box Find fits into what the sheet leaves in view, so a
 // match on a frame's name came up with its words under the tool row over the board's top (seen on the demo's Launch
 // retro). The name itself sits whole between that row and the sheet, typed and stepped to.
-test(`on a phone, a frame's name it finds shows whole between the tool row and the sheet, typed and stepped to (phone, ${theme})`, async ({ browser }) => {
+test(`on a phone, a frame's name it finds shows whole between the board's top bar and the sheet, typed and stepped to (phone, ${theme})`, async ({ browser }) => {
   test.setTimeout(120_000)
   const { context, page } = await open(browser, "phone", "sam", `/app/board/${BOARD}`, theme)
   await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
@@ -422,10 +423,10 @@ test(`on a phone, a frame's name it finds shows whole between the tool row and t
   await field.pressSequentially("Went well", { delay: 30 })
   await expect(sheet.locator("[data-board-find-count]")).toHaveText("1 of 1")
   const between = () => nameBetween(page, sheet, "well")
-  await expect.poll(between, { timeout: 10_000, message: "the typed frame's name sits whole between the tool row and the sheet" }).toBe(true)
+  await expect.poll(between, { timeout: 10_000, message: "the typed frame's name sits whole between the board's top bar and the sheet" }).toBe(true)
   await reviewShot(page, "board-find-frame-name-sheet", theme)
   await field.press("Enter")
-  await expect.poll(between, { timeout: 10_000, message: "the stepped-to frame's name sits whole between the tool row and the sheet" }).toBe(true)
+  await expect.poll(between, { timeout: 10_000, message: "the stepped-to frame's name sits whole between the board's top bar and the sheet" }).toBe(true)
   await context.close()
 })
 
@@ -561,7 +562,7 @@ test(`a viewer finds on a board but never replaces: no Replace, and the board's 
 for (const [device, motion] of [["computer", "no-preference"], ["phone", "no-preference"], ["phone", "reduce"]] as const) {
   test(`Find dims the rest of the board while it has matches, on until it's turned off, and it ends with Find (${device}, ${theme}${motion === "reduce" ? ", reduced motion" : ""})`, async ({ browser }) => {
     test.setTimeout(120_000)
-    // At half size on a phone, both notes in "Launch week" sit between the tool row and the sheet.
+    // At half size on a phone, both notes in "Launch week" sit between the board's top bar and the sheet.
     const cam = device === "phone" ? { scrollX: 0, scrollY: 150, zoom: 0.5 } : { scrollX: 0, scrollY: 0, zoom: 1 }
     const { context, page } = await open(browser, device, "sam", `/app/board/${BOARD}`, theme, cam, { reducedMotion: motion })
     const canvas = (await page.locator(".excalidraw canvas.interactive").boundingBox())!

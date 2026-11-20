@@ -12,7 +12,7 @@
 
 import * as React from "react"
 import type { Doc as YDoc } from "yjs"
-import { LOCAL_ORIGIN, CAPTURE, type BoardElement, type SceneApi, type SharedElements } from "@/lib/board/binding"
+import { LOCAL_ORIGIN, CAPTURE, guardOf, type BoardElement, type Guarded, type SceneApi, type SharedElements } from "@/lib/board/binding"
 import { storeWithMakers } from "@/lib/board/authors"
 import { PrivateVeils } from "@/components/board/privateVeils"
 import { useToast } from "@/hooks/use-toast"
@@ -73,7 +73,7 @@ export interface PrivateNotesOptions {
   yDoc: YDoc
   boardId: string
   who: Who
-  api: (SceneApi & { getSceneElementsIncludingDeleted(): readonly unknown[] }) | null
+  api: (SceneApi & Guarded & { getSceneElementsIncludingDeleted(): readonly unknown[] }) | null
   yElements: SharedElements
   yAuthors: { has(id: string): boolean; set(id: string, v: unknown): unknown }
   ready: boolean
@@ -138,7 +138,7 @@ export function usePrivateNotes(opts: PrivateNotesOptions): PrivateNotesHandle {
     const { elements, revealed } = revealScene(api.getSceneElementsIncludingDeleted() as BoardElement[], notes, yElements, who.id)
     if (revealed > 0) {
       api.updateScene({ elements: elements as never, captureUpdate: CAPTURE.NEVER })
-      yDoc.transact(() => storeWithMakers(yAuthors, yElements, elements, who), LOCAL_ORIGIN)
+      yDoc.transact(() => storeWithMakers(yAuthors, yElements, elements, who, guardOf(api)), LOCAL_ORIGIN)
     }
     const settled = Object.keys(notes.publicText)
     if (mine) notesRef.current = null

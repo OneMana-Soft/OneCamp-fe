@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useReadState, isUnread } from "@/lib/activity/readState"
 import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE } from "@/lib/activity/feedPages"
+import { usePriorityMarks, withPriorityMarks } from "@/components/activity/usePriorityMarks"
 import { isMention } from "@/lib/activity/notice"
 import { CHAT_THREADS_PATH, THREADS_UNREAD_KEY } from "@/lib/conversation/threadsKey"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -89,6 +90,8 @@ export function ActivityListTabs() {
     })
     const [unreadOnly, setUnreadOnly] = useState(false)
     const { read, markedUnread, counted, mark, keep } = useReadState()
+    // What the reader took out of Priority or put back, before the server's next answer (A4 H5).
+    const priority = usePriorityMarks()
     // The Inbox badge (lib/activity/inboxBadge): the server's count.
     const badge = useSelector((s: RootState) => s.users?.userSidebar?.totalUnreadActivityCount ?? 0)
     const [unreadKeys, setUnreadKeys] = useState<string[]>([])
@@ -108,7 +111,10 @@ export function ActivityListTabs() {
     // the cache (no extra request) and follow the server's read-state demotion.
     const firstKey = inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, INBOX_PAGE_SIZE)
     const { data: firstPage, mutate: readFirst } = useFetch<UnifiedActivityPaginationRes>(firstKey)
-    const items = useMemo(() => collapseEchoes((firstPage?.data?.activities ?? []).filter(hasSubject)), [firstPage])
+    const items = useMemo(
+        () => collapseEchoes(withPriorityMarks(firstPage?.data?.activities ?? [], priority.marks).filter(hasSubject)),
+        [firstPage, priority.marks],
+    )
     const counts = useMemo(() => {
         const unread = items.filter((a: UnifiedActivityItem) => isUnread(a, activityKey(a), read, markedUnread, counted))
         return {
@@ -310,6 +316,8 @@ export function ActivityListTabs() {
                             counted={counted}
                             onCounted={keep}
                             onToggleRead={mark}
+                            priorityMarks={priority.marks}
+                            onPriority={priority.choose}
                             onUnreadKeys={setUnreadKeys}
                             onShowAll={() => setUnreadOnly(false)}
                             pane={pane}

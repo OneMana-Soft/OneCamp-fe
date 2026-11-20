@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Button } from "@/components/ui/button"
 import { MessageSquare } from "@/lib/icons"
-import { CommentComposer } from "@/components/docComments/CommentComposer"
+import { CommentComposer, CommentFoot } from "@/components/docComments/CommentComposer"
 import { ThreadRow } from "@/components/docComments/ThreadRow"
 import { ThreadsSkeleton, ThreadsToolbar, useThreadList } from "@/components/docComments/ThreadsPanelParts"
 import { useDocThreads } from "@/components/docComments/useDocThreads"
@@ -97,10 +97,12 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
             </div>
             {!t.canComment && !t.isDeleted && t.level !== "none" && (
                 // Said, never a box that silently isn't there (docs incident, 14 Oct 2026).
-                <DocAccessNote docId={docId} level={t.level} want="comment" suffix=", so you can't comment on it" className="shrink-0 border-t border-line px-4 py-3" />
+                <CommentFoot className="px-4 py-3">
+                    <DocAccessNote docId={docId} level={t.level} want="comment" suffix=", so you can't comment on it" />
+                </CommentFoot>
             )}
             {t.canComment && !t.isDeleted && (
-                <div className="shrink-0 border-t border-line px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+                <CommentFoot>
                     <CommentComposer
                         docId={docId}
                         placeholder="Comment on this page…"
@@ -108,7 +110,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         sendLabel="Comment"
                         onSend={(b) => t.start({ kind: "none" }, b)}
                     />
-                </div>
+                </CommentFoot>
             )}
         </div>
     )

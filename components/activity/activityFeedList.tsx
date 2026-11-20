@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useAppRouter } from "@/lib/navigation/appRouter"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
@@ -19,9 +19,10 @@ import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE,
 import { isMention } from "@/lib/activity/notice"
 import { aggregate, dayGroupOf, priorityGroupOf, PRIORITY_GROUP_ORDER, type FeedEntry } from "@/lib/activity/notification"
 import { panelTargetOf, showsTarget } from "@/lib/activity/panelTarget"
-import { useInboxListKeys, type InboxPane } from "@/components/activity/useInboxListKeys"
+import { focusRow, useInboxListKeys, type InboxPane } from "@/components/activity/useInboxListKeys"
 import { useInboxDensity } from "@/components/activity/inboxDensity"
 import { isUnread } from "@/lib/activity/readState"
+import { withPriorityMarks, type PriorityMarks } from "@/components/activity/usePriorityMarks"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** Where each viewer's row size is kept (components/activity/inboxDensity). */
@@ -47,6 +48,7 @@ const WHO_GLYPH: Record<ActorFilter, ReactNode> = {
 export type FeedView = "priority" | "all" | "mentions"
 
 const PAGE_SIZE = INBOX_PAGE_SIZE
+const NO_MARKS: PriorityMarks = new Map()
 /** Pages a filtered view pulls on its own, per ask, before it stops and offers more. */
 const MAX_AUTO_PAGES = 5
 
@@ -92,6 +94,8 @@ export function ActivityFeedList({
     counted,
     onCounted,
     onToggleRead,
+    priorityMarks,
+    onPriority,
     onUnreadKeys,
     onShowAll,
     pane,
@@ -109,6 +113,10 @@ export function ActivityFeedList({
     /** Keeps what the server marks unread, on every page loaded, as counted. */
     onCounted?: (items: UnifiedActivityItem[]) => void
     onToggleRead?: (keys: string[], read: boolean) => void
+    /** The reader's own Priority choices this session (usePriorityMarks), over every page loaded. */
+    priorityMarks?: PriorityMarks
+    /** Takes rows out of Priority or puts them back (usePriorityMarks). */
+    onPriority?: (keys: string[], out: boolean) => unknown
     /** The keys of every unread row in view, for the header's Mark all read and counts. */
     onUnreadKeys?: (keys: string[]) => void
     /** Turn the unread-only switch off. */
@@ -173,8 +181,8 @@ export function ActivityFeedList({
     // One row per thing said: the server can send one sentence as several
     // records (collapseEchoes says when).
     const inScope = useMemo(
-        () => collapseEchoes(loaded.filter((a) => hasSubject(a) && inView[view](a) && matchesActor(a, who))),
-        [loaded, view, who],
+        () => collapseEchoes(withPriorityMarks(loaded, priorityMarks ?? NO_MARKS).filter((a) => hasSubject(a) && inView[view](a) && matchesActor(a, who))),
+        [loaded, priorityMarks, view, who],
     )
     useEffect(() => onCounted?.(loaded), [loaded, onCounted])
     const unreadOf = useMemo(() => {
@@ -225,6 +233,25 @@ export function ActivityFeedList({
         isUnread: (e) => [e.item, ...e.others].some(unreadOf),
         setRead: onToggleRead ? (e, read) => onToggleRead([e.item, ...e.others].map(activityKey), read) : undefined,
     })
+
+    // CR-333: a row Remove takes out of Priority hands the focus on, to the next row, else the one before, else the
+    // tab; and a press on a row's Priority tool while its write is out is no choice.
+    const handOff = useRef<(string | undefined)[]>([])
+    const busy = useRef(new Set<string>())
+    const onPriorityHere = (keys: string[], out: boolean) => {
+        const sig = keys.join()
+        if (busy.current.has(sig)) return
+        const at = out && view === "priority" ? entries.findIndex((e) => e.item.key === keys[0]) : -1
+        if (at >= 0) handOff.current = [entries[at].key, (entries[at + 1] ?? entries[at - 1])?.key]
+        busy.current.add(sig)
+        void Promise.resolve(onPriority?.(keys, out)).finally(() => busy.current.delete(sig))
+    }
+    useLayoutEffect(() => {
+        const [from, to] = handOff.current
+        if (!from || entries.some((e) => e.key === from)) return
+        handOff.current = []
+        if (document.activeElement === document.body && !(to && box.current && focusRow(box.current, to))) document.querySelector<HTMLElement>(`[data-tab="${view}"]`)?.focus()
+    }, [entries, view])
 
     // What this view is looking for, and how many pages it has pulled for it.
     // Held against the view and filter it was asked under, so a new view or
@@ -331,6 +358,7 @@ export function ActivityFeedList({
                             underDay={view !== "priority"}
                             unread={read ? [row.entry.item, ...row.entry.others].some(unreadOf) : undefined}
                             onToggleRead={onToggleRead}
+                            onPriority={onPriority ? onPriorityHere : undefined}
                             compact={compact}
                             onOpenInPanel={pane?.open}
                             open={pane ? showsTarget(pane.panel, targetOf(row.entry)) : false}

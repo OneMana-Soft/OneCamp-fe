@@ -605,6 +605,43 @@ describe("the grid on the v3 sheet", () => {
     expect(item().hasAttribute("data-frozen-edge")).toBe(true)
   })
 
+  it("leaves a cell under the frozen column where it is when a control in it takes the focus, so a press's click lands on what was pressed; the keys' focus and the cell itself come out (V-1072, CR-357)", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    const scroller = document.querySelector<HTMLElement>("[data-table-grid]")!
+    let left = 40
+    Object.defineProperty(scroller, "scrollLeft", { configurable: true, get: () => left, set: (v: number) => (left = v) })
+    // The frozen column ends at 200; a cell scrolled 40 along starts 17 under it.
+    const rect = HTMLElement.prototype.getBoundingClientRect
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.matches("thead th[data-frozen-edge]")) return { left: 0, right: 200 } as DOMRect
+      if (this.tagName === "TD" && !this.hasAttribute("data-frozen")) return { left: 223 - left, right: 343 - left } as DOMRect
+      return rect.call(this)
+    })
+    const box = screen.getAllByRole("textbox", { name: "Cost" })[0]
+    // A control in the cell (a chip's name or x, a files cell's "+2"), focused
+    // by its press (no focus ring; jsdom matches :focus-visible on every focus):
+    // moved before the release, the click would land on neither.
+    const control = box.closest("td")!.appendChild(document.createElement("button"))
+    const matches = control.matches.bind(control)
+    let ring = false
+    // Of the grid's test (a cell, not a button or link, or a ring) only the ring can hold for it.
+    control.matches = (s: string) => (s.includes(":focus-visible") ? ring : matches(s))
+    act(() => control.focus())
+    expect(document.activeElement).toBe(control)
+    expect(left).toBe(40)
+    // Focused by the keys (its ring shows), it comes out beside it (CR-357).
+    act(() => control.blur())
+    ring = true
+    act(() => control.focus())
+    expect(left).toBe(23)
+    // The cell itself (a tap on the part that shows, or the keys): out beside it.
+    left = 40
+    act(() => box.focus())
+    expect(left).toBe(23)
+    control.remove()
+    spy.mockRestore()
+  })
+
   it("freezes the primary column and ticks boxes in moss, never the brand", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
     const item = screen.getAllByRole("textbox", { name: "Item" })[0]

@@ -94,10 +94,15 @@ export function showCallFailure(f: CallFailure | null, now = Date.now()): void {
   callToast({ title: f.title, description: f.description, variant: "destructive" })
 }
 
+/** Says why a control does nothing right now, once in 4 s: the workspace's state, not a failure (zoom-09 C2). */
+export function sayCallNote(title: string, description?: React.ReactNode, now = Date.now()): void {
+  if (!saidJustNow(title, now)) callToast({ title, description, tone: "info" })
+}
+
 /** Says why a control the call holds can't be used, and what to do about it: a choice the people running it made, not a failure (meet-12). */
-function sayHeld(what: CallHold, now = Date.now()): void {
-  const title = heldReason(what)
-  if (!saidJustNow(title, now)) callToast({ title, description: heldNext(what), tone: "info" })
+function sayHeld(what: CallHold, asking = false, now = Date.now()): void {
+  const title = heldReason(what, asking)
+  if (!saidJustNow(title, now)) callToast({ title, description: heldNext(what, asking), tone: "info" })
 }
 
 /** One kind of device in a device menu: its heading, the devices and the one in use. */
@@ -239,6 +244,8 @@ export interface CallDockProps {
   showCaptions?: boolean
   /** Captions are off for the whole call, so the control turns them on for everyone (CALL-BUG-2). */
   captionsOff?: boolean
+  /** Why captions can't come on (the transcriber is down, zoom-09 C2): the control's label says so instead of offering to turn them on. */
+  captionsWhy?: string
   onToggleAI?: () => void
   isAIOpen?: boolean
   aiUnreadCount?: number
@@ -256,6 +263,8 @@ export interface CallDockProps {
   onReact?: (emoji: Reaction) => void
   /** What the people running the call hold for you now (meet-12): those controls stay, dimmed, and say why. */
   held?: ReadonlySet<CallHold>
+  /** A guest's OK to a recording or captions notice is awaited (zoom-09): their held microphone and camera say so. */
+  asking?: boolean
   /** Your hand (lib/calls/hands): raised or not, and the switch; absent where you can't. */
   hand?: { raised: boolean; onToggle: () => void }
   /** Your feedback beside your name, kept until you take it away, in the React tray. */
@@ -331,7 +340,7 @@ export function CallDock(p: CallDockProps) {
               icon={p.micOn ? <Mic /> : <MicOff />}
               onClick={p.onToggleMic}
               menu={p.micMenu}
-              {...heldControl(p.held, "microphone", p.micOn)}
+              {...heldControl(p.held, "microphone", p.micOn, p.asking)}
             />
             <DockButton
               label={p.cameraOn ? CONTROL_LABELS.cameraOff : CONTROL_LABELS.cameraOn}
@@ -342,7 +351,7 @@ export function CallDock(p: CallDockProps) {
               icon={p.cameraOn ? <Video /> : <VideoOff />}
               onClick={p.onToggleCamera}
               menu={p.cameraMenu}
-              {...heldControl(p.held, "camera", p.cameraOn)}
+              {...heldControl(p.held, "camera", p.cameraOn, p.asking)}
             />
           </>
         )}
@@ -579,9 +588,9 @@ function PeopleCount({ count, waiting }: { count: number; waiting?: number }) {
  * in its place, still pressable, its tooltip and a press saying why (as a
  * phone's Share does). Turning it off is never held. Nothing while not held.
  */
-function heldControl(held: ReadonlySet<CallHold> | undefined, what: CallHold, on: boolean) {
+function heldControl(held: ReadonlySet<CallHold> | undefined, what: CallHold, on: boolean, asking = false) {
   if (on || !held?.has(what)) return {}
-  return { "aria-disabled": true, hint: heldReason(what), onClick: () => sayHeld(what) } as const
+  return { "aria-disabled": true, hint: heldReason(what, asking), onClick: () => sayHeld(what, asking) } as const
 }
 
 /**
@@ -646,11 +655,11 @@ function ReactButton({ onReact, feedback, held }: { onReact: (emoji: Reaction) =
 }
 
 /**
- * What the captions control does now: turn them on for the whole call, or
- * show or hide them on this screen once they are on. Pure.
+ * What the captions control does now: turn them on for the whole call (or
+ * why it can't), or show or hide them on this screen once they are on. Pure.
  */
-export function captionsAction(p: Pick<CallDockProps, "captionsOff" | "showCaptions">): string {
-  if (p.captionsOff) return "Turn on captions"
+export function captionsAction(p: Pick<CallDockProps, "captionsOff" | "captionsWhy" | "showCaptions">): string {
+  if (p.captionsOff) return p.captionsWhy ?? "Turn on captions"
   return p.showCaptions ? "Hide captions" : "Show captions"
 }
 
@@ -953,13 +962,13 @@ function useDeviceSwitch(device: CallDevice, set: (on: boolean) => Promise<unkno
  * notice's went round the hold, and the browser's refusal then read "Leave
  * and rejoin the call" (CODE-REVIEWER-51, 26 Oct).
  */
-function useHeldSwitch(held: ReadonlySet<CallHold> | undefined, what: CallHold, sw: DeviceSwitch): DeviceSwitch {
+function useHeldSwitch(held: ReadonlySet<CallHold> | undefined, what: CallHold, sw: DeviceSwitch, asking = false): DeviceSwitch {
   const holds = !!held?.has(what)
   return React.useMemo(() => {
     if (!holds) return sw
-    const say = () => (sayHeld(what), Promise.resolve(false))
+    const say = () => (sayHeld(what, asking), Promise.resolve(false))
     return { ...sw, to: (on: boolean) => (on ? say() : sw.to(false)), toggle: (shown: boolean) => ((sw.heading() ?? shown) ? sw.to(false) : say()) }
-  }, [holds, what, sw])
+  }, [holds, what, sw, asking])
 }
 
 /** What a device switch that failed says: why it couldn't turn on, or that it couldn't turn off. Pure. */
@@ -976,12 +985,12 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
 
   const setMic = React.useCallback((on: boolean) => localParticipant.setMicrophoneEnabled(on), [localParticipant])
   // What the call holds for you is said, not tried: the call server would refuse it (meet-12).
-  const { held } = rest
-  const mic = useHeldSwitch(held, "microphone", useDeviceSwitch("microphone", setMic))
+  const { held, asking } = rest
+  const mic = useHeldSwitch(held, "microphone", useDeviceSwitch("microphone", setMic), asking)
   // The microphone's one switch, holds and all, for an "asked to unmute" notice's Unmute too (unmuteToast).
   const { companion } = rest
   React.useEffect(() => (companion ? undefined : publishSwitch(room, "microphone", mic)), [room, mic, companion])
-  const camera = useHeldSwitch(held, "camera", useDeviceSwitch("camera", React.useCallback((on: boolean) => localParticipant.setCameraEnabled(on), [localParticipant])))
+  const camera = useHeldSwitch(held, "camera", useDeviceSwitch("camera", React.useCallback((on: boolean) => localParticipant.setCameraEnabled(on), [localParticipant])), asking)
   // A share takes the tab's sound with it, sent as music (meet-14; shareCapture).
   const share = useHeldSwitch(held, "share", useDeviceSwitch("screen", React.useCallback((on: boolean) => localParticipant.setScreenShareEnabled(on, shareCapture(), SHARE_PUBLISH), [localParticipant])))
   const toggleMic = React.useCallback(() => mic.toggle(isMicrophoneEnabled), [mic, isMicrophoneEnabled])

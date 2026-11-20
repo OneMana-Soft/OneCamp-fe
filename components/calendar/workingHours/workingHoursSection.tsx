@@ -4,21 +4,20 @@ import * as React from "react"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { TimeField } from "@/components/ui/date-field"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { ZonePicker } from "@/components/ui/zonePicker"
 import { SettingsSection } from "@/components/ui/settingsSection"
 import { SavedTick, useSaveStatus } from "@/components/ui/saveStatus"
-import { Plus, X } from "@/lib/icons"
+import { X } from "@/lib/icons"
 import { usePreference } from "@/lib/preferences/usePreference"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { zoneCity, zoneLabel } from "@/lib/utils/zones"
 import { MAX_OTHER_ZONES, type OtherZone } from "@/lib/calendar/otherZones"
-import { MAX_SPANS, WORKING_WEEK, copiedToWorkdays, weekOrder, weekProblem, withDay, withNewSpan, withSpan, withoutSpan, type Week } from "@/lib/calendar/workingHours"
+import { WORKING_WEEK, weekOrder, weekProblem, type Week } from "@/lib/calendar/workingHours"
+import { WeekHoursEditor } from "@/components/calendar/workingHours/weekHoursEditor"
 
 /** The longest name a zone's column takes, in characters (the server's maxZoneLabel). */
 const MAX_ZONE_NAME = 24
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 const CLOCKS: { value: "auto" | "12" | "24"; label: string }[] = [
   { value: "auto", label: "Automatic" },
   { value: "12", label: "12-hour" },
@@ -206,46 +205,7 @@ export function WorkingHoursSection() {
               <p className="text-meta text-ink-3">Without them, people can ask for any time.</p>
             ) : (
               <div className="grid gap-1" data-hours-week="">
-                {order.map((day) => {
-                  const spans = shown[String(day)] ?? []
-                  const on = spans.length > 0
-                  return (
-                    <div key={day} className="grid grid-cols-[2.25rem_6.5rem_minmax(0,1fr)] items-start gap-x-2 py-1" data-hours-day={day}>
-                      <Switch className="mt-1.5" checked={on} onCheckedChange={(v) => keepHours(withDay(shown, day, v === true))} aria-label={`Work on ${DAY_NAMES[day]}s`} />
-                      <span className={on ? "flex h-8 items-center text-ui-sm text-ink" : "flex h-8 items-center text-ui-sm text-ink-3"}>{DAY_NAMES[day]}</span>
-                      {on ? (
-                        <div className="grid gap-1">
-                          {spans.map((s, i) => (
-                            <div key={i} className="flex flex-wrap items-center gap-1.5">
-                              <TimeField bare className="h-8 w-[88px]" aria-label={`${DAY_NAMES[day]}: from`} value={s.start} onChange={(v) => keepHours(withSpan(shown, day, i, { ...s, start: v }))} />
-                              <span aria-hidden="true" className="text-sm text-ink-3">
-                                →
-                              </span>
-                              <TimeField bare className="h-8 w-[88px]" aria-label={`${DAY_NAMES[day]}: until`} since={s.start} value={s.end} onChange={(v) => keepHours(withSpan(shown, day, i, { ...s, end: v }))} />
-                              {spans.length > 1 ? (
-                                <Button size="icon-sm" variant="ghost" aria-label={`Remove ${DAY_NAMES[day]}'s range`} title="Remove range" onClick={() => keepHours(withoutSpan(shown, day, i))}>
-                                  <X />
-                                </Button>
-                              ) : null}
-                              {i === spans.length - 1 && spans.length < MAX_SPANS ? (
-                                <Button size="icon-sm" variant="ghost" aria-label={`Add a range on ${DAY_NAMES[day]}`} title="Add a range" onClick={() => keepHours(withNewSpan(shown, day))}>
-                                  <Plus />
-                                </Button>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="flex h-8 items-center text-ui-sm text-ink-3">Off</span>
-                      )}
-                    </div>
-                  )
-                })}
-                <div className="flex items-center gap-3 pt-1">
-                  <Button size="sm" variant="ghost" className="-ml-2 text-ink-2" onClick={() => keepHours(copiedToWorkdays(shown, order.find((d) => (shown[String(d)] ?? []).length) ?? 1))}>
-                    Copy {DAY_NAMES[order.find((d) => (shown[String(d)] ?? []).length) ?? 1]}&apos;s hours to every working day
-                  </Button>
-                </div>
+                <WeekHoursEditor week={shown} order={order} onWeek={keepHours} />
                 {problem ? (
                   <p role="alert" className="text-meta text-danger-ink">
                     {problem}

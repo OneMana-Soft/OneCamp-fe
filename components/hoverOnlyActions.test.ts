@@ -23,7 +23,6 @@ const TOUCH = /\[@media\(hover:none\)\]:|\[@media\(hover:hover\)\]:(?:group-hove
 const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
   ["components/task/taskRowParts.tsx", "inline-block shrink-0 rounded-full border border-dashed border-line-3 opacity-0", "an empty assignee's ring, decoration; the panel assigns"],
   ["components/message/continuedGutter.tsx", "absolute right-0 top-0 whitespace-nowrap", "the time of a continued message, also in the row's title and a screen reader's text; a phone shows it in the action sheet (C08)"],
-  ["components/attachments/videoPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/fileUpload/AudioPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/project/timeline/TimelineBar.tsx", "cursor-crosshair", "the drag handle for a dependency, a pointer gesture"],
   ["components/project/ProjectsOverview.tsx", "opacity-0 group-hover/h:opacity-100", "a sort chevron on a column header, which is the button"],

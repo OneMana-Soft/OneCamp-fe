@@ -30,7 +30,8 @@ import { OutlookMark } from "@/components/ui/graphics/OutlookMark"
 import { OutlookOff, OutlookUnloaded } from "@/components/calendar/outlookOff"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
-import { teammateCalendar, useCalendarRows } from "@/lib/calendar/otherCalendars"
+import { teammateCalendar, useCalendarRows, useShownCount } from "@/lib/calendar/otherCalendars"
+import { containerRow, emptyLine } from "@/lib/calendar/containerRow"
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GoogleMark } from "@/components/ui/graphics/GoogleMark"
@@ -76,7 +77,10 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
     // The dialog open over the drawer, if any: the drawer stays mounted under it.
     const [dialog, setDialog] = React.useState<"move" | "share" | "feed" | "subscribe" | "defaults" | "trash" | null>(null)
     const moving = dialog !== null
+    // The calendar the feed dialog shows elsewhere: your own when none.
+    const [feedOf, setFeedOf] = React.useState<{ id: string; name: string } | undefined>(undefined)
     const rows = useCalendarRows()
+    const shown = useShownCount()
     const [adding, setAdding] = React.useState(false)
     const [addError, setAddError] = React.useState("")
     // A finished move brought events and calendars: both are read again, so its calendars are there to pick.
@@ -179,16 +183,41 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
         }
     }
     const others = [...rows.calendars, ...rows.mine.filter((c) => c.kind === "subscribed"), ...rows.people.map((p) => ({ id: p.id, name: p.name, kind: "person", access: "view" as const }))]
-    // A calendar shown or hidden with its switch, the same choice as the panel's.
-    const shownRow = (id: string, name: string, mark: Pick<React.ComponentProps<typeof DrawerItem>, "icon" | "hue" | "leading" | "neutralTile">) => (
-        <DrawerItem
-            key={id}
-            {...mark}
-            label={name}
-            onClick={() => rows.toggle(id)}
-            trailing={<Switch checked={!rows.hidden.includes(id)} onCheckedChange={() => rows.toggle(id)} onClick={(e) => e.stopPropagation()} aria-label={`Show ${name}`} />}
-        />
-    )
+    // A calendar in Google Calendar, Apple Calendar or Outlook: the computer's
+    // Show in another app (calendarsPopover's elsewhere), the same lazy dialog.
+    const elsewhere = (calendar?: { id: string; name: string }) => {
+        void FeedCalendar.warm()
+        setFeedOf(calendar)
+        setDialog("feed")
+    }
+    // A calendar shown or hidden with its switch, the same choice as the panel's;
+    // one that can be shown elsewhere has that beside it, never in the row's button.
+    const shownRow = (id: string, name: string, mark: Pick<React.ComponentProps<typeof DrawerItem>, "icon" | "hue" | "leading" | "neutralTile" | "description">, linkable = false) => {
+        const row = (
+            <DrawerItem
+                key={id}
+                {...mark}
+                label={name}
+                onClick={() => rows.toggle(id)}
+                trailing={<Switch checked={!rows.hidden.includes(id)} onCheckedChange={() => rows.toggle(id)} onClick={(e) => e.stopPropagation()} aria-label={`Show ${name}`} />}
+            />
+        )
+        if (!linkable) return row
+        return (
+            <div key={id} className="flex items-center gap-1">
+                <div className="min-w-0 flex-1">{row}</div>
+                <button
+                    type="button"
+                    data-press="row"
+                    aria-label={`Show ${name} in another app`}
+                    onClick={() => elsewhere({ id, name })}
+                    className="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] text-ink-2 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 [&>svg]:size-[18px]"
+                >
+                    <Link2 aria-hidden="true" />
+                </button>
+            </div>
+        )
+    }
 
     const handleCreateEvent = () => {
         closeDrawer()
@@ -214,7 +243,7 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
         ) : dialog === "share" ? (
             <ShareCalendar.View fallback={null} render={(m) => <m.default onClose={closeDialog} />} />
         ) : dialog === "feed" ? (
-            <FeedCalendar.View fallback={null} render={(m) => <m.default onClose={closeDialog} />} />
+            <FeedCalendar.View fallback={null} render={(m) => <m.default calendar={feedOf} onClose={closeDialog} />} />
         ) : dialog === "defaults" ? (
             <DefaultReminders calendar={MINE} onClose={closeDialog} />
         ) : dialog === "trash" ? (
@@ -245,7 +274,7 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                     <DrawerItem icon={Plus} label="Create event" onClick={handleCreateEvent} />
                     <DrawerItem icon={ArrowUpDown} label="Import and export" onClick={openImportExport} />
                     <DrawerItem icon={Share2} label="Share my calendar" onClick={() => { void ShareCalendar.warm(); setDialog("share") }} />
-                    <DrawerItem icon={Link2} label="Show my calendar in another app" onClick={() => { void FeedCalendar.warm(); setDialog("feed") }} />
+                    <DrawerItem icon={Link2} label="Show my calendar in another app" onClick={() => elsewhere()} />
                     <DrawerItem icon={Bell} label="Default reminders" onClick={() => { void warmDefaultReminders(); setDialog("defaults") }} />
                     <DrawerItem icon={Trash2} label="Trash" onClick={() => { void warmCalendarTrash(); setDialog("trash") }} />
                 </SheetGroup>
@@ -292,7 +321,14 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                     </SheetGroup>
                     <SheetCaption>Other calendars</SheetCaption>
                     <SheetGroup label="Other calendars" data-drawer-other-calendars="">
-                        {others.map((c) => shownRow(c.id, c.name, { icon: CalendarDays, hue: rows.hueOf(c) }))}
+                        {others.map((c) => {
+                            // A project's, a channel's or a team's own (gcal-14): its container's mark, the level, and who it is
+                            // shared with, or, while the shown week has nothing on it, what fills it (as the panel says).
+                            const box = containerRow(c)
+                            const empty = emptyLine(box, shown?.countOf(c.id), shown?.failed)
+                            // Its link, as the computer's row menu offers it; never a calendar read from an address, or a person's.
+                            return shownRow(c.id, c.name, { icon: box?.icon ?? CalendarDays, hue: rows.hueOf(c), description: box ? `${box.level} · ${empty || box.line}` : undefined }, c.kind !== "subscribed" && c.kind !== "person")
+                        })}
                         {adding ? (
                             <div className="grid gap-1 px-3 py-1">
                                 <PeoplePicker value={[]} onChange={(v) => void addTeammate(v)} placeholder="Add a teammate's calendar" showChosen={false} />

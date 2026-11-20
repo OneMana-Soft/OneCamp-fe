@@ -240,7 +240,8 @@ describe("a mention", () => {
       const { unmount } = renderTab(tab)
       const html = screen.getByText("Can you check the rollback steps?").closest("[data-feed-row]")?.outerHTML
       unmount()
-      return html
+      // Actions' menu trigger carries an id React makes per render (radix-…).
+      return html?.replace(/ id="radix-[^"]*"/g, "")
     }
     const inAll = rowIn("all")
     const inMentions = rowIn("mentions")

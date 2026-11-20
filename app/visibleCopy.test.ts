@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs"
-import { join, relative } from "node:path"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 
-import ts from "typescript"
 import { describe, expect, it } from "vitest"
+
+import { EN_MESSAGES, copyFiles, copyTexts, lineOf, messageTexts } from "@/lib/testing/copyStrings"
 
 /**
  * No dashes used as punctuation in anything a person reads.
@@ -20,65 +21,28 @@ import { describe, expect, it } from "vitest"
  */
 
 const ROOT = process.cwd()
-const SOURCE_DIRS = ["app", "components", "hooks", "lib", "services", "store", "context"]
 const DASH = /\u2014|\s--\s/
-
-function sourceFiles(dir: string): string[] {
-  let out: string[] = []
-  let entries
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const e of entries) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) out = out.concat(sourceFiles(p))
-    else if (/\.tsx?$/.test(e.name) && !/\.(test|spec)\.tsx?$/.test(e.name) && !e.name.endsWith(".d.ts")) out.push(p)
-  }
-  return out
-}
 
 /** Dashed copy in one file's strings and JSX text, as "file:line: text". */
 export function dashedCopy(file: string, src: string): string[] {
   if (!DASH.test(src)) return []
-  const kind = file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, kind)
-  const found: string[] = []
-  const visit = (n: ts.Node) => {
-    let text: string | null = null
-    if (ts.isJsxText(n)) text = n.text
-    else if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) text = n.text
-    else if (ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) text = n.text
-    if (text !== null && text.trim() !== "\u2014" && DASH.test(text)) {
-      const line = sf.getLineAndCharacterOfPosition(n.getStart()).line + 1
-      found.push(`${relative(ROOT, file)}:${line}: ${text.trim().slice(0, 100)}`)
-    }
-    ts.forEachChild(n, visit)
-  }
-  visit(sf)
-  return found
+  return copyTexts(file, src)
+    .filter(({ text }) => text.trim() !== "\u2014" && DASH.test(text))
+    .map((t) => `${lineOf(t)}: ${t.text.trim().slice(0, 100)}`)
 }
 
-function dashedMessages(value: unknown, path: string): string[] {
-  if (typeof value === "string") return DASH.test(value) ? [`${path}: ${value.slice(0, 100)}`] : []
-  if (value && typeof value === "object") {
-    return Object.entries(value).flatMap(([k, v]) => dashedMessages(v, path ? `${path}.${k}` : k))
-  }
-  return []
-}
+const dashedMessages = (value: unknown): string[] =>
+  messageTexts(value).flatMap(({ path, text }) => (DASH.test(text) ? [`${path}: ${text.slice(0, 100)}`] : []))
 
 describe("visible copy", () => {
   it("uses no em dash or spaced double hyphen as punctuation", () => {
-    const found = SOURCE_DIRS.flatMap((d) => sourceFiles(join(ROOT, d))).flatMap((f) =>
-      dashedCopy(f, readFileSync(f, "utf8")),
-    )
+    const found = copyFiles().flatMap((f) => dashedCopy(f, readFileSync(f, "utf8")))
     expect(found).toEqual([])
   })
 
   it("keeps the English messages free of them too", () => {
-    const en = JSON.parse(readFileSync(join(ROOT, "lib/utils/i18n/locales/en/en.json"), "utf8"))
-    expect(dashedMessages(en, "")).toEqual([])
+    const en = JSON.parse(readFileSync(join(ROOT, EN_MESSAGES), "utf8"))
+    expect(dashedMessages(en)).toEqual([])
   })
 
   it("reads strings and JSX text, not comments, and allows a lone dash for an empty value", () => {

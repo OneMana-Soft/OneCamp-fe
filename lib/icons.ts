@@ -20,8 +20,7 @@
 // Navigation
 // Chat, design v3 (11 Oct 2026): the huddle, the bridge relay's arrows, a
 // reply's connector, Record's stop, and the archive and remind actions.
-export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, Cpu, Hand } from "lucide-react";
-export { ArrowLeftRight, Columns2 } from "lucide-react";
+export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, Cpu, Hand, ArrowLeftRight, Columns2, FlagOff } from "lucide-react";
 // Docs: the four-column row in "/" (B1).
 export { Columns4, Compass } from "lucide-react";
 // A project's timeline tab, and its Unscheduled list.

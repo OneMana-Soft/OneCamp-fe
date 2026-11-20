@@ -419,6 +419,11 @@ export function workFixtures() {
     // missing decisions (the panel's "This panel hit a problem", whenever the
     // read landed before the title drew: taskPanel's 2 of 5 on 5 Nov).
     [/\/task\/(time|recurrence|cycle|clientReview|approval|milestone)\/[^/]+$/, ok(null)],
+    // A task's Release field: the server always sends both lists, [] when its
+    // project has none (business/Release ForTask). The catch-all's {} read as
+    // a field, and TaskReleaseField threw on its missing options ("Something
+    // broke on this page" on the lab's task page and panel, 18 Nov).
+    [/\/task\/release\/[^/]+$/, ok({ releases: [], options: [], can_edit: true, can_change_released: false })],
     [/\/project\/[^/]+\/fields$/, ok({ fields: [], can_edit: true })],
     // No task templates: the server always names its list, [] when none
     // (controllers/TaskTemplate list). The catch-all's {} had no templates,

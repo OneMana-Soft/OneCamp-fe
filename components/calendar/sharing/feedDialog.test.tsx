@@ -12,6 +12,8 @@ vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 const answers = vi.hoisted(() => ({
   calendars: { data: { data: [{ id: "cal-me", kind: "personal", name: "Personal", access: "manage", mine: true }] } },
   feed: { data: undefined as unknown, isError: undefined as unknown },
+  // A read of its own for one link's address (basecamp-05: the workspace's beside your calendar's).
+  byUrl: {} as Record<string, unknown>,
   mutate: vi.fn(),
 }))
 vi.mock("@/hooks/useFetch", () => ({
@@ -19,11 +21,13 @@ vi.mock("@/hooks/useFetch", () => ({
     url === "/calendar/calendars"
       ? answers.calendars
       : url.endsWith("/feed")
-        ? { data: answers.feed.data, isError: answers.feed.isError, mutate: answers.mutate }
+        ? { data: answers.byUrl[url] ?? answers.feed.data, isError: answers.feed.isError, mutate: answers.mutate }
         : { data: undefined, mutate: answers.mutate },
 }))
 
 import FeedDialog from "./feedDialog"
+/** The server's words when the workspace has turned links off (business/Calendar/feeds.go, business/Cycle/feed.go). */
+const LINKS_OFF = "Your workspace has turned off links to calendars."
 import { pinTestClock } from "@/lib/testing/testClock"
 
 // Today is TEST_TODAY wherever the code under test reads the time.
@@ -35,6 +39,8 @@ afterEach(() => {
   del.mockReset()
   answers.mutate.mockReset()
   confirm.mockReset()
+  answers.byUrl = {}
+  answers.calendars = { data: { data: [{ id: "cal-me", kind: "personal", name: "Personal", access: "manage", mine: true }] } }
 })
 
 const feed = (f: Record<string, unknown>) => {
@@ -69,7 +75,12 @@ describe("showing a calendar in another app", () => {
     fireEvent.focus(link)
     expect([link.selectionStart, link.selectionEnd]).toEqual([0, link.value.length])
     expect(screen.getByText(/only time it's shown/)).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy()
+    // A secret, not a page to pass on (CR-326 F5): it says so beside the field, and
+    // Copy carries a key, never the share chain.
+    expect(screen.getByText("Keep it to yourself.")).toBeTruthy()
+    const copy = screen.getByRole("button", { name: "Copy" })
+    expect(copy.querySelector("svg.lucide-key")).toBeTruthy()
+    expect(copy.querySelector("svg.lucide-link")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
     expect(closed).toHaveBeenCalled()
   })
@@ -121,11 +132,151 @@ describe("showing a calendar in another app", () => {
     expect(put).not.toHaveBeenCalled()
   })
 
-  it("says why when the workspace has turned links off", async () => {
-    feed({ live: false, most: "full" })
-    put.mockRejectedValue({ response: { status: 400, data: { msg: "Your workspace has turned off links to calendars." } } })
+  // basecamp-05: an admin turned every link off (calendar.feeds.allowed). Every read of a link says so
+  // (links_allowed), so the dialog offers nothing to make or copy before anything is pressed.
+  it("with links off for the workspace, says so plainly before anything is pressed, and offers no link to make or copy, nor the link to everything", () => {
+    feed({ live: true, scope: "full", most: "full", created_at: "2026-10-18T09:00:00Z", links_allowed: false })
+    render(<FeedDialog onClose={() => {}} />)
+    expect(screen.getByText(/Links to other apps are off for this workspace/)).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Make a/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull()
+    expect(screen.queryByRole("radio", { name: "Everything you can see" })).toBeNull()
+    expect(screen.queryByRole("radio", { name: "When it's busy" })).toBeNull()
+    expect(screen.queryByText(/You have a link/)).toBeNull()
+    // The live one can still be stopped, and Done closes.
+    expect(screen.getByRole("button", { name: "Stop the link" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it("says so for any calendar it shows, not only your own", () => {
+    feed({ live: false, most: "busy", links_allowed: false })
+    render(<FeedDialog calendar={{ id: "cal-jonas", name: "Jonas" }} onClose={() => {}} />)
+    expect(screen.getByText(/Links to other apps are off for this workspace/)).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Make a/ })).toBeNull()
+  })
+
+  it("with links allowed, offers the link as ever", () => {
+    feed({ live: false, most: "full", links_allowed: true })
+    render(<FeedDialog onClose={() => {}} />)
+    expect(screen.queryByText(/off for this workspace/)).toBeNull()
+    expect(screen.getByText("No link yet.")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Everything you can see" })).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Make a link" }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  // An admin may turn links off while the dialog is open: the make is refused (400), and the link's read,
+  // read again, says so. Only the read says links are off: never the refusal's words.
+  it("when links are turned off while it is open, a refused link reads the link again and says so, whatever the refusal's words", async () => {
+    feed({ live: false, most: "full", links_allowed: true })
+    put.mockRejectedValue({ isAxiosError: true, response: { status: 400, data: { msg: "Bad request" } } })
+    answers.mutate.mockImplementation(async () => {
+      feed({ live: false, most: "full", links_allowed: false })
+      return { data: { live: false, most: "full", links_allowed: false } }
+    })
     render(<FeedDialog onClose={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: "Make a link" }))
-    expect((await screen.findByRole("alert")).textContent).toMatch(/turned off links|couldn't be made/)
+    expect(await screen.findByText(/Links to other apps are off for this workspace/)).toBeTruthy()
+    expect(answers.mutate).toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: /Make a/ })).toBeNull()
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("never takes a refusal's words for links being off: the read still allowing them, it shows the words and Make a link", async () => {
+    feed({ live: false, most: "full", links_allowed: true })
+    put.mockRejectedValue({ isAxiosError: true, response: { status: 400, data: { msg: LINKS_OFF } } })
+    answers.mutate.mockResolvedValue({ data: { live: false, most: "full", links_allowed: true } })
+    render(<FeedDialog onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Make a link" }))
+    expect((await screen.findByRole("alert")).textContent).toBe(LINKS_OFF)
+    expect(screen.getByRole("button", { name: "Make a link" })).toBeTruthy()
+    expect(screen.queryByText(/off for this workspace/)).toBeNull()
+  })
+
+  it("tells a refused choice apart from links being off", async () => {
+    feed({ live: false, most: "full", links_allowed: true })
+    put.mockRejectedValue({ isAxiosError: true, response: { status: 400, data: { msg: "Choose when you're busy, or everything." } } })
+    answers.mutate.mockResolvedValue({ data: { live: false, most: "full", links_allowed: true } })
+    render(<FeedDialog onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Make a link" }))
+    expect((await screen.findByRole("alert")).textContent).toBe("Choose when you're busy, or everything.")
+    expect(screen.getByRole("button", { name: "Make a link" })).toBeTruthy()
+    expect(screen.queryByText(/off for this workspace/)).toBeNull()
+  })
+})
+
+// basecamp-05: one link to everything you can see, beside your calendar's; and
+// a link a workspace admin stopped says who stopped it and when.
+describe("a link to everything you can see", () => {
+  const WORKSPACE = "/calendar/calendars/workspace/feed"
+
+  it("makes, copies once and stops the link to everything through the same dialog as your calendar's", async () => {
+    feed({ live: false, most: "full" })
+    answers.byUrl[WORKSPACE] = { data: { live: true, scope: "busy", created_at: "2026-10-02T09:00:00Z", most: "full" } }
+    render(<FeedDialog onClose={() => {}} />)
+    // Your calendar's link first, as before.
+    expect(screen.getByText("No link yet.")).toBeTruthy()
+    fireEvent.click(screen.getByRole("radio", { name: "Everything you can see" }))
+    expect(screen.getByRole("heading", { name: "Show everything you can see in another app" })).toBeTruthy()
+    expect(screen.getByText(/You have a link from 2 Oct, showing when it's busy/)).toBeTruthy()
+    put.mockResolvedValue({ data: { data: { live: true, url: "https://api.example/public/calendar/t.ics", scope: "full", most: "full" } } })
+    fireEvent.click(screen.getByRole("radio", { name: "Everything" }))
+    fireEvent.click(screen.getByRole("button", { name: "Make a new link" }))
+    // A new link stops the one apps read now, so it asks first: the same confirm as your calendar's.
+    expect(put).not.toHaveBeenCalled()
+    await (confirm.mock.lastCall?.[0] as { onConfirm: () => Promise<void> }).onConfirm()
+    expect(put).toHaveBeenCalledWith(WORKSPACE, { scope: "full" }, OWN_ERRORS)
+    expect(((await screen.findByRole("textbox", { name: "The link to everything you can see" })) as HTMLInputElement).value).toBe("https://api.example/public/calendar/t.ics")
+  })
+
+  it("stops the link to everything", async () => {
+    answers.byUrl[WORKSPACE] = { data: { live: true, scope: "full", most: "full" } }
+    render(<FeedDialog onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("radio", { name: "Everything you can see" }))
+    del.mockResolvedValue({})
+    fireEvent.click(screen.getByRole("button", { name: "Stop the link" }))
+    await waitFor(() => expect(del).toHaveBeenCalledWith(WORKSPACE, OWN_ERRORS))
+    expect(await screen.findByText("No link yet.")).toBeTruthy()
+  })
+
+  it("offers only when it's busy when that's the most it may show", () => {
+    answers.byUrl[WORKSPACE] = { data: { live: false, most: "busy" } }
+    render(<FeedDialog onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("radio", { name: "Everything you can see" }))
+    expect((screen.getByRole("radio", { name: "Everything" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it("isn't offered to a session with no calendar of its own (a guest's or a bot's), nor beside a calendar named", () => {
+    answers.calendars = { data: { data: [] } }
+    render(<FeedDialog onClose={() => {}} />)
+    expect(screen.queryByRole("radio", { name: "Everything you can see" })).toBeNull()
+    cleanup()
+    answers.calendars = { data: { data: [{ id: "cal-me", kind: "personal", name: "Personal", access: "manage", mine: true }] } }
+    render(<FeedDialog calendar={{ id: "cal-jonas", name: "Jonas" }} onClose={() => {}} />)
+    expect(screen.queryByRole("radio", { name: "Everything you can see" })).toBeNull()
+  })
+
+  it("says so for the link to everything, before anything is pressed", () => {
+    answers.byUrl[WORKSPACE] = { data: { live: false, most: "full", links_allowed: false } }
+    render(<FeedDialog onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("radio", { name: "Everything you can see" }))
+    expect(screen.getByText(/Links to other apps are off for this workspace/)).toBeTruthy()
+    expect(screen.queryByRole("radio", { name: "Your calendar" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Make a link" })).toBeNull()
+    expect(screen.queryByRole("alert")).toBeNull()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it("says who stopped a link and when, with a way to make a new one", () => {
+    feed({
+      live: false,
+      most: "full",
+      stopped_by: { user_uuid: "u-asha", user_name: "Asha Rao", user_full_name: "Asha Rao", user_profile_object_key: "" },
+      stopped_at: "2026-10-12T10:00:00Z",
+    })
+    render(<FeedDialog calendar={{ id: "cal-jonas", name: "Jonas" }} onClose={() => {}} />)
+    expect(screen.getByText("Asha Rao stopped this link on 12 Oct.", { exact: false })).toBeTruthy()
+    expect(screen.queryByText("No link yet.")).toBeNull()
+    expect(screen.getByRole("button", { name: "Make a link" })).toBeTruthy()
   })
 })

@@ -1,8 +1,15 @@
 import { useCallback, type ForwardedRef } from "react"
 
 // Marks a float's positioner and the page while it is up, for its sheet on a
-// phone (app/overlay.css 8): a :has() tried every element for them.
-let up = 0
+// phone (app/overlay.css 8): a :has() tried every element for them. It says
+// "closing" once every float up has begun to leave (app/phone.css C9).
+const floats = new Set<HTMLElement>()
+
+function mark() {
+  const html = document.documentElement
+  if (!floats.size) html.removeAttribute("data-float")
+  else html.setAttribute("data-float", [...floats].some((n) => n.dataset.state !== "closed") ? "open" : "closing")
+}
 
 // Animating these makes a box a fixed float's containing block.
 const HOLDS = ["transform", "translate", "scale", "rotate", "filter", "perspective"]
@@ -21,16 +28,20 @@ export function useFloatRef<T extends HTMLElement>(ref: ForwardedRef<T>) {
   return useCallback(
     (node: T | null) => {
       const set = (n: T | null) => (typeof ref === "function" ? ref(n) : ref && (ref.current = n))
-      const html = document.documentElement
       set(node)
       if (!node) return
       node.parentElement?.setAttribute("data-overlay-wrapper", "")
       // Finish a box's grow-in before the float is placed in it (e2e/newTaskTemplate).
       for (const a of holdingAnimationsAbove(node)) a.finish()
-      if (!up++) html.setAttribute("data-float", "")
+      floats.add(node)
+      mark()
+      const leaving = new MutationObserver(mark)
+      leaving.observe(node, { attributeFilter: ["data-state"] })
       return () => {
         set(null)
-        if (!--up) html.removeAttribute("data-float")
+        leaving.disconnect()
+        floats.delete(node)
+        mark()
       }
     },
     [ref],

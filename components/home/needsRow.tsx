@@ -50,11 +50,12 @@ function Quote({ text }: { text: string }) {
 /** The row's second line: what it's about, by kind. */
 export function NeedsSecond({ item }: { item: NeedsItem }): ReactNode {
   if (item.kind === "agent") {
+    // One line: the place cuts, "acts for you" never breaks (V-939).
     return (
-      <span className="inline-flex items-center gap-1.5">
-        {item.context ? <span>{item.context}</span> : null}
+      <span className="inline-flex max-w-full items-center gap-1.5 whitespace-nowrap">
+        {item.context ? <span className="min-w-0 truncate">{item.context}</span> : null}
         {item.context ? <span className="text-ink-4">·</span> : null}
-        <Shield className="size-3 text-agent" aria-hidden />
+        <Shield className="size-3 shrink-0 text-agent" aria-hidden />
         acts for you
       </span>
     )

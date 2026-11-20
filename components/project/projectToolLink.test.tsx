@@ -6,6 +6,10 @@ import { cleanup, render, screen } from "@testing-library/react"
 
 let search = ""
 const replace = vi.fn()
+// The project's SLA settings read (linear-24 W2) is not what these tests are about: no SLA entry.
+// The project's tools hand the house confirm to their dialogs (hooks/useConfirm dispatches it to the app's UI manager).
+vi.mock("react-redux", () => ({ useDispatch: () => () => undefined, useSelector: () => undefined }))
+vi.mock("@/hooks/useSlaView", () => ({ useSlaView: () => ({ shows: false, read: false, refused: true }) }))
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
   useRouter: () => ({ replace }),
