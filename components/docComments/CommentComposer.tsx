@@ -203,6 +203,7 @@ export function CommentComposer({ docId, placeholder, label, onSend, onCancel, a
                     ) : (
                         waitForUse ? (
                             // At rest, the box is an editable line by its name: a focus or a tap asks for the editor.
+                            // Under a finger it writes 16px, as the editor does, so iOS doesn't zoom in on the tap.
                             <div
                                 {...attributesFor(label)}
                                 ref={restingLine}
@@ -211,7 +212,7 @@ export function CommentComposer({ docId, placeholder, label, onSend, onCancel, a
                                 data-placeholder={placeholder}
                                 onFocus={ask}
                                 onPointerDown={ask}
-                                className="h-6 overflow-hidden whitespace-nowrap text-body text-ink empty:before:text-ink-3 empty:before:content-[attr(data-placeholder)]"
+                                className="h-6 overflow-hidden whitespace-nowrap text-body text-ink empty:before:text-ink-3 empty:before:content-[attr(data-placeholder)] pointer-coarse:text-base"
                             />
                         ) : (
                             <div aria-hidden="true" className="h-6 text-body text-ink-3">{placeholder}</div>
